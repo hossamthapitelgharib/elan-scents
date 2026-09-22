@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>تصفح العطور | Élan Scents</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Cairo:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config={theme:{extend:{colors:{elan:{gold:'#C9A227',ivory:'#FBF8F3',cream:'#F7F1E8',soft:'#F0E9DF',charcoal:'#2C2A26',muted:'#6B6560',softblack:'#1A1816'}},fontFamily:{display:['Playfair Display','serif'],sans:['Cairo','sans-serif']}}}}</script>
+  <link rel="stylesheet" href="../assets/css/elan.css">
+</head>
+<body class="bg-elan-ivory text-elan-charcoal antialiased">
+  <header class="sticky top-0 z-50 glass border-b border-elan-soft/60">
+    <div class="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+      <a href="../index.html" class="p-2 rounded-full hover:bg-elan-soft"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 19l-7-7 7-7"/></svg></a>
+      <a href="../index.html" class="font-display text-xl"><span class="text-elan-gold font-semibold">Élan</span> Scents</a>
+      <button data-open-cart class="p-2 relative"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg><span data-cart-badge class="absolute -top-0.5 -left-0.5 bg-elan-gold text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center hidden">0</span></button>
+    </div>
+  </header>
+
+  <div class="max-w-7xl mx-auto px-4 py-4 text-xs text-elan-muted">
+    <a href="../index.html" class="hover:text-elan-gold">الرئيسية</a> / <span class="text-elan-charcoal">تصفح العطور</span>
+  </div>
+
+  <main class="max-w-7xl mx-auto px-4 pb-20">
+    <h1 class="font-display text-2xl sm:text-3xl mb-6">تصفح العطور</h1>
+    <div class="flex flex-col lg:flex-row gap-8">
+      <!-- Filters -->
+      <aside class="lg:w-64 flex-shrink-0 space-y-6">
+        <div class="bg-white rounded-2xl p-5 border border-elan-soft/60 shadow-soft">
+          <h3 class="font-medium text-sm mb-3">الفئة</h3>
+          <div class="space-y-2 text-sm">
+            <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" class="filter-cat accent-elan-gold" value="men"> رجالي</label>
+            <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" class="filter-cat accent-elan-gold" value="women"> نسائي</label>
+            <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" class="filter-cat accent-elan-gold" value="unisex"> يونيسكس</label>
+          </div>
+        </div>
+        <div class="bg-white rounded-2xl p-5 border border-elan-soft/60 shadow-soft">
+          <h3 class="font-medium text-sm mb-3">المناسبة</h3>
+          <div class="space-y-2 text-sm">
+            <label class="flex items-center gap-2"><input type="checkbox" class="filter-occ accent-elan-gold" value="daily"> يومي</label>
+            <label class="flex items-center gap-2"><input type="checkbox" class="filter-occ accent-elan-gold" value="evening"> مسائي</label>
+            <label class="flex items-center gap-2"><input type="checkbox" class="filter-occ accent-elan-gold" value="summer"> صيفي</label>
+            <label class="flex items-center gap-2"><input type="checkbox" class="filter-occ accent-elan-gold" value="winter"> شتوي</label>
+          </div>
+        </div>
+        <div class="bg-white rounded-2xl p-5 border border-elan-soft/60 shadow-soft">
+          <h3 class="font-medium text-sm mb-3">السعر (ج.م)</h3>
+          <div class="flex gap-2 items-center text-sm">
+            <input id="minPrice" type="number" placeholder="من" class="w-full px-3 py-2 rounded-lg border border-elan-soft bg-elan-ivory text-sm">
+            <span>—</span>
+            <input id="maxPrice" type="number" placeholder="إلى" class="w-full px-3 py-2 rounded-lg border border-elan-soft bg-elan-ivory text-sm">
+          </div>
+        </div>
+        <div class="bg-white rounded-2xl p-5 border border-elan-soft/60 shadow-soft">
+          <h3 class="font-medium text-sm mb-3">البراند</h3>
+          <div id="brandFilters" class="space-y-2 text-sm max-h-48 overflow-y-auto"></div>
+        </div>
+        <div class="bg-white rounded-2xl p-5 border border-elan-soft/60 shadow-soft">
+          <h3 class="font-medium text-sm mb-3">المتجر</h3>
+          <div id="storeFilters" class="space-y-2 text-sm"></div>
+        </div>
+        <button id="applyFilters" class="w-full py-3 bg-elan-charcoal text-white rounded-full text-sm">تطبيق الفلاتر</button>
+        <button id="resetFilters" class="w-full py-2 text-sm text-elan-muted hover:text-elan-gold">إعادة تعيين</button>
+      </aside>
+
+      <div class="flex-1">
+        <div class="flex items-center justify-between mb-4">
+          <p class="text-sm text-elan-muted"><span id="resultCount">0</span> نتيجة</p>
+          <select id="sortBy" class="text-sm px-3 py-2 rounded-lg border border-elan-soft bg-white">
+            <option value="price-asc">السعر: الأقل أولاً</option>
+            <option value="price-desc">السعر: الأعلى أولاً</option>
+            <option value="name">الاسم</option>
+          </select>
+        </div>
+        <div id="grid" class="grid grid-cols-2 md:grid-cols-3 gap-4"></div>
+        <div id="empty" class="hidden text-center py-16 text-elan-muted text-sm">لا توجد نتائج مطابقة</div>
+      </div>
+    </div>
+  </main>
+
+  <div id="cartOverlay" class="fixed inset-0 bg-black/30 z-50 hidden"></div>
+  <div id="cartDrawer" class="cart-drawer fixed top-0 right-0 z-50 w-full max-w-md h-full bg-elan-ivory flex flex-col shadow-elevated" style="transform:translateX(100%);transition:transform .35s ease">
+    <div class="flex items-center justify-between p-5 border-b border-elan-soft"><h3 class="font-display text-xl">السلة</h3><button id="closeCartBtn" class="p-2">✕</button></div>
+    <div id="cartItems" class="flex-1 overflow-y-auto px-5"></div>
+    <div class="p-5 border-t"><div class="flex justify-between mb-4"><span class="text-sm text-elan-muted">الإجمالي</span><span id="cartTotal" class="font-semibold">0 ج.م</span></div><a href="checkout.html" class="block text-center py-3 bg-elan-charcoal text-white rounded-full text-sm">إتمام الشراء</a></div>
+  </div>
+
+  <script src="../assets/js/elan-data.js"></script>
+  <script src="../assets/js/elan-core.js"></script>
+  <script>
+  (async () => {
+    await ElanData.load();
+    const all = ElanData.getAllAvailableProducts();
+    const brands = ElanData.raw.brands;
+    const stores = ElanData.raw.stores.filter(s => s.is_active);
+
+    document.getElementById('brandFilters').innerHTML = brands.map(b =>
+      `<label class="flex items-center gap-2"><input type="checkbox" class="filter-brand accent-elan-gold" value="${b.id}"> ${b.name_ar}</label>`
+    ).join('');
+    document.getElementById('storeFilters').innerHTML = stores.map(s =>
+      `<label class="flex items-center gap-2"><input type="checkbox" class="filter-store accent-elan-gold" value="${s.id}"> ${s.name_ar}</label>`
+    ).join('');
+
+    function render(list) {
+      document.getElementById('resultCount').textContent = list.length;
+      const grid = document.getElementById('grid');
+      const empty = document.getElementById('empty');
+      if (!list.length) { grid.innerHTML = ''; empty.classList.remove('hidden'); return; }
+      empty.classList.add('hidden');
+      grid.innerHTML = list.map(p => `
+        <a href="product.html?id=${p.id}" class="perfume-card rounded-2xl overflow-hidden border border-elan-soft/50 shadow-soft bg-white">
+          <div class="aspect-[4/5] bg-elan-cream overflow-hidden"><img src="${p.image}" class="w-full h-full object-cover" alt=""></div>
+          <div class="p-3">
+            <p class="text-[11px] text-elan-gold">${p.brand?.name_en || ''}</p>
+            <h3 class="text-sm font-medium line-clamp-2">${p.name_ar}</h3>
+            <p class="text-[11px] text-elan-muted mt-1">${p.offer.store?.name_ar || ''}</p>
+            <p class="text-sm font-semibold mt-1">${p.offer.price.toLocaleString()} ج.م</p>
+          </div>
+        </a>
+      `).join('');
+    }
+
+    function apply() {
+      const cats = [...document.querySelectorAll('.filter-cat:checked')].map(i => i.value);
+      const occs = [...document.querySelectorAll('.filter-occ:checked')].map(i => i.value);
+      const brandIds = [...document.querySelectorAll('.filter-brand:checked')].map(i => i.value);
+      const storeIds = [...document.querySelectorAll('.filter-store:checked')].map(i => i.value);
+      const minP = Number(document.getElementById('minPrice').value) || 0;
+      const maxP = Number(document.getElementById('maxPrice').value) || Infinity;
+      let list = all.filter(p => {
+        if (cats.length && !cats.includes(p.category)) return false;
+        if (occs.length && !(p.occasions || []).some(o => occs.includes(o))) return false;
+        if (brandIds.length && !brandIds.includes(p.brand_id)) return false;
+        if (storeIds.length && !storeIds.includes(p.offer.store_id)) return false;
+        if (p.offer.price < minP || p.offer.price > maxP) return false;
+        return true;
+      });
+      const sort = document.getElementById('sortBy').value;
+      if (sort === 'price-asc') list.sort((a,b) => a.offer.price - b.offer.price);
+      if (sort === 'price-desc') list.sort((a,b) => b.offer.price - a.offer.price);
+      if (sort === 'name') list.sort((a,b) => a.name_ar.localeCompare(b.name_ar, 'ar'));
+      render(list);
+    }
+
+    document.getElementById('applyFilters').onclick = apply;
+    document.getElementById('sortBy').onchange = apply;
+    document.getElementById('resetFilters').onclick = () => {
+      document.querySelectorAll('input[type=checkbox]').forEach(c => c.checked = false);
+      document.getElementById('minPrice').value = '';
+      document.getElementById('maxPrice').value = '';
+      apply();
+    };
+    // URL params: ?category=men&occasion=daily
+    const params = new URLSearchParams(location.search);
+    const cat = params.get('category');
+    const occ = params.get('occasion');
+    if (cat) {
+      const el = document.querySelector('.filter-cat[value="'+cat+'"]');
+      if (el) el.checked = true;
+    }
+    if (occ) {
+      const el = document.querySelector('.filter-occ[value="'+occ+'"]');
+      if (el) el.checked = true;
+    }
+    apply();
+  })();
+  </script>
+  <style>.cart-drawer.open{transform:translateX(0)!important}</style>
+</body>
+</html>

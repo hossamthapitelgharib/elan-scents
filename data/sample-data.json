@@ -1,0 +1,1541 @@
+{
+  "meta": {
+    "platform": "Élan Scents",
+    "version": "1.3.0-verified-public-only",
+    "temporary_catalogs": true,
+    "data_policy": "Only products with public storefront evidence. Not an official partner feed. Purge on real sync.",
+    "purge_policy": "Delete all is_temporary_catalog=true when official API/CSV is connected",
+    "sources": {
+      "s2": {
+        "name": "Emarati Scents",
+        "count": 39,
+        "status": "temporary_public_verified"
+      },
+      "s1": {
+        "name": "Afnan Egypt",
+        "count": 10,
+        "status": "temporary_public_verified"
+      }
+    },
+    "service_region": "EG",
+    "service_region_name": "Egypt only",
+    "international_shipping": false,
+    "geo_policy": "Platform operates exclusively within the Arab Republic of Egypt. No cross-border sales or shipping.",
+    "allowed_brands_only": [
+      "b4",
+      "b7",
+      "b3",
+      "b1",
+      "b2",
+      "b6",
+      "b8",
+      "b9",
+      "b5"
+    ],
+    "note": "Only original prompt brands (Amouage, Armaf, Afnan, Asaf, Rasasi, French Avenue, Arabiyat, Lattafa, Maison Alhambra). Other store brands excluded from platform display."
+  },
+  "brands": [
+    {
+      "id": "b1",
+      "slug": "amouage",
+      "name_en": "Amouage",
+      "name_ar": "أمواج",
+      "logo_text": "A",
+      "is_active": true,
+      "logo_url": "assets/img/brands/amouage.webp",
+      "logo_source": "emaratiscents.com/collections",
+      "logo_url_remote": "https://emaratiscents.com/cdn/shop/collections/C0rbQ0bn8QOPTTf4qh2T9ZcyImTwqabhsHfCMeVO.webp?v=1769343624&width=400"
+    },
+    {
+      "id": "b2",
+      "slug": "armaf",
+      "name_en": "Armaf",
+      "name_ar": "أرماف",
+      "logo_text": "AR",
+      "is_active": true,
+      "logo_url": "assets/img/brands/armaf.jpg",
+      "logo_source": "emaratiscents.com/collections",
+      "logo_url_remote": "https://emaratiscents.com/cdn/shop/collections/WhatsApp_Image_2025-07-17_at_2.44.33_PM.jpg?v=1752753771&width=400"
+    },
+    {
+      "id": "b3",
+      "slug": "afnan",
+      "name_en": "Afnan",
+      "name_ar": "أفنان",
+      "logo_text": "AF",
+      "is_active": true,
+      "logo_url": "assets/img/brands/afnan.png",
+      "logo_source": "emaratiscents.com/collections",
+      "logo_url_remote": "https://emaratiscents.com/cdn/shop/collections/ede6dfbd-df7a-43fe-a708-8e666c0ad5d6_removalai_preview.png?v=1742783430&width=400"
+    },
+    {
+      "id": "b4",
+      "slug": "asaf",
+      "name_en": "Asaf",
+      "name_ar": "عساف",
+      "logo_text": "AS",
+      "is_active": true,
+      "logo_url": "assets/img/brands/asaf.png",
+      "logo_source": "emaratiscents.com/collections",
+      "logo_url_remote": "https://emaratiscents.com/cdn/shop/collections/5cbe3baf-8cfd-40e1-b25f-8584ab864710_removalai_preview.png?v=1742783378&width=400"
+    },
+    {
+      "id": "b5",
+      "slug": "rasasi",
+      "name_en": "Rasasi",
+      "name_ar": "رصاصي",
+      "logo_text": "R",
+      "is_active": true,
+      "logo_url": "assets/img/brands/rasasi.webp",
+      "logo_source": "emaratiscents.com/collections",
+      "logo_url_remote": "https://emaratiscents.com/cdn/shop/collections/Rasasi_Logo.webp?v=1742783441&width=400"
+    },
+    {
+      "id": "b6",
+      "slug": "french-avenue",
+      "name_en": "French Avenue",
+      "name_ar": "فرينش أفينيو",
+      "logo_text": "FA",
+      "is_active": true,
+      "logo_url": "assets/img/brands/french-avenue.jpg",
+      "logo_source": "emaratiscents.com/collections",
+      "logo_url_remote": "https://emaratiscents.com/cdn/shop/collections/FRENCH_AVENUE.jpg?v=1773746827&width=400"
+    },
+    {
+      "id": "b7",
+      "slug": "arabiyat",
+      "name_en": "Arabiyat",
+      "name_ar": "عربيات",
+      "logo_text": "AR",
+      "is_active": true,
+      "logo_url": "assets/img/brands/arabiyat.jpg",
+      "logo_source": "emaratiscents.com/collections",
+      "logo_url_remote": "https://emaratiscents.com/cdn/shop/collections/WhatsApp_Image_2026-01-19_at_8.21.22_PM.jpg?v=1768847601&width=400"
+    },
+    {
+      "id": "b8",
+      "slug": "lattafa",
+      "name_en": "Lattafa",
+      "name_ar": "لطافة",
+      "logo_text": "L",
+      "is_active": true,
+      "logo_url": "assets/img/brands/lattafa.png",
+      "logo_source": "emaratiscents.com/collections",
+      "logo_url_remote": "https://emaratiscents.com/cdn/shop/collections/lattafa-logo-final-2.png?v=1742783338&width=400"
+    },
+    {
+      "id": "b9",
+      "slug": "maison-alhambra",
+      "name_en": "Maison Alhambra",
+      "name_ar": "ميزون الهمبرا",
+      "logo_text": "MA",
+      "is_active": true,
+      "logo_url": "assets/img/brands/maison-alhambra.png",
+      "logo_source": "emaratiscents.com/collections",
+      "logo_url_remote": "https://emaratiscents.com/cdn/shop/files/maison_alhambra.png?v=1750244131&width=400"
+    }
+  ],
+  "stores": [
+    {
+      "id": "s1",
+      "slug": "afnan-egypt",
+      "name_en": "Afnan Egypt",
+      "name_ar": "أفنان مصر",
+      "description_ar": "المتجر الرسمي لأفنان في مصر",
+      "commission_rate": 12,
+      "is_active": true,
+      "is_elan_boutique": false
+    },
+    {
+      "id": "s2",
+      "slug": "emarati-scents",
+      "name_en": "Emarati Scents",
+      "name_ar": "إماراتي سينتس",
+      "description_ar": "متجر متخصص في العطور العربية الأصلية — الشريك الأول",
+      "commission_rate": 10,
+      "is_active": true,
+      "is_elan_boutique": false
+    },
+    {
+      "id": "s3",
+      "slug": "elan-boutique",
+      "name_en": "Élan Boutique",
+      "name_ar": "إيلان بوتيك",
+      "description_ar": "متجر المنصة — قريباً",
+      "commission_rate": 0,
+      "is_active": false,
+      "is_elan_boutique": true
+    }
+  ],
+  "products": [
+    {
+      "id": "p-es-001",
+      "slug": "p-es-001",
+      "name_en": "Hawas Ice",
+      "name_ar": "هوس آيس",
+      "brand_id": "b5",
+      "category": "men",
+      "size_ml": 100,
+      "short_description_ar": "نسخة أبرد وأنعش من هوس — منعش صيفي",
+      "occasions": [
+        "summer",
+        "daily"
+      ],
+      "image": "https://emaratiscents.com/cdn/shop/files/HAWASICE.jpg?v=1742804439&width=700",
+      "is_elan_pick": true,
+      "is_temporary_catalog": true,
+      "temporary_source": "emarati-scents",
+      "data_quality": "public_storefront_verified",
+      "image_source": "emaratiscents.com"
+    },
+    {
+      "id": "p-es-002",
+      "slug": "p-es-002",
+      "name_en": "Hawas",
+      "name_ar": "هوس",
+      "brand_id": "b5",
+      "category": "men",
+      "size_ml": 100,
+      "short_description_ar": "الكلاسيكي المنعش الأكثر طلباً",
+      "occasions": [
+        "summer",
+        "daily"
+      ],
+      "image": "https://emaratiscents.com/cdn/shop/files/HAWAS_exotic_bottle.webp?v=1776593472&width=700",
+      "is_elan_pick": false,
+      "is_temporary_catalog": true,
+      "temporary_source": "emarati-scents",
+      "data_quality": "public_storefront_verified",
+      "image_source": "emaratiscents.com"
+    },
+    {
+      "id": "p-es-003",
+      "slug": "p-es-003",
+      "name_en": "Hawas Sapphire",
+      "name_ar": "هوس سافاير",
+      "brand_id": "b5",
+      "category": "men",
+      "size_ml": 100,
+      "short_description_ar": "إصدار سافاير من عائلة هوس",
+      "occasions": [
+        "daily",
+        "evening"
+      ],
+      "image": "https://emaratiscents.com/cdn/shop/files/HAWAS_exotic_bottle.webp?v=1776593472&width=700",
+      "is_elan_pick": false,
+      "is_temporary_catalog": true,
+      "temporary_source": "emarati-scents",
+      "data_quality": "public_storefront_verified",
+      "image_source": "emaratiscents.com"
+    },
+    {
+      "id": "p-es-004",
+      "slug": "p-es-004",
+      "name_en": "Hawas Gold Digger",
+      "name_ar": "هوس جولد ديجر",
+      "brand_id": "b5",
+      "category": "men",
+      "size_ml": 100,
+      "short_description_ar": "إصدار ذهبي من هوس",
+      "occasions": [
+        "evening"
+      ],
+      "image": "https://emaratiscents.com/cdn/shop/files/HAWAS_exotic_bottle.webp?v=1776593472&width=700",
+      "is_elan_pick": false,
+      "is_temporary_catalog": true,
+      "temporary_source": "emarati-scents",
+      "data_quality": "public_storefront_verified",
+      "image_source": "emaratiscents.com"
+    },
+    {
+      "id": "p-es-005",
+      "slug": "p-es-005",
+      "name_en": "Hawas Majestic",
+      "name_ar": "هوس ماجستيك",
+      "brand_id": "b5",
+      "category": "men",
+      "size_ml": 100,
+      "short_description_ar": "إصدار فاخر من عائلة هوس",
+      "occasions": [
+        "evening",
+        "formal"
+      ],
+      "image": "https://emaratiscents.com/cdn/shop/files/HAWAS_exotic_bottle.webp?v=1776593472&width=700",
+      "is_elan_pick": false,
+      "is_temporary_catalog": true,
+      "temporary_source": "emarati-scents",
+      "data_quality": "public_storefront_verified",
+      "image_source": "emaratiscents.com"
+    },
+    {
+      "id": "p-es-006",
+      "slug": "p-es-006",
+      "name_en": "Hawas Rouge",
+      "name_ar": "هوس روج",
+      "brand_id": "b5",
+      "category": "men",
+      "size_ml": 100,
+      "short_description_ar": "إصدار روج من هوس",
+      "occasions": [
+        "evening"
+      ],
+      "image": "https://emaratiscents.com/cdn/shop/files/HAWAS_exotic_bottle.webp?v=1776593472&width=700",
+      "is_elan_pick": false,
+      "is_temporary_catalog": true,
+      "temporary_source": "emarati-scents",
+      "data_quality": "public_storefront_verified",
+      "image_source": "emaratiscents.com"
+    },
+    {
+      "id": "p-es-007",
+      "slug": "p-es-007",
+      "name_en": "Hawas Chrome",
+      "name_ar": "هوس كروم",
+      "brand_id": "b5",
+      "category": "men",
+      "size_ml": 100,
+      "short_description_ar": "إصدار كروم منعش",
+      "occasions": [
+        "summer",
+        "daily"
+      ],
+      "image": "https://emaratiscents.com/cdn/shop/files/HAWAS_exotic_bottle.webp?v=1776593472&width=700",
+      "is_elan_pick": false,
+      "is_temporary_catalog": true,
+      "temporary_source": "emarati-scents",
+      "data_quality": "public_storefront_verified",
+      "image_source": "emaratiscents.com"
+    },
+    {
+      "id": "p-es-008",
+      "slug": "p-es-008",
+      "name_en": "Hawas Nautilus",
+      "name_ar": "هوس نوتيلوس",
+      "brand_id": "b5",
+      "category": "men",
+      "size_ml": 100,
+      "short_description_ar": "إصدار بحري من هوس",
+      "occasions": [
+        "summer"
+      ],
+      "image": "https://emaratiscents.com/cdn/shop/files/HAWAS_exotic_bottle.webp?v=1776593472&width=700",
+      "is_elan_pick": false,
+      "is_temporary_catalog": true,
+      "temporary_source": "emarati-scents",
+      "data_quality": "public_storefront_verified",
+      "image_source": "emaratiscents.com"
+    },
+    {
+      "id": "p-es-009",
+      "slug": "p-es-009",
+      "name_en": "Hawas London",
+      "name_ar": "هوس لندن",
+      "brand_id": "b5",
+      "category": "men",
+      "size_ml": 100,
+      "short_description_ar": "إصدار لندن من عائلة هوس",
+      "occasions": [
+        "daily",
+        "evening"
+      ],
+      "image": "https://emaratiscents.com/cdn/shop/files/Hawas-London-Perfume-100ml-EDP-Rasasi-183574758.webp?v=1786631343&width=700",
+      "is_elan_pick": false,
+      "is_temporary_catalog": true,
+      "temporary_source": "emarati-scents",
+      "data_quality": "public_storefront_verified",
+      "image_source": "emaratiscents.com"
+    },
+    {
+      "id": "p-es-010",
+      "slug": "p-es-010",
+      "name_en": "Club de Nuit Intense Man",
+      "name_ar": "كلوب دي نوي إنتنس مان",
+      "brand_id": "b2",
+      "category": "men",
+      "size_ml": 105,
+      "short_description_ar": "فاكهي دخاني قوي ومتعدد الاستخدام",
+      "occasions": [
+        "daily",
+        "evening"
+      ],
+      "image": "https://emaratiscents.com/cdn/shop/files/ARMAF_CLUBDENUITINTENSEMAN_dbff0ada-2b03-4c10-a394-0bf213f62981.webp?v=1752755227&width=700",
+      "is_elan_pick": true,
+      "is_temporary_catalog": true,
+      "temporary_source": "emarati-scents",
+      "data_quality": "public_storefront_verified",
+      "image_source": "emaratiscents.com",
+      "source_handle": "club-de-nuit-intense-man"
+    },
+    {
+      "id": "p-es-011",
+      "slug": "p-es-011",
+      "name_en": "Marwa",
+      "name_ar": "مروة",
+      "brand_id": "b7",
+      "category": "unisex",
+      "size_ml": 100,
+      "short_description_ar": "خشبي منعش أنيق — مناسب للعمل",
+      "occasions": [
+        "daily",
+        "formal"
+      ],
+      "image": "https://emaratiscents.com/cdn/shop/files/marwa_box_8f907ca7-a565-4b1a-ba37-f23e4184e8fe.webp?v=1769692934&width=700",
+      "is_elan_pick": true,
+      "is_temporary_catalog": true,
+      "temporary_source": "emarati-scents",
+      "data_quality": "public_storefront_verified",
+      "image_source": "emaratiscents.com"
+    },
+    {
+      "id": "p-es-012",
+      "slug": "p-es-012",
+      "name_en": "Aristo",
+      "name_ar": "أريستو",
+      "brand_id": "b7",
+      "category": "unisex",
+      "size_ml": 100,
+      "short_description_ar": "من مجموعة عربيات بريستيج",
+      "occasions": [
+        "daily"
+      ],
+      "image": "https://emaratiscents.com/cdn/shop/files/dark-375x500.125391.2x.avif?v=1776250298&width=700",
+      "is_elan_pick": false,
+      "is_temporary_catalog": true,
+      "temporary_source": "emarati-scents",
+      "data_quality": "public_storefront_verified",
+      "image_source": "emaratiscents.com"
+    },
+    {
+      "id": "p-es-013",
+      "slug": "p-es-013",
+      "name_en": "Ramad Oriental",
+      "name_ar": "رماد أورينتال",
+      "brand_id": "b7",
+      "category": "unisex",
+      "size_ml": 100,
+      "short_description_ar": "شرقي دافئ من سلسلة رماد",
+      "occasions": [
+        "evening",
+        "winter"
+      ],
+      "image": "https://emaratiscents.com/cdn/shop/files/6119Zy9_GEL._AC_UF894_1000_QL80.jpg?v=1788626855&width=700",
+      "is_elan_pick": false,
+      "is_temporary_catalog": true,
+      "temporary_source": "emarati-scents",
+      "data_quality": "public_storefront_verified",
+      "image_source": "emaratiscents.com",
+      "source_handle": "ramad-oriental"
+    },
+    {
+      "id": "p-es-014",
+      "slug": "p-es-014",
+      "name_en": "Ramad Earthy",
+      "name_ar": "رماد إيرثي",
+      "brand_id": "b7",
+      "category": "unisex",
+      "size_ml": 100,
+      "short_description_ar": "إكستريه ترابي من رماد",
+      "occasions": [
+        "evening"
+      ],
+      "image": "https://emaratiscents.com/cdn/shop/files/ramadearthywhitebackgroundproductphotoofboxpulsbottle.webp?v=1781858566&width=700",
+      "is_elan_pick": false,
+      "is_temporary_catalog": true,
+      "temporary_source": "emarati-scents",
+      "data_quality": "public_storefront_verified",
+      "image_source": "emaratiscents.com",
+      "source_handle": "ramad-earthy"
+    },
+    {
+      "id": "p-es-015",
+      "slug": "p-es-015",
+      "name_en": "Revolt Uncaged",
+      "name_ar": "ريفولت أنكيدجد",
+      "brand_id": "b7",
+      "category": "men",
+      "size_ml": 100,
+      "short_description_ar": "جريء وغير مقيد",
+      "occasions": [
+        "evening"
+      ],
+      "image": "https://emaratiscents.com/cdn/shop/files/Screenshot_138_1024x1024_d5e433c8-ae39-4698-aab8-a0730ec99379.webp?v=1786393852&width=700",
+      "is_elan_pick": false,
+      "is_temporary_catalog": true,
+      "temporary_source": "emarati-scents",
+      "data_quality": "public_storefront_verified",
+      "image_source": "emaratiscents.com",
+      "source_handle": "revolt-uncaged"
+    },
+    {
+      "id": "p-es-016",
+      "slug": "p-es-016",
+      "name_en": "Revolt Uprising",
+      "name_ar": "ريفولت أبرايزنج",
+      "brand_id": "b7",
+      "category": "men",
+      "size_ml": 100,
+      "short_description_ar": "من سلسلة ريفولت",
+      "occasions": [
+        "evening"
+      ],
+      "image": "https://emaratiscents.com/cdn/shop/files/71-4sM2qqBL._SL1500.jpg?v=1788627021&width=700",
+      "is_elan_pick": false,
+      "is_temporary_catalog": true,
+      "temporary_source": "emarati-scents",
+      "data_quality": "public_storefront_verified",
+      "image_source": "emaratiscents.com",
+      "source_handle": "revolt-uprising"
+    },
+    {
+      "id": "p-es-017",
+      "slug": "p-es-017",
+      "name_en": "Khamrah",
+      "name_ar": "خمرة",
+      "brand_id": "b8",
+      "category": "unisex",
+      "size_ml": 100,
+      "short_description_ar": "حلويات شرقية فاخرة ودافئة",
+      "occasions": [
+        "evening",
+        "winter"
+      ],
+      "image": "https://emaratiscents.com/cdn/shop/files/1-60_jpg.webp?v=1749051376&width=700",
+      "is_elan_pick": true,
+      "is_temporary_catalog": true,
+      "temporary_source": "emarati-scents",
+      "data_quality": "public_storefront_verified",
+      "image_source": "emaratiscents.com",
+      "source_handle": "khamrah-by-lattafa"
+    },
+    {
+      "id": "p-es-018",
+      "slug": "p-es-018",
+      "name_en": "Khamrah Waha",
+      "name_ar": "خمرة واحة",
+      "brand_id": "b8",
+      "category": "unisex",
+      "size_ml": 100,
+      "short_description_ar": "نسخة أطرى وأكثر صيفية من خمرة",
+      "occasions": [
+        "summer",
+        "evening"
+      ],
+      "image": "https://emaratiscents.com/cdn/shop/files/1-60_jpg.webp?v=1749051376&width=700",
+      "is_elan_pick": false,
+      "is_temporary_catalog": true,
+      "temporary_source": "emarati-scents",
+      "data_quality": "public_storefront_verified",
+      "image_source": "emaratiscents.com",
+      "source_handle": "khamrah-by-lattafa"
+    },
+    {
+      "id": "p-es-019",
+      "slug": "p-es-019",
+      "name_en": "Asad",
+      "name_ar": "أسد",
+      "brand_id": "b8",
+      "category": "men",
+      "size_ml": 100,
+      "short_description_ar": "شرقي حار وجريء",
+      "occasions": [
+        "evening",
+        "winter"
+      ],
+      "image": "https://emaratiscents.com/cdn/shop/files/ASAD.webp?v=1742804548&width=700",
+      "is_elan_pick": false,
+      "is_temporary_catalog": true,
+      "temporary_source": "emarati-scents",
+      "data_quality": "public_storefront_verified",
+      "image_source": "emaratiscents.com",
+      "source_handle": "asad-by-lattafa"
+    },
+    {
+      "id": "p-es-020",
+      "slug": "p-es-020",
+      "name_en": "Yara",
+      "name_ar": "يارا",
+      "brand_id": "b8",
+      "category": "women",
+      "size_ml": 100,
+      "short_description_ar": "ناعم وزهري حلو",
+      "occasions": [
+        "daily",
+        "summer"
+      ],
+      "image": "https://emaratiscents.com/cdn/shop/files/Yara.jpg?v=1766357758&width=700",
+      "is_elan_pick": false,
+      "is_temporary_catalog": true,
+      "temporary_source": "emarati-scents",
+      "data_quality": "public_storefront_verified",
+      "image_source": "emaratiscents.com",
+      "source_handle": "yara-by-lattafa"
+    },
+    {
+      "id": "p-es-021",
+      "slug": "p-es-021",
+      "name_en": "Fire On Ice",
+      "name_ar": "فاير أون آيس",
+      "brand_id": "b8",
+      "category": "unisex",
+      "size_ml": 100,
+      "short_description_ar": "تباين بارد وحار في عطر واحد",
+      "occasions": [
+        "daily",
+        "evening"
+      ],
+      "image": "https://emaratiscents.com/cdn/shop/files/Fire-on-Ice-copy-2-scaled.webp?v=1760873212&width=700",
+      "is_elan_pick": false,
+      "is_temporary_catalog": true,
+      "temporary_source": "emarati-scents",
+      "data_quality": "public_storefront_verified",
+      "image_source": "emaratiscents.com"
+    },
+    {
+      "id": "p-es-022",
+      "slug": "p-es-022",
+      "name_en": "Dalal",
+      "name_ar": "دلال",
+      "brand_id": "b8",
+      "category": "women",
+      "size_ml": 100,
+      "short_description_ar": "عطر نسائي من لطافة",
+      "occasions": [
+        "daily"
+      ],
+      "image": "https://emaratiscents.com/cdn/shop/files/LattafaDalalEDP100mlSprayBoxBottle.webp?v=1764930895&width=700",
+      "is_elan_pick": false,
+      "is_temporary_catalog": true,
+      "temporary_source": "emarati-scents",
+      "data_quality": "public_storefront_verified",
+      "image_source": "emaratiscents.com"
+    },
+    {
+      "id": "p-es-023",
+      "slug": "p-es-023",
+      "name_en": "Jouri",
+      "name_ar": "جوري",
+      "brand_id": "b8",
+      "category": "women",
+      "size_ml": 100,
+      "short_description_ar": "زهري ناعم",
+      "occasions": [
+        "daily",
+        "summer"
+      ],
+      "image": "https://emaratiscents.com/cdn/shop/files/Joury-copy-1-scaled.webp?v=1787084130&width=700",
+      "is_elan_pick": false,
+      "is_temporary_catalog": true,
+      "temporary_source": "emarati-scents",
+      "data_quality": "public_storefront_verified",
+      "image_source": "emaratiscents.com"
+    },
+    {
+      "id": "p-es-024",
+      "slug": "p-es-024",
+      "name_en": "Salwa",
+      "name_ar": "سلوى",
+      "brand_id": "b8",
+      "category": "women",
+      "size_ml": 100,
+      "short_description_ar": "عطر نسائي خفيف",
+      "occasions": [
+        "daily"
+      ],
+      "image": "https://emaratiscents.com/cdn/shop/files/salwa-asdaaf-packaging.webp?v=1788012010&width=700",
+      "is_elan_pick": false,
+      "is_temporary_catalog": true,
+      "temporary_source": "emarati-scents",
+      "data_quality": "public_storefront_verified",
+      "image_source": "emaratiscents.com"
+    },
+    {
+      "id": "p-es-025",
+      "slug": "p-es-025",
+      "name_en": "Badee Al Oud Black Exposed",
+      "name_ar": "بديع العود بلاك إكسبوزد",
+      "brand_id": "b8",
+      "category": "unisex",
+      "size_ml": 100,
+      "short_description_ar": "عود بتركيبة عصرية",
+      "occasions": [
+        "evening"
+      ],
+      "image": "https://emaratiscents.com/cdn/shop/files/BADEE_AL_OUD_BLACK_EXPOSED1.png?v=1785926910&width=700",
+      "is_elan_pick": false,
+      "is_temporary_catalog": true,
+      "temporary_source": "emarati-scents",
+      "data_quality": "public_storefront_verified",
+      "image_source": "emaratiscents.com",
+      "source_handle": "badee-al-oud-black-exposed"
+    },
+    {
+      "id": "p-es-026",
+      "slug": "p-es-026",
+      "name_en": "Supremacy Collector's Edition",
+      "name_ar": "سوبريماسي كولكترز إيديشن",
+      "brand_id": "b3",
+      "category": "men",
+      "size_ml": 100,
+      "short_description_ar": "إصدار جامع فاخر بثبات عالٍ",
+      "occasions": [
+        "evening",
+        "formal"
+      ],
+      "image": "https://emaratiscents.com/cdn/shop/files/SUPREMACYCOLLECTOR.webp?v=1744471773&width=700",
+      "is_elan_pick": false,
+      "is_temporary_catalog": true,
+      "temporary_source": "emarati-scents",
+      "data_quality": "public_storefront_verified",
+      "image_source": "emaratiscents.com"
+    },
+    {
+      "id": "p-es-027",
+      "slug": "p-es-027",
+      "name_en": "Lynked Freedom",
+      "name_ar": "لينكد فريدوم",
+      "brand_id": "b3",
+      "category": "unisex",
+      "size_ml": 100,
+      "short_description_ar": "حرية عطرية جريئة",
+      "occasions": [
+        "daily",
+        "evening"
+      ],
+      "image": "https://emaratiscents.com/cdn/shop/files/Lynke-freedom-3_7643c703-b879-4590-bcca-930eeab293b4.webp?v=1778624727&width=700",
+      "is_elan_pick": false,
+      "is_temporary_catalog": true,
+      "temporary_source": "emarati-scents",
+      "data_quality": "public_storefront_verified",
+      "image_source": "emaratiscents.com"
+    },
+    {
+      "id": "p-es-028",
+      "slug": "p-es-028",
+      "name_en": "Atlantis Extrait",
+      "name_ar": "أتلانتس إكستريه",
+      "brand_id": "b6",
+      "category": "unisex",
+      "size_ml": 100,
+      "short_description_ar": "إكستريه فاخر بطابع عصري",
+      "occasions": [
+        "evening"
+      ],
+      "image": "https://emaratiscents.com/cdn/shop/files/1-2025-08-20T113257.096.webp?v=1774802909&width=700",
+      "is_elan_pick": false,
+      "is_temporary_catalog": true,
+      "temporary_source": "emarati-scents",
+      "data_quality": "public_storefront_verified",
+      "image_source": "emaratiscents.com"
+    },
+    {
+      "id": "p-es-029",
+      "slug": "p-es-029",
+      "name_en": "Aromatix Magnetiq",
+      "name_ar": "أروما تكس ماجنيتيك",
+      "brand_id": "b6",
+      "category": "unisex",
+      "size_ml": 100,
+      "short_description_ar": "جاذبية عصرية",
+      "occasions": [
+        "evening"
+      ],
+      "image": "https://emaratiscents.com/cdn/shop/files/1_19.webp?v=1774803955&width=700",
+      "is_elan_pick": false,
+      "is_temporary_catalog": true,
+      "temporary_source": "emarati-scents",
+      "data_quality": "public_storefront_verified",
+      "image_source": "emaratiscents.com",
+      "source_handle": "aromatix-magnetiq"
+    },
+    {
+      "id": "p-es-030",
+      "slug": "p-es-030",
+      "name_en": "Grow",
+      "name_ar": "جرو",
+      "brand_id": "b6",
+      "category": "unisex",
+      "size_ml": 100,
+      "short_description_ar": "من فرينش أفينيو",
+      "occasions": [
+        "daily"
+      ],
+      "image": "https://emaratiscents.com/cdn/shop/files/6_17.webp?v=1786468503&width=700",
+      "is_elan_pick": false,
+      "is_temporary_catalog": true,
+      "temporary_source": "emarati-scents",
+      "data_quality": "public_storefront_verified",
+      "image_source": "emaratiscents.com"
+    },
+    {
+      "id": "p-es-031",
+      "slug": "p-es-031",
+      "name_en": "Frankel Aventus Black Elixir",
+      "name_ar": "فرانكل أفنتوس بلاك إلكسير",
+      "brand_id": "b4",
+      "category": "men",
+      "size_ml": 200,
+      "short_description_ar": "خشبي عطري بحجم 200 مل",
+      "occasions": [
+        "daily",
+        "evening"
+      ],
+      "image": "https://emaratiscents.com/cdn/shop/files/840c30bd-e74b-4cbc-a26c-be788c345ebf-1000x1000-uEzsee7Q5jHvyqsWo5Y9tMjkpEMcK8D9aBkIGvep_8f93253f-3cc0-44e2-978d-a1355018e17e.webp?v=1773520536&width=700",
+      "is_elan_pick": false,
+      "is_temporary_catalog": true,
+      "temporary_source": "emarati-scents",
+      "data_quality": "public_storefront_verified",
+      "image_source": "emaratiscents.com"
+    },
+    {
+      "id": "p-es-032",
+      "slug": "p-es-032",
+      "name_en": "Aura 35",
+      "name_ar": "أورا 35",
+      "brand_id": "b4",
+      "category": "unisex",
+      "size_ml": 100,
+      "short_description_ar": "من مجموعة أورا",
+      "occasions": [
+        "daily"
+      ],
+      "image": "https://emaratiscents.com/cdn/shop/files/643a66ac-8e26-4934-a677-6185ee34b6f6-1000x1000-af4d1IOYATNiCAZwLrsSSL53zZQ42zAghVGXUIA1.webp?v=1770126022&width=700",
+      "is_elan_pick": false,
+      "is_temporary_catalog": true,
+      "temporary_source": "emarati-scents",
+      "data_quality": "public_storefront_verified",
+      "image_source": "emaratiscents.com"
+    },
+    {
+      "id": "p-es-033",
+      "slug": "p-es-033",
+      "name_en": "Arrogate Pink",
+      "name_ar": "أروجيت بينك",
+      "brand_id": "b4",
+      "category": "women",
+      "size_ml": 200,
+      "short_description_ar": "إصدار 200 مل",
+      "occasions": [
+        "evening"
+      ],
+      "image": "https://emaratiscents.com/cdn/shop/files/166dbfe2-b4c1-43ed-9643-4472bb15adaa-1000x1000-WkcsjzLTrqR1s0YQwcfdRUZPB5jY1cUOs1hasczo.webp?v=1752137835&width=700",
+      "is_elan_pick": false,
+      "is_temporary_catalog": true,
+      "temporary_source": "emarati-scents",
+      "data_quality": "public_storefront_verified",
+      "image_source": "emaratiscents.com",
+      "source_handle": "arrogate-pink"
+    },
+    {
+      "id": "p-es-034",
+      "slug": "p-es-034",
+      "name_en": "Wild Colt Boss",
+      "name_ar": "وايلد كولت بوس",
+      "brand_id": "b4",
+      "category": "men",
+      "size_ml": 200,
+      "short_description_ar": "رجالي بحجم 200 مل",
+      "occasions": [
+        "evening"
+      ],
+      "image": "https://emaratiscents.com/cdn/shop/files/40435517-58c7-444a-87f3-0a4c96b6fd87_900x900_0406f799-59bd-4d61-9278-c97d580d1043.webp?v=1785492905&width=700",
+      "is_elan_pick": false,
+      "is_temporary_catalog": true,
+      "temporary_source": "emarati-scents",
+      "data_quality": "public_storefront_verified",
+      "image_source": "emaratiscents.com",
+      "source_handle": "wild-colt-boss-200-ml"
+    },
+    {
+      "id": "p-es-039",
+      "slug": "p-es-039",
+      "name_en": "IT by Maison Alhambra",
+      "name_ar": "إيت من ميزون الهمبرا",
+      "brand_id": "b9",
+      "category": "unisex",
+      "size_ml": 100,
+      "short_description_ar": "من ميزون الهمبرا",
+      "occasions": [
+        "daily"
+      ],
+      "image": "https://emaratiscents.com/cdn/shop/files/Untitled_design-25.webp?v=1788011839&width=700",
+      "is_elan_pick": false,
+      "is_temporary_catalog": true,
+      "temporary_source": "emarati-scents",
+      "data_quality": "public_storefront_verified",
+      "image_source": "emaratiscents.com",
+      "source_handle": "it-by-maison-alhambra"
+    },
+    {
+      "id": "p-af-001",
+      "slug": "p-af-001",
+      "name_en": "9PM",
+      "name_ar": "9PM",
+      "brand_id": "b3",
+      "category": "unisex",
+      "size_ml": 100,
+      "short_description_ar": "عطر شرقي فاكهي جريء وثابت",
+      "occasions": [
+        "evening",
+        "daily"
+      ],
+      "image": "https://emaratiscents.com/cdn/shop/files/73.webp?v=1770113630&width=700",
+      "is_elan_pick": true,
+      "is_temporary_catalog": true,
+      "temporary_source": "afnan-egypt",
+      "data_quality": "public_storefront_verified",
+      "image_source": "emaratiscents.com",
+      "source_handle": "9pm-night-out"
+    },
+    {
+      "id": "p-af-002",
+      "slug": "p-af-002",
+      "name_en": "9PM Elixir",
+      "name_ar": "9PM إليكسير",
+      "brand_id": "b3",
+      "category": "unisex",
+      "size_ml": 100,
+      "short_description_ar": "نسخة مركزة أكثر عمقاً",
+      "occasions": [
+        "evening"
+      ],
+      "image": "https://emaratiscents.com/cdn/shop/files/9PM_ELIXIR-2.webp?v=1757498712&width=700",
+      "is_elan_pick": false,
+      "is_temporary_catalog": true,
+      "temporary_source": "afnan-egypt",
+      "data_quality": "public_storefront_verified",
+      "image_source": "emaratiscents.com",
+      "source_handle": "9pm-elixir"
+    },
+    {
+      "id": "p-af-003",
+      "slug": "p-af-003",
+      "name_en": "Supremacy Not Only Intense",
+      "name_ar": "سوبريماسي نوت أونلي إنتنس",
+      "brand_id": "b3",
+      "category": "men",
+      "size_ml": 100,
+      "short_description_ar": "خشبي جلدي قوي وثابت",
+      "occasions": [
+        "evening",
+        "winter"
+      ],
+      "image": "https://images.unsplash.com/photo-1541643600914-78b084683601?w=600&h=750&fit=crop",
+      "is_elan_pick": false,
+      "is_temporary_catalog": true,
+      "temporary_source": "afnan-egypt",
+      "data_quality": "public_storefront_verified"
+    },
+    {
+      "id": "p-af-004",
+      "slug": "p-af-004",
+      "name_en": "Turathi Blue",
+      "name_ar": "تراثي بلو",
+      "brand_id": "b3",
+      "category": "men",
+      "size_ml": 100,
+      "short_description_ar": "منعش خشبي أنيق للمكتب",
+      "occasions": [
+        "daily",
+        "summer"
+      ],
+      "image": "https://emaratiscents.com/cdn/shop/files/TURATHIBLUE.webp?v=1744632707&width=700",
+      "is_elan_pick": false,
+      "is_temporary_catalog": true,
+      "temporary_source": "afnan-egypt",
+      "data_quality": "public_storefront_verified",
+      "image_source": "emaratiscents.com",
+      "source_handle": "turathi-blue"
+    },
+    {
+      "id": "p-af-005",
+      "slug": "p-af-005",
+      "name_en": "Modest Une",
+      "name_ar": "مودست أون",
+      "brand_id": "b3",
+      "category": "men",
+      "size_ml": 100,
+      "short_description_ar": "أنيق ومنعش للاستخدام اليومي",
+      "occasions": [
+        "daily"
+      ],
+      "image": "https://images.unsplash.com/photo-1592945403244-b3fbafd7f539?w=600&h=750&fit=crop",
+      "is_elan_pick": false,
+      "is_temporary_catalog": true,
+      "temporary_source": "afnan-egypt",
+      "data_quality": "public_storefront_verified"
+    },
+    {
+      "id": "p-af-006",
+      "slug": "p-af-006",
+      "name_en": "Supremacy Collector's Edition",
+      "name_ar": "سوبريماسي كولكترز",
+      "brand_id": "b3",
+      "category": "men",
+      "size_ml": 100,
+      "short_description_ar": "إصدار جامع — سعر أفنان مصر",
+      "occasions": [
+        "evening",
+        "formal"
+      ],
+      "image": "https://emaratiscents.com/cdn/shop/files/SUPREMACYCOLLECTOR.webp?v=1744471773&width=700",
+      "is_elan_pick": false,
+      "is_temporary_catalog": true,
+      "temporary_source": "afnan-egypt",
+      "data_quality": "public_storefront_verified",
+      "image_source": "emaratiscents.com"
+    },
+    {
+      "id": "p-af-007",
+      "slug": "p-af-007",
+      "name_en": "Lynked Freedom",
+      "name_ar": "لينكد فريدوم",
+      "brand_id": "b3",
+      "category": "unisex",
+      "size_ml": 100,
+      "short_description_ar": "من كتالوج أفنان مصر",
+      "occasions": [
+        "daily",
+        "evening"
+      ],
+      "image": "https://emaratiscents.com/cdn/shop/files/Lynke-freedom-3_7643c703-b879-4590-bcca-930eeab293b4.webp?v=1778624727&width=700",
+      "is_elan_pick": false,
+      "is_temporary_catalog": true,
+      "temporary_source": "afnan-egypt",
+      "data_quality": "public_storefront_verified",
+      "image_source": "emaratiscents.com"
+    },
+    {
+      "id": "p-af-008",
+      "slug": "p-af-008",
+      "name_en": "Lynked Forever",
+      "name_ar": "لينكد فوريفر",
+      "brand_id": "b3",
+      "category": "unisex",
+      "size_ml": 100,
+      "short_description_ar": "ثبات طويل الأمد",
+      "occasions": [
+        "evening"
+      ],
+      "image": "https://emaratiscents.com/cdn/shop/files/Lynked-forever-3.webp?v=1778624940&width=700",
+      "is_elan_pick": false,
+      "is_temporary_catalog": true,
+      "temporary_source": "afnan-egypt",
+      "data_quality": "public_storefront_verified",
+      "image_source": "emaratiscents.com",
+      "source_handle": "lynked-forever"
+    },
+    {
+      "id": "p-af-009",
+      "slug": "p-af-009",
+      "name_en": "Turathi Electric",
+      "name_ar": "تراثي إلكتريك",
+      "brand_id": "b3",
+      "category": "men",
+      "size_ml": 100,
+      "short_description_ar": "منعش للطقس الحار",
+      "occasions": [
+        "summer",
+        "daily"
+      ],
+      "image": "https://emaratiscents.com/cdn/shop/files/TurathiElectric-1_png.webp?v=1751379734&width=700",
+      "is_elan_pick": false,
+      "is_temporary_catalog": true,
+      "temporary_source": "afnan-egypt",
+      "data_quality": "public_storefront_verified",
+      "image_source": "emaratiscents.com",
+      "source_handle": "turathi-electric"
+    },
+    {
+      "id": "p-af-010",
+      "slug": "p-af-010",
+      "name_en": "9PM Rebel",
+      "name_ar": "9PM ريبل",
+      "brand_id": "b3",
+      "category": "men",
+      "size_ml": 100,
+      "short_description_ar": "إصدار أكثر جرأة من 9PM",
+      "occasions": [
+        "evening"
+      ],
+      "image": "https://emaratiscents.com/cdn/shop/files/9PM_REBEL4.webp?v=1744469937&width=700",
+      "is_elan_pick": false,
+      "is_temporary_catalog": true,
+      "temporary_source": "afnan-egypt",
+      "data_quality": "public_storefront_verified",
+      "image_source": "emaratiscents.com",
+      "source_handle": "9pm-rebel"
+    }
+  ],
+  "store_products": [
+    {
+      "id": "sp-p-es-001",
+      "store_id": "s2",
+      "product_id": "p-es-001",
+      "price": 2050,
+      "currency": "EGP",
+      "is_available": true,
+      "stock_quantity": 25,
+      "is_temporary_catalog": true
+    },
+    {
+      "id": "sp-p-es-002",
+      "store_id": "s2",
+      "product_id": "p-es-002",
+      "price": 1650,
+      "currency": "EGP",
+      "is_available": true,
+      "stock_quantity": 40,
+      "is_temporary_catalog": true
+    },
+    {
+      "id": "sp-p-es-003",
+      "store_id": "s2",
+      "product_id": "p-es-003",
+      "price": 2600,
+      "currency": "EGP",
+      "is_available": true,
+      "stock_quantity": 15,
+      "is_temporary_catalog": true
+    },
+    {
+      "id": "sp-p-es-004",
+      "store_id": "s2",
+      "product_id": "p-es-004",
+      "price": 2600,
+      "currency": "EGP",
+      "is_available": true,
+      "stock_quantity": 12,
+      "is_temporary_catalog": true
+    },
+    {
+      "id": "sp-p-es-005",
+      "store_id": "s2",
+      "product_id": "p-es-005",
+      "price": 2350,
+      "currency": "EGP",
+      "is_available": true,
+      "stock_quantity": 18,
+      "is_temporary_catalog": true
+    },
+    {
+      "id": "sp-p-es-006",
+      "store_id": "s2",
+      "product_id": "p-es-006",
+      "price": 2250,
+      "currency": "EGP",
+      "is_available": true,
+      "stock_quantity": 14,
+      "is_temporary_catalog": true
+    },
+    {
+      "id": "sp-p-es-007",
+      "store_id": "s2",
+      "product_id": "p-es-007",
+      "price": 2050,
+      "currency": "EGP",
+      "is_available": true,
+      "stock_quantity": 20,
+      "is_temporary_catalog": true
+    },
+    {
+      "id": "sp-p-es-008",
+      "store_id": "s2",
+      "product_id": "p-es-008",
+      "price": 1950,
+      "currency": "EGP",
+      "is_available": true,
+      "stock_quantity": 16,
+      "is_temporary_catalog": true
+    },
+    {
+      "id": "sp-p-es-009",
+      "store_id": "s2",
+      "product_id": "p-es-009",
+      "price": 2250,
+      "currency": "EGP",
+      "is_available": true,
+      "stock_quantity": 15,
+      "is_temporary_catalog": true
+    },
+    {
+      "id": "sp-p-es-010",
+      "store_id": "s2",
+      "product_id": "p-es-010",
+      "price": 1950,
+      "currency": "EGP",
+      "is_available": true,
+      "stock_quantity": 35,
+      "is_temporary_catalog": true
+    },
+    {
+      "id": "sp-p-es-011",
+      "store_id": "s2",
+      "product_id": "p-es-011",
+      "price": 1750,
+      "currency": "EGP",
+      "is_available": true,
+      "stock_quantity": 30,
+      "is_temporary_catalog": true
+    },
+    {
+      "id": "sp-p-es-012",
+      "store_id": "s2",
+      "product_id": "p-es-012",
+      "price": 1580,
+      "currency": "EGP",
+      "is_available": true,
+      "stock_quantity": 22,
+      "is_temporary_catalog": true
+    },
+    {
+      "id": "sp-p-es-013",
+      "store_id": "s2",
+      "product_id": "p-es-013",
+      "price": 1850,
+      "currency": "EGP",
+      "is_available": true,
+      "stock_quantity": 18,
+      "is_temporary_catalog": true
+    },
+    {
+      "id": "sp-p-es-014",
+      "store_id": "s2",
+      "product_id": "p-es-014",
+      "price": 2250,
+      "currency": "EGP",
+      "is_available": true,
+      "stock_quantity": 12,
+      "is_temporary_catalog": true
+    },
+    {
+      "id": "sp-p-es-015",
+      "store_id": "s2",
+      "product_id": "p-es-015",
+      "price": 1850,
+      "currency": "EGP",
+      "is_available": true,
+      "stock_quantity": 20,
+      "is_temporary_catalog": true
+    },
+    {
+      "id": "sp-p-es-016",
+      "store_id": "s2",
+      "product_id": "p-es-016",
+      "price": 1850,
+      "currency": "EGP",
+      "is_available": true,
+      "stock_quantity": 18,
+      "is_temporary_catalog": true
+    },
+    {
+      "id": "sp-p-es-017",
+      "store_id": "s2",
+      "product_id": "p-es-017",
+      "price": 1850,
+      "currency": "EGP",
+      "is_available": true,
+      "stock_quantity": 50,
+      "is_temporary_catalog": true
+    },
+    {
+      "id": "sp-p-es-018",
+      "store_id": "s2",
+      "product_id": "p-es-018",
+      "price": 2250,
+      "currency": "EGP",
+      "is_available": true,
+      "stock_quantity": 20,
+      "is_temporary_catalog": true
+    },
+    {
+      "id": "sp-p-es-019",
+      "store_id": "s2",
+      "product_id": "p-es-019",
+      "price": 1750,
+      "currency": "EGP",
+      "is_available": true,
+      "stock_quantity": 45,
+      "is_temporary_catalog": true
+    },
+    {
+      "id": "sp-p-es-020",
+      "store_id": "s2",
+      "product_id": "p-es-020",
+      "price": 1650,
+      "currency": "EGP",
+      "is_available": true,
+      "stock_quantity": 40,
+      "is_temporary_catalog": true
+    },
+    {
+      "id": "sp-p-es-021",
+      "store_id": "s2",
+      "product_id": "p-es-021",
+      "price": 1500,
+      "currency": "EGP",
+      "is_available": true,
+      "stock_quantity": 28,
+      "is_temporary_catalog": true
+    },
+    {
+      "id": "sp-p-es-022",
+      "store_id": "s2",
+      "product_id": "p-es-022",
+      "price": 1450,
+      "currency": "EGP",
+      "is_available": true,
+      "stock_quantity": 25,
+      "is_temporary_catalog": true
+    },
+    {
+      "id": "sp-p-es-023",
+      "store_id": "s2",
+      "product_id": "p-es-023",
+      "price": 1300,
+      "currency": "EGP",
+      "is_available": true,
+      "stock_quantity": 30,
+      "is_temporary_catalog": true
+    },
+    {
+      "id": "sp-p-es-024",
+      "store_id": "s2",
+      "product_id": "p-es-024",
+      "price": 1200,
+      "currency": "EGP",
+      "is_available": true,
+      "stock_quantity": 22,
+      "is_temporary_catalog": true
+    },
+    {
+      "id": "sp-p-es-025",
+      "store_id": "s2",
+      "product_id": "p-es-025",
+      "price": 1450,
+      "currency": "EGP",
+      "is_available": true,
+      "stock_quantity": 18,
+      "is_temporary_catalog": true
+    },
+    {
+      "id": "sp-p-es-026",
+      "store_id": "s2",
+      "product_id": "p-es-026",
+      "price": 2850,
+      "currency": "EGP",
+      "is_available": true,
+      "stock_quantity": 12,
+      "is_temporary_catalog": true
+    },
+    {
+      "id": "sp-p-es-027",
+      "store_id": "s2",
+      "product_id": "p-es-027",
+      "price": 2450,
+      "currency": "EGP",
+      "is_available": true,
+      "stock_quantity": 15,
+      "is_temporary_catalog": true
+    },
+    {
+      "id": "sp-p-es-028",
+      "store_id": "s2",
+      "product_id": "p-es-028",
+      "price": 2250,
+      "currency": "EGP",
+      "is_available": true,
+      "stock_quantity": 15,
+      "is_temporary_catalog": true
+    },
+    {
+      "id": "sp-p-es-029",
+      "store_id": "s2",
+      "product_id": "p-es-029",
+      "price": 2250,
+      "currency": "EGP",
+      "is_available": true,
+      "stock_quantity": 14,
+      "is_temporary_catalog": true
+    },
+    {
+      "id": "sp-p-es-030",
+      "store_id": "s2",
+      "product_id": "p-es-030",
+      "price": 2100,
+      "currency": "EGP",
+      "is_available": true,
+      "stock_quantity": 16,
+      "is_temporary_catalog": true
+    },
+    {
+      "id": "sp-p-es-031",
+      "store_id": "s2",
+      "product_id": "p-es-031",
+      "price": 2450,
+      "currency": "EGP",
+      "is_available": true,
+      "stock_quantity": 10,
+      "is_temporary_catalog": true
+    },
+    {
+      "id": "sp-p-es-032",
+      "store_id": "s2",
+      "product_id": "p-es-032",
+      "price": 2250,
+      "currency": "EGP",
+      "is_available": true,
+      "stock_quantity": 14,
+      "is_temporary_catalog": true
+    },
+    {
+      "id": "sp-p-es-033",
+      "store_id": "s2",
+      "product_id": "p-es-033",
+      "price": 2450,
+      "currency": "EGP",
+      "is_available": true,
+      "stock_quantity": 8,
+      "is_temporary_catalog": true
+    },
+    {
+      "id": "sp-p-es-034",
+      "store_id": "s2",
+      "product_id": "p-es-034",
+      "price": 2050,
+      "currency": "EGP",
+      "is_available": true,
+      "stock_quantity": 12,
+      "is_temporary_catalog": true
+    },
+    {
+      "id": "sp-p-es-039",
+      "store_id": "s2",
+      "product_id": "p-es-039",
+      "price": 1450,
+      "currency": "EGP",
+      "is_available": true,
+      "stock_quantity": 22,
+      "is_temporary_catalog": true
+    },
+    {
+      "id": "sp-p-af-001",
+      "store_id": "s1",
+      "product_id": "p-af-001",
+      "price": 2200,
+      "currency": "EGP",
+      "is_available": true,
+      "stock_quantity": 30,
+      "is_temporary_catalog": true
+    },
+    {
+      "id": "sp-p-af-002",
+      "store_id": "s1",
+      "product_id": "p-af-002",
+      "price": 2400,
+      "currency": "EGP",
+      "is_available": true,
+      "stock_quantity": 20,
+      "is_temporary_catalog": true
+    },
+    {
+      "id": "sp-p-af-003",
+      "store_id": "s1",
+      "product_id": "p-af-003",
+      "price": 2150,
+      "currency": "EGP",
+      "is_available": true,
+      "stock_quantity": 25,
+      "is_temporary_catalog": true
+    },
+    {
+      "id": "sp-p-af-004",
+      "store_id": "s1",
+      "product_id": "p-af-004",
+      "price": 2500,
+      "currency": "EGP",
+      "is_available": true,
+      "stock_quantity": 18,
+      "is_temporary_catalog": true
+    },
+    {
+      "id": "sp-p-af-005",
+      "store_id": "s1",
+      "product_id": "p-af-005",
+      "price": 2450,
+      "currency": "EGP",
+      "is_available": true,
+      "stock_quantity": 15,
+      "is_temporary_catalog": true
+    },
+    {
+      "id": "sp-p-af-006",
+      "store_id": "s1",
+      "product_id": "p-af-006",
+      "price": 2900,
+      "currency": "EGP",
+      "is_available": true,
+      "stock_quantity": 10,
+      "is_temporary_catalog": true
+    },
+    {
+      "id": "sp-p-af-007",
+      "store_id": "s1",
+      "product_id": "p-af-007",
+      "price": 2550,
+      "currency": "EGP",
+      "is_available": true,
+      "stock_quantity": 12,
+      "is_temporary_catalog": true
+    },
+    {
+      "id": "sp-p-af-008",
+      "store_id": "s1",
+      "product_id": "p-af-008",
+      "price": 2550,
+      "currency": "EGP",
+      "is_available": true,
+      "stock_quantity": 12,
+      "is_temporary_catalog": true
+    },
+    {
+      "id": "sp-p-af-009",
+      "store_id": "s1",
+      "product_id": "p-af-009",
+      "price": 2300,
+      "currency": "EGP",
+      "is_available": true,
+      "stock_quantity": 16,
+      "is_temporary_catalog": true
+    },
+    {
+      "id": "sp-p-af-010",
+      "store_id": "s1",
+      "product_id": "p-af-010",
+      "price": 2350,
+      "currency": "EGP",
+      "is_available": true,
+      "stock_quantity": 14,
+      "is_temporary_catalog": true
+    },
+    {
+      "id": "sp-p-af-001-es",
+      "store_id": "s2",
+      "product_id": "p-af-001",
+      "price": 2350,
+      "currency": "EGP",
+      "is_available": true,
+      "stock_quantity": 6,
+      "is_temporary_catalog": true
+    },
+    {
+      "id": "sp-p-es-supremacy-af",
+      "store_id": "s1",
+      "product_id": "p-es-026",
+      "price": 2900,
+      "currency": "EGP",
+      "is_available": true,
+      "stock_quantity": 5,
+      "is_temporary_catalog": true
+    }
+  ]
+}

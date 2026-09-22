@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>سلة المشتريات | Élan Scents</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Cairo:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            elan: { gold: '#C9A227', ivory: '#FBF8F3', cream: '#F7F1E8', soft: '#F0E9DF', charcoal: '#2C2A26', muted: '#6B6560', softblack: '#1A1816' }
+          },
+          fontFamily: { display: ['Playfair Display', 'serif'], sans: ['Cairo', 'sans-serif'] }
+        }
+      }
+    }
+  </script>
+  <link rel="stylesheet" href="../assets/css/elan.css">
+</head>
+<body class="bg-elan-ivory text-elan-charcoal antialiased font-sans min-h-screen">
+
+  <header class="sticky top-0 z-50 bg-elan-ivory/95 backdrop-blur border-b border-elan-soft/60">
+    <div class="max-w-3xl mx-auto px-4 h-16 flex items-center justify-between">
+      <a href="../index.html" class="p-2 rounded-full hover:bg-elan-soft" aria-label="رجوع">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 19l-7-7 7-7"/></svg>
+      </a>
+      <h1 class="font-display text-xl">سلة المشتريات</h1>
+      <a href="../index.html" class="text-xs text-elan-gold hover:underline">متابعة التسوق</a>
+    </div>
+  </header>
+
+  <main class="max-w-3xl mx-auto px-4 py-8 pb-28">
+    <div id="cartPageItems" class="space-y-0"></div>
+    <div id="cartPageEmpty" class="hidden text-center py-20">
+      <svg class="w-20 h-20 text-elan-soft mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/>
+      </svg>
+      <p class="text-elan-muted mb-4">سلتك فارغة حالياً</p>
+      <a href="../index.html" class="inline-block px-6 py-3 bg-elan-charcoal text-white rounded-full text-sm">تصفح العطور</a>
+    </div>
+  </main>
+
+  <div id="cartPageFooter" class="fixed bottom-0 inset-x-0 bg-elan-ivory/95 backdrop-blur border-t border-elan-soft p-4 z-40">
+    <div class="max-w-3xl mx-auto flex items-center justify-between gap-4">
+      <div>
+        <p class="text-xs text-elan-muted">الإجمالي</p>
+        <p id="cartPageTotal" class="text-lg font-semibold">0 ج.م</p>
+      </div>
+      <a href="checkout.html" id="checkoutBtn" class="flex-1 max-w-xs text-center py-3.5 bg-elan-charcoal text-white rounded-full text-sm font-medium hover:bg-elan-softblack transition">إتمام الشراء</a>
+    </div>
+    <p class="text-center text-[11px] text-elan-muted mt-2">الشحن داخل مصر فقط</p>
+  </div>
+
+  <script src="../assets/js/elan-core.js"></script>
+  <script>
+    function renderCartPage() {
+      const cart = Elan.cart || [];
+      const box = document.getElementById('cartPageItems');
+      const empty = document.getElementById('cartPageEmpty');
+      const footer = document.getElementById('cartPageFooter');
+      const totalEl = document.getElementById('cartPageTotal');
+
+      if (!cart.length) {
+        box.innerHTML = '';
+        empty.classList.remove('hidden');
+        footer.classList.add('hidden');
+        return;
+      }
+      empty.classList.add('hidden');
+      footer.classList.remove('hidden');
+
+      box.innerHTML = cart.map(item => `
+        <div class="flex gap-4 py-5 border-b border-elan-soft/70">
+          <img src="${item.image}" alt="" class="w-24 h-28 object-cover rounded-xl bg-elan-cream flex-shrink-0"
+            onerror="this.src='https://images.unsplash.com/photo-1594035910387-fea47794241f?w=200&h=250&fit=crop'">
+          <div class="flex-1 min-w-0">
+            <p class="text-xs text-elan-gold">${item.brand || ''}</p>
+            <h3 class="font-medium text-sm mt-0.5">${item.name}</h3>
+            <p class="text-[11px] text-elan-muted mt-1">${item.store || ''} • ${item.size_ml || 100} مل</p>
+            <p class="text-sm font-semibold mt-2">${Elan.formatPrice(item.price)}</p>
+            <div class="flex items-center gap-3 mt-3">
+              <button type="button" class="w-8 h-8 rounded-full border border-elan-soft flex items-center justify-center hover:bg-elan-soft"
+                onclick="Elan.updateQuantity('${item.storeProductId}', -1); renderCartPage();">−</button>
+              <span class="text-sm w-6 text-center">${item.quantity}</span>
+              <button type="button" class="w-8 h-8 rounded-full border border-elan-soft flex items-center justify-center hover:bg-elan-soft"
+                onclick="Elan.updateQuantity('${item.storeProductId}', 1); renderCartPage();">+</button>
+              <button type="button" class="mr-auto text-xs text-red-500/80 hover:text-red-600"
+                onclick="Elan.removeFromCart('${item.storeProductId}'); renderCartPage();">حذف</button>
+            </div>
+          </div>
+        </div>
+      `).join('');
+
+      const total = cart.reduce((s, i) => s + i.price * i.quantity, 0);
+      totalEl.textContent = Elan.formatPrice(total);
+    }
+
+    // Override drawer-only quantity/remove to refresh page if present
+    const _uq = Elan.updateQuantity;
+    const _rm = Elan.removeFromCart;
+    // page uses explicit renderCartPage after calls
+
+    renderCartPage();
+  </script>
+</body>
+</html>

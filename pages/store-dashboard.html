@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>لوحة المتجر | Élan Scents</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600&family=Cairo:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config={theme:{extend:{colors:{elan:{gold:'#C9A227',ivory:'#FBF8F3',cream:'#F7F1E8',soft:'#F0E9DF',charcoal:'#2C2A26',muted:'#6B6560',softblack:'#1A1816'}},fontFamily:{display:['Playfair Display','serif'],sans:['Cairo','sans-serif']}}}}</script>
+</head>
+<body class="bg-elan-ivory text-elan-charcoal antialiased font-sans">
+  <div class="flex min-h-screen">
+    <aside class="w-56 bg-elan-softblack text-white hidden md:flex flex-col p-4">
+      <p class="font-display text-lg mb-6"><span class="text-elan-gold">Élan</span> Partner</p>
+      <nav class="space-y-1 text-sm">
+        <a href="#overview" class="block px-3 py-2 rounded-lg bg-white/10">نظرة عامة</a>
+        <a href="#catalog" class="block px-3 py-2 rounded-lg text-white/70 hover:bg-white/5">الكتالوج</a>
+        <a href="#commissions" class="block px-3 py-2 rounded-lg text-white/70 hover:bg-white/5">العمولات</a>
+      </nav>
+      <a href="../index.html" class="mt-auto text-xs text-white/40 hover:text-elan-gold">← المنصة</a>
+    </aside>
+    <main class="flex-1 p-6">
+      <h1 class="font-display text-2xl mb-2">لوحة المتجر الشريك</h1>
+      <p class="text-sm text-elan-muted mb-8">واجهة أولية لإدارة الكتالوج والعمولات — جاهزة للربط الرسمي</p>
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div class="bg-white rounded-2xl p-4 border border-elan-soft"><p class="text-xs text-elan-muted">منتجات نشطة</p><p id="sProducts" class="text-xl font-semibold mt-1">—</p></div>
+        <div class="bg-white rounded-2xl p-4 border border-elan-soft"><p class="text-xs text-elan-muted">نسبة العمولة</p><p id="sComm" class="text-xl font-semibold mt-1">—</p></div>
+        <div class="bg-white rounded-2xl p-4 border border-elan-soft"><p class="text-xs text-elan-muted">طلبات (تجريبي)</p><p class="text-xl font-semibold mt-1">0</p></div>
+        <div class="bg-white rounded-2xl p-4 border border-elan-soft"><p class="text-xs text-elan-muted">الحالة</p><p class="text-xl font-semibold mt-1 text-green-600">نشط</p></div>
+      </div>
+      <div class="bg-white rounded-2xl border border-elan-soft overflow-hidden mb-8">
+        <div class="p-4 border-b border-elan-soft font-medium text-sm">منتجات الكتالوج المعروضة على المنصة</div>
+        <div class="overflow-x-auto"><table class="w-full text-sm"><thead class="bg-elan-cream/50 text-xs text-elan-muted"><tr><th class="p-3 text-right">المنتج</th><th class="p-3 text-right">السعر</th><th class="p-3 text-right">المخزون</th><th class="p-3 text-right">الحالة</th></tr></thead><tbody id="catTable"></tbody></table></div>
+      </div>
+      <div class="bg-elan-cream/50 rounded-2xl p-5 text-xs text-elan-muted leading-relaxed">
+        <strong class="text-elan-charcoal">ملاحظة:</strong> هذه لوحة تجريبية. الربط الحقيقي يتم عبر API كتالوج رسمي أو ملف CSV معتمد بعد توقيع اتفاقية الشراكة. العمولة تُحسب فقط على الطلبات المكتملة والمدفوعة.
+      </div>
+    </main>
+  </div>
+  <script src="../assets/js/elan-data.js"></script>
+  <script>
+  (async () => {
+    await ElanData.load();
+    const storeId = new URLSearchParams(location.search).get('id') || 's1';
+    const store = ElanData.getStore(storeId);
+    const items = ElanData.getStoreProducts(storeId);
+    document.getElementById('sProducts').textContent = items.length;
+    document.getElementById('sComm').textContent = (store?.commission_rate ?? '—') + '%';
+    document.getElementById('catTable').innerHTML = items.map(i => `
+      <tr class="border-t border-elan-soft/50">
+        <td class="p-3">${i.product?.name_ar || ''}</td>
+        <td class="p-3">${i.price.toLocaleString()} ج.م</td>
+        <td class="p-3">${i.stock_quantity ?? '—'}</td>
+        <td class="p-3"><span class="text-xs text-green-700">متاح</span></td>
+      </tr>
+    `).join('') || '<tr><td class="p-4 text-elan-muted" colspan="4">لا توجد منتجات</td></tr>';
+  })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,221 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Élan Scents Database Schema",
+  "description": "Central data structure for the Élan Scents marketplace platform. Ready for official store catalog integrations.",
+  "version": "1.0.0",
+  "collections": {
+    "brands": {
+      "description": "Fragrance brands available on the platform. Only products sold by active stores are shown.",
+      "fields": {
+        "id": "string (uuid)",
+        "slug": "string",
+        "name_en": "string",
+        "name_ar": "string",
+        "official_logo_url": "string | null",
+        "description_en": "string | null",
+        "description_ar": "string | null",
+        "country_of_origin": "string | null",
+        "is_active": "boolean",
+        "created_at": "datetime",
+        "updated_at": "datetime"
+      },
+      "rules": [
+        "No official brand website links inside the platform",
+        "Logo must be the official original logo only",
+        "Only display brands that have at least one available product from active stores"
+      ]
+    },
+    "stores": {
+      "description": "Partner stores (marketplace sellers). Commission-based model.",
+      "fields": {
+        "id": "string (uuid)",
+        "slug": "string",
+        "name_en": "string",
+        "name_ar": "string",
+        "description_en": "string | null",
+        "description_ar": "string | null",
+        "logo_url": "string | null",
+        "website_url": "string | null (internal reference only, never exposed as public link to brand sites)",
+        "commission_rate": "decimal (0-100)",
+        "is_active": "boolean",
+        "is_elan_boutique": "boolean (future exclusive store)",
+        "contact_email": "string | null",
+        "created_at": "datetime",
+        "updated_at": "datetime"
+      },
+      "current_stores": [
+        "Afnan Egypt",
+        "Emarati Scents"
+      ],
+      "future_stores": [
+        "Élan Boutique"
+      ]
+    },
+    "products": {
+      "description": "Unified perfume products. Source of truth for availability and price = store catalogs.",
+      "fields": {
+        "id": "string (uuid)",
+        "slug": "string",
+        "name_en": "string",
+        "name_ar": "string",
+        "brand_id": "string (fk -> brands)",
+        "category": "enum: men | women | unisex",
+        "concentration": "string | null (EDP, EDT, Extrait...)",
+        "size_ml": "integer",
+        "short_description_en": "string | null",
+        "short_description_ar": "string | null",
+        "full_description_en": "string | null",
+        "full_description_ar": "string | null",
+        "notes_top": "array of strings | null",
+        "notes_heart": "array of strings | null",
+        "notes_base": "array of strings | null",
+        "occasions": "array of strings (daily, evening, summer, winter, formal...)",
+        "main_image_url": "string | null",
+        "gallery_urls": "array of strings",
+        "is_active": "boolean",
+        "created_at": "datetime",
+        "updated_at": "datetime"
+      },
+      "critical_rule": "A product is only visible if at least one store has it available for sale."
+    },
+    "store_products": {
+      "description": "The core marketplace table. Links products to stores with real price & stock from official catalogs.",
+      "fields": {
+        "id": "string (uuid)",
+        "store_id": "string (fk -> stores)",
+        "product_id": "string (fk -> products)",
+        "price": "decimal",
+        "currency": "string (default EGP)",
+        "stock_quantity": "integer | null",
+        "is_available": "boolean",
+        "sku": "string | null",
+        "discount_percent": "decimal | null",
+        "discount_price": "decimal | null",
+        "last_synced_at": "datetime",
+        "source": "string (catalog sync identifier)"
+      },
+      "business_rules": [
+        "Price comparison is done only for same product + same size_ml",
+        "Display the cheapest available price",
+        "If cheapest store runs out of stock → automatically switch to next cheapest available",
+        "Never show brand official price",
+        "Never invent data"
+      ]
+    },
+    "users": {
+      "fields": {
+        "id": "string (uuid)",
+        "email": "string",
+        "phone": "string | null",
+        "full_name": "string | null",
+        "password_hash": "string",
+        "preferred_language": "enum: ar | en",
+        "created_at": "datetime",
+        "last_login_at": "datetime | null"
+      }
+    },
+    "favorites": {
+      "fields": {
+        "user_id": "string",
+        "product_id": "string",
+        "created_at": "datetime"
+      }
+    },
+    "carts": {
+      "fields": {
+        "id": "string (uuid)",
+        "user_id": "string | null (guest carts allowed)",
+        "session_id": "string | null",
+        "created_at": "datetime",
+        "updated_at": "datetime"
+      }
+    },
+    "cart_items": {
+      "fields": {
+        "id": "string (uuid)",
+        "cart_id": "string",
+        "store_product_id": "string",
+        "quantity": "integer",
+        "unit_price_snapshot": "decimal",
+        "added_at": "datetime"
+      }
+    },
+    "orders": {
+      "fields": {
+        "id": "string (uuid)",
+        "order_number": "string",
+        "user_id": "string | null",
+        "status": "enum: pending | confirmed | processing | shipped | delivered | cancelled",
+        "subtotal": "decimal",
+        "shipping_fee": "decimal",
+        "tax": "decimal",
+        "total": "decimal",
+        "currency": "string",
+        "shipping_address": "json",
+        "payment_method": "string",
+        "payment_status": "enum: pending | paid | failed | refunded",
+        "created_at": "datetime",
+        "updated_at": "datetime"
+      }
+    },
+    "order_items": {
+      "fields": {
+        "id": "string (uuid)",
+        "order_id": "string",
+        "store_product_id": "string",
+        "store_id": "string",
+        "product_id": "string",
+        "quantity": "integer",
+        "unit_price": "decimal",
+        "commission_rate": "decimal",
+        "commission_amount": "decimal",
+        "store_payout": "decimal"
+      }
+    },
+    "commissions": {
+      "description": "Calculated per successful order item",
+      "fields": {
+        "id": "string (uuid)",
+        "order_item_id": "string",
+        "store_id": "string",
+        "rate": "decimal",
+        "amount": "decimal",
+        "status": "enum: pending | settled | cancelled",
+        "settled_at": "datetime | null"
+      }
+    },
+    "elan_picks": {
+      "description": "Curated selections by Élan Scents admin team",
+      "fields": {
+        "id": "string (uuid)",
+        "product_id": "string",
+        "sort_order": "integer",
+        "is_featured": "boolean",
+        "added_by": "string (admin user id)",
+        "created_at": "datetime"
+      }
+    },
+    "banners_offers": {
+      "fields": {
+        "id": "string (uuid)",
+        "title_ar": "string",
+        "title_en": "string",
+        "type": "enum: discount | package | announcement",
+        "image_url": "string | null",
+        "link_type": "enum: product | brand | store | external | none",
+        "link_value": "string | null",
+        "starts_at": "datetime",
+        "ends_at": "datetime | null",
+        "is_active": "boolean"
+      }
+    }
+  },
+  "core_business_rules": [
+    "Only show products that exist in at least one active store catalog",
+    "Always display the cheapest available price for the same product + size",
+    "Never display official brand website prices",
+    "Never invent missing data – use empty/unavailable states",
+    "Commission is calculated only on completed & paid orders",
+    "Élan Boutique (when added) gets priority on equal price"
+  ]
+}

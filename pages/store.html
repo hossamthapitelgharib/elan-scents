@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>المتجر | Élan Scents</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Cairo:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            elan: { gold: '#C9A227', ivory: '#FBF8F3', cream: '#F7F1E8', soft: '#F0E9DF', charcoal: '#2C2A26', muted: '#6B6560', softblack: '#1A1816' }
+          },
+          fontFamily: { display: ['Playfair Display', 'serif'], sans: ['Cairo', 'sans-serif'] }
+        }
+      }
+    }
+  </script>
+  <link rel="stylesheet" href="../assets/css/elan.css">
+</head>
+<body class="bg-elan-ivory text-elan-charcoal antialiased">
+
+  <header class="sticky top-0 z-50 glass border-b border-elan-soft/60">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-16">
+        <a href="../index.html" class="p-2 rounded-full hover:bg-elan-soft">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 19l-7-7 7-7"/></svg>
+        </a>
+        <a href="../index.html" class="font-display text-xl"><span class="text-elan-gold font-semibold">Élan</span> Scents</a>
+        <button data-open-cart class="p-2 rounded-full hover:bg-elan-soft relative">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
+          <span data-cart-badge class="absolute -top-0.5 -left-0.5 bg-elan-gold text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-medium hidden">0</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+    <nav id="breadcrumb" class="breadcrumb flex items-center gap-2 text-xs sm:text-sm text-elan-muted"></nav>
+  </div>
+
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-20">
+    <div id="storeHeader" class="bg-gradient-to-br from-elan-cream to-elan-soft rounded-3xl p-8 sm:p-12 text-center mb-12"></div>
+
+    <div class="mb-6">
+      <p class="text-sm text-elan-muted">كتالوج المتجر • <span id="storeCount">0</span> منتجات</p>
+    </div>
+
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6" id="storeProducts"></div>
+
+    <div class="mt-12 p-5 rounded-2xl bg-elan-cream/60 text-center">
+      <p class="text-xs text-elan-muted leading-relaxed">
+        هذا الكتالوج مأخوذ من هذا المتجر فقط. لا يتم خلط منتجات متاجر أخرى.
+        الأسعار والتوافر حسب بيانات المتجر.
+      </p>
+    </div>
+  </main>
+
+  <div id="cartOverlay" class="fixed inset-0 bg-black/30 z-50 hidden"></div>
+  <div id="cartDrawer" class="cart-drawer fixed top-0 left-0 z-50 w-full max-w-md h-full bg-elan-ivory shadow-elevated flex flex-col">
+    <div class="flex items-center justify-between p-5 border-b border-elan-soft">
+      <h3 class="font-display text-xl">سلة المشتريات</h3>
+      <button id="closeCartBtn" class="p-2 rounded-full hover:bg-elan-soft"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12"/></svg></button>
+    </div>
+    <div id="cartItems" class="flex-1 overflow-y-auto px-5"></div>
+    <div class="p-5 border-t border-elan-soft">
+      <div class="flex items-center justify-between mb-4">
+        <span class="text-sm text-elan-muted">الإجمالي</span>
+        <span id="cartTotal" class="text-lg font-semibold">0 ج.م</span>
+      </div>
+      <a href="checkout.html" class="block w-full py-3.5 bg-elan-charcoal text-white rounded-full text-sm font-medium text-center">إتمام الشراء</a>
+    </div>
+  </div>
+
+  <script src="../assets/js/elan-data.js"></script>
+  <script src="../assets/js/elan-core.js"></script>
+  <script>
+    (async function () {
+      await ElanData.load();
+      const params = new URLSearchParams(window.location.search);
+      const storeId = params.get('id') || 's1';
+      const store = ElanData.getStore(storeId);
+
+      if (!store) {
+        document.getElementById('storeHeader').innerHTML = '<p class="text-elan-muted">المتجر غير موجود</p>';
+        return;
+      }
+
+      document.title = `${store.name_ar} | Élan Scents`;
+      document.getElementById('breadcrumb').innerHTML = `
+        <a href="../index.html" class="hover:text-elan-gold">الرئيسية</a>
+        <span>/</span>
+        <a href="../index.html#stores" class="hover:text-elan-gold">المتاجر</a>
+        <span>/</span>
+        <span class="text-elan-charcoal font-medium">${store.name_ar}</span>
+      `;
+
+      document.getElementById('storeHeader').innerHTML = `
+        <h1 class="font-display text-3xl sm:text-4xl text-elan-charcoal mb-2">${store.name_ar}</h1>
+        <p class="text-elan-gold text-sm tracking-wide mb-4">${store.name_en}</p>
+        <p class="text-sm text-elan-muted max-w-lg mx-auto leading-relaxed">${store.description_ar || ''}</p>
+        <div class="mt-6 flex flex-wrap justify-center gap-3 text-xs">
+          <span class="px-3 py-1.5 rounded-full bg-white/80 text-elan-charcoal">عمولة المنصة: ${store.commission_rate}%</span>
+          <span class="px-3 py-1.5 rounded-full bg-white/80 text-elan-charcoal">${store.is_active ? 'متجر نشط' : 'غير نشط'}</span>
+        </div>
+      `;
+
+      const products = ElanData.getStoreProducts(store.id);
+      document.getElementById('storeCount').textContent = products.length;
+
+      const grid = document.getElementById('storeProducts');
+      if (!products.length) {
+        grid.innerHTML = '<p class="col-span-full text-center py-12 text-elan-muted">لا توجد منتجات متاحة حالياً</p>';
+        return;
+      }
+
+      grid.innerHTML = products.map(item => `
+        <a href="product.html?id=${item.product.id}" class="perfume-card rounded-2xl overflow-hidden shadow-soft border border-elan-soft/50">
+          <div class="aspect-[4/5] bg-elan-cream overflow-hidden">
+            <img src="${item.product.image}" alt="${item.product.name_ar}" class="w-full h-full object-cover hover:scale-105 transition duration-500">
+          </div>
+          <div class="p-3 sm:p-4">
+            <p class="text-[11px] text-elan-gold">${item.brand?.name_en || ''}</p>
+            <h3 class="text-sm font-medium line-clamp-2 mt-0.5">${item.product.name_ar}</h3>
+            <p class="text-sm font-semibold mt-2">${item.price.toLocaleString()} ج.م</p>
+          </div>
+        </a>
+      `).join('');
+    })();
+  </script>
+</body>
+</html>
