@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>تفاصيل العطر | Élan Scents</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500&family=Cairo:wght@400;500;600&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../assets/css/elan.css" />
+  <style>
+    .pd-grid{display:grid;gap:2rem}
+    @media(min-width:768px){.pd-grid{grid-template-columns:1fr 1fr}}
+    .pd-img{width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:1.25rem;background:#F7F1E8}
+    .pd-meta{font-size:13px;color:#6B6560}
+    .qty-box{display:flex;align-items:center;gap:10px;margin:1rem 0}
+    .qty-box button{width:36px;height:36px;border-radius:999px;border:1px solid #F0E9DF;background:#fff;cursor:pointer}
+    .qty-warn{color:#8B3A3A;font-size:13px;margin-top:6px}
+  </style>
+</head>
+<body>
+  <header class="elan-header">
+    <div class="container-elan flex items-center justify-between h-14">
+      <a href="../index.html" class="icon-btn" aria-label="رجوع">←</a>
+      <a href="../index.html" class="font-display text-lg"><span class="text-gold-3d">Élan</span> Scents</a>
+      <button type="button" class="icon-btn" data-open-cart aria-label="عربة التسوق">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
+        <span class="cart-badge" data-cart-count>0</span>
+      </button>
+    </div>
+  </header>
+
+  <div class="container-elan">
+    <nav class="breadcrumb" id="breadcrumb">
+      <a href="../index.html">الرئيسية</a><span>/</span>
+      <span class="current" id="crumbName">العطر</span>
+    </nav>
+  </div>
+
+  <main class="container-elan pb-16">
+    <div id="productRoot" class="pd-grid">
+      <div class="empty-state">جاري التحميل...</div>
+    </div>
+    <section class="mt-12">
+      <h2 class="section-title mb-4">منتجات مرتبطة</h2>
+      <div id="related" class="flex flex-wrap gap-4"></div>
+    </section>
+  </main>
+
+  <div id="cartOverlay" class="cart-overlay"></div>
+  <div id="cartDrawer" class="cart-drawer">
+    <div class="flex items-center justify-between p-4 border-b border-elan-soft">
+      <div>
+        <h3 class="font-display text-xl m-0">سلة المشتريات</h3>
+        <p id="cartDrawerCount" class="text-[11px] text-elan-muted m-0">0 منتج</p>
+      </div>
+      <button type="button" id="closeCartBtn" aria-label="إغلاق">✕</button>
+    </div>
+    <div id="cartItems" class="flex-1 overflow-y-auto px-4"></div>
+    <div class="p-4 border-t border-elan-soft">
+      <div class="flex justify-between mb-3"><span class="text-sm text-elan-muted">الإجمالي</span><span id="cartTotal" class="font-semibold">0 ج.م</span></div>
+      <a href="checkout.html" class="elan-btn elan-btn-dark w-full">إتمام الشراء</a>
+    </div>
+  </div>
+
+  <script src="../assets/js/elan-data.js"></script>
+  <script src="../assets/js/elan-core.js"></script>
+  <script>
+  (async function () {
+    const id = new URLSearchParams(location.search).get('id');
+    const root = document.getElementById('productRoot');
+    try {
+      await ElanData.load();
+      const card = ElanData.toCardView(ElanData.getProduct(id));
+      if (!card) {
+        root.innerHTML = '<div class="empty-state">هذا العطر غير متاح للبيع لدى متاجر المنصة حالياً</div>';
+        return;
+      }
+      document.title = card.name_ar + ' | Élan Scents';
+      document.getElementById('crumbName').textContent = card.name_ar;
+
+      const unified = ElanData.getUnifiedRecord(id);
+      const maxQ = card.offer.quantity != null ? card.offer.quantity : 99;
+      let qty = 1;
+
+      root.innerHTML = `
+        <div>
+          <img class="pd-img" src="${card.image || ''}" alt="${card.name_ar}" onerror="this.style.opacity=.35" />
+        </div>
+        <div>
+          <p class="pd-meta uppercase tracking-wide mb-1">${card.brand_name || ''}</p>
+          <h1 class="font-display text-2xl sm:text-3xl mb-2">${card.name_ar}</h1>
+          <p class="pd-meta mb-1">المتجر: ${card.offer.store_name || '—'}</p>
+          ${card.category_label ? `<p class="pd-meta mb-1">الفئة: ${card.category_label}</p>` : ''}
+          ${card.offer.size ? `<p class="pd-meta mb-1">الحجم: ${card.offer.size}</p>` : ''}
+          <p class="text-2xl font-bold mt-3 mb-2">${Number(card.offer.price).toLocaleString()} ج.م</p>
+          <p class="text-sm leading-relaxed text-elan-muted mb-3">${card.description || ''}</p>
+          ${card.notes ? `<p class="pd-meta mb-1">النفحات: ${typeof card.notes === 'string' ? card.notes : JSON.stringify(card.notes)}</p>` : ''}
+          ${card.composition ? `<p class="pd-meta mb-1">التركيب: ${typeof card.composition === 'string' ? card.composition : JSON.stringify(card.composition)}</p>` : ''}
+          ${card.occasion_labels?.length ? `<p class="pd-meta mb-3">المناسبات: ${card.occasion_labels.join(' · ')}</p>` : ''}
+          <div class="qty-box">
+            <span class="text-sm">الكمية</span>
+            <button type="button" id="qtyMinus">−</button>
+            <span id="qtyVal">1</span>
+            <button type="button" id="qtyPlus">+</button>
+          </div>
+          <p id="qtyWarn" class="qty-warn" style="display:none"></p>
+          <div class="flex flex-wrap gap-2 mt-4">
+            <button type="button" id="addBtn" class="elan-btn elan-btn-dark">إضافة إلى العربة</button>
+            <a href="../index.html" class="elan-btn elan-btn-outline">متابعة التسوق</a>
+          </div>
+          ${unified && unified.alternative_stores?.length ? `
+            <div class="mt-6 text-sm text-elan-muted">
+              <p class="font-medium text-elan-charcoal mb-1">متاح أيضاً لدى:</p>
+              ${unified.alternative_stores.map(s => `<p>${s.store_name}: ${Number(s.price).toLocaleString()} ج.م</p>`).join('')}
+            </div>` : ''}
+        </div>`;
+
+      const warn = document.getElementById('qtyWarn');
+      const val = document.getElementById('qtyVal');
+      function setQty(n) {
+        const check = ElanData.checkQuantity(id, card.offer.store_id, n);
+        if (!check.ok && check.available != null) {
+          qty = check.available;
+          warn.style.display = 'block';
+          warn.textContent = check.message; // المتاح حالياً: N فقط.
+        } else {
+          qty = Math.max(1, n);
+          warn.style.display = 'none';
+        }
+        val.textContent = qty;
+      }
+      document.getElementById('qtyMinus').onclick = () => setQty(qty - 1);
+      document.getElementById('qtyPlus').onclick = () => setQty(qty + 1);
+      document.getElementById('addBtn').onclick = () => {
+        const check = ElanData.checkQuantity(id, card.offer.store_id, qty);
+        if (!check.ok) {
+          Elan.showToast(check.message || 'غير متاح', 'error');
+          if (check.available != null) setQty(check.available);
+          return;
+        }
+        for (let i = 0; i < qty; i++) {
+          Elan.addToCart({
+            id: card.id,
+            name: card.name_ar,
+            brand: card.brand_name,
+            store: card.offer.store_name,
+            store_id: card.offer.store_id,
+            price: card.offer.price,
+            image: card.image,
+            max_qty: maxQ
+          }, i === qty - 1);
+        }
+      };
+
+      // Related — نفس البراند أو الفئة، متاحة فقط
+      const related = ElanData.getAllAvailableProducts()
+        .filter(p => p.id !== card.id && (p.brand_id === card.brand_id || p.category === card.category))
+        .slice(0, 6);
+      const rel = document.getElementById('related');
+      if (!related.length) rel.innerHTML = '<div class="empty-state">لا توجد منتجات مرتبطة متاحة</div>';
+      else {
+        rel.innerHTML = related.map(p => Elan.perfumeCardHTML(p, '../')).join('');
+        Elan.bindAddButtons(rel);
+      }
+    } catch (e) {
+      console.error(e);
+      root.innerHTML = '<div class="empty-state">تعذر تحميل المنتج</div>';
+    }
+  })();
+  </script>
+</body>
+</html>

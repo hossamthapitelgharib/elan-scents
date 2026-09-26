@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>تتبع الطلب | Élan Scents</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600&family=Cairo:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config={theme:{extend:{colors:{elan:{gold:'#C9A227',ivory:'#FBF8F3',cream:'#F7F1E8',soft:'#F0E9DF',charcoal:'#2C2A26',muted:'#6B6560'}},fontFamily:{display:['Playfair Display','serif'],sans:['Cairo','sans-serif']}}}}</script>
+</head>
+<body class="bg-elan-ivory text-elan-charcoal antialiased font-sans">
+  <header class="border-b border-elan-soft bg-white/80 sticky top-0">
+    <div class="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between">
+      <a href="../index.html" class="text-sm text-elan-muted">← الرئيسية</a>
+      <span class="font-display text-sm"><span class="text-elan-gold">Élan</span> Scents</span>
+    </div>
+  </header>
+  <main class="max-w-3xl mx-auto px-4 py-10">
+    <h1 class="font-display text-2xl mb-6">تتبع الطلب</h1>
+    <div class="bg-white rounded-2xl p-6 border border-elan-soft mb-8">
+      <label class="text-xs text-elan-muted">رقم الطلب</label>
+      <div class="flex gap-2 mt-2">
+        <input id="orderIdInput" type="text" placeholder="ES-XXXXXXXX" class="flex-1 px-4 py-3 rounded-xl border border-elan-soft text-sm">
+        <button id="trackBtn" class="px-5 py-3 bg-elan-charcoal text-white rounded-xl text-sm">تتبع</button>
+      </div>
+    </div>
+    <div id="trackResult" class="hidden">
+      <div class="bg-white rounded-2xl p-6 border border-elan-soft">
+        <p class="text-sm font-medium mb-1">طلب <span id="tId"></span></p>
+        <p class="text-xs text-elan-muted mb-6">الحالة: <span id="tStatus" class="text-elan-gold"></span></p>
+        <ol class="space-y-4 text-sm">
+          <li class="flex gap-3"><span class="w-6 h-6 rounded-full bg-elan-gold text-white text-xs flex items-center justify-center">✓</span> تم استلام الطلب</li>
+          <li class="flex gap-3"><span class="w-6 h-6 rounded-full bg-elan-gold text-white text-xs flex items-center justify-center">✓</span> تأكيد من المتجر</li>
+          <li class="flex gap-3"><span id="shipStep" class="w-6 h-6 rounded-full bg-elan-soft text-elan-muted text-xs flex items-center justify-center">3</span> جاري الشحن</li>
+          <li class="flex gap-3"><span class="w-6 h-6 rounded-full bg-elan-soft text-elan-muted text-xs flex items-center justify-center">4</span> تم التسليم</li>
+        </ol>
+      </div>
+    </div>
+  </main>
+  <script>
+    const params = new URLSearchParams(location.search);
+    if (params.get('id')) document.getElementById('orderIdInput').value = params.get('id');
+    document.getElementById('trackBtn').onclick = () => {
+      const id = document.getElementById('orderIdInput').value.trim();
+      if (!id) return;
+      const orders = JSON.parse(localStorage.getItem('elan_orders') || '[]');
+      const order = orders.find(o => o.id === id) || { id, status: 'قيد التجهيز' };
+      document.getElementById('tId').textContent = order.id;
+      document.getElementById('tStatus').textContent = order.status || 'قيد التجهيز';
+      document.getElementById('trackResult').classList.remove('hidden');
+    };
+    if (params.get('id')) document.getElementById('trackBtn').click();
+  </script>
+</body>
+</html>

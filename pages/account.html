@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>حسابي | Élan Scents</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600&family=Cairo:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config={theme:{extend:{colors:{elan:{gold:'#C9A227',ivory:'#FBF8F3',cream:'#F7F1E8',soft:'#F0E9DF',charcoal:'#2C2A26',muted:'#6B6560'}},fontFamily:{display:['Playfair Display','serif'],sans:['Cairo','sans-serif']}}}}</script>
+</head>
+<body class="bg-elan-ivory text-elan-charcoal antialiased font-sans">
+  <header class="border-b border-elan-soft bg-white/80 backdrop-blur sticky top-0">
+    <div class="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between">
+      <a href="../index.html" class="text-sm text-elan-muted">← الرئيسية</a>
+      <span class="font-display"><span class="text-elan-gold">Élan</span> Scents</span>
+    </div>
+  </header>
+  <main class="max-w-3xl mx-auto px-4 py-10">
+    <div id="guestView" class="text-center py-12">
+      <h1 class="font-display text-2xl mb-3">حسابي</h1>
+      <p class="text-sm text-elan-muted mb-6">سجّل الدخول لإدارة طلباتك ومفضلاتك</p>
+      <button onclick="Elan.openAuth('login')" class="px-8 py-3 bg-elan-charcoal text-white rounded-full text-sm">تسجيل الدخول</button>
+    </div>
+    <div id="userView" class="hidden space-y-6">
+      <div class="bg-white rounded-2xl p-6 border border-elan-soft">
+        <p class="text-xs text-elan-muted">مرحباً</p>
+        <h2 id="userName" class="font-display text-xl mt-1"></h2>
+        <p id="userEmail" class="text-sm text-elan-muted mt-1"></p>
+      </div>
+      <div class="grid gap-3">
+        <a href="orders.html" class="bg-white rounded-xl p-4 border border-elan-soft flex justify-between items-center hover:border-elan-gold/40">
+          <span class="text-sm font-medium">طلباتي</span><span class="text-elan-muted">←</span>
+        </a>
+        <a href="tracking.html" class="bg-white rounded-xl p-4 border border-elan-soft flex justify-between items-center hover:border-elan-gold/40">
+          <span class="text-sm font-medium">تتبع طلب</span><span class="text-elan-muted">←</span>
+        </a>
+        <a href="../index.html#elan-picks" class="bg-white rounded-xl p-4 border border-elan-soft flex justify-between items-center hover:border-elan-gold/40">
+          <span class="text-sm font-medium">المفضلات</span><span class="text-elan-muted">←</span>
+        </a>
+        <button onclick="Elan.logout(); location.reload()" class="bg-white rounded-xl p-4 border border-elan-soft text-sm text-red-600 text-right">تسجيل الخروج</button>
+      </div>
+    </div>
+  </main>
+  <!-- minimal auth modal dependency -->
+  <div id="authModal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4">
+    <div id="authOverlay" class="absolute inset-0 bg-black/40"></div>
+    <div class="relative bg-elan-ivory rounded-2xl p-6 w-full max-w-sm">
+      <button id="closeAuthBtn" class="absolute top-3 left-3">✕</button>
+      <div id="loginForm">
+        <h3 class="font-display text-xl text-center mb-4">دخول</h3>
+        <form id="loginFormEl" class="space-y-3">
+          <input name="email" type="email" required placeholder="البريد" class="w-full px-4 py-3 rounded-xl border border-elan-soft text-sm">
+          <input name="password" type="password" required placeholder="كلمة المرور" class="w-full px-4 py-3 rounded-xl border border-elan-soft text-sm">
+          <button class="w-full py-3 bg-elan-charcoal text-white rounded-full text-sm">دخول</button>
+        </form>
+        <p class="text-center text-xs mt-3"><button id="switchToRegister" class="text-elan-gold">إنشاء حساب</button></p>
+      </div>
+      <div id="registerForm" class="hidden">
+        <h3 class="font-display text-xl text-center mb-4">حساب جديد</h3>
+        <form id="registerFormEl" class="space-y-3">
+          <input name="name" required placeholder="الاسم" class="w-full px-4 py-3 rounded-xl border border-elan-soft text-sm">
+          <input name="email" type="email" required placeholder="البريد" class="w-full px-4 py-3 rounded-xl border border-elan-soft text-sm">
+          <input name="password" type="password" required placeholder="كلمة المرور" class="w-full px-4 py-3 rounded-xl border border-elan-soft text-sm">
+          <button class="w-full py-3 bg-elan-charcoal text-white rounded-full text-sm">إنشاء</button>
+        </form>
+        <p class="text-center text-xs mt-3"><button id="switchToLogin" class="text-elan-gold">لدي حساب</button></p>
+      </div>
+    </div>
+  </div>
+  <script src="../assets/js/elan-core.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      if (Elan.user) {
+        document.getElementById('guestView').classList.add('hidden');
+        document.getElementById('userView').classList.remove('hidden');
+        document.getElementById('userName').textContent = Elan.user.full_name || 'مستخدم';
+        document.getElementById('userEmail').textContent = Elan.user.email || '';
+      }
+    });
+  </script>
+</body>
+</html>

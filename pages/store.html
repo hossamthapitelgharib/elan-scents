@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>المتجر | Élan Scents</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500&family=Cairo:wght@400;600&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../assets/css/elan.css" />
+</head>
+<body>
+  <header class="elan-header">
+    <div class="container-elan flex items-center justify-between h-14">
+      <a href="../index.html" class="icon-btn" aria-label="رجوع">←</a>
+      <a href="../index.html" class="font-display text-lg"><span class="text-gold-3d">Élan</span> Scents</a>
+      <button type="button" class="icon-btn" data-open-cart><span class="cart-badge" data-cart-count>0</span>🛒</button>
+    </div>
+  </header>
+  <div class="container-elan">
+    <nav class="breadcrumb">
+      <a href="../index.html">الرئيسية</a><span>/</span>
+      <a href="../index.html#stores">المتاجر</a><span>/</span>
+      <span class="current" id="crumbStore">—</span>
+    </nav>
+  </div>
+  <main class="container-elan pb-16">
+    <h1 id="storeTitle" class="font-display text-2xl mb-2">—</h1>
+    <p id="storeDesc" class="text-sm text-elan-muted mb-8"></p>
+    <div id="storeProducts" class="flex flex-wrap gap-4"></div>
+  </main>
+  <div id="cartOverlay" class="cart-overlay"></div>
+  <div id="cartDrawer" class="cart-drawer">
+    <div class="flex items-center justify-between p-4 border-b border-elan-soft">
+      <div><h3 class="font-display text-xl m-0">سلة المشتريات</h3><p id="cartDrawerCount" class="text-[11px] text-elan-muted m-0">0</p></div>
+      <button type="button" id="closeCartBtn">✕</button>
+    </div>
+    <div id="cartItems" class="flex-1 overflow-y-auto px-4"></div>
+    <div class="p-4 border-t border-elan-soft">
+      <div class="flex justify-between mb-3"><span>الإجمالي</span><span id="cartTotal">0 ج.م</span></div>
+      <a href="checkout.html" class="elan-btn elan-btn-dark w-full">إتمام الشراء</a>
+    </div>
+  </div>
+  <script src="../assets/js/elan-data.js"></script>
+  <script src="../assets/js/elan-core.js"></script>
+  <script>
+  (async () => {
+    const id = new URLSearchParams(location.search).get('id');
+    await ElanData.load();
+    const store = ElanData.getStore(id);
+    if (!store) { document.getElementById('storeTitle').textContent = 'متجر غير موجود'; return; }
+    document.getElementById('storeTitle').textContent = store.name_ar || store.name_en || '';
+    document.getElementById('crumbStore').textContent = store.name_ar || '';
+    document.getElementById('storeDesc').textContent = store.description_ar || store.description || 'منتجات البراندات المعتمدة المتاحة لدى هذا المتجر فقط.';
+    document.title = (store.name_ar || '') + ' | Élan Scents';
+    const list = ElanData.getStoreProducts(id);
+    const grid = document.getElementById('storeProducts');
+    if (!list.length) grid.innerHTML = '<div class="empty-state">لا توجد منتجات متاحة حالياً</div>';
+    else { grid.innerHTML = list.map(p => Elan.perfumeCardHTML(p, '../')).join(''); Elan.bindAddButtons(grid); }
+  })();
+  </script>
+</body>
+</html>

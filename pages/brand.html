@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>البراند | Élan Scents</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500&family=Cairo:wght@400;600&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../assets/css/elan.css" />
+</head>
+<body>
+  <header class="elan-header">
+    <div class="container-elan flex items-center justify-between h-14">
+      <a href="../index.html" class="icon-btn" aria-label="رجوع">←</a>
+      <a href="../index.html" class="font-display text-lg"><span class="text-gold-3d">Élan</span> Scents</a>
+      <button type="button" class="icon-btn" data-open-cart aria-label="السلة">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
+        <span class="cart-badge" data-cart-count>0</span>
+      </button>
+    </div>
+  </header>
+  <div class="container-elan">
+    <nav class="breadcrumb">
+      <a href="../index.html">الرئيسية</a><span>/</span>
+      <a href="../index.html#brands">البراندات</a><span>/</span>
+      <span class="current" id="crumbBrand">—</span>
+    </nav>
+  </div>
+  <main class="container-elan pb-16">
+    <div class="flex items-center gap-4 mb-8">
+      <img id="brandLogo" src="" alt="" class="w-20 h-20 object-contain bg-white rounded-xl border border-elan-soft" />
+      <div>
+        <h1 id="brandTitle" class="font-display text-2xl m-0">—</h1>
+        <p class="text-sm text-elan-muted m-0 mt-1">عطور متاحة لدى متاجر المنصة فقط</p>
+      </div>
+    </div>
+    <div id="brandProducts" class="flex flex-wrap gap-4"></div>
+  </main>
+  <div id="cartOverlay" class="cart-overlay"></div>
+  <div id="cartDrawer" class="cart-drawer">
+    <div class="flex items-center justify-between p-4 border-b border-elan-soft">
+      <div><h3 class="font-display text-xl m-0">سلة المشتريات</h3><p id="cartDrawerCount" class="text-[11px] text-elan-muted m-0">0 منتج</p></div>
+      <button type="button" id="closeCartBtn" aria-label="إغلاق">✕</button>
+    </div>
+    <div id="cartItems" class="flex-1 overflow-y-auto px-4"></div>
+    <div class="p-4 border-t border-elan-soft">
+      <div class="flex justify-between mb-3"><span class="text-sm">الإجمالي</span><span id="cartTotal" class="font-semibold">0 ج.م</span></div>
+      <a href="checkout.html" class="elan-btn elan-btn-dark w-full">إتمام الشراء</a>
+    </div>
+  </div>
+  <script src="../assets/js/elan-data.js"></script>
+  <script src="../assets/js/elan-core.js"></script>
+  <script>
+  (async () => {
+    const id = new URLSearchParams(location.search).get('id');
+    await ElanData.load();
+    const brand = ElanData.getBrand(id);
+    if (!brand) {
+      document.getElementById('brandTitle').textContent = 'براند غير موجود';
+      return;
+    }
+    document.getElementById('brandTitle').textContent = brand.name_ar || brand.name_en || '';
+    document.getElementById('crumbBrand').textContent = brand.name_ar || '';
+    document.title = (brand.name_ar || '') + ' | Élan Scents';
+    const logo = document.getElementById('brandLogo');
+    logo.src = brand.logo_url || '';
+    logo.alt = brand.name_ar || '';
+    const list = ElanData.getByBrand(id);
+    const grid = document.getElementById('brandProducts');
+    if (!list.length) {
+      grid.innerHTML = '<div class="empty-state">لا توجد عطور متاحة لهذا البراند لدى متاجر المنصة حالياً</div>';
+    } else {
+      grid.innerHTML = list.map(p => Elan.perfumeCardHTML(p, '../')).join('');
+      Elan.bindAddButtons(grid);
+    }
+  })();
+  </script>
+</body>
+</html>

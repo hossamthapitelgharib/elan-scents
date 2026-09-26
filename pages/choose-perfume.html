@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>كيف تختار عطرك | Élan Scents</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500&family=Cairo:wght@400;500;600&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../assets/css/elan.css" />
+  <style>html,body{overflow-x:hidden}</style>
+</head>
+<body>
+  <header class="elan-header">
+    <div class="container-elan flex items-center justify-between h-14">
+      <a href="../index.html" class="icon-btn" aria-label="رجوع">←</a>
+      <a href="../index.html" class="font-display text-lg"><span class="text-gold-3d">Élan</span> Scents</a>
+      <button type="button" class="icon-btn" data-open-cart aria-label="السلة">
+        <span class="cart-badge" data-cart-count>0</span>🛒
+      </button>
+    </div>
+  </header>
+
+  <div class="container-elan">
+    <nav class="breadcrumb">
+      <a href="../index.html">الرئيسية</a><span>/</span>
+      <span class="current">كيف تختار عطرك</span>
+    </nav>
+  </div>
+
+  <main class="container-elan pb-16" style="max-width:40rem">
+    <h1 class="section-title text-center mb-2">كيف تختار عطرك</h1>
+    <p class="text-center text-sm text-elan-muted mb-8 leading-relaxed">
+      أجب عن بضعة أسئلة بسيطة… وسنقترح عليك الاتجاه الأنسب لذوقك ومناسبتك من عطور الخليج المتاحة على المنصة.
+    </p>
+
+    <div id="guideSteps" class="space-y-4">
+      <!-- step 1 -->
+      <div class="guide-step" data-step="1">
+        <p class="text-xs tracking-wide text-elan-muted mb-1">الخطوة 1 من 3</p>
+        <h3 class="font-display text-xl mb-3 m-0">لمن العطر؟</h3>
+        <button type="button" class="guide-option" data-key="gender" data-val="men">رجالي</button>
+        <button type="button" class="guide-option" data-key="gender" data-val="women">نسائي</button>
+        <button type="button" class="guide-option" data-key="gender" data-val="unisex">عطر يجمعنا</button>
+      </div>
+
+      <!-- step 2 -->
+      <div class="guide-step" data-step="2" style="display:none">
+        <p class="text-xs tracking-wide text-elan-muted mb-1">الخطوة 2 من 3</p>
+        <h3 class="font-display text-xl mb-3 m-0">ما المناسبة أو اللحظة؟</h3>
+        <button type="button" class="guide-option" data-key="occasion" data-val="daytime">نهاري / يومي</button>
+        <button type="button" class="guide-option" data-key="occasion" data-val="work">اجتماع عمل</button>
+        <button type="button" class="guide-option" data-key="occasion" data-val="night">ليلي / سهرات</button>
+        <button type="button" class="guide-option" data-key="occasion" data-val="date">موعد خاص</button>
+        <button type="button" class="guide-option" data-key="occasion" data-val="gift">هدية</button>
+        <button type="button" class="guide-option" data-key="occasion" data-val="party">سهرات ومناسبات</button>
+      </div>
+
+      <!-- step 3 -->
+      <div class="guide-step" data-step="3" style="display:none">
+        <p class="text-xs tracking-wide text-elan-muted mb-1">الخطوة 3 من 3</p>
+        <h3 class="font-display text-xl mb-3 m-0">ما الطابع الذي تفضّله؟</h3>
+        <button type="button" class="guide-option" data-key="mood" data-val="soft">ناعم وراقي</button>
+        <button type="button" class="guide-option" data-key="mood" data-val="bold">جريء وحضوري</button>
+        <button type="button" class="guide-option" data-key="mood" data-val="fresh">منعش وخفيف</button>
+        <button type="button" class="guide-option" data-key="mood" data-val="warm">دافئ وشرقي</button>
+      </div>
+    </div>
+
+    <div id="guideResult" class="guide-result mt-6" style="display:none">
+      <h3 class="font-display text-xl mb-2 m-0">اقتراح Élan Scents</h3>
+      <p id="guideText" class="text-sm leading-relaxed text-elan-muted mb-4"></p>
+      <div id="guideCards" class="flex flex-wrap gap-3 mb-4"></div>
+      <div class="flex flex-wrap gap-2">
+        <a id="guideBrowse" href="filters.html" class="elan-btn elan-btn-dark">استعرض النتائج</a>
+        <button type="button" id="guideReset" class="elan-btn elan-btn-outline">إعادة الاختيار</button>
+      </div>
+    </div>
+  </main>
+
+  <div id="cartOverlay" class="cart-overlay"></div>
+  <div id="cartDrawer" class="cart-drawer">
+    <div class="flex items-center justify-between p-4 border-b border-elan-soft">
+      <div><h3 class="font-display text-xl m-0">سلة المشتريات</h3><p id="cartDrawerCount" class="text-[11px] text-elan-muted m-0">0</p></div>
+      <button type="button" id="closeCartBtn">✕</button>
+    </div>
+    <div id="cartItems" class="flex-1 overflow-y-auto px-4"></div>
+    <div class="p-4 border-t border-elan-soft">
+      <div class="flex justify-between mb-3"><span>الإجمالي</span><span id="cartTotal">0 ج.م</span></div>
+      <a href="checkout.html" class="elan-btn elan-btn-dark w-full">إتمام الشراء</a>
+    </div>
+  </div>
+
+  <script src="../assets/js/elan-data.js"></script>
+  <script src="../assets/js/elan-core.js"></script>
+  <script>
+  (async function () {
+    await ElanData.load();
+    const answers = {};
+    const moodHints = {
+      soft: 'نفحات ناعمة وأنيقة تناسب الحضور الهادئ.',
+      bold: 'عطور بحضور أقوى تترك انطباعاً واضحاً.',
+      fresh: 'اتجاه أكثر انتعاشاً وخفّة لساعات النهار.',
+      warm: 'دفء شرقي خليجي بروح فاخرة.'
+    };
+
+    function showStep(n) {
+      document.querySelectorAll('.guide-step').forEach(el => {
+        el.style.display = el.dataset.step === String(n) ? 'block' : 'none';
+      });
+    }
+
+    function finish() {
+      const gender = answers.gender;
+      const occasion = answers.occasion;
+      let list = ElanData.filterProducts({
+        category: gender,
+        occasion: occasion
+      });
+      if (!list.length) list = ElanData.filterProducts({ category: gender });
+      if (!list.length) list = ElanData.getAllAvailableProducts().slice(0, 6);
+
+      // mild mood preference: prefer bestsellers / elan picks for bold, new for fresh
+      if (answers.mood === 'bold') list = [...list].sort((a,b) => (b.flags.is_bestseller?1:0)-(a.flags.is_bestseller?1:0));
+      if (answers.mood === 'fresh') list = [...list].sort((a,b) => (b.flags.is_new?1:0)-(a.flags.is_new?1:0));
+      if (answers.mood === 'soft' || answers.mood === 'warm') list = [...list].sort((a,b) => (b.flags.is_elan_pick||b.flags.is_featured?1:0)-(a.flags.is_elan_pick||a.flags.is_featured?1:0));
+
+      const picks = list.slice(0, 4);
+      const catLabel = ElanData.categoryLabel(gender);
+      const occLabel = ElanData.occasionLabel(occasion);
+      document.getElementById('guideText').textContent =
+        `بناءً على اختيارك (${catLabel} · ${occLabel}) — ${moodHints[answers.mood] || ''} هذه مختارات من العطور المتاحة لدى متاجر المنصة بالسعر الأرخص المعروض.`;
+
+      const box = document.getElementById('guideCards');
+      box.innerHTML = picks.map(p => Elan.perfumeCardHTML(p, '../')).join('');
+      Elan.bindAddButtons(box);
+
+      const q = new URLSearchParams();
+      if (gender) q.set('category', gender);
+      if (occasion) q.set('occasion', occasion);
+      document.getElementById('guideBrowse').href = 'filters.html?' + q.toString();
+
+      document.getElementById('guideSteps').style.display = 'none';
+      document.getElementById('guideResult').style.display = 'block';
+    }
+
+    document.querySelectorAll('.guide-option').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const step = btn.closest('.guide-step');
+        step.querySelectorAll('.guide-option').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        answers[btn.dataset.key] = btn.dataset.val;
+        const n = Number(step.dataset.step);
+        if (n < 3) showStep(n + 1);
+        else finish();
+      });
+    });
+
+    document.getElementById('guideReset').onclick = () => {
+      Object.keys(answers).forEach(k => delete answers[k]);
+      document.querySelectorAll('.guide-option').forEach(b => b.classList.remove('active'));
+      document.getElementById('guideResult').style.display = 'none';
+      document.getElementById('guideSteps').style.display = 'block';
+      showStep(1);
+    };
+  })();
+  </script>
+</body>
+</html>

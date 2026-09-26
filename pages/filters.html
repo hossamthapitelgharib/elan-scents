@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>تصفح العطور | Élan Scents</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500&family=Cairo:wght@400;500;600&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../assets/css/elan.css" />
+  <style>html,body{overflow-x:hidden}</style>
+  <style>
+    .filters-bar{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:1.5rem}
+    .filters-bar select,.filters-bar input{padding:.6rem .9rem;border:1px solid #F0E9DF;border-radius:12px;font-family:inherit;font-size:13px;background:#fff;min-width:140px}
+    .grid-cards{display:flex;flex-wrap:wrap;gap:1rem}
+  </style>
+</head>
+<body>
+  <header class="elan-header">
+    <div class="container-elan flex items-center justify-between h-14">
+      <a href="../index.html" class="icon-btn" aria-label="رجوع">←</a>
+      <a href="../index.html" class="font-display text-lg"><span class="text-gold-3d">Élan</span> Scents</a>
+      <button type="button" class="icon-btn" data-open-cart aria-label="السلة">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
+        <span class="cart-badge" data-cart-count>0</span>
+      </button>
+    </div>
+  </header>
+
+  <div class="container-elan">
+    <nav class="breadcrumb">
+      <a href="../index.html">الرئيسية</a><span>/</span>
+      <span class="current">تصفح العطور</span>
+    </nav>
+  </div>
+
+  <main class="container-elan pb-16">
+    <h1 class="section-title mb-4">تصفح العطور</h1>
+    <!-- Prompt 2 §4.2 Search / Filters -->
+    <div class="filters-bar">
+      <input type="search" id="fQ" placeholder="بحث..." />
+      <select id="fCategory">
+        <option value="">كل الفئات</option>
+        <option value="men">رجالي</option>
+        <option value="women">نسائي</option>
+        <option value="unisex">عطر يجمعنا</option>
+      </select>
+      <select id="fBrand"><option value="">كل البراندات</option></select>
+      <select id="fStore"><option value="">كل المتاجر</option></select>
+      <select id="fOccasion">
+        <option value="">كل المناسبات</option>
+        <option value="daytime">نهاري</option>
+        <option value="night">ليلي</option>
+        <option value="work">اجتماع عمل</option>
+        <option value="party">سهرات</option>
+        <option value="date">موعد</option>
+        <option value="gift">هدية</option>
+      </select>
+      <select id="fSort">
+        <option value="">الأكثر صلة</option>
+        <option value="price-asc">السعر من الأقل إلى الأعلى</option>
+        <option value="price-desc">السعر من الأعلى إلى الأقل</option>
+        <option value="newest">الأحدث</option>
+      </select>
+    </div>
+    <p id="resultCount" class="text-sm text-elan-muted mb-4"></p>
+    <div id="results" class="grid-cards"></div>
+  </main>
+
+  <div id="cartOverlay" class="cart-overlay"></div>
+  <div id="cartDrawer" class="cart-drawer">
+    <div class="flex items-center justify-between p-4 border-b border-elan-soft">
+      <div><h3 class="font-display text-xl m-0">سلة المشتريات</h3><p id="cartDrawerCount" class="text-[11px] text-elan-muted m-0">0</p></div>
+      <button type="button" id="closeCartBtn">✕</button>
+    </div>
+    <div id="cartItems" class="flex-1 overflow-y-auto px-4"></div>
+    <div class="p-4 border-t border-elan-soft">
+      <div class="flex justify-between mb-3"><span>الإجمالي</span><span id="cartTotal">0 ج.م</span></div>
+      <a href="checkout.html" class="elan-btn elan-btn-dark w-full">إتمام الشراء</a>
+    </div>
+  </div>
+
+  <script src="../assets/js/elan-data.js"></script>
+  <script src="../assets/js/elan-core.js"></script>
+  <script>
+  (async function () {
+    await ElanData.load();
+    const params = new URLSearchParams(location.search);
+
+    // populate brands & stores
+    const brandSel = document.getElementById('fBrand');
+    (ElanData.raw.brands || []).forEach(b => {
+      const o = document.createElement('option');
+      o.value = b.id; o.textContent = b.name_ar || b.name_en;
+      brandSel.appendChild(o);
+    });
+    const storeSel = document.getElementById('fStore');
+    (ElanData.raw.stores || []).filter(s => s.is_active !== false).forEach(s => {
+      const o = document.createElement('option');
+      o.value = s.id; o.textContent = s.name_ar || s.name_en;
+      storeSel.appendChild(o);
+    });
+
+    // apply URL params
+    if (params.get('q')) document.getElementById('fQ').value = params.get('q');
+    if (params.get('category')) document.getElementById('fCategory').value = params.get('category');
+    if (params.get('brand')) brandSel.value = params.get('brand');
+    if (params.get('store')) storeSel.value = params.get('store');
+    if (params.get('occasion')) document.getElementById('fOccasion').value = params.get('occasion');
+    if (params.get('offer')) { /* filter offers via flag below */ }
+
+    function run() {
+      const opts = {
+        q: document.getElementById('fQ').value.trim() || undefined,
+        category: document.getElementById('fCategory').value || undefined,
+        brandId: brandSel.value || undefined,
+        storeId: storeSel.value || undefined,
+        occasion: document.getElementById('fOccasion').value || undefined,
+        sort: document.getElementById('fSort').value || undefined,
+        offersOnly: params.get('offer') === '1' || undefined,
+        newOnly: params.get('new') === '1' || undefined
+      };
+      const list = ElanData.filterProducts(opts);
+      document.getElementById('resultCount').textContent = list.length + ' عطر متاح';
+      const box = document.getElementById('results');
+      if (!list.length) {
+        box.innerHTML = '<div class="empty-state">لا توجد نتائج مطابقة</div>';
+        return;
+      }
+      box.innerHTML = list.map(p => Elan.perfumeCardHTML(p, '../')).join('');
+      Elan.bindAddButtons(box);
+    }
+
+    ['fQ','fCategory','fBrand','fStore','fOccasion','fSort'].forEach(id => {
+      document.getElementById(id).addEventListener('change', run);
+      document.getElementById(id).addEventListener('input', run);
+    });
+    run();
+  })();
+  </script>
+</body>
+</html>

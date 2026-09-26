@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>لوحة التحكم | Élan Scents</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Cairo:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            elan: { gold: '#C9A227', ivory: '#FBF8F3', cream: '#F7F1E8', soft: '#F0E9DF', charcoal: '#2C2A26', muted: '#6B6560', softblack: '#1A1816' }
+          },
+          fontFamily: { display: ['Playfair Display', 'serif'], sans: ['Cairo', 'sans-serif'] }
+        }
+      }
+    }
+  </script>
+  <link rel="stylesheet" href="../assets/css/elan.css">
+  <style>
+    .admin-sidebar a.active { background: rgba(201,162,39,0.15); color: #C9A227; }
+  </style>
+</head>
+<body class="bg-elan-ivory text-elan-charcoal antialiased">
+
+  <div class="flex min-h-screen">
+    <!-- Sidebar -->
+    <aside class="w-64 bg-elan-softblack text-white flex-shrink-0 hidden md:flex flex-col">
+      <div class="p-6 border-b border-white/10">
+        <h1 class="font-display text-xl">
+          <span class="text-elan-gold">Élan</span> Admin
+        </h1>
+        <p class="text-[10px] text-white/40 mt-1 tracking-wider">DASHBOARD</p>
+      </div>
+      <nav class="flex-1 p-4 space-y-1 admin-sidebar">
+        <a href="#overview" data-section="overview" class="active flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition">نظرة عامة</a>
+        <a href="#products" data-section="products" class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm text-white/70 hover:bg-white/5 transition">المنتجات</a>
+        <a href="#stores" data-section="stores" class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm text-white/70 hover:bg-white/5 transition">المتاجر</a>
+        <a href="#brands" data-section="brands" class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm text-white/70 hover:bg-white/5 transition">البراندات</a>
+        <a href="#orders" data-section="orders" class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm text-white/70 hover:bg-white/5 transition">الطلبات</a>
+        <a href="#commissions" data-section="commissions" class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm text-white/70 hover:bg-white/5 transition">العمولات</a>
+      </nav>
+      <div class="p-4 border-t border-white/10">
+        <a href="../index.html" class="flex items-center gap-2 text-sm text-white/50 hover:text-elan-gold transition">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+          العودة للمنصة
+        </a>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <div class="flex-1 flex flex-col min-w-0">
+      <header class="h-16 border-b border-elan-soft bg-white/80 backdrop-blur flex items-center justify-between px-6">
+        <h2 id="pageTitle" class="font-medium">نظرة عامة</h2>
+        <span class="text-xs text-elan-muted bg-elan-cream px-3 py-1 rounded-full">وضع تجريبي • Demo</span>
+      </header>
+
+      
+      <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-6 text-sm">
+        <strong>كتالوجات مؤقتة:</strong> حالياً 100 عطر (Emarati) + 30 عطر (Afnan Egypt) بوسم <code>is_temporary_catalog</code>.
+        عند الربط الرسمي تُستدعى <code>ElanData.purgeTemporaryCatalog(storeId)</code> لحذفهم تلقائياً.
+      </div>
+
+  <main class="flex-1 p-6 overflow-auto">
+        <!-- Overview -->
+        <section id="section-overview" class="space-y-6">
+          <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="bg-white rounded-2xl p-5 shadow-soft border border-elan-soft/50">
+              <p class="text-xs text-elan-muted mb-1">إجمالي المنتجات</p>
+              <p id="statProducts" class="text-2xl font-semibold">—</p>
+            </div>
+            <div class="bg-white rounded-2xl p-5 shadow-soft border border-elan-soft/50">
+              <p class="text-xs text-elan-muted mb-1">المتاجر النشطة</p>
+              <p id="statStores" class="text-2xl font-semibold">—</p>
+            </div>
+            <div class="bg-white rounded-2xl p-5 shadow-soft border border-elan-soft/50">
+              <p class="text-xs text-elan-muted mb-1">البراندات</p>
+              <p id="statBrands" class="text-2xl font-semibold">—</p>
+            </div>
+            <div class="bg-white rounded-2xl p-5 shadow-soft border border-elan-soft/50">
+              <p class="text-xs text-elan-muted mb-1">عروض الأسعار</p>
+              <p id="statOffers" class="text-2xl font-semibold">—</p>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-2xl p-6 shadow-soft border border-elan-soft/50">
+            <h3 class="font-medium mb-4">ملخص سريع</h3>
+            <p class="text-sm text-elan-muted leading-relaxed">
+              هذه لوحة تحكم أولية لـ Élan Scents. تعرض البيانات التجريبية الحالية.
+              عند الربط الرسمي مع كتالوجات المتاجر، ستظهر هنا الإحصائيات الحية، 
+              إدارة العمولات، الطلبات، ومختارات Élan.
+            </p>
+          </div>
+        </section>
+
+        <!-- Products -->
+        <section id="section-products" class="hidden">
+          <div class="bg-white rounded-2xl shadow-soft border border-elan-soft/50 overflow-hidden">
+            <div class="p-4 border-b border-elan-soft flex items-center justify-between">
+              <h3 class="font-medium">المنتجات المتاحة</h3>
+              <span class="text-xs text-elan-muted">من كتالوجات المتاجر فقط</span>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead class="bg-elan-cream/50 text-elan-muted text-xs">
+                  <tr>
+                    <th class="text-right p-3 font-medium">العطر</th>
+                    <th class="text-right p-3 font-medium">البراند</th>
+                    <th class="text-right p-3 font-medium">الفئة</th>
+                    <th class="text-right p-3 font-medium">أرخص سعر</th>
+                    <th class="text-right p-3 font-medium">المتجر</th>
+                  </tr>
+                </thead>
+                <tbody id="productsTable"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- Stores -->
+        <section id="section-stores" class="hidden">
+          <div class="grid gap-4" id="storesList"></div>
+        </section>
+
+        <!-- Brands -->
+        <section id="section-brands" class="hidden">
+          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4" id="brandsList"></div>
+        </section>
+
+        <!-- Orders (demo) -->
+        <section id="section-orders" class="hidden">
+          <div class="bg-white rounded-2xl p-8 shadow-soft border border-elan-soft/50 text-center">
+            <p class="text-elan-muted text-sm">لا توجد طلبات حقيقية بعد.</p>
+            <p class="text-xs text-elan-muted mt-2">ستظهر الطلبات هنا بعد تفعيل نظام الدفع والربط مع المتاجر.</p>
+          </div>
+        </section>
+
+        <!-- Commissions -->
+        <section id="section-commissions" class="hidden">
+          <div class="bg-white rounded-2xl shadow-soft border border-elan-soft/50 overflow-hidden">
+            <div class="p-4 border-b border-elan-soft">
+              <h3 class="font-medium">نسب العمولة الحالية</h3>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead class="bg-elan-cream/50 text-elan-muted text-xs">
+                  <tr>
+                    <th class="text-right p-3 font-medium">المتجر</th>
+                    <th class="text-right p-3 font-medium">نسبة العمولة</th>
+                    <th class="text-right p-3 font-medium">الحالة</th>
+                    <th class="text-right p-3 font-medium">نوع</th>
+                  </tr>
+                </thead>
+                <tbody id="commissionsTable"></tbody>
+              </table>
+            </div>
+            <div class="p-4 bg-elan-cream/30 text-xs text-elan-muted">
+              العمولة تُحسب فقط على الطلبات المكتملة والمدفوعة. Élan Boutique (عند إضافته) ستكون له أولوية عند تساوي الأسعار.
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script src="../assets/js/elan-data.js"></script>
+  <script>
+    (async function () {
+      await ElanData.load();
+      const data = ElanData.raw;
+
+      // Stats
+      const available = ElanData.getAllAvailableProducts();
+      document.getElementById('statProducts').textContent = available.length;
+      document.getElementById('statStores').textContent = data.stores.filter(s => s.is_active).length;
+      document.getElementById('statBrands').textContent = data.brands.length;
+      document.getElementById('statOffers').textContent = data.store_products.filter(sp => sp.is_available).length;
+
+      // Products table
+      document.getElementById('productsTable').innerHTML = available.map(p => `
+        <tr class="border-t border-elan-soft/50 hover:bg-elan-cream/30">
+          <td class="p-3">
+            <div class="flex items-center gap-3">
+              <img src="${p.image}" class="w-10 h-12 object-cover rounded bg-elan-cream" alt="">
+              <span class="font-medium">${p.name_ar}</span>
+            </div>
+          </td>
+          <td class="p-3 text-elan-muted">${p.brand?.name_ar || ''}</td>
+          <td class="p-3 text-elan-muted">${ElanData.categoryLabel(p.category)}</td>
+          <td class="p-3 font-medium">${p.offer.price.toLocaleString()} ج.م</td>
+          <td class="p-3 text-elan-muted">${p.offer.store?.name_ar || ''}</td>
+        </tr>
+      `).join('');
+
+      // Stores
+      document.getElementById('storesList').innerHTML = data.stores.map(s => `
+        <div class="bg-white rounded-2xl p-5 shadow-soft border border-elan-soft/50 flex items-center justify-between">
+          <div>
+            <h4 class="font-medium">${s.name_ar}</h4>
+            <p class="text-xs text-elan-muted mt-0.5">${s.name_en}</p>
+          </div>
+          <div class="text-left">
+            <span class="text-sm font-medium">${s.commission_rate}%</span>
+            <p class="text-[11px] ${s.is_active ? 'text-green-600' : 'text-elan-muted'}">${s.is_active ? 'نشط' : 'غير نشط / قريباً'}</p>
+          </div>
+        </div>
+      `).join('');
+
+      // Brands
+      document.getElementById('brandsList').innerHTML = data.brands.map(b => {
+        const count = ElanData.getBrandProducts(b.id).length;
+        return `
+          <div class="bg-white rounded-2xl p-5 shadow-soft border border-elan-soft/50 text-center">
+            <div class="w-12 h-12 mx-auto rounded-full bg-elan-cream flex items-center justify-center mb-3">
+              <span class="font-display text-elan-gold font-semibold">${b.logo_text}</span>
+            </div>
+            <h4 class="text-sm font-medium">${b.name_ar}</h4>
+            <p class="text-[11px] text-elan-muted mt-1">${count} عطر متاح</p>
+          </div>
+        `;
+      }).join('');
+
+      // Commissions
+      document.getElementById('commissionsTable').innerHTML = data.stores.map(s => `
+        <tr class="border-t border-elan-soft/50">
+          <td class="p-3 font-medium">${s.name_ar}</td>
+          <td class="p-3">${s.commission_rate}%</td>
+          <td class="p-3">
+            <span class="text-xs px-2 py-0.5 rounded-full ${s.is_active ? 'bg-green-100 text-green-800' : 'bg-elan-soft text-elan-muted'}">
+              ${s.is_active ? 'نشط' : 'قريباً'}
+            </span>
+          </td>
+          <td class="p-3 text-elan-muted text-xs">${s.is_elan_boutique ? 'متجر المنصة' : 'شريك Marketplace'}</td>
+        </tr>
+      `).join('');
+
+      // Navigation
+      document.querySelectorAll('[data-section]').forEach(link => {
+        link.addEventListener('click', (e) => {
+          e.preventDefault();
+          const section = link.dataset.section;
+          
+          document.querySelectorAll('[data-section]').forEach(l => {
+            l.classList.remove('active');
+            l.classList.add('text-white/70');
+          });
+          link.classList.add('active');
+          link.classList.remove('text-white/70');
+
+          document.querySelectorAll('main > section').forEach(s => s.classList.add('hidden'));
+          document.getElementById('section-' + section)?.classList.remove('hidden');
+
+          const titles = {
+            overview: 'نظرة عامة',
+            products: 'المنتجات',
+            stores: 'المتاجر',
+            brands: 'البراندات',
+            orders: 'الطلبات',
+            commissions: 'العمولات'
+          };
+          document.getElementById('pageTitle').textContent = titles[section] || section;
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

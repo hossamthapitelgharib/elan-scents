@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Élan Scents | THE HOME OF GULF FRAGRANCES</title>
+  <meta name="description" content="Élan Scents — منصة عرض أرقى العطور الخليجية الأصلية في مصر" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=Cairo:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config={theme:{extend:{colors:{elan:{gold:'#C9A227',cream:'#F7F1E8',soft:'#F0E9DF',charcoal:'#1A1816',muted:'#6B6560',dark:'#0E0D0C'}},fontFamily:{display:['Playfair Display','serif'],sans:['Cairo','sans-serif']}}}}</script>
+  <link rel="stylesheet" href="assets/css/elan.css" />
+  <style>html,body{overflow-x:hidden;max-width:100%}</style>
+</head>
+<body class="font-sans antialiased">
+
+  <!-- 1 شريط تحت الإنشاء -->
+  <div class="construct-bar" aria-hidden="true">
+    <div class="construct-track">
+      <span> ◆ المنصة ما زالت تحت الإنشاء ◆ THE PLATFORM IS UNDER CONSTRUCTION ◆ المنصة ما زالت تحت الإنشاء ◆ THE PLATFORM IS UNDER CONSTRUCTION ◆ </span>
+      <span> ◆ المنصة ما زالت تحت الإنشاء ◆ THE PLATFORM IS UNDER CONSTRUCTION ◆ المنصة ما زالت تحت الإنشاء ◆ THE PLATFORM IS UNDER CONSTRUCTION ◆ </span>
+    </div>
+  </div>
+
+  <!-- 2 Header -->
+  <header class="elan-header">
+    <div class="container-elan">
+      <div class="flex items-center justify-between h-16 gap-2">
+        <div class="flex items-center gap-0.5">
+          <button type="button" id="menuOpen" class="icon-btn" aria-label="القائمة">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 6h16M4 12h16M4 18h16"/></svg>
+          </button>
+          <button type="button" class="icon-btn" aria-label="بحث" id="searchToggle">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+          </button>
+        </div>
+        <a href="index.html" class="text-center leading-tight">
+          <div class="font-display text-xl tracking-wide"><span class="text-gold-3d font-semibold">Élan</span> Scents</div>
+          <div class="tagline">THE HOME OF GULF FRAGRANCES</div>
+        </a>
+        <div class="flex items-center gap-0.5">
+          <button type="button" class="icon-btn text-xs font-medium" id="langToggle" aria-label="اللغة">EN</button>
+          <button type="button" class="icon-btn" aria-label="المفضلة">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
+          </button>
+          <button type="button" class="icon-btn" data-open-cart aria-label="عربة التسوق">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
+            <span class="cart-badge" data-cart-count>0</span>
+          </button>
+        </div>
+      </div>
+    </div>
+    <div id="searchPanel" class="hidden border-t border-white/10">
+      <div class="container-elan py-3">
+        <input id="globalSearch" type="search" class="elan-input bg-white/10 border-white/20 text-white placeholder:text-white/40" placeholder="ابحث عن عطر أو براند..." />
+      </div>
+    </div>
+  </header>
+
+  <div id="menuBackdrop" class="menu-backdrop"></div>
+  <nav id="mobileMenu" class="mobile-menu" aria-label="القائمة الرئيسية">
+    <div class="flex justify-between items-center p-4 border-b border-white/10">
+      <span class="font-display text-lg"><span class="text-gold-3d">Élan</span> Scents</span>
+      <button type="button" id="menuClose" class="icon-btn" aria-label="إغلاق">✕</button>
+    </div>
+    <a href="index.html">الرئيسية</a>
+    <a href="#brands">البراندات</a>
+    <a href="#stores">المتاجر</a>
+    <a href="#offers">عروض وخصومات</a>
+    <a href="#new">وصل حديثاً</a>
+    <a href="#elan-picks">مختارات Élan Scents</a>
+    <a href="#categories">Fragrance Categories الفئات</a>
+    <a href="#occasions">مناسبات</a>
+    <a href="pages/orders.html">طلباتي</a>
+    <a href="pages/choose-perfume.html">كيف تختار عطرك</a>
+    <a href="#about">عن Élan Scents</a>
+    <a href="#contact">تواصل معنا</a>
+    <a href="pages/account.html">تسجيل الدخول</a>
+    <a href="pages/account.html">إنشاء حساب</a>
+  </nav>
+
+  <!-- 3 Hero -->
+  <section class="hero" id="heroSection">
+    <!-- فيديو الهيرو: يعيد نفسه باستمرار ويعود للتشغيل عند الرجوع للهيرو -->
+    <div class="hero-video-fallback" aria-hidden="true"></div>
+    <video
+      id="heroVideo"
+      class="hero-video"
+      autoplay
+      muted
+      loop
+      playsinline
+      preload="auto"
+      poster=""
+    >
+      <!-- يُستبدل المسار بعد رفع الفيديو -->
+      <source src="assets/media/hero.mp4" type="video/mp4" />
+    </video>
+    <div class="hero-scrim" aria-hidden="true"></div>
+    <div class="hero-inner text-center">
+      <p class="text-xs tracking-[0.22em] text-elan-muted mb-4">GULF FRAGRANCES · EUROPEAN SOUL</p>
+      <h1 class="hero-title text-3xl sm:text-5xl mb-4">أناقة الخليج<br><span class="gold">بلمسة أوروبية</span></h1>
+      <p class="text-elan-muted text-sm sm:text-base max-w-xl mx-auto mb-8 leading-relaxed">عطور خليجية أصلية… بروح أوروبية — من توكيلات ومتاجر موثوقة، بأفضل سعر معلن رسمياً.</p>
+      <!-- سحر الخليج بين يديك + مدلولات الأعداد فقط داخل الهيرو -->
+      <div class="flex flex-wrap gap-3 justify-center">
+        <a href="#brands" class="elan-btn elan-btn-dark">سحر الخليج بين يديك</a>
+      </div>
+
+      <div class="stats-row" id="platformStats">
+        <div class="stat-chip">براندات <strong id="statBrands">—</strong></div>
+        <div class="stat-chip">متاجر <strong id="statStores">—</strong></div>
+        <div class="stat-chip">عطور متاحة <strong id="statProducts">—</strong></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6 البراندات -->
+  <section class="section" id="brands">
+    <div class="container-elan">
+      <div class="section-head">
+        <h2 class="section-title">للفخامة عنوان وللرقي حضور</h2>
+        <a class="section-link" href="pages/filters.html">اكتشف المجموعة</a>
+      </div>
+      <div id="brandsCarousel"></div>
+    </div>
+  </section>
+
+  <!-- 7 المتاجر -->
+  <section class="section section-muted" id="stores">
+    <div class="container-elan">
+      <div class="section-head">
+        <h2 class="section-title">عندما تلتقى فخامة الخليج برقى أوروبا</h2>
+        <a class="section-link" href="#stores">استعرض المجموعة</a>
+      </div>
+      <div id="storesCarousel"></div>
+    </div>
+  </section>
+
+  <!-- 8 عروض وخصومات -->
+  <section class="section" id="offers">
+    <div class="container-elan">
+      <div class="section-head">
+        <h2 class="section-title">عروض وخصومات</h2>
+        <a class="section-link" href="pages/filters.html?offer=1">استعرض المجموعة</a>
+      </div>
+      <div id="offersCarousel"></div>
+    </div>
+  </section>
+
+  <!-- 9 وصل حديثاً -->
+  <section class="section section-muted" id="new">
+    <div class="container-elan">
+      <div class="section-head">
+        <h2 class="section-title">وصل حديثاً</h2>
+        <a class="section-link" href="pages/filters.html?new=1">استعرض المجموعة</a>
+      </div>
+      <div id="newCarousel"></div>
+    </div>
+  </section>
+
+  <!-- 4.8 الأكثر مبيعاً -->
+  <section class="section" id="bestsellers">
+    <div class="container-elan">
+      <div class="section-head">
+        <h2 class="section-title">الأكثر مبيعاً</h2>
+        <a class="section-link" href="pages/filters.html">استعرض المجموعة</a>
+      </div>
+      <div id="bestCarousel"></div>
+    </div>
+  </section>
+
+  <!-- 10 مختارات Élan Scents -->
+  <section class="section section-muted" id="elan-picks">
+    <div class="container-elan">
+      <div class="section-head">
+        <h2 class="section-title">مختارات Élan Scents</h2>
+        <a class="section-link" href="pages/filters.html">استعرض المجموعة</a>
+      </div>
+      <div id="picksCarousel"></div>
+    </div>
+  </section>
+
+  <!-- 11 الفئات -->
+  <section class="section" id="categories">
+    <div class="container-elan">
+      <div class="section-head"><h2 class="section-title">لك عطر… ولها حكاية</h2></div>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <a href="pages/filters.html?category=men" class="cat-card elan-3d" style="background:linear-gradient(160deg,#1A1816 0%,#3D3832 45%,#5C5346 100%)">
+          <div class="cat-pattern" aria-hidden="true"></div>
+          <div class="overlay"><div><h4>رجالي</h4><p class="text-xs mt-1 opacity-80">حضور قوي وأناقة واثقة</p></div></div>
+        </a>
+        <a href="pages/filters.html?category=women" class="cat-card elan-3d" style="background:linear-gradient(160deg,#3D2C2E 0%,#8B6B5C 50%,#C9A227 100%)">
+          <div class="cat-pattern" aria-hidden="true"></div>
+          <div class="overlay"><div><h4>نسائي</h4><p class="text-xs mt-1 opacity-80">نعومة وفخامة تُروى</p></div></div>
+        </a>
+        <a href="pages/filters.html?category=unisex" class="cat-card elan-3d" style="background:linear-gradient(160deg,#2C2A26 0%,#5C4A3A 55%,#A8841A 100%)">
+          <div class="cat-pattern" aria-hidden="true"></div>
+          <div class="overlay"><div><h4>عطر يجمعنا</h4><p class="text-xs mt-1 opacity-80">لك عطر… ولها حكاية</p></div></div>
+        </a>
+      </div>
+      <div id="catMenCarousel" class="mb-5"></div>
+      <div id="catWomenCarousel" class="mb-5"></div>
+      <div id="catUnisexCarousel"></div>
+    </div>
+  </section>
+
+  <!-- 12 المناسبات -->
+  <section class="section section-muted" id="occasions">
+    <div class="container-elan">
+      <div class="section-head"><h2 class="section-title">لكل لحظة حكاية</h2></div>
+      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 mb-6" id="occasionIcons"></div>
+      <div id="occasionCarousel"></div>
+    </div>
+  </section>
+
+  <!-- 13 إبداعات سبقت حضورها -->
+  <section class="section" id="brand-famous">
+    <div class="container-elan">
+      <div class="section-head">
+        <h2 class="section-title">إبداعات سبقت حضورها</h2>
+        <a class="section-link" href="#brands">استعرض المجموعة</a>
+      </div>
+      <div id="brandFamousCarousel"></div>
+    </div>
+  </section>
+
+  <!-- 14 للفخامة عنوان (حسب المتجر) -->
+  <section class="section section-muted" id="store-best">
+    <div class="container-elan">
+      <div class="section-head">
+        <h2 class="section-title">للفخامة عنوان</h2>
+        <a class="section-link" href="#stores">استعرض المجموعة</a>
+      </div>
+      <div id="storeBestCarousel"></div>
+    </div>
+  </section>
+
+  <!-- 15 قريباً -->
+  <section class="section" id="coming">
+    <div class="container-elan">
+      <div class="section-head"><h2 class="section-title">ترقبوا عطور ستنطلق قريباً</h2></div>
+      <div id="comingCarousel"></div>
+    </div>
+  </section>
+
+  <!-- 16 عن Élan Scents — التعريف هنا وليس في الهيرو -->
+  <section class="section section-muted" id="about">
+    <div class="container-elan" style="max-width:44rem">
+      <h2 class="section-title text-center mb-6">عن Élan Scents</h2>
+      <div class="space-y-5 text-sm leading-relaxed text-elan-muted text-center">
+        <p class="text-elan-charcoal text-base font-medium">
+          بتدور على عطر خليجي أوريجنال ومميز… بس محتار تشتريه منين؟ ومين تثق فيه؟ وهل بتدفع فعلًا السعر الصح؟
+        </p>
+        <p>
+          نفس العطر ممكن تلاقيه عند أكتر من متجر وبأسعار مختلفة فتبدأ تدور وتقارن وتحتار، وممكن في الآخر تأجل الشراء أو تدفع أكتر من اللازم.
+        </p>
+        <p class="text-elan-charcoal text-base font-semibold">
+          Élan Scents بتسهّل عليك الحكاية.
+        </p>
+        <p>
+          جمعنا لك فى مكان واحد أشهر وأرقى العطور الخليجية الأوريجنال من توكيلات معتمدة ومتاجر مشهورة وموثوقة، ونقارن لك العروض والخصومات والأسعار المعلنة والرسمية بينهم، علشان تلاقي اختياراتك بوضوح وتوصل إلى أفضل عرض وأرخص سعر متاح.
+        </p>
+        <p>
+          وبنقدملك خدمة <a href="pages/choose-perfume.html" style="color:var(--gold);text-decoration:underline">«لكل لحظة حكاية»</a> نساعدك تختار عطرك حسب شخصيتك، ذوقك، وأسلوبك — فلكل لحظة عطر يروي حكايتها.
+        </p>
+        <p>
+          يعني بدل ما تحتار بين الأصالة والمصدر والسعر والاختيار… إحنا نجمع لك المعلومة، ونقارن لك السعر، ونساعدك تلاقي العطر اللي يشبهك.
+        </p>
+        <p class="text-gold-3d font-semibold tracking-wide text-base" style="letter-spacing:.06em">
+          جودة • ثقة • مصداقية • أفضل سعر
+        </p>
+        <p class="text-elan-charcoal font-medium">
+          اكتشف عطرك على Élan Scents… وقارن واختار بثقة.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 17 تواصل معنا -->
+  <section class="section" id="contact">
+    <div class="container-elan" style="max-width:28rem">
+      <h2 class="section-title text-center mb-6">تواصل معنا</h2>
+      <form id="contactForm" class="space-y-3" onsubmit="return handleContact(event)">
+        <input class="elan-input" name="name" required placeholder="الاسم" />
+        <input class="elan-input" name="email" type="email" required placeholder="البريد الإلكتروني" />
+        <input class="elan-input" name="phone" type="tel" placeholder="الهاتف" />
+        <textarea class="elan-input" name="message" rows="4" required placeholder="الرسالة"></textarea>
+        <button type="submit" class="elan-btn elan-btn-dark w-full">إرسال</button>
+      </form>
+      <p class="text-center text-xs text-elan-muted mt-4">بيانات وسائل التواصل تُستكمل لاحقاً</p>
+    </div>
+  </section>
+
+  <!-- 18 Footer -->
+  <footer class="elan-footer">
+    <div class="container-elan">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+        <div>
+          <div class="font-display text-xl mb-1"><span class="text-gold-3d">Élan</span> Scents</div>
+          <p class="text-[10px] tracking-widest opacity-60 mb-3">THE HOME OF GULF FRAGRANCES</p>
+          <p class="text-xs opacity-50">من الخليج، بروح عالمية.</p>
+        </div>
+        <div>
+          <h5>تصفح</h5>
+          <div class="flex flex-col gap-2">
+            <a href="#brands">العلامات</a>
+            <a href="#elan-picks">المختارات</a>
+            <a href="#about">قصتنا</a>
+          </div>
+        </div>
+        <div>
+          <h5>تابعنا</h5>
+          <div class="flex flex-col gap-2">
+            <a href="#">Instagram</a>
+            <a href="#">TikTok</a>
+            <a href="#">Pinterest</a>
+          </div>
+        </div>
+        <div>
+          <h5>تواصل</h5>
+          <div class="flex flex-col gap-2">
+            <a href="mailto:hello@gulfelan.example">hello@gulfelan.example</a>
+            <span class="text-xs opacity-50">خدمة العملاء</span>
+          </div>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <span>© Élan Scents 2026</span>
+        <div class="flex gap-4">
+          <a href="pages/policies.html">الشروط</a>
+          <a href="pages/policies.html">الخصوصية</a>
+        </div>
+      </div>
+      <p class="text-[10px] opacity-40 mt-4 text-center leading-relaxed">
+        إنشاء وتطوير Gulf Élan بواسطة GrowthMark — الوكيل الرسمي للإعلان والتسويق.
+        هذه العبارة تخص تصميم صفحة Gulf Élan والمسؤولية اللاحقة عن حملات الدعاية والإعلان الخاصة بـ Gulf Élan فقط.
+        لا تعني وكالة أو شراكة أو علاقة رسمية أو تمثيلاً مع أي متجر أو أي براند.
+      </p>
+    </div>
+  </footer>
+
+  <!-- Cart drawer -->
+  <div id="cartOverlay" class="cart-overlay"></div>
+  <div id="cartDrawer" class="cart-drawer">
+    <div class="flex items-center justify-between p-4 border-b border-elan-soft">
+      <div>
+        <h3 class="font-display text-xl m-0">سلة المشتريات</h3>
+        <p id="cartDrawerCount" class="text-[11px] text-elan-muted m-0">0 منتج</p>
+      </div>
+      <button type="button" id="closeCartBtn" class="icon-btn text-elan-charcoal" aria-label="إغلاق">✕</button>
+    </div>
+    <div id="cartItems" class="flex-1 overflow-y-auto px-4"></div>
+    <div class="p-4 border-t border-elan-soft">
+      <div class="flex justify-between mb-3"><span class="text-sm text-elan-muted">الإجمالي</span><span id="cartTotal" class="font-semibold">0 ج.م</span></div>
+      <a href="pages/checkout.html" class="elan-btn elan-btn-dark w-full mb-2">إتمام الشراء</a>
+      <a href="pages/cart.html" class="block text-center text-sm" style="color:var(--gold)">عرض السلة الكاملة</a>
+    </div>
+  </div>
+
+  <script src="assets/js/elan-data.js"></script>
+  <script src="assets/js/elan-core.js"></script>
+  <script>
+    function handleContact(e) {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const list = JSON.parse(localStorage.getItem('elan_contact_messages') || '[]');
+      list.unshift({ ...Object.fromEntries(fd.entries()), at: new Date().toISOString() });
+      localStorage.setItem('elan_contact_messages', JSON.stringify(list));
+      Elan.showToast('تم استلام رسالتك');
+      e.target.reset();
+      return false;
+    }
+
+    document.getElementById('searchToggle')?.addEventListener('click', () => {
+      document.getElementById('searchPanel')?.classList.toggle('hidden');
+    });
+    document.getElementById('globalSearch')?.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        const q = e.target.value.trim();
+        if (q) location.href = 'pages/filters.html?q=' + encodeURIComponent(q);
+      }
+    });
+    document.getElementById('langToggle')?.addEventListener('click', function () {
+      const html = document.documentElement;
+      if (html.lang === 'ar') {
+        html.lang = 'en'; html.dir = 'ltr'; this.textContent = 'ع';
+      } else {
+        html.lang = 'ar'; html.dir = 'rtl'; this.textContent = 'EN';
+      }
+    });
+
+    (async function boot() {
+      try {
+        await ElanData.load();
+        const all = ElanData.getAllAvailableProducts();
+        const st = ElanData.stats();
+        document.getElementById('statBrands').textContent = st.brands;
+        document.getElementById('statStores').textContent = st.stores;
+        document.getElementById('statProducts').textContent = st.products;
+
+        /* شريط سحر الخليج أُلغي من الهيرو حسب الطلب */
+
+        /* 6 — براندات ديناميكية بشعار رسمي من البيانات */
+        const brands = ElanData.raw.brands || [];
+        const bc = document.getElementById('brandsCarousel');
+        if (bc) {
+          const cards = brands.map(b => `
+            <a class="entity-card elan-3d" href="pages/brand.html?id=${encodeURIComponent(b.id)}">
+              <img class="logo" src="${b.logo_url || ''}" alt="${b.name_ar || b.name_en || ''}" onerror="this.style.opacity=.35">
+              <div class="label">${b.name_ar || b.name_en || ''}</div>
+            </a>`).join('');
+          bc.innerHTML = `<div class="carousel-wrap"><div class="carousel-track">${cards}${cards}</div></div>`;
+          Elan.bindEntityCarousel(bc, { auto: true, speed: 0.28 });
+        }
+
+        /* 7 — متاجر ديناميكية (النشطة فقط) */
+        const stores = (ElanData.raw.stores || []).filter(s => s.is_active !== false);
+        const sc = document.getElementById('storesCarousel');
+        if (sc) {
+          const cards = stores.map(s => `
+            <a class="entity-card elan-3d" href="pages/store.html?id=${encodeURIComponent(s.id)}" style="width:170px">
+              <img class="logo" src="${s.logo_url || ''}" alt="${s.name_ar || ''}" onerror="this.outerHTML='<div class=logo style=display:flex;align-items:center;justify-content:center;font-family:Playfair\\ Display,serif;font-size:1.4rem;color:#C9A227>'+(s.name_ar||'م').charAt(0)+'</div>'">
+              <div class="label">${s.name_ar || s.name_en || ''}</div>
+              <p class="store-card-extra">متجر موثوق على المنصة</p>
+            </a>`).join('');
+          sc.innerHTML = `<div class="carousel-wrap"><div class="carousel-track">${cards}${cards}</div></div>`;
+          Elan.bindEntityCarousel(sc, { auto: true, speed: 0.28 });
+        }
+
+        const offers = ElanData.filterProducts({ offersOnly: true });
+        Elan.renderCarousel(document.getElementById('offersCarousel'), offers.length ? offers : all.slice(0, 6), { limit: 6 });
+
+        const news = ElanData.filterProducts({ newOnly: true });
+        Elan.renderCarousel(document.getElementById('newCarousel'), news.length ? news : all.slice(0, 6), { limit: 6 });
+
+        const best = ElanData.filterProducts({ bestOnly: true });
+        Elan.renderCarousel(document.getElementById('bestCarousel'), best.length ? best : all.slice().sort((a,b)=>(b.flags.views||0)-(a.flags.views||0)).slice(0,6), { limit: 6 });
+
+        const picks = ElanData.filterProducts({ elanOnly: true });
+        Elan.renderCarousel(document.getElementById('picksCarousel'), picks.length ? picks : all.slice(0, 6), { limit: 6 });
+
+        Elan.renderCarousel(document.getElementById('catMenCarousel'), ElanData.filterProducts({ category: 'men' }), { limit: 6 });
+        Elan.renderCarousel(document.getElementById('catWomenCarousel'), ElanData.filterProducts({ category: 'women' }), { limit: 6 });
+        Elan.renderCarousel(document.getElementById('catUnisexCarousel'), ElanData.filterProducts({ category: 'unisex' }), { limit: 6 });
+
+        /* مناسبات كما في البرومبت 2 */
+        const occasions = [
+          { key: 'daytime', label: 'نهاري' },
+          { key: 'night', label: 'ليلي' },
+          { key: 'work', label: 'اجتماع عمل' },
+          { key: 'party', label: 'سهرات' },
+          { key: 'date', label: 'موعد' },
+          { key: 'gift', label: 'هدية' }
+        ];
+        const oi = document.getElementById('occasionIcons');
+        if (oi) {
+          const occMeta = {
+            daytime: { g: 'linear-gradient(135deg,#F7F1E8,#E8DCC8)', icon: '☀' },
+            night: { g: 'linear-gradient(135deg,#2C2A26,#5C5346)', icon: '☾' },
+            work: { g: 'linear-gradient(135deg,#3D3A36,#7A7268)', icon: '◆' },
+            party: { g: 'linear-gradient(135deg,#4A3F3A,#C9A227)', icon: '✦' },
+            date: { g: 'linear-gradient(135deg,#3D2C2E,#8B6B5C)', icon: '♡' },
+            gift: { g: 'linear-gradient(135deg,#2C2A26,#C9A227)', icon: '❋' }
+          };
+          oi.innerHTML = occasions.map(o => {
+            const m = occMeta[o.key] || occMeta.daytime;
+            return `<a class="occ-card elan-3d" href="pages/filters.html?occasion=${o.key}">
+              <div class="occ-visual" style="background:${m.g}"></div>
+              <div class="occ-icon">${m.icon}</div>
+              <div class="label">${o.label}</div>
+            </a>`;
+          }).join('');
+        }
+        Elan.renderCarousel(document.getElementById('occasionCarousel'), all.filter(p => (p.occasions || []).length), { limit: 6 });
+
+        Elan.renderCarousel(document.getElementById('brandFamousCarousel'), best.length ? best : all.slice(0, 6), { limit: 6 });
+        Elan.renderCarousel(document.getElementById('storeBestCarousel'), all.slice(0, 6), { limit: 6 });
+
+        const coming = ElanData.filterProducts({ comingOnly: true });
+        const comingEl = document.getElementById('comingCarousel');
+        if (coming.length) Elan.renderCarousel(comingEl, coming, { limit: 6 });
+        else if (comingEl) comingEl.innerHTML = '<div class="empty-state">لا توجد عطور معلَن عن قرب وصولها حالياً</div>';
+
+      } catch (err) {
+        console.error(err);
+        Elan.showToast('تعذر تحميل بيانات المنصة', 'error');
+      }
+    })();
+  
+
+    /* Hero video: loop forever + resume when hero is visible again */
+    (function initHeroVideo() {
+      const video = document.getElementById('heroVideo');
+      const hero = document.getElementById('heroSection');
+      if (!video || !hero) return;
+
+      video.muted = true;
+      video.loop = true;
+      video.playsInline = true;
+
+      const tryPlay = () => {
+        const p = video.play();
+        if (p && typeof p.then === 'function') {
+          p.then(() => hero.classList.add('has-video'))
+           .catch(() => { /* autoplay blocked until interaction */ });
+        }
+      };
+
+      video.addEventListener('loadeddata', tryPlay);
+      video.addEventListener('canplay', tryPlay);
+      // if source fails, keep gradient fallback
+      video.addEventListener('error', () => {
+        hero.classList.remove('has-video');
+        video.style.display = 'none';
+      });
+      tryPlay();
+
+      // Resume when user scrolls back to hero
+      if ('IntersectionObserver' in window) {
+        const io = new IntersectionObserver((entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              tryPlay();
+            } else {
+              // pause only to save resources while off-screen; will resume on return
+              try { video.pause(); } catch (_) {}
+            }
+          });
+        }, { threshold: 0.25 });
+        io.observe(hero);
+      }
+
+      // Unlock autoplay after first user gesture if needed
+      const unlock = () => { tryPlay(); document.removeEventListener('click', unlock); document.removeEventListener('touchstart', unlock); };
+      document.addEventListener('click', unlock, { once: true });
+      document.addEventListener('touchstart', unlock, { once: true });
+    })();
+
+</script>
+</body>
+</html>
