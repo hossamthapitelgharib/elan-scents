@@ -163,4 +163,8 @@ document.getElementById('mb').onclick=function(){document.getElementById('menu')
 // 3D shadow on proximity of pointer/finger
 function prox(e){var p=e.touches?e.touches[0]:e;document.querySelectorAll('.card').forEach(function(c){var r=c.getBoundingClientRect(),dx=Math.max(r.left-p.clientX,0,p.clientX-r.right),dy=Math.max(r.top-p.clientY,0,p.clientY-r.bottom);c.classList.toggle('near',Math.hypot(dx,dy)<60)})}
 addEventListener('mousemove',prox);addEventListener('touchmove',prox,{passive:true});
-hero();setInterval(function(){hi++;hero()},8000);render();cartBadge();loadData();setInterval(loadData,60000);
+var dataRefreshBusy=false;
+function refreshCatalog(){if(dataRefreshBusy)return;dataRefreshBusy=true;loadData().finally(function(){dataRefreshBusy=false})}
+document.addEventListener('visibilitychange',function(){if(!document.hidden)refreshCatalog()});
+addEventListener('focus',refreshCatalog);
+hero();setInterval(function(){hi++;hero()},8000);render();cartBadge();refreshCatalog();setInterval(refreshCatalog,10000);
