@@ -76,7 +76,7 @@ module.exports = async function createStoreOrder(req, res) {
       size: item.size || '',
       quantity: Number(item.quantity),
       unitPrice: Number(item.unitPrice || 0),
-      currency: item.currency || body.currency || 'EGP',
+      currency: 'EGP',
       total: Number(item.total || (Number(item.unitPrice || 0) * Number(item.quantity)).toFixed(2)),
     });
   });
@@ -97,7 +97,7 @@ module.exports = async function createStoreOrder(req, res) {
         customer: body.customer,
         items: group.items,
         subtotal,
-        currency: body.currency || group.items[0].currency || 'EGP',
+        currency: 'EGP',
         shipping: null,
         total: null,
         status: 'awaiting_store_confirmation',
