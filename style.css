@@ -265,3 +265,11 @@ button[data-sheet="cart"].cart-pulse svg{animation:cartIcon .65s ease-out}
   .category-cards{display:flex;gap:22px;overflow-x:auto;justify-content:flex-start;padding:18px 16px 26px}
   .category-cards .cb{flex:0 0 240px;width:240px}
 }
+@media(max-width:760px){
+  .category-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;overflow:visible;justify-content:initial;padding:18px 10px 26px;direction:ltr}
+  .category-cards .cb{width:100%;min-width:0;flex:none;direction:rtl}
+  .category-cards .cb>.card{width:100%!important;min-height:150px!important;height:150px!important;padding-inline:4px}
+  .category-cards .cb>.card h4{font-size:15px!important;line-height:1.35}
+  .category-cards .cb>.card small{font-size:9px;line-height:1.35}
+  .category-cards .cb>.card .st{font-size:9px}
+}
