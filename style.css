@@ -253,3 +253,7 @@ button[data-sheet="cart"].cart-pulse svg{animation:cartIcon .65s ease-out}
 .cb>.card.msel{background-image:url('/assets/cards/masterpieces.webp')!important;background-size:cover!important;background-position:center!important}
 
 .home-logo{color:inherit;text-decoration:none;cursor:pointer}
+
+.category-cards{gap:28px;padding-inline:14px}
+.category-cards .cb{flex-basis:250px}
+.card.occ,.card.notes{border-radius:20px!important;flex-basis:190px!important;height:155px!important;min-height:155px!important}
