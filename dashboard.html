@@ -3,28 +3,32 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>لوحة متابعة الطلبات · Élan Scents</title>
+  <title>لوحة الإدارة · Élan Scents</title>
   <link rel="stylesheet" href="/dashboard.css">
 </head>
 <body>
   <header class="topbar">
-    <div><span class="eyebrow">Élan Scents</span><h1>لوحة متابعة الطلبات</h1></div>
+    <div><span class="eyebrow">Élan Scents</span><h1>لوحة الإدارة</h1></div>
     <div class="top-actions"><span id="lastUpdated">—</span><button id="refreshBtn" class="primary">تحديث البيانات</button></div>
   </header>
   <main>
     <section class="auth-card" id="authCard">
-      <div><b>دخول لوحة التحكم</b><p>أدخل رمز لوحة التحكم للوصول إلى الطلبات والإشعارات.</p></div>
+      <div><b>دخول لوحة التحكم</b><p>أدخل رمز لوحة التحكم للوصول إلى الطلبات وإعدادات التكامل.</p></div>
       <form id="authForm"><input id="dashboardToken" type="password" placeholder="رمز لوحة التحكم" autocomplete="current-password" required><button class="primary" type="submit">دخول</button></form>
       <p id="authError" class="error" hidden></p>
     </section>
     <section id="dashboard" hidden>
-      <div class="stats" id="stats"></div>
-      <section class="filters">
-        <select id="statusFilter"><option value="">كل حالات الطلب</option><option value="awaiting_store_confirmation">بانتظار المتجر</option><option value="completed">مكتمل</option><option value="store_rejected">مرفوض من المتجر</option><option value="needs_review">يحتاج مراجعة</option></select>
-        <select id="matchFilter"><option value="">كل حالات المطابقة</option><option value="matched">مطابق</option><option value="mismatched">غير مطابق</option><option value="pending">قيد المطابقة</option></select>
-        <input id="searchFilter" type="search" placeholder="بحث برقم التتبع أو اسم العميل أو المتجر">
+      <nav class="tabs" aria-label="أقسام لوحة الإدارة"><button class="tab active" data-panel="ordersPanel">الطلبات والإشعارات</button><button class="tab" data-panel="settingsPanel">إعدادات المتاجر</button></nav>
+      <section id="ordersPanel">
+        <div class="stats" id="stats"></div>
+        <section class="filters"><select id="statusFilter"><option value="">كل حالات الطلب</option><option value="awaiting_store_confirmation">بانتظار المتجر</option><option value="completed">مكتمل</option><option value="store_rejected">مرفوض من المتجر</option><option value="needs_review">يحتاج مراجعة</option></select><select id="matchFilter"><option value="">كل حالات المطابقة</option><option value="matched">مطابق</option><option value="mismatched">غير مطابق</option><option value="pending">قيد المطابقة</option></select><input id="searchFilter" type="search" placeholder="بحث برقم التتبع أو اسم العميل أو المتجر"></section>
+        <section id="orders" class="orders"></section>
       </section>
-      <section id="orders" class="orders"></section>
+      <section id="settingsPanel" hidden>
+        <div class="settings-intro"><div><span class="eyebrow dark">Store Integrations</span><h2>إعدادات تكامل المتاجر</h2><p>أدخل بيانات كل تاجر لتجهيز نقل منتجاته إلى سلة متجره واستقبال إشعار إتمام الطلب. المفاتيح السرية لا تظهر بعد الحفظ؛ اترك الحقل فارغًا للاحتفاظ بالقيمة الحالية.</p></div><button id="saveSettingsBtn" class="primary">حفظ كل الإعدادات</button></div>
+        <div id="settingsNotice" class="notice-banner" hidden></div>
+        <div id="storeSettings" class="store-settings"></div>
+      </section>
     </section>
   </main>
   <script src="/dashboard.js"></script>
