@@ -199,3 +199,21 @@ button[data-n]:not([data-n="0"]){position:relative}button[data-n]:not([data-n="0
   user-select: none;
 }
 .card { touch-action: manipulation; }
+
+/* Refined cart bottom sheet */
+#sheet{background:rgba(20,15,5,.42);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+.sb{position:relative;border:1px solid #ead9b1;box-shadow:0 -12px 34px rgba(55,35,5,.18);padding:30px 18px calc(28px + env(safe-area-inset-bottom,0px));gap:12px}
+.sb:before{content:'';position:absolute;top:10px;left:50%;width:42px;height:4px;border-radius:9px;background:#d8bf83;transform:translateX(-50%)}
+.sb h3{font-size:23px;margin-bottom:4px}
+.sb .empty{padding:24px 10px;background:#fdf9ef;border:1px dashed #dcc58b;border-radius:16px}
+.cl{padding:12px 0;border-bottom:1px solid #eee2c8;align-items:center}
+.cl>div:first-child{display:grid;gap:3px;min-width:0}
+.cl b{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cl small{font-size:11px}.cl .price{font-size:13px}
+.cq{padding:4px;border:1px solid #e6d5ad;border-radius:999px;background:#fffaf0;gap:5px}
+.cq button,.cl .x{border:0;background:#f5ead1;color:#8a5e0c;font-weight:700;cursor:pointer}
+.cq button{width:25px;height:25px}.cq span{min-width:18px;text-align:center;font-weight:700;font-size:13px}
+.cl .x{width:26px;height:26px;background:#fff3ee;color:#a45d45}
+.ct{margin-top:2px;padding:14px 2px 4px;border-top:1px solid #e6d5ad;font-size:17px}
+.tn{display:block;padding:4px 2px 2px;font-size:11px}
+.sb>.btn{width:100%;margin-top:4px;padding:13px}
