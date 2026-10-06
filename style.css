@@ -217,3 +217,9 @@ button[data-n]:not([data-n="0"]){position:relative}button[data-n]:not([data-n="0
 .ct{margin-top:2px;padding:14px 2px 4px;border-top:1px solid #e6d5ad;font-size:17px}
 .tn{display:block;padding:4px 2px 2px;font-size:11px}
 .sb>.btn{width:100%;margin-top:4px;padding:13px}
+
+/* Cart feedback after adding a product */
+button[data-sheet="cart"].cart-pulse{animation:cartPulse .65s cubic-bezier(.2,.8,.3,1)}
+button[data-sheet="cart"].cart-pulse svg{animation:cartIcon .65s ease-out}
+@keyframes cartPulse{0%{transform:scale(1)}35%{transform:scale(1.22) rotate(-5deg);filter:drop-shadow(0 5px 8px #c8962a88)}65%{transform:scale(.95) rotate(3deg)}100%{transform:scale(1)}}
+@keyframes cartIcon{0%{transform:translateY(-2px)}40%{transform:translateY(1px)}100%{transform:translateY(0)}}

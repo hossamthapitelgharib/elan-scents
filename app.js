@@ -25,8 +25,9 @@ return '<div class="card pf" data-go="prod|'+p.id+'"><div class="pim">'+img+'</d
 var CART=[];try{CART=JSON.parse(localStorage.getItem('elan_cart')||'[]')}catch(e){}
 function saveCart(){try{localStorage.setItem('elan_cart',JSON.stringify(CART))}catch(e){}cartBadge()}
 function cartBadge(){var n=CART.reduce(function(a,c){return a+c.q},0),b=document.querySelector('button[data-sheet="cart"]');if(b)b.setAttribute('data-n',n)}
+function cartPulse(){var b=document.querySelector('button[data-sheet="cart"]');if(!b)return;b.classList.remove('cart-pulse');void b.offsetWidth;b.classList.add('cart-pulse');setTimeout(function(){b.classList.remove('cart-pulse')},650)}
 function toast(m){var e=document.getElementById('toast');e.textContent=m;e.className='show';clearTimeout(toast.t);toast.t=setTimeout(function(){e.className=''},2600)}
-function addToCart(sid,q){var p=byId(sid),b=p&&best(p),l=LB[lang];if(!b)return toast(l.unav);var it=CART.filter(function(c){return c.sid==sid})[0],want=(it?it.q:0)+(q>0?q:1),msg=l.added;if(b.stock!=null&&want>b.stock){want=b.stock;msg=l.availq+b.stock+l.only}if(want<1)return toast(l.unav);if(it)it.q=want;else CART.push({sid:sid,q:want});saveCart();toast(msg)}
+function addToCart(sid,q){var p=byId(sid),b=p&&best(p),l=LB[lang];if(!b)return toast(l.unav);var it=CART.filter(function(c){return c.sid==sid})[0],want=(it?it.q:0)+(q>0?q:1),msg=l.added;if(b.stock!=null&&want>b.stock){want=b.stock;msg=l.availq+b.stock+l.only}if(want<1)return toast(l.unav);if(it)it.q=want;else CART.push({sid:sid,q:want});saveCart();cartPulse();toast(msg)}
 function cartQty(s){var a=s.split('|'),it=CART.filter(function(c){return c.sid==a[0]})[0];if(!it)return;var p=byId(a[0]),b=p&&best(p),n=it.q+(+a[1]),l=LB[lang];if(n<1)n=1;if(b&&b.stock!=null&&n>b.stock){n=b.stock;toast(l.availq+b.stock+l.only)}it.q=n;saveCart();sheet('cart')}
 function cartDel(sid){CART=CART.filter(function(c){return c.sid!=sid});saveCart();sheet('cart')}
 function cartHTML(){var l=LB[lang],tot=0,cur='';if(!CART.length)return '<p class="empty" style="text-align:center">'+T().she.cart+'</p>';
