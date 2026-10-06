@@ -2,27 +2,14 @@
 
 The Home of Gulf Fragrances
 
-This repository was created from the Vercel deployment of the project.
+This repository contains the active static frontend and its serverless configuration endpoint.
 
-## Source Files
+## Active files
 
-Please upload the remaining source files from the Vercel Deployment → Source tab:
+- `index.html` — application shell
+- `app.js` — rendering, catalog, filtering, cart, and navigation logic
+- `style.css` — active application styles
+- `texts.js` — Arabic and English content
+- `config.js` — serverless endpoint for catalog configuration
 
-- `src/app.js`
-- `src/index.html`
-- `src/style.css`
-- `src/texts.js`
-- `src/logo.webp`
-
-## Structure
-
-```
-src/
-├── api/
-│   └── config.js
-├── app.js
-├── index.html
-├── logo.webp
-├── style.css
-└── texts.js
-```
+The old unused stylesheet under `src/` was removed during cleanup. The active deployment loads the root-level files above.
