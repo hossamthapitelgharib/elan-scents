@@ -257,3 +257,11 @@ button[data-sheet="cart"].cart-pulse svg{animation:cartIcon .65s ease-out}
 .category-cards{gap:28px;padding-inline:14px}
 .category-cards .cb{flex-basis:250px}
 .card.occ,.card.notes{border-radius:20px!important;flex-basis:190px!important;height:155px!important;min-height:155px!important}
+/* Balanced category card layout */
+.category-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:28px;overflow:visible;direction:ltr;padding:18px 10px 26px}
+.category-cards .cb{width:100%;min-width:0;flex:none;direction:rtl}
+.category-cards .cb>.card{width:100%!important}
+@media(max-width:760px){
+  .category-cards{display:flex;gap:22px;overflow-x:auto;justify-content:flex-start;padding:18px 16px 26px}
+  .category-cards .cb{flex:0 0 240px;width:240px}
+}
