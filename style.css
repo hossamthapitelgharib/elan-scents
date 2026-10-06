@@ -285,3 +285,20 @@ button[data-sheet="cart"].cart-pulse svg{animation:cartIcon .65s ease-out}
   .category-cards{gap:28px}
   .category-cards .cb>.card{width:280px!important;height:190px!important;min-height:190px!important}
 }
+
+/* Modern, accessible catalog filters */
+.flt{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:18px 0 12px;padding:16px;border:1px solid #eadfc6;border-radius:20px;background:linear-gradient(145deg,#fffdf8,#f7f0e3);box-shadow:0 8px 24px rgba(68,48,17,.06)}
+.flt-head{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:12px;padding-bottom:10px;border-bottom:1px solid #eadfc6;color:#302619}
+.flt-head strong{font-family:'El Messiri',sans-serif;font-size:17px}
+.filter-reset{border:1px solid #d8c48a;border-radius:999px;padding:7px 13px;background:#fff;color:#76500d;font:inherit;font-size:12px;cursor:pointer;transition:background .2s,color .2s}
+.filter-reset:hover{background:#8a5e0c;color:#fff}
+.filter-field{display:grid;gap:6px;min-width:0;color:#655d50;font-size:12px;font-weight:600}
+.filter-search{grid-column:1/-1}
+.filter-field input,.filter-field select{width:100%;min-width:0;min-height:44px;padding:10px 12px;border:1px solid #e3d6b8;border-radius:12px;background:#fff;color:#211d17;font:inherit;font-size:14px;outline:none;transition:border-color .18s,box-shadow .18s}
+.filter-field input:focus,.filter-field select:focus{border-color:#b9851e;box-shadow:0 0 0 3px rgba(200,150,42,.18)}
+.filter-field input::placeholder{color:#9a9284}
+.filter-count{grid-column:1/-1;padding-top:2px;color:#756b5a;font-size:12px}
+#res.grid{gap:16px;align-items:stretch}
+@media(min-width:680px){#res.grid{grid-template-columns:repeat(3,minmax(0,1fr))}.filter-search{grid-column:1/-1}}
+@media(min-width:1000px){#res.grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(max-width:540px){.flt{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:12px;border-radius:16px}.filter-field{font-size:11px}.filter-search,.flt-head,.filter-count{grid-column:1/-1}.filter-field input,.filter-field select{min-height:42px;padding:9px;font-size:13px}}
