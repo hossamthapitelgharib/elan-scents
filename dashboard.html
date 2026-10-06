@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>لوحة متابعة الطلبات · Élan Scents</title>
+  <link rel="stylesheet" href="/dashboard.css">
+</head>
+<body>
+  <header class="topbar">
+    <div><span class="eyebrow">Élan Scents</span><h1>لوحة متابعة الطلبات</h1></div>
+    <div class="top-actions"><span id="lastUpdated">—</span><button id="refreshBtn" class="primary">تحديث البيانات</button></div>
+  </header>
+  <main>
+    <section class="auth-card" id="authCard">
+      <div><b>دخول لوحة التحكم</b><p>أدخل رمز لوحة التحكم للوصول إلى الطلبات والإشعارات.</p></div>
+      <form id="authForm"><input id="dashboardToken" type="password" placeholder="رمز لوحة التحكم" autocomplete="current-password" required><button class="primary" type="submit">دخول</button></form>
+      <p id="authError" class="error" hidden></p>
+    </section>
+    <section id="dashboard" hidden>
+      <div class="stats" id="stats"></div>
+      <section class="filters">
+        <select id="statusFilter"><option value="">كل حالات الطلب</option><option value="awaiting_store_confirmation">بانتظار المتجر</option><option value="completed">مكتمل</option><option value="store_rejected">مرفوض من المتجر</option><option value="needs_review">يحتاج مراجعة</option></select>
+        <select id="matchFilter"><option value="">كل حالات المطابقة</option><option value="matched">مطابق</option><option value="mismatched">غير مطابق</option><option value="pending">قيد المطابقة</option></select>
+        <input id="searchFilter" type="search" placeholder="بحث برقم التتبع أو اسم العميل أو المتجر">
+      </section>
+      <section id="orders" class="orders"></section>
+    </section>
+  </main>
+  <script src="/dashboard.js"></script>
+</body>
+</html>
