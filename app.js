@@ -133,7 +133,7 @@ if(s[2]=='b')inner=BR.map(function(b){return card('','<span class="gold" style="
 else if(s[2]=='r')inner=s[3].map(function(n,i){return card('round',n,'',t.view,'col|'+s[0]+'|'+i,ART[s[0]+i])}).join('');
 else if(s[2]=='s')inner=ST.map(function(x){return card('wide','<div class="ph"></div><b>'+x[0]+'</b>',(x[1]||t.sdesc),t.status,'store|'+x[0])}).join('');
 else inner=strip(s[0]);
-h+='<section id="'+s[0]+'"><h3'+(s[0]=='master'?' class="gold en"':'')+'>'+s[1]+'</h3><span class="sub" data-go="sec|'+s[0]+'"'+(s[0]=='cats'||s[0]=='master'?' style="display:none"':'')+'>'+(s[0]=='notes'?t.explore:t.view)+'</span>'+(s[0]=='cats'?catBlocks():s[0]=='master'?masterBlock():'<div class="strip">'+inner+'</div>')+'</section>';
+h+='<section id="'+s[0]+'"><h3'+(s[0]=='master'?' class="gold en"':'')+'>'+s[1]+'</h3><span class="sub" data-go="sec|'+s[0]+'"'+(s[0]=='cats'||s[0]=='master'||s[0]=='notes'||s[0]=='occ'?' style="display:none"':'')+'>'+(s[0]=='notes'?t.explore:t.view)+'</span>'+(s[0]=='cats'?catBlocks():s[0]=='master'?masterBlock():'<div class="strip">'+inner+'</div>')+'</section>';
 });
 document.getElementById('main').innerHTML=h;
 }
