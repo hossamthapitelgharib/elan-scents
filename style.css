@@ -192,3 +192,10 @@ button[data-n]:not([data-n="0"]){position:relative}button[data-n]:not([data-n="0
 .ct{display:flex;justify-content:space-between;font-size:16px;padding-top:10px}.tn{color:var(--gray);line-height:1.7}
 .bc b,.bc a{overflow-wrap:anywhere}
 .fcols{grid-template-columns:1fr 52px 1fr!important;gap:10px!important;max-width:360px!important}.fgap{min-height:10px}#fch{display:none}
+/* Keep mobile cards free from browser text-selection/tap-highlight overlays. */
+.card, .card * {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.card { touch-action: manipulation; }
