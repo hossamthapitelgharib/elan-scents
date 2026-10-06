@@ -223,3 +223,13 @@ button[data-sheet="cart"].cart-pulse{animation:cartPulse .65s cubic-bezier(.2,.8
 button[data-sheet="cart"].cart-pulse svg{animation:cartIcon .65s ease-out}
 @keyframes cartPulse{0%{transform:scale(1)}35%{transform:scale(1.22) rotate(-5deg);filter:drop-shadow(0 5px 8px #c8962a88)}65%{transform:scale(.95) rotate(3deg)}100%{transform:scale(1)}}
 @keyframes cartIcon{0%{transform:translateY(-2px)}40%{transform:translateY(1px)}100%{transform:translateY(0)}}
+
+/* Quick product search in the header */
+#quickSearch{position:fixed;top:calc(env(safe-area-inset-top,0px) + 82px);left:10px;right:10px;z-index:25;max-width:520px;margin:auto;background:#fffdf7;border:1px solid #e4d4ad;border-radius:18px;padding:10px;box-shadow:0 12px 28px #5a3d0c2b}
+#quickSearch[hidden]{display:none}
+#quickSearchForm{display:flex;gap:8px;max-width:none}
+#quickSearchForm input{min-width:0;flex:1;padding:10px 13px;border-radius:12px;background:#fff;border-color:#ddcda9}
+#quickSearchForm button{width:42px;border:0;border-radius:12px;background:linear-gradient(135deg,#f3c94f,#c8962a 55%,#8a5e0c);color:#fff;font-size:22px;cursor:pointer}
+#quickSearchResults{display:grid;gap:4px;margin-top:8px;max-height:310px;overflow:auto}
+.quick-item{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;padding:10px;border:0;border-radius:10px;background:transparent;text-align:start;color:#1c1a17;cursor:pointer;font:inherit}
+.quick-item:hover{background:#f5ead1}.quick-item span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}.quick-item small{color:#8a5e0c;white-space:nowrap}.quick-empty{padding:12px;text-align:center;color:#77726a;font-size:12px}

@@ -139,6 +139,11 @@ h+='<section id="'+s[0]+'"><h3'+(s[0]=='master'?' class="gold en"':'')+'>'+s[1]+
 document.getElementById('main').innerHTML=h;
 }
 document.getElementById('lg').onclick=function(){lang=lang=='ar'?'en':'ar';render();if(P.length)view()};
+function quickSearchResults(q){var box=document.getElementById('quickSearchResults');if(!box)return;q=q.trim().toLowerCase();if(!q){box.innerHTML='';box.hidden=true;return}var hits=PERFUMES.filter(function(p){return(p.name+' '+p.brand).toLowerCase().indexOf(q)>-1}).slice(0,6);box.innerHTML=hits.length?hits.map(function(p){var b=best(p);return '<button class="quick-item" data-quick-id="'+p.id+'"><span>'+p.name+'</span><small>'+p.brand+(b?' · '+b.price+' '+(b.cur||''):'')+'</small></button>'}).join(''):'<div class="quick-empty">'+LB[lang].none+'</div>';box.hidden=false}
+function closeQuickSearch(){var w=document.getElementById('quickSearch');if(w)w.hidden=true}
+var qsw=document.getElementById('quickSearch'),qsi=document.getElementById('quickSearchInput');
+if(qsw&&qsi){qsi.placeholder=LB[lang].s;document.getElementById('quickSearchBtn').onclick=function(){qsw.hidden=!qsw.hidden;if(!qsw.hidden){qsi.placeholder=LB[lang].s;qsi.focus()}};qsi.oninput=function(){quickSearchResults(qsi.value)};document.getElementById('quickSearchForm').onsubmit=function(e){e.preventDefault();var q=qsi.value.trim();if(!q)return;closeQuickSearch();go('sec|all');F.q=q;view()}}
+document.addEventListener('click',function(e){var item=e.target.closest('[data-quick-id]');if(item){closeQuickSearch();go('prod|'+item.dataset.quickId)}});
 document.getElementById('mb').onclick=function(){document.getElementById('menu').classList.toggle('open')};
 // 3D shadow on proximity of pointer/finger
 function prox(e){var p=e.touches?e.touches[0]:e;document.querySelectorAll('.card').forEach(function(c){var r=c.getBoundingClientRect(),dx=Math.max(r.left-p.clientX,0,p.clientX-r.right),dy=Math.max(r.top-p.clientY,0,p.clientY-r.bottom);c.classList.toggle('near',Math.hypot(dx,dy)<60)})}
