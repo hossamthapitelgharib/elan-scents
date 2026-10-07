@@ -107,7 +107,7 @@ html{--p:0}
 #menu{padding-top:64px}
 .mx{position:absolute;top:14px;inset-inline-end:14px;background:none;border:0;cursor:pointer;padding:4px}
 #menu a.mlogo{background:none;-webkit-text-fill-color:initial;padding:6px 0 14px}
-#menu a.mlogo .logo{transform:scale(.82);transform-origin:center}
+#menu a.mlogo .logo{transform:scale(.92);transform-origin:center}
 #menu a.mlogo span{color:#111;-webkit-text-fill-color:#111}
 #master h3{font-size:26px;font-weight:700}
 .cb>.card{width:310px!important;max-width:100%;min-height:200px!important;padding:22px 16px;gap:10px}
@@ -128,7 +128,7 @@ html{--p:0}
 .cta .btn{padding:11px 30px;font-size:14px}
 #menu{width:46%!important;max-width:185px!important;padding:60px 14px 24px!important}
 #menu a{font-size:13px;padding:8px 0}
-#menu a.mlogo{padding:0 0 4px;margin:-8px 0 0}#menu a.mlogo .logo{transform:scale(.78)!important}
+#menu a.mlogo{padding:0 0 8px;margin:-4px 0 0}#menu a.mlogo .logo{transform:scale(.92)!important}#menu a.mlogo .logo small{font-size:7px!important;letter-spacing:.5px!important;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 header{grid-template-columns:minmax(0,1fr) auto minmax(0,1fr)!important;padding:10px 8px!important}
 header .ic{gap:8px;flex-shrink:0}header .ic button{padding:4px;flex-shrink:0}header .ic svg{width:20px;height:20px}
 header .logo small{letter-spacing:1px!important;font-size:7.5px!important}
