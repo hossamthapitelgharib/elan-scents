@@ -21,12 +21,20 @@ function validate(body) {
   return null;
 }
 
-async function createStoreRequest(supabaseUrl, serviceRoleKey, payload) {
+async function createCheckoutSession(supabaseUrl, serviceRoleKey, payload, userAuthorization) {
+  const response = await fetch(`${supabaseUrl}/rest/v1/rpc/create_checkout_session`, { method: 'POST', headers: { apikey: serviceRoleKey, Authorization: userAuthorization || `Bearer ${serviceRoleKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ p_payload: payload }) });
+  const raw = await response.text();
+  let data; try { data = raw ? JSON.parse(raw) : null; } catch (_) { data = { raw }; }
+  if (!response.ok) throw new Error(JSON.stringify(data));
+  return Array.isArray(data) ? data[0] : data;
+}
+
+async function createStoreRequest(supabaseUrl, serviceRoleKey, payload, userAuthorization) {
   const response = await fetch(`${supabaseUrl}/rest/v1/rpc/create_store_order_request`, {
     method: 'POST',
     headers: {
       apikey: serviceRoleKey,
-      Authorization: `Bearer ${serviceRoleKey}`,
+      Authorization: userAuthorization || `Bearer ${serviceRoleKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ p_payload: payload }),
@@ -45,6 +53,10 @@ module.exports = async function createStoreOrder(req, res) {
   }
   if (req.method !== 'POST') {
     reply(res, 405, { ok: false, error: 'method_not_allowed' });
+    return;
+  }
+  if (!req.headers.authorization || !req.headers.authorization.startsWith('Bearer ')) {
+    reply(res, 401, { ok: false, error: 'login_required' });
     return;
   }
 
@@ -82,7 +94,11 @@ module.exports = async function createStoreOrder(req, res) {
   });
 
   const stores = [];
+  let checkoutSessionId = '';
   try {
+    const checkoutSession = await createCheckoutSession(supabaseUrl, serviceRoleKey, { trackingNumber: unifiedTrackingNumber, customer: body.customer, currency: body.currency || 'EGP', subtotal: Number(body.items.reduce((sum, item) => sum + Number(item.total || (Number(item.unitPrice || 0) * Number(item.quantity))), 0).toFixed(2)) }, req.headers.authorization);
+    checkoutSessionId = checkoutSession && checkoutSession.id || '';
+
     let index = 0;
     for (const group of groups.values()) {
       index += 1;
@@ -91,6 +107,7 @@ module.exports = async function createStoreOrder(req, res) {
       const payload = {
         trackingNumber: storeTrackingNumber,
         checkoutTrackingNumber: unifiedTrackingNumber,
+        checkoutSessionId,
         notificationType: 'initial_order',
         storeId: group.storeId,
         storeName: group.storeName,
@@ -103,7 +120,7 @@ module.exports = async function createStoreOrder(req, res) {
         status: 'awaiting_store_confirmation',
         createdAt: new Date().toISOString(),
       };
-      const created = await createStoreRequest(supabaseUrl, serviceRoleKey, payload);
+      const created = await createStoreRequest(supabaseUrl, serviceRoleKey, payload, req.headers.authorization);
       stores.push({
         storeId: group.storeId,
         storeName: group.storeName,
@@ -122,6 +139,7 @@ module.exports = async function createStoreOrder(req, res) {
   reply(res, 201, {
     ok: true,
     trackingNumber: unifiedTrackingNumber,
+    checkoutSessionId,
     status: 'awaiting_store_confirmation',
     customer: body.customer,
     stores,
