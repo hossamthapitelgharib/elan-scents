@@ -126,14 +126,14 @@ html{--p:0}
 .cta h4{font-family:'El Messiri',sans-serif;font-size:27px;line-height:1.5;font-weight:700}
 .about #abIn .cta p{font-size:18px;font-weight:600;color:#17140f;margin:2px auto 16px;line-height:1.7}
 .cta .btn{padding:11px 30px;font-size:14px}
-#menu{width:54%!important;max-width:210px!important;padding:60px 16px 24px!important}
+#menu{width:46%!important;max-width:185px!important;padding:60px 14px 24px!important}
 #menu a{font-size:13px;padding:8px 0}
-#menu a.mlogo{padding:0 0 4px;margin:-8px 0 0}#menu a.mlogo .logo{transform:scale(.62)!important}
-header{grid-template-columns:minmax(0,1fr) auto minmax(0,1fr)!important;padding:10px 8px!important}
-header .ic{gap:4px}header .ic button{padding:2px}header .ic svg{width:19px;height:19px}
+#menu a.mlogo{padding:0 0 4px;margin:-8px 0 0}#menu a.mlogo .logo{transform:scale(.78)!important}
+header{grid-template-columns:minmax(0,1fr) auto minmax(0,1fr)!important;padding:10px 10px!important}
+header .ic{gap:8px;flex-shrink:0}header .ic button{padding:4px;flex-shrink:0}header .ic svg{width:20px;height:20px}
 header .logo small{letter-spacing:1px!important;font-size:7.5px!important}
-#lg{font-size:12px!important;font-weight:700}
-@media(max-width:380px){.logo b{font-size:30px}.logo span{font-size:14px}header .ic svg{width:18px;height:18px}}
+#lg{font-size:12px!important;font-weight:700;padding:4px 2px}
+@media(max-width:380px){.logo b{font-size:30px}.logo span{font-size:14px}header .ic{gap:6px}header .ic svg{width:18px;height:18px}header{padding:10px 6px!important}}
 footer{background:linear-gradient(180deg,#fffdf7,#f6efe0)!important;color:#2b2620!important;border-top:1px solid #e3d3a4;padding:34px 16px 96px!important}
 footer a{color:#8a5e0c!important;font-weight:500}
 .flogo{margin:0 auto}body.sc .flogo{transform:none}
