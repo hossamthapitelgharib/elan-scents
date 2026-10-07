@@ -141,7 +141,7 @@ document.getElementById('lg').textContent=lang=='ar'?'EN':'ع';
 var x=t.abx,c=x.cta.split(' Élan Scents… ');document.getElementById('abIn').innerHTML='<p>'+x.a+'</p><p>'+x.b+'</p><i class="orn"></i><p class="ab-hl gold">'+x.hl+'</p><p>'+x.c+'</p><p>'+x.d.replace('%L','<a class="ab-link" href="#occ">«'+x.link+'»</a>')+'</p><i class="orn"></i><div class="chips">'+t.pillars.split(' • ').map(function(c){return '<span>'+c+'</span>'}).join('')+'</div><p class="quote gold">'+t.q+'</p><div class="disc"><h4 class="gold">'+c[0]+'</h4><h4 class="gold">Élan Scents…</h4><p>'+c[1]+'</p><button class="btn" data-go="sec|all">'+t.view+'</button></div>';
 document.getElementById('kind').innerHTML=t.kinds.map(function(k,i){return '<option value="'+k+'">'+k+'</option>'}).join('');
 document.getElementById('fch').innerHTML=[['WhatsApp',CFG.waNumber],['Phone',CFG.phone],['Email',CFG.email]].map(function(c){return '<div><b>'+c[0]+'</b><span>'+(c[1]||'Coming soon')+'</span></div>'}).join('');
-var ids=['','magic','brands','offers','new','master','cats','occ','notes','stores','','about','contact'];
+var ids=['','magic','brands','offers','new','cats','master','occ','notes','stores','','about','contact'];
 var m=document.getElementById('menu');m.innerHTML=XBTN+t.menu.map(function(x,i){return (i==0?LOGO:i==1?'<a data-go="sec|all">'+x+'</a>':i==10||i>=13?'<a data-sheet="'+(i==10?'orders':i==13?'login':'signup')+'">'+x+'</a>':'<a href="#'+(ids[i]||'')+'">'+x+'</a>')}).join('');
 m.onclick=function(e){m.classList.remove('open');if(!e.target.closest('.mx'))document.body.classList.remove('inner')};
 footer18(t);counts();
