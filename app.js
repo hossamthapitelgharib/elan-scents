@@ -15,7 +15,7 @@ function catBlocks(){var t=T();return sec('cats')[3].map(function(n,i){return '<
 function masterBlock(){var t=T();return '<div class="cb"><div class="card msel" data-go="sec|master" role="img" aria-label="Élan Scents Selections"></div><span class="sub" data-go="sec|master">'+t.view+'</span><div class="strip">'+strip('master')+'</div></div>'}
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
 function ratingHTML(r){r=+r||0;if(!r)return '';var stars='';for(var i=1;i<=5;i++)stars+='<span class="'+(i<=Math.round(r)?'on':'')+'">★</span>';return '<div class="rating" aria-label="'+r.toFixed(1)+' / 5"><span class="stars" aria-hidden="true">'+stars+'</span><b>'+r.toFixed(1)+'</b></div>'}
-var CARTSVG='<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="url(#gg)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8h14l-1 12H6zM9 8a3 3 0 016 0"/></svg>';
+var CARTSVG='<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="url(#gg)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1"/><circle cx="17" cy="20" r="1"/><path d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>';
 function byId(i){return PERFUMES.filter(function(q){return q.id==i})[0]}
 function nmOf(k,i){var a=sec(k);return a&&a[3]?a[3][i]:''}
 function pc(x){var p=x.p,b=x.b,l=LB[lang],t=T();
