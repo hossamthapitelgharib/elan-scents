@@ -6,6 +6,40 @@ function loadScript(src, cb){
   s.onerror=function(){console.error('failed to load',src)};
   document.head.appendChild(s);
 }
+function lockBodyScroll(lock){
+  var body=document.body;
+  if(!body)return;
+  if(lock){
+    if(body.classList.contains('sheet-open'))return;
+    body.dataset.scrollY=String(window.scrollY||window.pageYOffset||0);
+    body.classList.add('sheet-open');
+    body.style.top='-'+body.dataset.scrollY+'px';
+  }else{
+    if(!body.classList.contains('sheet-open'))return;
+    var y=parseInt(body.dataset.scrollY||'0',10)||0;
+    body.classList.remove('sheet-open');
+    body.style.top='';
+    window.scrollTo(0,y);
+  }
+}
+function watchSheet(){
+  var sheet=document.getElementById('sheet');
+  if(!sheet)return;
+  var sync=function(){
+    lockBodyScroll(!sheet.hasAttribute('hidden'));
+  };
+  sync();
+  try{
+    var mo=new MutationObserver(sync);
+    mo.observe(sheet,{attributes:true,attributeFilter:['hidden','style','class']});
+  }catch(e){}
+  // also catch programmatic toggles via clicks on cart/fav/notif buttons
+  document.addEventListener('click',function(){
+    setTimeout(sync,0);
+    setTimeout(sync,50);
+    setTimeout(sync,200);
+  },true);
+}
 function applyArtAndHero(){
   window.playHeroVideo=function(){
     var v=document.getElementById('heroVideo');
@@ -54,6 +88,7 @@ function applyArtAndHero(){
     notes4:S('<defs><linearGradient id="c" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#88b060"/><stop offset="1" stop-color="#2a5020"/></linearGradient></defs><rect width="200" height="140" fill="url(#c)"/><ellipse cx="70" cy="75" rx="22" ry="38" fill="#3a6828"/><ellipse cx="100" cy="60" rx="22" ry="38" fill="#448030"/><ellipse cx="130" cy="80" rx="22" ry="38" fill="#3a6828"/><ellipse cx="70" cy="70" rx="10" ry="14" fill="#b8d070"/><ellipse cx="100" cy="55" rx="10" ry="14" fill="#c0d880"/><ellipse cx="130" cy="75" rx="10" ry="14" fill="#b8d070"/>')
   });
   if(typeof render==='function'){try{render();}catch(e){}}
+  watchSheet();
 }
 var CORE='https://cdn.jsdelivr.net/gh/hossamthapitelgharib/elan-scents@38fe8eec291e99dfc3797593ae281b451abe39d4/app.js';
 loadScript(CORE, applyArtAndHero);
