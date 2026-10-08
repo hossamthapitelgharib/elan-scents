@@ -5,9 +5,15 @@
    ============================================================ */
 @import url('/style-3.css');
 
-/* ---------- Menu: raise content higher ---------- */
+/* ---------- Menu: slightly narrower panel + slightly larger items ---------- */
 #menu {
   padding-top: 64px !important;
+  width: 40% !important;
+  max-width: 165px !important;
+}
+#menu a:not(.mlogo) {
+  font-size: 14.5px !important;
+  padding: 10px 0 !important;
 }
 #menu a.mlogo {
   padding-top: 4px !important;
@@ -457,9 +463,13 @@ body.sheet-open {
   .card.pf .pim { height: 120px !important; }
 
   #menu {
-    width: 72% !important;
-    max-width: 260px !important;
+    width: 65% !important;
+    max-width: 230px !important;
     padding-top: 56px !important;
+  }
+  #menu a:not(.mlogo) {
+    font-size: 14.5px !important;
+    padding: 10px 0 !important;
   }
 
   section {
