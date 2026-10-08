@@ -360,3 +360,7 @@ body.sheet-open{overflow:hidden;touch-action:none}body.sheet-open #sheet{overscr
 .fcred>small{color:#fff0cf!important;text-shadow:0 1px 3px #000!important}
 .growthmark{font-size:30px!important;background:linear-gradient(180deg,#ffffff 0%,#f8f7f2 24%,#d9d6cd 45%,#ffffff 64%,#e8e5dc 82%,#ffffff 100%)!important;text-shadow:0 1px 1px #000,0 2px 4px rgba(0,0,0,.8)!important}
 .growthmark span{background:linear-gradient(180deg,#fffbd2 0%,#ffe99a 22%,#f6cf62 42%,#fff2ad 61%,#e9b945 80%,#fff5bd 100%)!important}
+
+/* Match the supplied GrowthMark reference: graphite silver for Growth and antique bronze-gold for Mark. */
+.growthmark{font-size:30px!important;background:linear-gradient(180deg,#f4f1e8 0%,#c9c6bd 18%,#77756f 39%,#4c4b47 53%,#d8d5cd 70%,#88857d 86%,#ece9df 100%)!important;-webkit-background-clip:text!important;background-clip:text!important;-webkit-text-fill-color:transparent!important;color:transparent!important;text-shadow:0 1px 0 #111,0 2px 2px rgba(0,0,0,.95),0 4px 4px rgba(0,0,0,.45)!important}
+.growthmark span{background:linear-gradient(180deg,#ffe9a0 0%,#e5b957 18%,#a86f1d 38%,#603a10 54%,#d39a32 71%,#8c5716 86%,#edc873 100%)!important;-webkit-background-clip:text!important;background-clip:text!important;-webkit-text-fill-color:transparent!important;color:transparent!important;text-shadow:0 1px 0 #1d1205,0 2px 2px rgba(0,0,0,.9)!important}
