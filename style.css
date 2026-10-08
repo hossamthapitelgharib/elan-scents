@@ -152,7 +152,7 @@
 }
 
 /* ============================================================
-   FOOTER — GrowthMark 50% of original (880→440), clean layout
+   FOOTER — GrowthMark 50% again (440→220), clean layout
    ============================================================ */
 #fcr,
 .fcred {
@@ -175,8 +175,8 @@
 .fcred .growthmark-img,
 img.growthmark-img {
   display: block !important;
-  width: 440px !important;
-  max-width: 70vw !important;
+  width: 220px !important;
+  max-width: 55vw !important;
   height: auto !important;
   margin: 6px auto !important;
   object-fit: contain !important;
@@ -190,7 +190,7 @@ img.growthmark-img {
 }
 
 /* ============================================================
-   CART / SHEET — lock background page scroll while open
+   CART / SHEET — lock scroll + close X top-left
    ============================================================ */
 body.sheet-open {
   overflow: hidden !important;
@@ -205,11 +205,46 @@ body.sheet-open {
 }
 #sheet .sb,
 #sheetB {
+  position: relative !important;
   overscroll-behavior: contain !important;
   max-height: min(85vh, 640px) !important;
   overflow-y: auto !important;
   -webkit-overflow-scrolling: touch !important;
   touch-action: pan-y !important;
+  padding-top: 28px !important;
+}
+
+/* Close button (×) — top-left corner */
+#sheet .sheet-close,
+.sheet-close {
+  position: absolute !important;
+  top: 10px !important;
+  left: 12px !important;
+  right: auto !important;
+  inset-inline-start: auto !important;
+  inset-inline-end: auto !important;
+  z-index: 5 !important;
+  width: 36px !important;
+  height: 36px !important;
+  min-width: 36px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: 0 !important;
+  border-radius: 50% !important;
+  background: #f5efe3 !important;
+  color: #8a5e0c !important;
+  font-size: 22px !important;
+  line-height: 36px !important;
+  text-align: center !important;
+  cursor: pointer !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08) !important;
+  display: grid !important;
+  place-items: center !important;
+}
+#sheet .sheet-close:hover,
+.sheet-close:hover {
+  background: #ebe3d0 !important;
+  color: #6b4708 !important;
 }
 
 /* ============================================================
@@ -259,8 +294,8 @@ body.sheet-open {
   }
 
   img.growthmark-img {
-    width: 320px !important;
-    max-width: 60vw !important;
+    width: 180px !important;
+    max-width: 50vw !important;
   }
 }
 
@@ -347,8 +382,19 @@ body.sheet-open {
   .fcols { gap: 14px !important; }
 
   img.growthmark-img {
-    width: 200px !important;
-    max-width: 55vw !important;
+    width: 140px !important;
+    max-width: 45vw !important;
+  }
+
+  #sheet .sheet-close,
+  .sheet-close {
+    top: 8px !important;
+    left: 10px !important;
+    width: 32px !important;
+    height: 32px !important;
+    min-width: 32px !important;
+    font-size: 20px !important;
+    line-height: 32px !important;
   }
 }
 
