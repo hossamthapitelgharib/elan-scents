@@ -1,0 +1,34 @@
+/* Root fix: masterpieces + category card images */
+.cb>.card.msel{
+  background-image:url('/assets/cards/masterpieces.webp')!important;
+  background-size:cover!important;
+  background-position:center!important;
+  background-color:#ede8de!important;
+}
+.card.art .artbg img{
+  width:100%;
+  height:100%;
+  display:block;
+  object-fit:cover;
+}
+#hero video,
+#heroVideo{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  z-index:0;
+}
+#hero .hero-overlay{
+  position:absolute;
+  inset:0;
+  z-index:1;
+  background:linear-gradient(180deg,rgba(20,12,4,.35) 0%,rgba(20,12,4,.15) 40%,rgba(20,12,4,.55) 100%);
+  pointer-events:none;
+}
+#hero .magic,
+#hero .counters{
+  position:relative;
+  z-index:2;
+}
