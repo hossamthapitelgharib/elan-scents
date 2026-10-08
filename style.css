@@ -137,7 +137,7 @@
 #cats > .cb {
   display: flex !important;
   justify-content: center !important;
-  margin: 0 auto 24px !important; /* clear gap between cards */
+  margin: 0 auto 24px !important;
   width: 100% !important;
   max-width: 340px !important;
 }
@@ -147,12 +147,12 @@
 #cats > .cb > .card {
   width: 100% !important;
   max-width: 340px !important;
-  height: 240px !important; /* taller */
+  height: 240px !important;
   min-height: 240px !important;
 }
 
 /* ============================================================
-   FOOTER — GrowthMark 50% size, clean layout
+   FOOTER — GrowthMark 50% of original (880→440), clean layout
    ============================================================ */
 #fcr,
 .fcred {
@@ -160,9 +160,9 @@
   flex-direction: column !important;
   align-items: center !important;
   justify-content: center !important;
-  gap: 6px !important;
+  gap: 8px !important;
   margin-top: 18px !important;
-  padding: 0 16px 8px !important;
+  padding: 0 16px 12px !important;
   text-align: center !important;
 }
 #fcr span,
@@ -175,10 +175,10 @@
 .fcred .growthmark-img,
 img.growthmark-img {
   display: block !important;
-  width: 50% !important;
-  max-width: 280px !important;
+  width: 440px !important;
+  max-width: 70vw !important;
   height: auto !important;
-  margin: 4px auto !important;
+  margin: 6px auto !important;
   object-fit: contain !important;
   order: 2;
 }
@@ -259,7 +259,8 @@ body.sheet-open {
   }
 
   img.growthmark-img {
-    max-width: 220px !important;
+    width: 320px !important;
+    max-width: 60vw !important;
   }
 }
 
@@ -311,10 +312,10 @@ body.sheet-open {
 
   #cats > .cb {
     max-width: 92vw !important;
-    margin-bottom: 16px !important; /* keep gap */
+    margin-bottom: 16px !important;
   }
   #cats > .cb > .card {
-    height: 190px !important; /* taller on phone */
+    height: 190px !important;
     min-height: 190px !important;
     border-radius: 16px !important;
   }
@@ -346,8 +347,8 @@ body.sheet-open {
   .fcols { gap: 14px !important; }
 
   img.growthmark-img {
-    width: 50% !important;
-    max-width: 160px !important;
+    width: 200px !important;
+    max-width: 55vw !important;
   }
 }
 
