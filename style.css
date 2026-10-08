@@ -1,7 +1,11 @@
 /* Active stylesheet: full theme + card images + hero video */
 @import url('/style-3.css');
 
-/* Root fixes for masterpieces, category art cards, hero video */
+/* ============================================================
+   ROOT FIXES — masterpieces, art cards, hero video fallback
+   ============================================================ */
+
+/* Masterpieces featured card */
 .cb > .card.msel {
   background-image: url('/assets/cards/masterpieces.webp') !important;
   background-size: cover !important;
@@ -21,68 +25,81 @@
   justify-content: center !important;
 }
 
-.card.art .artbg img{
-  width:100%;
-  height:100%;
-  display:block;
-  object-fit:cover;
+.card.art .artbg img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
 }
-.card.art .artbg svg{
-  width:100%;
-  height:100%;
-  display:block;
-}
-#hero{
-  overflow:hidden;
-  background:#1a1208 !important;
-}
-#hero video,
-#heroVideo{
-  position:absolute;
-  inset:0;
-  width:100%;
-  height:100%;
-  object-fit:cover;
-  z-index:0;
-}
-#hero .hero-overlay{
-  position:absolute;
-  inset:0;
-  z-index:1;
-  background:linear-gradient(180deg,rgba(20,12,4,.35) 0%,rgba(20,12,4,.15) 40%,rgba(20,12,4,.55) 100%);
-  pointer-events:none;
-}
-#hero .magic,
-#hero .counters{
-  position:relative;
-  z-index:2;
+.card.art .artbg svg {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
-/* Occasions + Notes: rectangular cards (not circular) */
+/* Hero: always dark fallback so video load / autoplay fail never shows white */
+#hero {
+  overflow: hidden !important;
+  background: #1a1208 !important;
+  /* kill conflicting aspect-ratio from style-3 that fights height:100svh */
+  aspect-ratio: auto !important;
+  max-height: none !important;
+  height: 100svh !important;
+  min-height: 420px !important;
+}
+#hero video,
+#heroVideo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 0;
+  background: #1a1208; /* poster-gap safety */
+}
+#hero .hero-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(
+    180deg,
+    rgba(20, 12, 4, 0.35) 0%,
+    rgba(20, 12, 4, 0.15) 40%,
+    rgba(20, 12, 4, 0.55) 100%
+  );
+  pointer-events: none;
+}
+#hero .magic,
+#hero .counters {
+  position: relative;
+  z-index: 2;
+}
+
+/* Occasions + Notes: rectangular cards (never circular on any breakpoint) */
 .card.round,
 .card.occ-note,
 .card.occ,
 .card.notes,
 .strip .card.round,
-.grid .card.round{
-  border-radius:18px!important;
-  flex:0 0 190px!important;
-  flex-basis:190px!important;
-  width:190px!important;
-  height:150px!important;
-  min-height:150px!important;
-  aspect-ratio:auto!important;
-  padding:0 10px 12px!important;
-  overflow:hidden!important;
-  justify-content:flex-end!important;
+.grid .card.round {
+  border-radius: 18px !important;
+  flex: 0 0 190px !important;
+  flex-basis: 190px !important;
+  width: 190px !important;
+  height: 150px !important;
+  min-height: 150px !important;
+  aspect-ratio: auto !important;
+  padding: 0 10px 12px !important;
+  overflow: hidden !important;
+  justify-content: flex-end !important;
 }
 .card.round.art .artbg,
 .card.occ-note.art .artbg,
 .card.occ .artbg,
-.card.notes .artbg{
-  position:absolute;
-  inset:0;
-  z-index:0;
+.card.notes .artbg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
 }
 .card.round.art h4,
 .card.round.art .st,
@@ -91,54 +108,298 @@
 .card.occ-note.art .st,
 .card.occ-note.art small,
 .card.occ h4,
-.card.notes h4{
-  position:relative;
-  z-index:1;
-  color:#fff!important;
-  text-shadow:0 1px 4px rgba(0,0,0,.55);
+.card.notes h4 {
+  position: relative;
+  z-index: 1;
+  color: #fff !important;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.55);
 }
 .card.round.art .st,
 .card.occ-note.art .st,
 .card.occ .st,
-.card.notes .st{
-  color:#f5e6c0!important;
+.card.notes .st {
+  color: #f5e6c0 !important;
 }
 .card.round.art::after,
 .card.occ-note.art::after,
 .card.occ.art::after,
-.card.notes.art::after{
-  content:'';
-  position:absolute;
-  inset:0;
-  z-index:0;
-  background:linear-gradient(180deg,transparent 35%,rgba(20,12,4,.72) 100%);
-  pointer-events:none;
+.card.notes.art::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: linear-gradient(180deg, transparent 35%, rgba(20, 12, 4, 0.72) 100%);
+  pointer-events: none;
 }
 
-/* ===== Mobile only: fix white screen + cut logo ===== */
-@media (max-width: 480px) {
-  /* Header: stop logo cut-off */
+/* ============================================================
+   CATEGORY CARDS — single source of truth (kills conflicting
+   media-query fights in style-3.css)
+   ============================================================ */
+.category-cards {
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  gap: 16px !important;
+  overflow-x: auto !important;
+  overflow-y: visible !important;
+  scroll-snap-type: x mandatory !important;
+  -webkit-overflow-scrolling: touch !important;
+  justify-content: flex-start !important;
+  padding: 16px 14px 24px !important;
+  max-width: none !important;
+  margin: 0 !important;
+  width: 100% !important;
+  direction: ltr !important; /* consistent scroll direction */
+}
+.category-cards .cb {
+  flex: 0 0 260px !important;
+  width: 260px !important;
+  min-width: 260px !important;
+  scroll-snap-align: center !important;
+  direction: rtl !important; /* restore text direction */
+  margin-bottom: 0 !important;
+}
+.category-cards .cb > .card {
+  width: 100% !important;
+  height: 180px !important;
+  min-height: 180px !important;
+}
+
+/* ============================================================
+   MOBILE + TABLET — comprehensive responsive overhaul
+   ============================================================ */
+@media (max-width: 960px) {
+  /* Header: never let logo get crushed */
   header {
+    grid-template-columns: auto minmax(0, 1fr) auto !important;
     padding: 8px 10px !important;
-    grid-template-columns: auto 1fr auto !important;
+    gap: 4px !important;
+  }
+  header .ic {
+    gap: 6px !important;
+  }
+  header .ic button {
+    padding: 2px !important;
+  }
+  header .ic svg {
+    width: 20px !important;
+    height: 20px !important;
+  }
+  header .logo {
+    min-width: 0 !important;
+    overflow: hidden !important;
+  }
+  header .logo > div {
+    white-space: nowrap !important;
   }
   header .logo b {
-    font-size: 22px !important;
+    font-size: 26px !important;
   }
   header .logo span {
-    font-size: 12px !important;
+    font-size: 13px !important;
   }
   header .logo small {
-    font-size: 6px !important;
-    letter-spacing: 0.5px !important;
+    font-size: 6.5px !important;
+    letter-spacing: 0.8px !important;
+    display: block !important;
+  }
+  header .logo i {
+    width: 60% !important;
+  }
+  #lg {
+    font-size: 11px !important;
   }
 
-  /* Hero: force proper height and dark background */
+  /* Hero solid on all mid sizes */
   #hero {
     height: 100svh !important;
     max-height: none !important;
     aspect-ratio: auto !important;
-    min-height: 500px !important;
+    min-height: 460px !important;
     background: #1a1208 !important;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  .magic h2 {
+    font-size: 22px !important;
+  }
+  .counters b {
+    font-size: 24px !important;
+  }
+  .counters span {
+    font-size: 11px !important;
+  }
+
+  /* Category cards slightly smaller on tablet */
+  .category-cards .cb {
+    flex: 0 0 240px !important;
+    width: 240px !important;
+    min-width: 240px !important;
+  }
+  .category-cards .cb > .card {
+    height: 170px !important;
+    min-height: 170px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  /* Header ultra-compact */
+  header {
+    padding: 6px 8px !important;
+    top: calc(env(safe-area-inset-top, 0px) + 28px) !important;
+  }
+  #bar {
+    height: 28px !important;
+    font-size: 12px !important;
+    padding: 5px 0 !important;
+  }
+  header .logo b {
+    font-size: 20px !important;
+  }
+  header .logo span {
+    font-size: 11px !important;
+  }
+  header .logo small {
+    font-size: 5.5px !important;
+    letter-spacing: 0.4px !important;
+  }
+  header .ic {
+    gap: 4px !important;
+  }
+  header .ic svg {
+    width: 18px !important;
+    height: 18px !important;
+  }
+
+  /* Hero full viewport, never white */
+  #hero {
+    height: 100svh !important;
+    min-height: 100svh !important;
+    max-height: none !important;
+    aspect-ratio: auto !important;
+    background: #1a1208 !important;
+    padding: 0 14px calc(10px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  .magic {
+    padding: 10px !important;
+  }
+  .magic h2 {
+    font-size: 20px !important;
+  }
+  .magic p {
+    font-size: 12px !important;
+  }
+  .counters {
+    gap: 6px !important;
+  }
+  .counters b {
+    font-size: 22px !important;
+  }
+  .counters span {
+    font-size: 10px !important;
+  }
+
+  /* Cards tighter on phone */
+  .card.round,
+  .card.occ-note,
+  .card.occ,
+  .card.notes,
+  .strip .card.round {
+    flex: 0 0 160px !important;
+    flex-basis: 160px !important;
+    width: 160px !important;
+    height: 130px !important;
+    min-height: 130px !important;
+  }
+  .category-cards {
+    gap: 12px !important;
+    padding: 12px 12px 20px !important;
+  }
+  .category-cards .cb {
+    flex: 0 0 200px !important;
+    width: 200px !important;
+    min-width: 200px !important;
+  }
+  .category-cards .cb > .card {
+    height: 150px !important;
+    min-height: 150px !important;
+  }
+  .category-cards .cb > .card h4 {
+    font-size: 14px !important;
+  }
+  .category-cards .cb > .card small,
+  .category-cards .cb > .card .st {
+    font-size: 9px !important;
+  }
+
+  /* Product cards */
+  .card.pf {
+    flex: 0 0 160px !important;
+  }
+  .card.pf .pim {
+    height: 120px !important;
+  }
+
+  /* Menu narrower so it doesn't dominate */
+  #menu {
+    width: 72% !important;
+    max-width: 260px !important;
+  }
+
+  /* Sections less padding */
+  section {
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+  }
+
+  /* Footer */
+  footer {
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+  }
+  .fcols {
+    gap: 14px !important;
+  }
+}
+
+@media (max-width: 360px) {
+  header .logo b {
+    font-size: 17px !important;
+  }
+  header .logo span {
+    font-size: 9px !important;
+  }
+  header .logo small {
+    display: none !important; /* extreme narrow: hide tagline */
+  }
+  .category-cards .cb {
+    flex: 0 0 170px !important;
+    width: 170px !important;
+    min-width: 170px !important;
+  }
+}
+
+/* ============================================================
+   Desktop polish: category cards can sit in a nice centered row
+   when there is room
+   ============================================================ */
+@media (min-width: 961px) {
+  .category-cards {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 24px !important;
+    overflow: visible !important;
+    max-width: 960px !important;
+    margin: 0 auto !important;
+    padding: 18px 12px 28px !important;
+    justify-content: center !important;
+  }
+  .category-cards .cb {
+    flex: none !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+  .category-cards .cb > .card {
+    height: 200px !important;
+    min-height: 200px !important;
   }
 }
