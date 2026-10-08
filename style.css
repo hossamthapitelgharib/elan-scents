@@ -81,10 +81,15 @@ header .logo small {
   object-fit: cover !important;
   object-position: center center !important;
   z-index: 0 !important;
-  background: #1a1208 !important;
+  background: transparent !important;
   display: block !important;
-  opacity: 1 !important;
+  opacity: 0 !important;
   visibility: visible !important;
+  transition: opacity 0.45s ease !important;
+}
+#heroVideo.is-ready,
+#hero video.is-ready {
+  opacity: 1 !important;
 }
 #hero .hero-overlay {
   position: absolute !important;
