@@ -22,10 +22,6 @@
 #hero{
   overflow:hidden;
   background:transparent!important;
-  /* Fallback if video/poster fails */
-  background-image:url('/assets/cards/masterpieces.webp')!important;
-  background-size:cover!important;
-  background-position:center!important;
 }
 #hero video,
 #heroVideo{
