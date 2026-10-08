@@ -58,36 +58,23 @@
   var v=document.getElementById('heroVideo');
   if(!v)return;
   v.muted=true;
-  v.defaultMuted=true;
-  v.playsInline=true;
   v.setAttribute('muted','');
   v.setAttribute('playsinline','');
   v.setAttribute('webkit-playsinline','');
-  v.setAttribute('x-webkit-airplay','allow');
   function tryPlay(){
-    if(!v.paused)return;
     v.muted=true;
     var p=v.play();
     if(p&&p.catch)p.catch(function(){});
   }
-  function onReady(){tryPlay();}
-  if(v.readyState>=2)tryPlay();
-  else{
-    v.addEventListener('loadedmetadata',onReady);
-    v.addEventListener('loadeddata',onReady);
-    v.addEventListener('canplay',onReady);
-    v.addEventListener('canplaythrough',onReady);
-  }
+  tryPlay();
+  v.addEventListener('loadeddata',tryPlay);
+  v.addEventListener('canplay',tryPlay);
   document.addEventListener('visibilitychange',function(){if(!document.hidden)tryPlay();});
-  ['touchstart','touchend','click','pointerdown'].forEach(function(ev){
-    document.addEventListener(ev,tryPlay,{once:true,passive:true});
-  });
-  [100,300,600,1200,2500,5000].forEach(function(t){setTimeout(tryPlay,t);});
-  var attempts=0;
-  var iv=setInterval(function(){
-    if(!v.paused||attempts++>20){clearInterval(iv);return;}
-    tryPlay();
-  },500);
+  document.addEventListener('touchstart',tryPlay,{once:true,passive:true});
+  document.addEventListener('click',tryPlay,{once:true});
+  setTimeout(tryPlay,300);
+  setTimeout(tryPlay,1000);
+  setTimeout(tryPlay,2500);
 })();
 </script>
 </body>
