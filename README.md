@@ -2,14 +2,27 @@
 
 The Home of Gulf Fragrances
 
-This repository contains the active static frontend and its serverless configuration endpoint.
+Static storefront + order dashboards. Deployed on Vercel.
 
-## Active files
+## Active frontend (UI)
 
-- `index.html` — application shell
-- `app.js` — rendering, catalog, filtering, cart, and navigation logic
-- `style.css` — active application styles
-- `texts.js` — Arabic and English content
-- `config.js` — serverless endpoint for catalog configuration
+- `index.html` — main storefront shell (mobile / tablet / desktop)
+- `app.js` — UI overrides + loads stable core from pinned release
+- `style.css` — active styles (imports `style-3.css` base, then overrides)
+- `style-3.css` — base theme
+- `texts.js` — AR/EN copy + ART card markup
+- `assets/` — hero video, category/occasion cards, growthmark
 
-The old unused stylesheet under `src/` was removed during cleanup. The active deployment loads the root-level files above.
+## Portals (UI)
+
+- `account.html` + `account.js` + `portal.css` / `portal.js`
+- `dashboard.html` + `dashboard.js` + `dashboard.css`
+- `store-dashboard.html` + `store-dashboard.js`
+- `platform-dashboard.html` + `platform-dashboard.js`
+
+## Not touched by UI cleanup
+
+- `api/` — serverless endpoints
+- `supabase/` — migrations
+- `config.js` — catalog config endpoint
+- tests / workflows
