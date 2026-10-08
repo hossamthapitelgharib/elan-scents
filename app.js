@@ -6,8 +6,8 @@ function loadScript(src, cb){
   s.onerror=function(){console.error('failed to load',src)};
   document.head.appendChild(s);
 }
-/* Full app from stable commit that uses /assets/cards/*.webp for category cards */
-var CORE='https://cdn.jsdelivr.net/gh/hossamthapitelgharib/elan-scents@38fe8eec291e99dfc3797593ae281b451abe39d4/app.js';
+/* Local core (no CDN dependency) — category cards + masterpieces + hero video */
+var CORE='/core-app.js';
 loadScript(CORE, function(){
   window.playHeroVideo=function(){
     var v=document.getElementById('heroVideo');
@@ -38,7 +38,7 @@ loadScript(CORE, function(){
     var b=e.target.closest('[data-bc]');
     if(b&&!+b.dataset.bc){setTimeout(playHeroVideo,50);}
   },true);
-  /* ART map: real images for categories, day/night occasions, citrus note; keep SVG fallbacks for the rest */
+  /* ART map: real images for categories, day/night occasions, citrus note */
   window.ART=Object.assign({}, typeof ART==='object'&&ART?ART:{}, {
     cats0:'<img src="/assets/cards/category-men.webp" alt="" loading="lazy">',
     cats1:'<img src="/assets/cards/category-women.webp" alt="" loading="lazy">',
@@ -47,7 +47,6 @@ loadScript(CORE, function(){
     occ1:'<img src="/assets/cards/occasion-night.webp" alt="" loading="lazy">',
     notes1:'<img src="/assets/cards/note-citrus.webp" alt="" loading="lazy">'
   });
-  /* Re-render home sections if already painted so cards pick up ART images */
   if(typeof render==='function'){
     try{render();}catch(e){}
   }
