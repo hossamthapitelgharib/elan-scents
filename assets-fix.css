@@ -1,11 +1,12 @@
-/* Card images: fill full 4:3 card bounds */
+/* Card images: fill full card bounds */
+/* Masterpieces image is 1200×805 — card must match to avoid crop */
 .cb > .card.msel {
   background-image: url('/assets/cards/masterpieces.webp') !important;
-  background-size: cover !important;
+  background-size: 100% 100% !important;
   background-position: center center !important;
   background-repeat: no-repeat !important;
   background-color: #ede8de !important;
-  aspect-ratio: 4 / 3 !important;
+  aspect-ratio: 1200 / 805 !important;
   height: auto !important;
   min-height: 0 !important;
 }
