@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Élan Scents</title>
+<link rel="preload" href="/assets/hero.mp4" as="video" type="video/mp4">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=El+Messiri:wght@400;500;600;700&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/style.css">
 </head>
@@ -57,23 +58,34 @@
   var v=document.getElementById('heroVideo');
   if(!v)return;
   v.muted=true;
+  v.defaultMuted=true;
   v.setAttribute('muted','');
   v.setAttribute('playsinline','');
   v.setAttribute('webkit-playsinline','');
+  var started=false;
+  function markReady(){
+    if(started)return;
+    started=true;
+    v.classList.add('is-ready');
+  }
   function tryPlay(){
     v.muted=true;
     var p=v.play();
-    if(p&&p.catch)p.catch(function(){});
+    if(p&&p.then){
+      p.then(markReady).catch(function(){});
+    }else{
+      markReady();
+    }
   }
-  tryPlay();
-  v.addEventListener('loadeddata',tryPlay);
-  v.addEventListener('canplay',tryPlay);
-  document.addEventListener('visibilitychange',function(){if(!document.hidden)tryPlay();});
+  if(v.readyState>=2)tryPlay();
+  v.addEventListener('loadeddata',tryPlay,{once:true});
+  v.addEventListener('canplay',tryPlay,{once:true});
+  v.addEventListener('playing',markReady);
+  document.addEventListener('visibilitychange',function(){
+    if(!document.hidden&&v.paused)tryPlay();
+  });
   document.addEventListener('touchstart',tryPlay,{once:true,passive:true});
   document.addEventListener('click',tryPlay,{once:true});
-  setTimeout(tryPlay,300);
-  setTimeout(tryPlay,1000);
-  setTimeout(tryPlay,2500);
 })();
 </script>
 </body>
