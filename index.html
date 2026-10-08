@@ -19,7 +19,7 @@
 <nav id="menu"></nav><div id="mov"></div>
 <div id="sheet" hidden><div class="sb" id="sheetB"></div></div>
 <div id="hero">
-<video id="heroVideo" autoplay muted loop playsinline webkit-playsinline preload="auto">
+<video id="heroVideo" autoplay muted loop playsinline webkit-playsinline preload="auto" x-webkit-airplay="allow">
 <source src="/assets/hero.mp4" type="video/mp4">
 </video>
 <div class="hero-overlay"></div>
@@ -53,5 +53,29 @@
 <div id="toast"></div>
 <script src="/texts.js"></script>
 <script src="/app.js"></script>
+<script>
+(function(){
+  var v=document.getElementById('heroVideo');
+  if(!v)return;
+  v.muted=true;
+  v.setAttribute('muted','');
+  v.setAttribute('playsinline','');
+  v.setAttribute('webkit-playsinline','');
+  function tryPlay(){
+    v.muted=true;
+    var p=v.play();
+    if(p&&p.catch)p.catch(function(){});
+  }
+  tryPlay();
+  v.addEventListener('loadeddata',tryPlay);
+  v.addEventListener('canplay',tryPlay);
+  document.addEventListener('visibilitychange',function(){if(!document.hidden)tryPlay();});
+  document.addEventListener('touchstart',tryPlay,{once:true,passive:true});
+  document.addEventListener('click',tryPlay,{once:true});
+  setTimeout(tryPlay,300);
+  setTimeout(tryPlay,1000);
+  setTimeout(tryPlay,2500);
+})();
+</script>
 </body>
 </html>
