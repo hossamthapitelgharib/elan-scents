@@ -44,3 +44,60 @@
   position:relative;
   z-index:2;
 }
+
+/* Occasions + Notes: rectangular cards (not circular) */
+.card.round,
+.card.occ-note,
+.card.occ,
+.card.notes,
+.strip .card.round,
+.grid .card.round{
+  border-radius:18px!important;
+  flex:0 0 190px!important;
+  flex-basis:190px!important;
+  width:190px!important;
+  height:150px!important;
+  min-height:150px!important;
+  aspect-ratio:auto!important;
+  padding:0 10px 12px!important;
+  overflow:hidden!important;
+  justify-content:flex-end!important;
+}
+.card.round.art .artbg,
+.card.occ-note.art .artbg,
+.card.occ .artbg,
+.card.notes .artbg{
+  position:absolute;
+  inset:0;
+  z-index:0;
+}
+.card.round.art h4,
+.card.round.art .st,
+.card.round.art small,
+.card.occ-note.art h4,
+.card.occ-note.art .st,
+.card.occ-note.art small,
+.card.occ h4,
+.card.notes h4{
+  position:relative;
+  z-index:1;
+  color:#fff!important;
+  text-shadow:0 1px 4px rgba(0,0,0,.55);
+}
+.card.round.art .st,
+.card.occ-note.art .st,
+.card.occ .st,
+.card.notes .st{
+  color:#f5e6c0!important;
+}
+.card.round.art::after,
+.card.occ-note.art::after,
+.card.occ.art::after,
+.card.notes.art::after{
+  content:'';
+  position:absolute;
+  inset:0;
+  z-index:0;
+  background:linear-gradient(180deg,transparent 35%,rgba(20,12,4,.72) 100%);
+  pointer-events:none;
+}

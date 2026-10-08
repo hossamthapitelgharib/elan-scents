@@ -6,9 +6,7 @@ function loadScript(src, cb){
   s.onerror=function(){console.error('failed to load',src)};
   document.head.appendChild(s);
 }
-/* Local full app core — category cards images + masterpieces + hero video overrides */
-var CORE='/app(1).js';
-loadScript(CORE, function(){
+function applyArtAndHero(){
   window.playHeroVideo=function(){
     var v=document.getElementById('heroVideo');
     if(!v)return;
@@ -38,17 +36,30 @@ loadScript(CORE, function(){
     var b=e.target.closest('[data-bc]');
     if(b&&!+b.dataset.bc){setTimeout(playHeroVideo,50);}
   },true);
-  /* ART map: real images for categories, day/night occasions, citrus note */
+
+  var imgs=window.__CARD_IMGS||{};
+  function imgTag(src){return '<img src="'+src+'" alt="" loading="lazy">';}
   window.ART=Object.assign({}, typeof ART==='object'&&ART?ART:{}, {
-    cats0:'<img src="/assets/cards/category-men.webp" alt="" loading="lazy">',
-    cats1:'<img src="/assets/cards/category-women.webp" alt="" loading="lazy">',
-    cats2:'<img src="/assets/cards/category-unisex.webp" alt="" loading="lazy">',
-    occ0:'<img src="/assets/cards/occasion-day.webp" alt="" loading="lazy">',
-    occ1:'<img src="/assets/cards/occasion-night.webp" alt="" loading="lazy">',
-    notes1:'<img src="/assets/cards/note-citrus.webp" alt="" loading="lazy">'
+    cats0:imgTag('/assets/cards/category-men.webp'),
+    cats1:imgTag('/assets/cards/category-women.webp'),
+    cats2:imgTag('/assets/cards/category-unisex.webp'),
+    occ0:imgTag('/assets/cards/occasion-day.webp'),
+    occ1:imgTag('/assets/cards/occasion-night.webp'),
+    occ2:imgTag(imgs.occ2||'/assets/cards/occasion-work.webp'),
+    occ3:imgTag(imgs.occ3||'/assets/cards/occasion-date.webp'),
+    occ4:imgTag(imgs.occ4||'/assets/cards/occasion-gift.webp'),
+    notes0:imgTag(imgs.notes0||'/assets/cards/note-amber.webp'),
+    notes1:imgTag('/assets/cards/note-citrus.webp'),
+    notes2:imgTag(imgs.notes2||'/assets/cards/note-woody.webp'),
+    notes3:imgTag(imgs.notes3||'/assets/cards/note-oud.webp'),
+    notes4:imgTag(imgs.notes4||'/assets/cards/note-cardamom.webp')
   });
   if(typeof render==='function'){
     try{render();}catch(e){}
   }
+}
+/* Local full app core */
+loadScript('/app(1).js', function(){
+  loadScript('/card-imgs.js', applyArtAndHero);
 });
 })();
