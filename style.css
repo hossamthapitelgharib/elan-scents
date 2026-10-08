@@ -314,7 +314,7 @@ body.sheet-open {
   header .logo b { font-size: 26px !important; }
   header .logo span { font-size: 13px !important; }
   header .logo small {
-    font-size: 6.5px !important;
+    font-size: 7px !important;
     letter-spacing: 0.8px !important;
     display: block !important;
   }
@@ -371,14 +371,15 @@ body.sheet-open {
     font-size: 12px !important;
     padding: 5px 0 !important;
   }
-  header .logo b { font-size: 20px !important; }
-  header .logo span { font-size: 11px !important; }
+  header .logo b { font-size: 24px !important; }
+  header .logo span { font-size: 12px !important; }
   header .logo small {
-    font-size: 5.5px !important;
-    letter-spacing: 0.4px !important;
+    font-size: 7px !important;
+    letter-spacing: 0.6px !important;
+    display: block !important;
   }
   header .ic { gap: 4px !important; }
-  header .ic svg { width: 18px !important; height: 18px !important; }
+  header .ic svg { width: 20px !important; height: 20px !important; }
 
   #hero {
     height: 100svh !important;
@@ -472,9 +473,13 @@ body.sheet-open {
 }
 
 @media (max-width: 360px) {
-  header .logo b { font-size: 17px !important; }
-  header .logo span { font-size: 9px !important; }
-  header .logo small { display: none !important; }
+  header .logo b { font-size: 22px !important; }
+  header .logo span { font-size: 11px !important; }
+  header .logo small {
+    font-size: 6.5px !important;
+    letter-spacing: 0.5px !important;
+    display: block !important;
+  }
   #cats > .cb > .card {
     height: auto !important;
     aspect-ratio: 4 / 3 !important;
