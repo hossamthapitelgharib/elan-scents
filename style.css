@@ -152,7 +152,7 @@
 }
 
 /* ============================================================
-   FOOTER — GrowthMark 50% again (440→220), clean layout
+   FOOTER — GrowthMark another 50% (220→110px)
    ============================================================ */
 #fcr,
 .fcred {
@@ -175,8 +175,8 @@
 .fcred .growthmark-img,
 img.growthmark-img {
   display: block !important;
-  width: 220px !important;
-  max-width: 55vw !important;
+  width: 110px !important;
+  max-width: 40vw !important;
   height: auto !important;
   margin: 6px auto !important;
   object-fit: contain !important;
@@ -294,8 +294,8 @@ body.sheet-open {
   }
 
   img.growthmark-img {
-    width: 180px !important;
-    max-width: 50vw !important;
+    width: 90px !important;
+    max-width: 35vw !important;
   }
 }
 
@@ -382,8 +382,8 @@ body.sheet-open {
   .fcols { gap: 14px !important; }
 
   img.growthmark-img {
-    width: 140px !important;
-    max-width: 45vw !important;
+    width: 80px !important;
+    max-width: 30vw !important;
   }
 
   #sheet .sheet-close,
