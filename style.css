@@ -5,18 +5,18 @@
    ROOT FIXES — masterpieces, art cards, hero video fallback
    ============================================================ */
 
-/* Masterpieces featured card — image fills entire card */
+/* Masterpieces featured card — 4:3, full image no crop */
 .cb > .card.msel {
   background-image: url('/assets/cards/masterpieces.webp') !important;
-  background-size: cover !important;
+  background-size: contain !important;
   background-position: center center !important;
   background-repeat: no-repeat !important;
   background-color: #ede8de !important;
-  width: 300px !important;
+  width: 320px !important;
   max-width: 90vw !important;
-  height: 220px !important;
-  min-height: 220px !important;
-  aspect-ratio: auto !important;
+  height: auto !important;
+  min-height: 0 !important;
+  aspect-ratio: 4 / 3 !important;
   padding: 0 !important;
   border-radius: 20px !important;
   overflow: hidden !important;
@@ -25,16 +25,28 @@
   justify-content: center !important;
 }
 
+/* Art images: full content, no crop (contain) */
+.card.art .artbg {
+  position: absolute !important;
+  inset: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: #ede8de !important;
+  overflow: hidden !important;
+}
 .card.art .artbg img {
-  width: 100%;
-  height: 100%;
-  display: block;
-  object-fit: cover;
+  width: 100% !important;
+  height: 100% !important;
+  display: block !important;
+  object-fit: contain !important;
+  object-position: center center !important;
 }
 .card.art .artbg svg {
-  width: 100%;
-  height: 100%;
-  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  display: block !important;
+  object-fit: contain !important;
 }
 
 /* Hero: always dark fallback so video load / autoplay fail never shows white */
@@ -132,7 +144,7 @@
 }
 
 /* ============================================================
-   CATEGORY CARDS (#cats > .cb) — taller, spaced, never stuck
+   CATEGORY CARDS (#cats > .cb) — 4:3, full image no crop
    ============================================================ */
 #cats > .cb {
   display: flex !important;
@@ -147,12 +159,20 @@
 #cats > .cb > .card {
   width: 100% !important;
   max-width: 340px !important;
-  height: 240px !important;
-  min-height: 240px !important;
+  height: auto !important;
+  min-height: 0 !important;
+  aspect-ratio: 4 / 3 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+#cats > .cb > .card.art .artbg img,
+#cats > .cb > .card.art .artbg svg {
+  object-fit: contain !important;
+  object-position: center center !important;
 }
 
 /* ============================================================
-   FOOTER — GrowthMark another 50% (220→110px)
+   FOOTER — GrowthMark 110px
    ============================================================ */
 #fcr,
 .fcred {
@@ -285,12 +305,15 @@ body.sheet-open {
 
   #cats > .cb { max-width: 300px !important; margin-bottom: 20px !important; }
   #cats > .cb > .card {
-    height: 210px !important;
-    min-height: 210px !important;
+    height: auto !important;
+    min-height: 0 !important;
+    aspect-ratio: 4 / 3 !important;
   }
   .cb > .card.msel {
-    height: 200px !important;
-    min-height: 200px !important;
+    width: 280px !important;
+    height: auto !important;
+    min-height: 0 !important;
+    aspect-ratio: 4 / 3 !important;
   }
 
   img.growthmark-img {
@@ -350,8 +373,9 @@ body.sheet-open {
     margin-bottom: 16px !important;
   }
   #cats > .cb > .card {
-    height: 190px !important;
-    min-height: 190px !important;
+    height: auto !important;
+    min-height: 0 !important;
+    aspect-ratio: 4 / 3 !important;
     border-radius: 16px !important;
   }
   #cats > .cb > .card h4 { font-size: 18px !important; }
@@ -359,8 +383,10 @@ body.sheet-open {
   #cats > .cb > .card .st { font-size: 11px !important; }
 
   .cb > .card.msel {
-    height: 180px !important;
-    min-height: 180px !important;
+    width: min(300px, 90vw) !important;
+    height: auto !important;
+    min-height: 0 !important;
+    aspect-ratio: 4 / 3 !important;
   }
 
   .card.pf { flex: 0 0 160px !important; }
@@ -403,15 +429,16 @@ body.sheet-open {
   header .logo span { font-size: 9px !important; }
   header .logo small { display: none !important; }
   #cats > .cb > .card {
-    height: 170px !important;
-    min-height: 170px !important;
+    height: auto !important;
+    aspect-ratio: 4 / 3 !important;
   }
 }
 
 @media (min-width: 961px) {
   #cats > .cb { max-width: 320px !important; }
   #cats > .cb > .card {
-    height: 240px !important;
-    min-height: 240px !important;
+    height: auto !important;
+    min-height: 0 !important;
+    aspect-ratio: 4 / 3 !important;
   }
 }
