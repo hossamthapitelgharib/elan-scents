@@ -1,11 +1,11 @@
-/* Active stylesheet: full theme + card images + hero video */
+/* ============================================================
+   Élan Scents — Active UI stylesheet (final consolidated)
+   Imports base theme then applies current desired overrides.
+   Frontend display only. Do not add backend/DB rules here.
+   ============================================================ */
 @import url('/style-3.css');
 
-/* ============================================================
-   ROOT FIXES — masterpieces, art cards, hero video fallback
-   ============================================================ */
-
-/* Menu: raise all content (logo + tagline + links) higher */
+/* ---------- Menu: raise content higher ---------- */
 #menu {
   padding-top: 64px !important;
 }
@@ -14,7 +14,7 @@
   padding-bottom: 10px !important;
 }
 
-/* Header logo + tagline — significantly larger */
+/* ---------- Header logo + tagline (large final sizes) ---------- */
 header .logo b { font-size: 48px !important; }
 header .logo span { font-size: 22px !important; }
 header .logo small {
@@ -23,6 +23,7 @@ header .logo small {
   display: block !important;
 }
 
+/* ---------- Masterpieces card 4:3 ---------- */
 .cb > .card.msel {
   background-image: url('/assets/cards/masterpieces.webp') !important;
   background-size: cover !important;
@@ -45,26 +46,23 @@ header .logo small {
   box-shadow: 0 0 0 2px #c8962a, 0 2px 4px #0001 !important;
 }
 
+/* ---------- Art cards images ---------- */
 .card.art .artbg {
   position: absolute !important;
   inset: 0 !important;
   background: #ede8de !important;
   overflow: hidden !important;
 }
-.card.art .artbg img {
+.card.art .artbg img,
+.card.art .artbg svg {
   width: 100% !important;
   height: 100% !important;
   display: block !important;
   object-fit: cover !important;
   object-position: center center !important;
 }
-.card.art .artbg svg {
-  width: 100% !important;
-  height: 100% !important;
-  display: block !important;
-}
 
-/* Hero video - force full cover + always visible */
+/* ---------- Hero video full cover ---------- */
 #hero {
   overflow: hidden !important;
   background: #1a1208 !important;
@@ -106,6 +104,7 @@ header .logo small {
   z-index: 2 !important;
 }
 
+/* ---------- Round / occasion / notes cards ---------- */
 .card.round,
 .card.occ-note,
 .card.occ,
@@ -162,6 +161,7 @@ header .logo small {
   pointer-events: none;
 }
 
+/* ---------- Category cards ---------- */
 #cats > .cb {
   display: flex !important;
   justify-content: center !important;
@@ -188,6 +188,7 @@ header .logo small {
   object-position: center center !important;
 }
 
+/* ---------- Footer credit + growthmark ---------- */
 #fcr,
 .fcred {
   display: flex !important;
@@ -223,7 +224,7 @@ img.growthmark-img {
   order: 3;
 }
 
-/* FOOTER */
+/* ---------- Footer ---------- */
 footer {
   background: #858585 !important;
   background: linear-gradient(180deg, #8a8a8a 0%, #858585 50%, #7a7a7a 100%) !important;
@@ -267,6 +268,7 @@ footer .fcred {
   color: #c8b898 !important;
 }
 
+/* ---------- Sheet (cart / fav / notif) ---------- */
 body.sheet-open {
   overflow: hidden !important;
   position: fixed !important;
@@ -318,6 +320,9 @@ body.sheet-open {
   color: #6b4708 !important;
 }
 
+/* ============================================================
+   Mobile adjustments (keep logo large + layout)
+   ============================================================ */
 @media (max-width: 960px) {
   header {
     grid-template-columns: auto minmax(0, 1fr) auto !important;
@@ -371,7 +376,6 @@ body.sheet-open {
     width: 90px !important;
     max-width: 35vw !important;
   }
-
   footer .footer-logo {
     width: 130px !important;
     max-width: 38vw !important;
@@ -472,7 +476,6 @@ body.sheet-open {
     width: 80px !important;
     max-width: 30vw !important;
   }
-
   footer .footer-logo {
     width: 110px !important;
     max-width: 36vw !important;
