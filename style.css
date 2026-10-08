@@ -364,3 +364,6 @@ body.sheet-open{overflow:hidden;touch-action:none}body.sheet-open #sheet{overscr
 /* Match the supplied GrowthMark reference: graphite silver for Growth and antique bronze-gold for Mark. */
 .growthmark{font-size:30px!important;background:linear-gradient(180deg,#f4f1e8 0%,#c9c6bd 18%,#77756f 39%,#4c4b47 53%,#d8d5cd 70%,#88857d 86%,#ece9df 100%)!important;-webkit-background-clip:text!important;background-clip:text!important;-webkit-text-fill-color:transparent!important;color:transparent!important;text-shadow:0 1px 0 #111,0 2px 2px rgba(0,0,0,.95),0 4px 4px rgba(0,0,0,.45)!important}
 .growthmark span{background:linear-gradient(180deg,#ffe9a0 0%,#e5b957 18%,#a86f1d 38%,#603a10 54%,#d39a32 71%,#8c5716 86%,#edc873 100%)!important;-webkit-background-clip:text!important;background-clip:text!important;-webkit-text-fill-color:transparent!important;color:transparent!important;text-shadow:0 1px 0 #1d1205,0 2px 2px rgba(0,0,0,.9)!important}
+
+/* Use the supplied GrowthMark artwork itself, scaled for the footer without distortion. */
+.growthmark-img{display:block;width:min(250px,78vw);height:auto;aspect-ratio:880/151;object-fit:contain;margin:2px auto 3px;mix-blend-mode:screen;filter:drop-shadow(0 2px 3px rgba(0,0,0,.8))}
