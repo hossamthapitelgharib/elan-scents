@@ -217,19 +217,19 @@ img.growthmark-img {
    FOOTER LOGO — centered, size suitable for footer, colors match logo image
    ============================================================ */
 footer {
-  background: #5e5e5e !important;
-  background: linear-gradient(180deg, #6a6a6a 0%, #555555 50%, #4a4a4a 100%) !important;
+  background: #858585 !important;
+  background: linear-gradient(180deg, #8a8a8a 0%, #858585 50%, #7a7a7a 100%) !important;
   color: #f5e6c0 !important;
-  border-top: 1px solid #8a8a8a !important;
+  border-top: 1px solid #9a9a9a !important;
   padding: 36px 18px 100px !important;
   text-align: center !important;
 }
 footer .footer-logo {
   display: block !important;
-  width: 160px !important;
-  max-width: 42vw !important;
+  width: 140px !important;
+  max-width: 40vw !important;
   height: auto !important;
-  margin: 0 auto 8px !important;
+  margin: 0 auto 12px !important;
   object-fit: contain !important;
 }
 footer .fdiv {
@@ -374,7 +374,7 @@ body.sheet-open {
   }
 
   footer .footer-logo {
-    width: 140px !important;
+    width: 130px !important;
     max-width: 38vw !important;
   }
 }
@@ -407,7 +407,6 @@ body.sheet-open {
     padding: 0 14px calc(10px + env(safe-area-inset-bottom, 0px)) !important;
   }
   .magic { padding: 10px !important; }
-  .magic h2 { font-size: 20px !important; }
   .magic p { font-size: 12px !important; }
   .counters { gap: 6px !important; }
   .counters b { font-size: 22px !important; }
@@ -473,7 +472,7 @@ body.sheet-open {
   }
 
   footer .footer-logo {
-    width: 120px !important;
+    width: 110px !important;
     max-width: 36vw !important;
   }
 
