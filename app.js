@@ -10,10 +10,27 @@ function applyArtAndHero(){
   window.playHeroVideo=function(){
     var v=document.getElementById('heroVideo');
     if(!v)return;
+    // Ensure no poster image ever shows
+    v.removeAttribute('poster');
+    v.poster='';
     v.muted=true;
+    v.playsInline=true;
+    v.setAttribute('playsinline','');
+    v.setAttribute('webkit-playsinline','');
     var p=v.play();
     if(p&&p.catch)p.catch(function(){});
   };
+  // Start as soon as enough data is available
+  var v=document.getElementById('heroVideo');
+  if(v){
+    v.removeAttribute('poster');
+    v.poster='';
+    ['loadeddata','canplay','canplaythrough'].forEach(function(ev){
+      v.addEventListener(ev,function(){playHeroVideo();},{once:true});
+    });
+    // Also try immediately
+    playHeroVideo();
+  }
   var _hero=window.hero;
   window.hero=function(){
     var e=document.getElementById('hero');
