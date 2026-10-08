@@ -21,7 +21,7 @@
 }
 #hero{
   overflow:hidden;
-  background:transparent!important;
+  background:#1a1208 !important; /* dark fallback instead of white when video not ready */
 }
 #hero video,
 #heroVideo{
