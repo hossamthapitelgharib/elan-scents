@@ -353,3 +353,10 @@ body.sheet-open{overflow:hidden;touch-action:none}body.sheet-open #sheet{overscr
 
 /* Relevance sits inline with the two price fields in the compact filter grid. */
 .filter-grid .relevance-select{color:#8a5e0c;font-weight:600;background:linear-gradient(#fffdf7,#f7edda);border-color:#cfa858}
+
+/* Final footer spacing and brighter GrowthMark contrast. */
+.fcred{margin-top:30px!important;padding-bottom:4px}
+.fcred>span{color:#fff3d6!important;text-shadow:0 1px 3px #000!important}
+.fcred>small{color:#fff0cf!important;text-shadow:0 1px 3px #000!important}
+.growthmark{font-size:30px!important;background:linear-gradient(180deg,#ffffff 0%,#f8f7f2 24%,#d9d6cd 45%,#ffffff 64%,#e8e5dc 82%,#ffffff 100%)!important;text-shadow:0 1px 1px #000,0 2px 4px rgba(0,0,0,.8)!important}
+.growthmark span{background:linear-gradient(180deg,#fffbd2 0%,#ffe99a 22%,#f6cf62 42%,#fff2ad 61%,#e9b945 80%,#fff5bd 100%)!important}
