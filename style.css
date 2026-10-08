@@ -5,6 +5,24 @@
    ROOT FIXES — masterpieces, art cards, hero video fallback
    ============================================================ */
 
+/* Menu: raise all content (logo + tagline + links) higher */
+#menu {
+  padding-top: 64px !important;
+}
+#menu a.mlogo {
+  padding-top: 4px !important;
+  padding-bottom: 10px !important;
+}
+
+/* Header logo + tagline same size as menu page */
+header .logo b { font-size: 32px !important; }
+header .logo span { font-size: 15px !important; }
+header .logo small {
+  font-size: 6.5px !important;
+  letter-spacing: 1.2px !important;
+  display: block !important;
+}
+
 .cb > .card.msel {
   background-image: url('/assets/cards/masterpieces.webp') !important;
   background-size: cover !important;
@@ -311,11 +329,11 @@ body.sheet-open {
   header .ic svg { width: 20px !important; height: 20px !important; }
   header .logo { min-width: 0 !important; overflow: hidden !important; }
   header .logo > div { white-space: nowrap !important; }
-  header .logo b { font-size: 26px !important; }
-  header .logo span { font-size: 13px !important; }
+  header .logo b { font-size: 32px !important; }
+  header .logo span { font-size: 15px !important; }
   header .logo small {
-    font-size: 7px !important;
-    letter-spacing: 0.8px !important;
+    font-size: 6.5px !important;
+    letter-spacing: 1.2px !important;
     display: block !important;
   }
   header .logo i { width: 60% !important; }
@@ -371,11 +389,11 @@ body.sheet-open {
     font-size: 12px !important;
     padding: 5px 0 !important;
   }
-  header .logo b { font-size: 24px !important; }
-  header .logo span { font-size: 12px !important; }
+  header .logo b { font-size: 28px !important; }
+  header .logo span { font-size: 13px !important; }
   header .logo small {
-    font-size: 7px !important;
-    letter-spacing: 0.6px !important;
+    font-size: 6.5px !important;
+    letter-spacing: 1px !important;
     display: block !important;
   }
   header .ic { gap: 4px !important; }
@@ -437,6 +455,7 @@ body.sheet-open {
   #menu {
     width: 72% !important;
     max-width: 260px !important;
+    padding-top: 56px !important;
   }
 
   section {
@@ -473,11 +492,11 @@ body.sheet-open {
 }
 
 @media (max-width: 360px) {
-  header .logo b { font-size: 22px !important; }
-  header .logo span { font-size: 11px !important; }
+  header .logo b { font-size: 26px !important; }
+  header .logo span { font-size: 12px !important; }
   header .logo small {
-    font-size: 6.5px !important;
-    letter-spacing: 0.5px !important;
+    font-size: 6px !important;
+    letter-spacing: 0.8px !important;
     display: block !important;
   }
   #cats > .cb > .card {
