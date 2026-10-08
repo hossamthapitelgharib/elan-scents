@@ -321,3 +321,12 @@ button[data-sheet="cart"].cart-pulse svg{animation:cartIcon .65s ease-out}
 .logo,.home-logo,.mlogo{ -webkit-tap-highlight-color:transparent;tap-highlight-color:transparent;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;outline:none }
 .logo:focus,.home-logo:focus,.mlogo:focus{outline:none}
 @media(max-width:540px){.filter-summary{display:none}.filter-head{min-height:46px}.filter-body{padding-inline:10px}.filter-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* Brand-faithful social controls and touch-safe floating WhatsApp action. */
+#wa{ -webkit-tap-highlight-color:transparent; -webkit-touch-callout:none; -webkit-user-select:none; user-select:none; outline:none }
+#wa span{width:46px;height:46px;background:#25d366;color:#fff;box-shadow:0 7px 18px rgba(37,211,102,.32);transition:transform .2s,box-shadow .2s}
+#wa span svg{width:27px;height:27px;display:block}.wa:hover span{transform:translateY(-2px)}#wa:focus,#wa:active{outline:none}
+.fsocial a,.fsocial span{border:1px solid rgba(255,255,255,.14);box-shadow:0 4px 10px rgba(0,0,0,.18)}
+.fsocial .si-fb{background:#1877f2}.fsocial .si-ig{background:radial-gradient(circle at 32% 108%,#fdf497 0 5%,#fd5949 45%,#d6249f 62%,#285aeb 95%)}.fsocial .si-tt{background:#050505}
+.sheet-close{position:absolute;top:12px;inset-inline-end:14px;width:32px;height:32px;border:1px solid #ead9b1;border-radius:50%;background:#fffaf0;color:#8a5e0c;font:700 22px/28px sans-serif;cursor:pointer;display:grid;place-items:center;z-index:1}.sheet-close:hover{background:#f5ead1}
+.sb h3{padding-inline-end:40px}
