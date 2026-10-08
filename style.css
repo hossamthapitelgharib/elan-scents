@@ -1,7 +1,7 @@
 /* ============================================================
-   Élan Scents — Active UI stylesheet (final consolidated)
-   Imports base theme then applies current desired overrides.
-   Frontend display only. Do not add backend/DB rules here.
+   Élan Scents — Active UI stylesheet
+   Imports base theme (style-3.css) then applies layout overrides only.
+   NO color/background changes — original theme colors preserved.
    ============================================================ */
 @import url('/style-3.css');
 
@@ -14,7 +14,7 @@
   padding-bottom: 10px !important;
 }
 
-/* ---------- Header logo + tagline (large final sizes) ---------- */
+/* ---------- Header logo + tagline (large sizes) — colors from style-3 ---------- */
 header .logo b { font-size: 48px !important; }
 header .logo span { font-size: 22px !important; }
 header .logo small {
@@ -62,10 +62,9 @@ header .logo small {
   object-position: center center !important;
 }
 
-/* ---------- Hero video full cover ---------- */
+/* ---------- Hero video full cover — NO forced dark background ---------- */
 #hero {
   overflow: hidden !important;
-  background: #1a1208 !important;
   aspect-ratio: auto !important;
   max-height: none !important;
   height: 100svh !important;
@@ -81,7 +80,6 @@ header .logo small {
   object-fit: cover !important;
   object-position: center center !important;
   z-index: 0 !important;
-  background: #1a1208 !important;
   display: block !important;
   opacity: 1 !important;
   visibility: visible !important;
@@ -92,9 +90,9 @@ header .logo small {
   z-index: 1 !important;
   background: linear-gradient(
     180deg,
-    rgba(20, 12, 4, 0.35) 0%,
-    rgba(20, 12, 4, 0.15) 40%,
-    rgba(20, 12, 4, 0.55) 100%
+    rgba(20, 12, 4, 0.25) 0%,
+    rgba(20, 12, 4, 0.1) 40%,
+    rgba(20, 12, 4, 0.45) 100%
   ) !important;
   pointer-events: none !important;
 }
@@ -188,7 +186,7 @@ header .logo small {
   object-position: center center !important;
 }
 
-/* ---------- Footer credit + growthmark ---------- */
+/* ---------- Footer credit + growthmark (layout only) ---------- */
 #fcr,
 .fcred {
   display: flex !important;
@@ -224,15 +222,7 @@ img.growthmark-img {
   order: 3;
 }
 
-/* ---------- Footer ---------- */
-footer {
-  background: #858585 !important;
-  background: linear-gradient(180deg, #8a8a8a 0%, #858585 50%, #7a7a7a 100%) !important;
-  color: #f5e6c0 !important;
-  border-top: 1px solid #9a9a9a !important;
-  padding: 36px 18px 100px !important;
-  text-align: center !important;
-}
+/* ---------- Footer logo size only — colors from style-3 ---------- */
 footer .footer-logo {
   display: block !important;
   width: 140px !important;
@@ -240,32 +230,6 @@ footer .footer-logo {
   height: 140px !important;
   margin: 0 auto 16px !important;
   object-fit: contain !important;
-}
-footer .fdiv {
-  background: linear-gradient(90deg, transparent, #d4c4a0, transparent) !important;
-}
-footer a {
-  color: #f0e0b8 !important;
-}
-footer .fcols h5 {
-  background: linear-gradient(135deg, #f3c94f, #c8962a 50%, #8a5e0c) !important;
-  -webkit-background-clip: text !important;
-  background-clip: text !important;
-  color: transparent !important;
-}
-footer .fcols a,
-footer .fcols span {
-  color: #e8dcc0 !important;
-}
-footer .fph {
-  color: #f3c94f !important;
-}
-footer .fbar {
-  border-top-color: #6a6a6a !important;
-  color: #d9cfb8 !important;
-}
-footer .fcred {
-  color: #c8b898 !important;
 }
 
 /* ---------- Sheet (cart / fav / notif) ---------- */
@@ -349,7 +313,6 @@ body.sheet-open {
     max-height: none !important;
     aspect-ratio: auto !important;
     min-height: 460px !important;
-    background: #1a1208 !important;
     padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)) !important;
   }
   .magic h2 { font-size: 22px !important; }
@@ -408,7 +371,6 @@ body.sheet-open {
     min-height: 100svh !important;
     max-height: none !important;
     aspect-ratio: auto !important;
-    background: #1a1208 !important;
     padding: 0 14px calc(10px + env(safe-area-inset-bottom, 0px)) !important;
   }
   .magic { padding: 10px !important; }
