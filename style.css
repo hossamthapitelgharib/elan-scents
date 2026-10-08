@@ -46,7 +46,7 @@
   display: block !important;
 }
 
-/* Hero - restored and protected */
+/* Hero video - force full cover + always visible */
 #hero {
   overflow: hidden !important;
   background: #1a1208 !important;
@@ -54,33 +54,38 @@
   max-height: none !important;
   height: 100svh !important;
   min-height: 420px !important;
+  position: relative !important;
 }
 #hero video,
 #heroVideo {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  z-index: 0;
-  background: #1a1208;
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  object-position: center center !important;
+  z-index: 0 !important;
+  background: #1a1208 !important;
+  display: block !important;
+  opacity: 1 !important;
+  visibility: visible !important;
 }
 #hero .hero-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
+  position: absolute !important;
+  inset: 0 !important;
+  z-index: 1 !important;
   background: linear-gradient(
     180deg,
     rgba(20, 12, 4, 0.35) 0%,
     rgba(20, 12, 4, 0.15) 40%,
     rgba(20, 12, 4, 0.55) 100%
-  );
-  pointer-events: none;
+  ) !important;
+  pointer-events: none !important;
 }
 #hero .magic,
 #hero .counters {
-  position: relative;
-  z-index: 2;
+  position: relative !important;
+  z-index: 2 !important;
 }
 
 .card.round,
@@ -200,7 +205,7 @@ img.growthmark-img {
   order: 3;
 }
 
-/* FOOTER - white first then match image bg, logo centered, elements clear */
+/* FOOTER */
 footer {
   background: #858585 !important;
   background: linear-gradient(180deg, #8a8a8a 0%, #858585 50%, #7a7a7a 100%) !important;
