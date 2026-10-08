@@ -1,12 +1,11 @@
-/* Masterpieces: image paints to every edge of the card */
+/* Final frontend fixes — loaded after style.css */
+/* Masterpieces card 4:3 */
 .cb > .card.msel {
   background-image: url('/assets/cards/masterpieces.webp') !important;
   background-size: cover !important;
   background-position: center center !important;
   background-repeat: no-repeat !important;
   background-color: #ede8de !important;
-  background-clip: border-box !important;
-  background-origin: border-box !important;
   aspect-ratio: 4 / 3 !important;
   height: auto !important;
   min-height: 0 !important;
@@ -14,28 +13,9 @@
   padding: 0 !important;
   border: 0 !important;
   overflow: hidden !important;
-  box-shadow: 0 0 0 2px #c8962a, 0 2px 4px #0001 !important;
 }
 
-.card.art .artbg {
-  position: absolute !important;
-  inset: 0 !important;
-  overflow: hidden !important;
-  background: #ede8de !important;
-}
-.card.art .artbg img {
-  width: 100% !important;
-  height: 100% !important;
-  display: block !important;
-  object-fit: cover !important;
-  object-position: center center !important;
-}
-.card.art .artbg svg {
-  width: 100% !important;
-  height: 100% !important;
-  display: block !important;
-}
-
+/* Hero video layering */
 #hero video,
 #heroVideo {
   position: absolute;
@@ -49,12 +29,6 @@
   position: absolute;
   inset: 0;
   z-index: 1;
-  background: linear-gradient(
-    180deg,
-    rgba(20, 12, 4, 0.35) 0%,
-    rgba(20, 12, 4, 0.15) 40%,
-    rgba(20, 12, 4, 0.55) 100%
-  );
   pointer-events: none;
 }
 #hero .magic,
