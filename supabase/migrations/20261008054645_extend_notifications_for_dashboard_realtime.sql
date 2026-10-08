@@ -1,0 +1,36 @@
+alter table public.notifications add column if not exists recipient_role text check (recipient_role is null or recipient_role in ('customer','store_admin','platform_admin'));
+alter table public.notifications add column if not exists store_id uuid references public.stores(id) on delete cascade;
+alter table public.notifications add column if not exists checkout_session_id uuid references public.checkout_sessions(id) on delete cascade;
+alter table public.notifications add column if not exists request_id uuid references public.store_order_requests(id) on delete cascade;
+alter table public.notifications add column if not exists tracking_number text;
+alter table public.notifications add column if not exists type text;
+alter table public.notifications add column if not exists payload jsonb not null default '{}'::jsonb;
+alter table public.notifications add column if not exists read_at timestamptz;
+create index if not exists notifications_user_created_idx on public.notifications(user_id, created_at desc);
+create index if not exists notifications_store_created_idx on public.notifications(store_id, created_at desc);
+create index if not exists notifications_request_created_idx on public.notifications(request_id, created_at desc);
+alter table public.notifications enable row level security;
+drop policy if exists notifications_platform_read on public.notifications;
+drop policy if exists notifications_user_read on public.notifications;
+drop policy if exists notifications_store_read on public.notifications;
+drop policy if exists notifications_user_update on public.notifications;
+create policy notifications_realtime_platform_read on public.notifications for select to authenticated using (recipient_role='platform_admin' and private.is_platform_admin());
+create policy notifications_realtime_user_read on public.notifications for select to authenticated using (user_id=auth.uid());
+create policy notifications_realtime_store_read on public.notifications for select to authenticated using (exists (select 1 from public.store_accounts sa where sa.user_id=auth.uid() and sa.store_id=notifications.store_id));
+create policy notifications_realtime_update on public.notifications for update to authenticated using (user_id=auth.uid() or (recipient_role='platform_admin' and private.is_platform_admin()) or exists (select 1 from public.store_accounts sa where sa.user_id=auth.uid() and sa.store_id=notifications.store_id)) with check (user_id=auth.uid() or (recipient_role='platform_admin' and private.is_platform_admin()) or exists (select 1 from public.store_accounts sa where sa.user_id=auth.uid() and sa.store_id=notifications.store_id));
+create or replace function public.emit_order_notification(p_request public.store_order_requests, p_type text, p_title text, p_body text, p_payload jsonb) returns void language plpgsql security definer set search_path=public,private as $$ declare v_store_user uuid; begin
+  if p_request.user_id is not null and not exists (select 1 from public.notifications n where n.request_id=p_request.id and n.user_id=p_request.user_id and n.type=p_type) then insert into public.notifications (user_id,checkout_session_id,request_id,store_id,tracking_number,type,title,body,payload) values (p_request.user_id,p_request.checkout_session_id,p_request.id,p_request.store_id,p_request.tracking_number,p_type,p_title,p_body,p_payload); end if;
+  if not exists (select 1 from public.notifications n where n.request_id=p_request.id and n.recipient_role='platform_admin' and n.type=p_type) then insert into public.notifications (user_id,recipient_role,checkout_session_id,request_id,store_id,tracking_number,type,title,body,payload) values (null,'platform_admin',p_request.checkout_session_id,p_request.id,p_request.store_id,p_request.tracking_number,p_type,p_title,p_body,p_payload); end if;
+  for v_store_user in select sa.user_id from public.store_accounts sa where sa.store_id=p_request.store_id loop if not exists (select 1 from public.notifications n where n.request_id=p_request.id and n.user_id=v_store_user and n.type=p_type) then insert into public.notifications (user_id,recipient_role,checkout_session_id,request_id,store_id,tracking_number,type,title,body,payload) values (v_store_user,'store_admin',p_request.checkout_session_id,p_request.id,p_request.store_id,p_request.tracking_number,p_type,p_title,p_body,p_payload); end if; end loop;
+end; $$;
+revoke all on function public.emit_order_notification(public.store_order_requests,text,text,text,jsonb) from public;
+create or replace function public.notifications_on_store_order_change() returns trigger language plpgsql security definer set search_path=public,private as $$ begin
+  if tg_op='INSERT' then perform public.emit_order_notification(new,'order_initial','طلب جديد','تم إرسال طلب جديد إلى المتجر.',jsonb_build_object('status',new.status,'subtotal',new.subtotal,'currency',new.currency));
+  elsif new.status='store_cancelled' and old.status is distinct from new.status then perform public.emit_order_notification(new,'store_cancelled','تم إلغاء طلب المتجر','تم إلغاء الطلب وإعادة منتجاته إلى سلة العميل.',jsonb_build_object('status',new.status,'reason',new.failure_reason,'reconciliationStatus',new.reconciliation_status,'mismatchFields',new.mismatch_fields));
+  elsif new.status is distinct from old.status and new.status in ('store_confirmed','processing','shipped','delivered','store_rejected') then perform public.emit_order_notification(new,'order_update','تحديث حالة الطلب','تم تحديث حالة طلب المتجر إلى: '||new.status,jsonb_build_object('status',new.status,'shippingAmount',new.shipping_amount,'totalAmount',new.total_amount)); end if; return new; end; $$;
+drop trigger if exists store_order_notifications_realtime_trigger on public.store_order_requests;
+create trigger store_order_notifications_realtime_trigger after insert or update on public.store_order_requests for each row execute function public.notifications_on_store_order_change();
+create or replace function public.notifications_on_restoration_change() returns trigger language plpgsql security definer set search_path=public,private as $$ declare v_request public.store_order_requests; begin if new.status='restored' and old.status is distinct from new.status then select * into v_request from public.store_order_requests where id=new.request_id; if found then perform public.emit_order_notification(v_request,'restore_completed','تمت إعادة المنتجات إلى السلة','تمت إعادة منتجات الطلب الملغى إلى سلة Élan Scents بنجاح.',jsonb_build_object('restoreToken',new.restore_token,'status',new.status,'items',new.items)); end if; end if; return new; end; $$;
+drop trigger if exists restoration_notifications_realtime_trigger on public.store_order_cart_restorations;
+create trigger restoration_notifications_realtime_trigger after update on public.store_order_cart_restorations for each row execute function public.notifications_on_restoration_change();
+do $$ begin alter publication supabase_realtime add table public.notifications; exception when duplicate_object then null; end $$;
