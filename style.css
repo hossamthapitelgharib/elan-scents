@@ -5,7 +5,7 @@
    ROOT FIXES — masterpieces, art cards, hero video fallback
    ============================================================ */
 
-/* Masterpieces featured card */
+/* Masterpieces featured card — image fills entire card */
 .cb > .card.msel {
   background-image: url('/assets/cards/masterpieces.webp') !important;
   background-size: cover !important;
@@ -14,8 +14,8 @@
   background-color: #ede8de !important;
   width: 300px !important;
   max-width: 90vw !important;
-  height: 200px !important;
-  min-height: 200px !important;
+  height: 220px !important;
+  min-height: 220px !important;
   aspect-ratio: auto !important;
   padding: 0 !important;
   border-radius: 20px !important;
@@ -41,7 +41,6 @@
 #hero {
   overflow: hidden !important;
   background: #1a1208 !important;
-  /* kill conflicting aspect-ratio from style-3 that fights height:100svh */
   aspect-ratio: auto !important;
   max-height: none !important;
   height: 100svh !important;
@@ -55,7 +54,7 @@
   height: 100%;
   object-fit: cover;
   z-index: 0;
-  background: #1a1208; /* poster-gap safety */
+  background: #1a1208;
 }
 #hero .hero-overlay {
   position: absolute;
@@ -75,7 +74,7 @@
   z-index: 2;
 }
 
-/* Occasions + Notes: rectangular cards (never circular on any breakpoint) */
+/* Occasions + Notes: rectangular cards */
 .card.round,
 .card.occ-note,
 .card.occ,
@@ -133,96 +132,110 @@
 }
 
 /* ============================================================
-   CATEGORY CARDS (#cats > .cb) — actual DOM structure
-   Centered, constrained width, never full-bleed stretch
+   CATEGORY CARDS (#cats > .cb) — taller, spaced, never stuck
    ============================================================ */
 #cats > .cb {
   display: flex !important;
   justify-content: center !important;
-  margin: 0 auto 20px !important;
+  margin: 0 auto 24px !important; /* clear gap between cards */
   width: 100% !important;
   max-width: 340px !important;
+}
+#cats > .cb:last-of-type {
+  margin-bottom: 8px !important;
 }
 #cats > .cb > .card {
   width: 100% !important;
   max-width: 340px !important;
-  height: 200px !important;
-  min-height: 200px !important;
-}
-
-/* Legacy .category-cards class (if ever used) */
-.category-cards {
-  display: flex !important;
-  flex-wrap: nowrap !important;
-  gap: 16px !important;
-  overflow-x: auto !important;
-  scroll-snap-type: x mandatory !important;
-  -webkit-overflow-scrolling: touch !important;
-  justify-content: flex-start !important;
-  padding: 16px 14px 24px !important;
-  width: 100% !important;
-  direction: ltr !important;
-}
-.category-cards .cb {
-  flex: 0 0 260px !important;
-  width: 260px !important;
-  min-width: 260px !important;
-  scroll-snap-align: center !important;
-  direction: rtl !important;
-  margin-bottom: 0 !important;
-}
-.category-cards .cb > .card {
-  width: 100% !important;
-  height: 180px !important;
-  min-height: 180px !important;
+  height: 240px !important; /* taller */
+  min-height: 240px !important;
 }
 
 /* ============================================================
-   MOBILE + TABLET — comprehensive responsive overhaul
+   FOOTER — GrowthMark 50% size, clean layout
+   ============================================================ */
+#fcr,
+.fcred {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  margin-top: 18px !important;
+  padding: 0 16px 8px !important;
+  text-align: center !important;
+}
+#fcr span,
+.fcred span {
+  font-size: 11px !important;
+  opacity: 0.7 !important;
+  order: 1;
+}
+#fcr .growthmark-img,
+.fcred .growthmark-img,
+img.growthmark-img {
+  display: block !important;
+  width: 50% !important;
+  max-width: 280px !important;
+  height: auto !important;
+  margin: 4px auto !important;
+  object-fit: contain !important;
+  order: 2;
+}
+#fcr small,
+.fcred small {
+  font-size: 10px !important;
+  opacity: 0.55 !important;
+  order: 3;
+}
+
+/* ============================================================
+   CART / SHEET — lock background page scroll while open
+   ============================================================ */
+body.sheet-open {
+  overflow: hidden !important;
+  position: fixed !important;
+  width: 100% !important;
+  height: 100% !important;
+  touch-action: none !important;
+}
+#sheet {
+  overscroll-behavior: contain !important;
+  touch-action: none !important;
+}
+#sheet .sb,
+#sheetB {
+  overscroll-behavior: contain !important;
+  max-height: min(85vh, 640px) !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  touch-action: pan-y !important;
+}
+
+/* ============================================================
+   MOBILE + TABLET
    ============================================================ */
 @media (max-width: 960px) {
-  /* Header: never let logo get crushed */
   header {
     grid-template-columns: auto minmax(0, 1fr) auto !important;
     padding: 8px 10px !important;
     gap: 4px !important;
   }
-  header .ic {
-    gap: 6px !important;
-  }
-  header .ic button {
-    padding: 2px !important;
-  }
-  header .ic svg {
-    width: 20px !important;
-    height: 20px !important;
-  }
-  header .logo {
-    min-width: 0 !important;
-    overflow: hidden !important;
-  }
-  header .logo > div {
-    white-space: nowrap !important;
-  }
-  header .logo b {
-    font-size: 26px !important;
-  }
-  header .logo span {
-    font-size: 13px !important;
-  }
+  header .ic { gap: 6px !important; }
+  header .ic button { padding: 2px !important; }
+  header .ic svg { width: 20px !important; height: 20px !important; }
+  header .logo { min-width: 0 !important; overflow: hidden !important; }
+  header .logo > div { white-space: nowrap !important; }
+  header .logo b { font-size: 26px !important; }
+  header .logo span { font-size: 13px !important; }
   header .logo small {
     font-size: 6.5px !important;
     letter-spacing: 0.8px !important;
     display: block !important;
   }
-  header .logo i {
-    width: 60% !important;
-  }
-  #lg {
-    font-size: 11px !important;
-  }
+  header .logo i { width: 60% !important; }
+  #lg { font-size: 11px !important; }
 
-  /* Hero solid on all mid sizes */
   #hero {
     height: 100svh !important;
     max-height: none !important;
@@ -231,28 +244,26 @@
     background: #1a1208 !important;
     padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)) !important;
   }
-  .magic h2 {
-    font-size: 22px !important;
+  .magic h2 { font-size: 22px !important; }
+  .counters b { font-size: 24px !important; }
+  .counters span { font-size: 11px !important; }
+
+  #cats > .cb { max-width: 300px !important; margin-bottom: 20px !important; }
+  #cats > .cb > .card {
+    height: 210px !important;
+    min-height: 210px !important;
   }
-  .counters b {
-    font-size: 24px !important;
-  }
-  .counters span {
-    font-size: 11px !important;
+  .cb > .card.msel {
+    height: 200px !important;
+    min-height: 200px !important;
   }
 
-  /* Category cards on tablet */
-  #cats > .cb {
-    max-width: 300px !important;
-  }
-  #cats > .cb > .card {
-    height: 180px !important;
-    min-height: 180px !important;
+  img.growthmark-img {
+    max-width: 220px !important;
   }
 }
 
 @media (max-width: 480px) {
-  /* Header ultra-compact */
   header {
     padding: 6px 8px !important;
     top: calc(env(safe-area-inset-top, 0px) + 28px) !important;
@@ -262,25 +273,15 @@
     font-size: 12px !important;
     padding: 5px 0 !important;
   }
-  header .logo b {
-    font-size: 20px !important;
-  }
-  header .logo span {
-    font-size: 11px !important;
-  }
+  header .logo b { font-size: 20px !important; }
+  header .logo span { font-size: 11px !important; }
   header .logo small {
     font-size: 5.5px !important;
     letter-spacing: 0.4px !important;
   }
-  header .ic {
-    gap: 4px !important;
-  }
-  header .ic svg {
-    width: 18px !important;
-    height: 18px !important;
-  }
+  header .ic { gap: 4px !important; }
+  header .ic svg { width: 18px !important; height: 18px !important; }
 
-  /* Hero full viewport, never white */
   #hero {
     height: 100svh !important;
     min-height: 100svh !important;
@@ -289,26 +290,13 @@
     background: #1a1208 !important;
     padding: 0 14px calc(10px + env(safe-area-inset-bottom, 0px)) !important;
   }
-  .magic {
-    padding: 10px !important;
-  }
-  .magic h2 {
-    font-size: 20px !important;
-  }
-  .magic p {
-    font-size: 12px !important;
-  }
-  .counters {
-    gap: 6px !important;
-  }
-  .counters b {
-    font-size: 22px !important;
-  }
-  .counters span {
-    font-size: 10px !important;
-  }
+  .magic { padding: 10px !important; }
+  .magic h2 { font-size: 20px !important; }
+  .magic p { font-size: 12px !important; }
+  .counters { gap: 6px !important; }
+  .counters b { font-size: 22px !important; }
+  .counters span { font-size: 10px !important; }
 
-  /* Cards tighter on phone */
   .card.round,
   .card.occ-note,
   .card.occ,
@@ -321,33 +309,27 @@
     min-height: 130px !important;
   }
 
-  /* Category cards phone size */
   #cats > .cb {
     max-width: 92vw !important;
-    margin-bottom: 14px !important;
+    margin-bottom: 16px !important; /* keep gap */
   }
   #cats > .cb > .card {
-    height: 160px !important;
-    min-height: 160px !important;
+    height: 190px !important; /* taller on phone */
+    min-height: 190px !important;
     border-radius: 16px !important;
   }
-  #cats > .cb > .card h4 {
-    font-size: 18px !important;
-  }
+  #cats > .cb > .card h4 { font-size: 18px !important; }
   #cats > .cb > .card small,
-  #cats > .cb > .card .st {
-    font-size: 11px !important;
+  #cats > .cb > .card .st { font-size: 11px !important; }
+
+  .cb > .card.msel {
+    height: 180px !important;
+    min-height: 180px !important;
   }
 
-  /* Product cards */
-  .card.pf {
-    flex: 0 0 160px !important;
-  }
-  .card.pf .pim {
-    height: 120px !important;
-  }
+  .card.pf { flex: 0 0 160px !important; }
+  .card.pf .pim { height: 120px !important; }
 
-  /* Menu */
   #menu {
     width: 72% !important;
     max-width: 260px !important;
@@ -361,34 +343,28 @@
     padding-left: 12px !important;
     padding-right: 12px !important;
   }
-  .fcols {
-    gap: 14px !important;
+  .fcols { gap: 14px !important; }
+
+  img.growthmark-img {
+    width: 50% !important;
+    max-width: 160px !important;
   }
 }
 
 @media (max-width: 360px) {
-  header .logo b {
-    font-size: 17px !important;
-  }
-  header .logo span {
-    font-size: 9px !important;
-  }
-  header .logo small {
-    display: none !important;
-  }
+  header .logo b { font-size: 17px !important; }
+  header .logo span { font-size: 9px !important; }
+  header .logo small { display: none !important; }
   #cats > .cb > .card {
-    height: 140px !important;
-    min-height: 140px !important;
+    height: 170px !important;
+    min-height: 170px !important;
   }
 }
 
-/* Desktop: category cards nice centered column */
 @media (min-width: 961px) {
-  #cats > .cb {
-    max-width: 320px !important;
-  }
+  #cats > .cb { max-width: 320px !important; }
   #cats > .cb > .card {
-    height: 200px !important;
-    min-height: 200px !important;
+    height: 240px !important;
+    min-height: 240px !important;
   }
 }
