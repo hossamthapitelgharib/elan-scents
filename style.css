@@ -214,6 +214,52 @@ img.growthmark-img {
 }
 
 /* ============================================================
+   FOOTER LOGO — centered, size suitable for footer, colors match logo image
+   ============================================================ */
+footer {
+  background: #5e5e5e !important;
+  background: linear-gradient(180deg, #6a6a6a 0%, #555555 50%, #4a4a4a 100%) !important;
+  color: #f5e6c0 !important;
+  border-top: 1px solid #8a8a8a !important;
+  padding: 36px 18px 100px !important;
+  text-align: center !important;
+}
+footer .footer-logo {
+  display: block !important;
+  width: 160px !important;
+  max-width: 42vw !important;
+  height: auto !important;
+  margin: 0 auto 8px !important;
+  object-fit: contain !important;
+}
+footer .fdiv {
+  background: linear-gradient(90deg, transparent, #d4c4a0, transparent) !important;
+}
+footer a {
+  color: #f0e0b8 !important;
+}
+footer .fcols h5 {
+  background: linear-gradient(135deg, #f3c94f, #c8962a 50%, #8a5e0c) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  color: transparent !important;
+}
+footer .fcols a,
+footer .fcols span {
+  color: #e8dcc0 !important;
+}
+footer .fph {
+  color: #f3c94f !important;
+}
+footer .fbar {
+  border-top-color: #6a6a6a !important;
+  color: #d9cfb8 !important;
+}
+footer .fcred {
+  color: #c8b898 !important;
+}
+
+/* ============================================================
    CART / SHEET — lock scroll + close X top-left
    ============================================================ */
 body.sheet-open {
@@ -326,6 +372,11 @@ body.sheet-open {
     width: 90px !important;
     max-width: 35vw !important;
   }
+
+  footer .footer-logo {
+    width: 140px !important;
+    max-width: 38vw !important;
+  }
 }
 
 @media (max-width: 480px) {
@@ -419,6 +470,11 @@ body.sheet-open {
   img.growthmark-img {
     width: 80px !important;
     max-width: 30vw !important;
+  }
+
+  footer .footer-logo {
+    width: 120px !important;
+    max-width: 36vw !important;
   }
 
   #sheet .sheet-close,
