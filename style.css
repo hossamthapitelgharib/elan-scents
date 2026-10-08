@@ -133,30 +133,42 @@
 }
 
 /* ============================================================
-   CATEGORY CARDS — single source of truth (kills conflicting
-   media-query fights in style-3.css)
+   CATEGORY CARDS (#cats > .cb) — actual DOM structure
+   Centered, constrained width, never full-bleed stretch
    ============================================================ */
+#cats > .cb {
+  display: flex !important;
+  justify-content: center !important;
+  margin: 0 auto 20px !important;
+  width: 100% !important;
+  max-width: 340px !important;
+}
+#cats > .cb > .card {
+  width: 100% !important;
+  max-width: 340px !important;
+  height: 200px !important;
+  min-height: 200px !important;
+}
+
+/* Legacy .category-cards class (if ever used) */
 .category-cards {
   display: flex !important;
   flex-wrap: nowrap !important;
   gap: 16px !important;
   overflow-x: auto !important;
-  overflow-y: visible !important;
   scroll-snap-type: x mandatory !important;
   -webkit-overflow-scrolling: touch !important;
   justify-content: flex-start !important;
   padding: 16px 14px 24px !important;
-  max-width: none !important;
-  margin: 0 !important;
   width: 100% !important;
-  direction: ltr !important; /* consistent scroll direction */
+  direction: ltr !important;
 }
 .category-cards .cb {
   flex: 0 0 260px !important;
   width: 260px !important;
   min-width: 260px !important;
   scroll-snap-align: center !important;
-  direction: rtl !important; /* restore text direction */
+  direction: rtl !important;
   margin-bottom: 0 !important;
 }
 .category-cards .cb > .card {
@@ -229,15 +241,13 @@
     font-size: 11px !important;
   }
 
-  /* Category cards slightly smaller on tablet */
-  .category-cards .cb {
-    flex: 0 0 240px !important;
-    width: 240px !important;
-    min-width: 240px !important;
+  /* Category cards on tablet */
+  #cats > .cb {
+    max-width: 300px !important;
   }
-  .category-cards .cb > .card {
-    height: 170px !important;
-    min-height: 170px !important;
+  #cats > .cb > .card {
+    height: 180px !important;
+    min-height: 180px !important;
   }
 }
 
@@ -310,25 +320,23 @@
     height: 130px !important;
     min-height: 130px !important;
   }
-  .category-cards {
-    gap: 12px !important;
-    padding: 12px 12px 20px !important;
+
+  /* Category cards phone size */
+  #cats > .cb {
+    max-width: 92vw !important;
+    margin-bottom: 14px !important;
   }
-  .category-cards .cb {
-    flex: 0 0 200px !important;
-    width: 200px !important;
-    min-width: 200px !important;
+  #cats > .cb > .card {
+    height: 160px !important;
+    min-height: 160px !important;
+    border-radius: 16px !important;
   }
-  .category-cards .cb > .card {
-    height: 150px !important;
-    min-height: 150px !important;
+  #cats > .cb > .card h4 {
+    font-size: 18px !important;
   }
-  .category-cards .cb > .card h4 {
-    font-size: 14px !important;
-  }
-  .category-cards .cb > .card small,
-  .category-cards .cb > .card .st {
-    font-size: 9px !important;
+  #cats > .cb > .card small,
+  #cats > .cb > .card .st {
+    font-size: 11px !important;
   }
 
   /* Product cards */
@@ -339,19 +347,16 @@
     height: 120px !important;
   }
 
-  /* Menu narrower so it doesn't dominate */
+  /* Menu */
   #menu {
     width: 72% !important;
     max-width: 260px !important;
   }
 
-  /* Sections less padding */
   section {
     padding-left: 12px !important;
     padding-right: 12px !important;
   }
-
-  /* Footer */
   footer {
     padding-left: 12px !important;
     padding-right: 12px !important;
@@ -369,36 +374,20 @@
     font-size: 9px !important;
   }
   header .logo small {
-    display: none !important; /* extreme narrow: hide tagline */
+    display: none !important;
   }
-  .category-cards .cb {
-    flex: 0 0 170px !important;
-    width: 170px !important;
-    min-width: 170px !important;
+  #cats > .cb > .card {
+    height: 140px !important;
+    min-height: 140px !important;
   }
 }
 
-/* ============================================================
-   Desktop polish: category cards can sit in a nice centered row
-   when there is room
-   ============================================================ */
+/* Desktop: category cards nice centered column */
 @media (min-width: 961px) {
-  .category-cards {
-    display: grid !important;
-    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-    gap: 24px !important;
-    overflow: visible !important;
-    max-width: 960px !important;
-    margin: 0 auto !important;
-    padding: 18px 12px 28px !important;
-    justify-content: center !important;
+  #cats > .cb {
+    max-width: 320px !important;
   }
-  .category-cards .cb {
-    flex: none !important;
-    width: 100% !important;
-    min-width: 0 !important;
-  }
-  .category-cards .cb > .card {
+  #cats > .cb > .card {
     height: 200px !important;
     min-height: 200px !important;
   }
