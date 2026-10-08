@@ -10,9 +10,7 @@ function applyArtAndHero(){
   window.playHeroVideo=function(){
     var v=document.getElementById('heroVideo');
     if(!v)return;
-    if(v.hasAttribute('poster')) v.removeAttribute('poster');
     v.muted=true;
-    v.playsInline=true;
     var p=v.play();
     if(p&&p.catch)p.catch(function(){});
   };
