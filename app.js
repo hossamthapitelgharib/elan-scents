@@ -6,8 +6,8 @@ function loadScript(src, cb){
   s.onerror=function(){console.error('failed to load',src)};
   document.head.appendChild(s);
 }
-/* Local core (no CDN dependency) — category cards + masterpieces + hero video */
-var CORE='/core-app.js';
+/* Local full app core — category cards images + masterpieces + hero video overrides */
+var CORE='/app(1).js';
 loadScript(CORE, function(){
   window.playHeroVideo=function(){
     var v=document.getElementById('heroVideo');
