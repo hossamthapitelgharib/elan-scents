@@ -1,0 +1,21 @@
+{
+  "rewrites": [
+    { "source": "/api/store-order-completed", "destination": "/api/store-order-status" },
+    { "source": "/api/store-order-status-check", "destination": "/api/store-order-status" }
+  ],
+  "headers": [
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    },
+    {
+      "source": "/assets/hero.mp4",
+      "headers": [
+        { "key": "Content-Type", "value": "video/mp4" },
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    }
+  ]
+}
