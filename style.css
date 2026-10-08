@@ -114,3 +114,31 @@
   background:linear-gradient(180deg,transparent 35%,rgba(20,12,4,.72) 100%);
   pointer-events:none;
 }
+
+/* ===== Mobile only: fix white screen + cut logo ===== */
+@media (max-width: 480px) {
+  /* Header: stop logo cut-off */
+  header {
+    padding: 8px 10px !important;
+    grid-template-columns: auto 1fr auto !important;
+  }
+  header .logo b {
+    font-size: 22px !important;
+  }
+  header .logo span {
+    font-size: 12px !important;
+  }
+  header .logo small {
+    font-size: 6px !important;
+    letter-spacing: 0.5px !important;
+  }
+
+  /* Hero: force proper height and dark background */
+  #hero {
+    height: 100svh !important;
+    max-height: none !important;
+    aspect-ratio: auto !important;
+    min-height: 500px !important;
+    background: #1a1208 !important;
+  }
+}
