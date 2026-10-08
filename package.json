@@ -1,0 +1,12 @@
+{
+  "name": "elan-scents",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Élan Scents storefront and order dashboards",
+  "scripts": {
+    "test": "node --test tests/*.test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
