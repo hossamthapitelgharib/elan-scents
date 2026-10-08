@@ -22,6 +22,10 @@
 #hero{
   overflow:hidden;
   background:transparent!important;
+  /* Fallback if video/poster fails */
+  background-image:url('/assets/cards/masterpieces.webp')!important;
+  background-size:cover!important;
+  background-position:center!important;
 }
 #hero video,
 #heroVideo{
@@ -100,4 +104,104 @@
   z-index:0;
   background:linear-gradient(180deg,transparent 35%,rgba(20,12,4,.72) 100%);
   pointer-events:none;
+}
+
+/* ===== Mobile fixes ===== */
+@media (max-width: 480px) {
+  /* Header: prevent logo cut-off and icon overflow */
+  header {
+    padding: 8px 6px !important;
+    grid-template-columns: auto 1fr auto !important;
+  }
+  header .ic {
+    gap: 6px !important;
+  }
+  header .ic svg {
+    width: 20px !important;
+    height: 20px !important;
+  }
+  header .logo b {
+    font-size: 26px !important;
+  }
+  header .logo span {
+    font-size: 13px !important;
+  }
+  header .logo small {
+    font-size: 6.5px !important;
+    letter-spacing: 0.8px !important;
+  }
+  #lg {
+    font-size: 11px !important;
+  }
+
+  /* Hero: better mobile height, no forced aspect that breaks layout */
+  #hero {
+    height: 100svh !important;
+    max-height: none !important;
+    aspect-ratio: auto !important;
+    min-height: 520px;
+  }
+
+  /* Rectangular cards smaller on mobile so more fit in strip */
+  .card.round,
+  .card.occ-note,
+  .card.occ,
+  .card.notes,
+  .strip .card.round,
+  .grid .card.round {
+    flex: 0 0 150px !important;
+    flex-basis: 150px !important;
+    width: 150px !important;
+    height: 120px !important;
+    min-height: 120px !important;
+    border-radius: 14px !important;
+    padding: 0 8px 10px !important;
+  }
+  .card.round.art h4,
+  .card.occ-note.art h4,
+  .card.occ h4,
+  .card.notes h4 {
+    font-size: 13px !important;
+  }
+  .card.round.art .st,
+  .card.occ-note.art .st {
+    font-size: 9px !important;
+  }
+
+  /* Menu width */
+  #menu {
+    width: 70% !important;
+    max-width: 260px !important;
+  }
+
+  /* Counters smaller */
+  .counters b {
+    font-size: 22px !important;
+  }
+  .counters span {
+    font-size: 11px !important;
+  }
+
+  /* Magic title */
+  .magic h2 {
+    font-size: 22px !important;
+  }
+}
+
+@media (max-width: 360px) {
+  header .logo b {
+    font-size: 22px !important;
+  }
+  header .logo span {
+    font-size: 11px !important;
+  }
+  .card.round,
+  .card.occ-note,
+  .card.occ,
+  .card.notes {
+    flex: 0 0 130px !important;
+    width: 130px !important;
+    height: 105px !important;
+    min-height: 105px !important;
+  }
 }
