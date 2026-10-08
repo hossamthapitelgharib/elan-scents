@@ -14,11 +14,11 @@
   padding-bottom: 10px !important;
 }
 
-/* Header logo + tagline — enlarged more */
-header .logo b { font-size: 40px !important; }
-header .logo span { font-size: 18px !important; }
+/* Header logo + tagline — significantly larger */
+header .logo b { font-size: 48px !important; }
+header .logo span { font-size: 22px !important; }
 header .logo small {
-  font-size: 8px !important;
+  font-size: 9px !important;
   letter-spacing: 1.2px !important;
   display: block !important;
 }
@@ -329,10 +329,10 @@ body.sheet-open {
   header .ic svg { width: 20px !important; height: 20px !important; }
   header .logo { min-width: 0 !important; overflow: hidden !important; }
   header .logo > div { white-space: nowrap !important; }
-  header .logo b { font-size: 40px !important; }
-  header .logo span { font-size: 18px !important; }
+  header .logo b { font-size: 48px !important; }
+  header .logo span { font-size: 22px !important; }
   header .logo small {
-    font-size: 8px !important;
+    font-size: 9px !important;
     letter-spacing: 1.2px !important;
     display: block !important;
   }
@@ -389,10 +389,10 @@ body.sheet-open {
     font-size: 12px !important;
     padding: 5px 0 !important;
   }
-  header .logo b { font-size: 34px !important; }
-  header .logo span { font-size: 16px !important; }
+  header .logo b { font-size: 40px !important; }
+  header .logo span { font-size: 18px !important; }
   header .logo small {
-    font-size: 7.5px !important;
+    font-size: 8.5px !important;
     letter-spacing: 1px !important;
     display: block !important;
   }
@@ -492,10 +492,10 @@ body.sheet-open {
 }
 
 @media (max-width: 360px) {
-  header .logo b { font-size: 30px !important; }
-  header .logo span { font-size: 14px !important; }
+  header .logo b { font-size: 34px !important; }
+  header .logo span { font-size: 16px !important; }
   header .logo small {
-    font-size: 7px !important;
+    font-size: 8px !important;
     letter-spacing: 0.8px !important;
     display: block !important;
   }
