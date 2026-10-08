@@ -21,7 +21,7 @@
 }
 #hero{
   overflow:hidden;
-  background:#1a1208!important; /* dark fallback while video loads */
+  background:transparent!important;
 }
 #hero video,
 #heroVideo{
@@ -102,176 +102,33 @@
   pointer-events:none;
 }
 
-/* ===== Strong Mobile Overhaul ===== */
-@media (max-width: 640px) {
-  html, body {
-    overflow-x: hidden !important;
-    max-width: 100vw !important;
-    width: 100% !important;
-  }
-
-  /* Header - compact and no cut-off */
+/* Safe mobile adjustments only */
+@media (max-width: 480px) {
   header {
-    padding: 8px 10px !important;
-    grid-template-columns: minmax(0,1fr) auto minmax(0,1fr) !important;
-    gap: 4px !important;
-  }
-  header .ic {
-    gap: 8px !important;
-    min-width: 0 !important;
-  }
-  header .ic button {
-    padding: 2px !important;
-  }
-  header .ic svg {
-    width: 20px !important;
-    height: 20px !important;
-  }
-  header .logo {
-    min-width: 0 !important;
-    overflow: hidden !important;
+    padding: 8px 8px !important;
   }
   header .logo b {
-    font-size: 24px !important;
+    font-size: 26px !important;
   }
   header .logo span {
-    font-size: 12px !important;
+    font-size: 13px !important;
   }
   header .logo small {
-    font-size: 6px !important;
-    letter-spacing: 0.6px !important;
-    white-space: nowrap !important;
+    font-size: 6.5px !important;
   }
-  #lg {
-    font-size: 11px !important;
-    padding: 0 2px !important;
-  }
-
-  /* Hero - full height, no aspect ratio forcing cut-off */
   #hero {
-    height: 100svh !important;
-    height: 100dvh !important; /* better on modern mobile */
-    max-height: none !important;
-    min-height: 480px !important;
     aspect-ratio: auto !important;
-    width: 100% !important;
-    margin: 0 !important;
-    padding: 0 14px 12px !important;
+    max-height: none !important;
   }
-
-  /* Magic + counters spacing */
-  .magic h2 {
-    font-size: 22px !important;
-    line-height: 1.3 !important;
-  }
-  .magic p.sub {
-    font-size: 12px !important;
-  }
-  .counters {
-    gap: 6px !important;
-  }
-  .counters b {
-    font-size: 22px !important;
-  }
-  .counters span {
-    font-size: 11px !important;
-  }
-
-  /* Rectangular cards - smaller & safe for mobile strip */
   .card.round,
   .card.occ-note,
   .card.occ,
   .card.notes,
   .strip .card.round,
   .grid .card.round {
-    flex: 0 0 140px !important;
-    flex-basis: 140px !important;
-    width: 140px !important;
-    height: 112px !important;
-    min-height: 112px !important;
-    border-radius: 14px !important;
-    padding: 0 8px 10px !important;
-  }
-  .card.round.art h4,
-  .card.occ-note.art h4,
-  .card.occ h4,
-  .card.notes h4 {
-    font-size: 13px !important;
-  }
-  .card.round.art .st,
-  .card.occ-note.art .st {
-    font-size: 9px !important;
-  }
-
-  /* Product cards */
-  .card.pf {
-    flex: 0 0 160px !important;
-    width: 160px !important;
-  }
-  .card.pf .pim {
+    flex: 0 0 150px !important;
+    width: 150px !important;
     height: 120px !important;
-  }
-
-  /* Strips - prevent horizontal bleed */
-  .strip {
-    padding-left: 12px !important;
-    padding-right: 12px !important;
-    gap: 10px !important;
-  }
-
-  /* Sections */
-  section {
-    padding-left: 14px !important;
-    padding-right: 14px !important;
-  }
-
-  /* Menu */
-  #menu {
-    width: 78% !important;
-    max-width: 280px !important;
-  }
-
-  /* WhatsApp button safe */
-  #wa {
-    right: 10px !important;
-    bottom: calc(14px + env(safe-area-inset-bottom, 0px)) !important;
-  }
-
-  /* Footer */
-  footer {
-    padding-left: 14px !important;
-    padding-right: 14px !important;
-  }
-  .fcols {
-    grid-template-columns: 1fr 1fr !important;
-    gap: 16px !important;
-  }
-}
-
-@media (max-width: 380px) {
-  header .logo b {
-    font-size: 20px !important;
-  }
-  header .logo span {
-    font-size: 11px !important;
-  }
-  header .logo small {
-    font-size: 5.5px !important;
-  }
-  .card.round,
-  .card.occ-note,
-  .card.occ,
-  .card.notes {
-    flex: 0 0 120px !important;
-    width: 120px !important;
-    height: 100px !important;
-    min-height: 100px !important;
-  }
-  .card.pf {
-    flex: 0 0 140px !important;
-    width: 140px !important;
-  }
-  .magic h2 {
-    font-size: 19px !important;
+    min-height: 120px !important;
   }
 }
