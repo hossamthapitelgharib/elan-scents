@@ -5,24 +5,31 @@
    ROOT FIXES — masterpieces, art cards, hero video fallback
    ============================================================ */
 
-/* Masterpieces image is 1200×805 — match card ratio so no crop */
+/*
+ * Masterpieces: image must paint edge-to-edge inside the gold frame.
+ * style-3 sets border:2px transparent + background-clip:padding-box
+ * which leaves empty strips at the edges — that is the "crop".
+ */
 .cb > .card.msel {
   background-image: url('/assets/cards/masterpieces.webp') !important;
-  background-size: 100% 100% !important;
+  background-size: cover !important;
   background-position: center center !important;
   background-repeat: no-repeat !important;
   background-color: #ede8de !important;
+  background-clip: border-box !important;
+  background-origin: border-box !important;
   width: 320px !important;
   max-width: 90vw !important;
   height: auto !important;
   min-height: 0 !important;
+  max-height: none !important;
   aspect-ratio: 1200 / 805 !important;
   padding: 0 !important;
+  border: 0 !important;
   border-radius: 20px !important;
   overflow: hidden !important;
-  display: flex !important;
-  align-items: flex-end !important;
-  justify-content: center !important;
+  display: block !important;
+  box-shadow: 0 0 0 2px #c8962a, 0 2px 4px #0001 !important;
 }
 
 /* Art images: fill full card bounds */
@@ -160,6 +167,7 @@
   aspect-ratio: 4 / 3 !important;
   padding: 0 !important;
   overflow: hidden !important;
+  background-clip: border-box !important;
 }
 #cats > .cb > .card.art .artbg img,
 #cats > .cb > .card.art .artbg svg {
@@ -309,7 +317,9 @@ body.sheet-open {
     height: auto !important;
     min-height: 0 !important;
     aspect-ratio: 1200 / 805 !important;
-    background-size: 100% 100% !important;
+    background-size: cover !important;
+    background-clip: border-box !important;
+    border: 0 !important;
   }
 
   img.growthmark-img {
@@ -383,7 +393,9 @@ body.sheet-open {
     height: auto !important;
     min-height: 0 !important;
     aspect-ratio: 1200 / 805 !important;
-    background-size: 100% 100% !important;
+    background-size: cover !important;
+    background-clip: border-box !important;
+    border: 0 !important;
   }
 
   .card.pf { flex: 0 0 160px !important; }
