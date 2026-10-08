@@ -350,3 +350,6 @@ body.sheet-open{overflow:hidden;touch-action:none}body.sheet-open #sheet{overscr
 .fcred>small{color:#eadfca!important;font-size:11px!important;text-shadow:0 1px 2px #000!important}
 .growthmark{font-family:'Playfair Display',Georgia,serif!important;font-size:28px!important;letter-spacing:-.6px!important;font-weight:700!important;background:linear-gradient(180deg,#ffffff 0%,#e4e1d9 28%,#aaa79f 48%,#ffffff 66%,#c9c5bc 84%,#ffffff 100%)!important;-webkit-background-clip:text!important;background-clip:text!important;-webkit-text-fill-color:transparent!important;color:transparent!important;text-shadow:0 1px 1px #000,0 2px 3px rgba(0,0,0,.7)!important;filter:none!important}
 .growthmark span{background:linear-gradient(180deg,#fff4bd 0%,#f4ce67 28%,#c48b20 52%,#ffe59a 70%,#d29a2d 88%,#fff0aa 100%)!important;-webkit-background-clip:text!important;background-clip:text!important;-webkit-text-fill-color:transparent!important;color:transparent!important}
+
+/* Relevance sits inline with the two price fields in the compact filter grid. */
+.filter-grid .relevance-select{color:#8a5e0c;font-weight:600;background:linear-gradient(#fffdf7,#f7edda);border-color:#cfa858}
