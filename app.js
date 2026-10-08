@@ -1,4 +1,29 @@
-var XBTN='<button class="mx" aria-label="close"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="url(#gg)" stroke-width="2" stroke-linecap="round"><path d="M5 5l14 14M19 5L5 19"/></svg></button>';
-var LOGO='<a class="mlogo" href="#"><div class="logo"><div><b class="gold en">Élan</b> <span class="en">Scents</span></div><small class="en">THE HOME OF GULF FRAGRANCES</small><i></i></div></a>';
-// RESTORE_MARKER - full file will be pushed via push_files
-console.error('app.js temporarily incomplete - restoring...');
+(function(){
+function loadScript(src, cb){
+  var s=document.createElement('script');
+  s.src=src;
+  s.onload=cb;
+  s.onerror=function(){console.error('failed to load',src)};
+  document.head.appendChild(s);
+}
+var CDN='https://cdn.jsdelivr.net/gh/hossamthapitelgharib/elan-scents@38fe8eec291e99dfc3797593ae281b451abe39d4/app.js';
+loadScript(CDN, function(){
+  window.playHeroVideo=function(){
+    var v=document.getElementById('heroVideo');
+    if(!v)return;
+    v.muted=true;
+    var p=v.play();
+    if(p&&p.catch)p.catch(function(){});
+  };
+  window.hero=function(){
+    var e=document.getElementById('hero');
+    if(e){e.style.setProperty('--hc','#fff');e.style.setProperty('--hs','#4a2f0a99');}
+    playHeroVideo();
+  };
+  try{playHeroVideo();}catch(e){}
+  document.addEventListener('click',function(e){
+    var b=e.target.closest('[data-bc]');
+    if(b&&!+b.dataset.bc){setTimeout(playHeroVideo,50);}
+  },true);
+});
+})();
