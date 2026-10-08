@@ -4,7 +4,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Élan Scents</title>
-<link rel="preload" href="/assets/hero.mp4" as="video" type="video/mp4">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=El+Messiri:wght@400;500;600;700&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/style.css">
 </head>
@@ -19,9 +18,7 @@
 <nav id="menu"></nav><div id="mov"></div>
 <div id="sheet" hidden><div class="sb" id="sheetB"></div></div>
 <div id="hero">
-<video id="heroVideo" autoplay muted loop playsinline webkit-playsinline preload="auto" x-webkit-airplay="allow">
-<source src="/assets/hero.mp4" type="video/mp4">
-</video>
+<video id="heroVideo" muted loop playsinline webkit-playsinline preload="none" data-src="/assets/hero.mp4" x-webkit-airplay="allow"></video>
 <div class="hero-overlay"></div>
 <div class="magic" data-go="sec|all"><h2 data-i="magic"></h2><p class="sub" data-i="view"></p></div>
 <div class="counters">
@@ -54,38 +51,74 @@
 <script src="/texts.js"></script>
 <script src="/app.js"></script>
 <script>
+/* Hero video — works with ANY src: page paints first, video loads after */
 (function(){
   var v=document.getElementById('heroVideo');
   if(!v)return;
+
+  var src=v.getAttribute('data-src')||'';
+  if(!src)return;
+
   v.muted=true;
   v.defaultMuted=true;
+  v.playsInline=true;
   v.setAttribute('muted','');
   v.setAttribute('playsinline','');
   v.setAttribute('webkit-playsinline','');
-  var started=false;
-  function markReady(){
-    if(started)return;
-    started=true;
+
+  var shown=false;
+  function show(){
+    if(shown)return;
+    shown=true;
     v.classList.add('is-ready');
   }
+
   function tryPlay(){
     v.muted=true;
     var p=v.play();
     if(p&&p.then){
-      p.then(markReady).catch(function(){});
-    }else{
-      markReady();
+      p.then(show).catch(function(){});
+    }else if(!v.paused){
+      show();
     }
   }
-  if(v.readyState>=2)tryPlay();
-  v.addEventListener('loadeddata',tryPlay,{once:true});
-  v.addEventListener('canplay',tryPlay,{once:true});
-  v.addEventListener('playing',markReady);
+
+  function onReady(){
+    tryPlay();
+  }
+
+  function startLoad(){
+    if(v.getAttribute('data-loaded'))return;
+    v.setAttribute('data-loaded','1');
+    v.src=src;
+    v.load();
+    if(v.readyState>=3)onReady();
+    else{
+      v.addEventListener('canplay',onReady,{once:true});
+      v.addEventListener('playing',show);
+    }
+  }
+
+  /* After first paint — never block opening the platform */
+  function afterPaint(fn){
+    if(typeof requestAnimationFrame==='function'){
+      requestAnimationFrame(function(){
+        requestAnimationFrame(fn);
+      });
+    }else{
+      setTimeout(fn,0);
+    }
+  }
+
+  afterPaint(startLoad);
+
+  /* Autoplay policies on some mobile browsers need a gesture */
+  function unlock(){tryPlay();}
+  document.addEventListener('touchstart',unlock,{once:true,passive:true});
+  document.addEventListener('click',unlock,{once:true});
   document.addEventListener('visibilitychange',function(){
-    if(!document.hidden&&v.paused)tryPlay();
+    if(!document.hidden&&v.paused&&v.getAttribute('data-loaded'))tryPlay();
   });
-  document.addEventListener('touchstart',tryPlay,{once:true,passive:true});
-  document.addEventListener('click',tryPlay,{once:true});
 })();
 </script>
 </body>
