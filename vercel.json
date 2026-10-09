@@ -11,7 +11,7 @@
       ]
     },
     {
-      "source": "/(index.html|style.css|style-3.css|app.js|app-core.js|texts.js|manus-routes.json)",
+      "source": "/(index.html|account.html|dashboard.html|store-dashboard.html|platform-dashboard.html|style.css|style-3.css|portal.css|dashboard.css|app.js|app-core.js|texts.js|portal.js|account.js|dashboard.js|store-dashboard.js|platform-dashboard.js|manus-routes.json)",
       "headers": [
         { "key": "Cache-Control", "value": "no-store, max-age=0, must-revalidate" }
       ]
@@ -19,14 +19,14 @@
     {
       "source": "/assets/(.*)",
       "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+        { "key": "Cache-Control", "value": "no-store, max-age=0, must-revalidate" }
       ]
     },
     {
       "source": "/assets/hero.mp4",
       "headers": [
         { "key": "Content-Type", "value": "video/mp4" },
-        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+        { "key": "Cache-Control", "value": "no-store, max-age=0, must-revalidate" }
       ]
     }
   ]

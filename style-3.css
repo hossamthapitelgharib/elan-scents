@@ -18,7 +18,7 @@ header .ic:last-child{justify-content:flex-end}
 .logo i{display:block;height:2px;width:70%;margin:4px auto 0;background:linear-gradient(90deg,transparent,#f0c04a,#c8962a,#f0c04a,transparent);animation:bl 2.2s ease-in-out infinite}
 @keyframes bl{0%,100%{opacity:1}50%{opacity:0}}
 .logo small{font-size:7.5px;letter-spacing:1.6px;color:var(--ivory);white-space:nowrap}
-#hero{position:relative;height:100svh;max-height:780px;aspect-ratio:9/16;width:100%;margin-top:0;background:radial-gradient(circle at 30% 20%,#f9e9cf,#e9d3b0 45%,#c7a677);display:flex;flex-direction:column;justify-content:flex-end;padding:0 18px 6px;gap:0}
+#hero{position:relative;height:calc(var(--app-vh,1vh) * 100);max-height:780px;aspect-ratio:9/16;width:100%;margin-top:0;background:radial-gradient(circle at 30% 20%,#f9e9cf,#e9d3b0 45%,#c7a677);display:flex;flex-direction:column;justify-content:flex-end;padding:0 18px 6px;gap:0}
 #hero .slot{position:absolute;inset:0;opacity:.0}
 .magic{text-align:center;padding:16px;border-radius:22px;background:transparent;cursor:pointer;animation:fl 4s ease-in-out infinite}
 @keyframes fl{50%{transform:translateY(-4px)}}

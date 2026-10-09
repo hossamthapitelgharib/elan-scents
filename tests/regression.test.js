@@ -25,7 +25,7 @@ test('main menu routes طلباتي to the customer dashboard', () => {
   const account = fs.readFileSync(path.join(root, 'account.html'), 'utf8');
   assert.match(`${app}\n${core}`, /i==10\?'<a href="\/account\.html">/);
   assert.match(account, /id="loginForm"/);
-  assert.match(account, /src="\/account\.js"/);
+  assert.match(account, /src="\/account\.js(?:\?v=[^"]+)?"/);
   assert.match(account, /id="activeOrders"/);
   assert.match(account, /id="recentOrders"/);
   assert.match(account, /id="archiveForm"/);
