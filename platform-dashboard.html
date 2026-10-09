@@ -1,1 +1,43 @@
-<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>لوحة Élan Scents</title><link rel="stylesheet" href="/portal.css"></head><body><header><div><small>Élan Scents · Platform</small><h1>لوحة المنصة</h1></div><button id="logout" class="ghost" hidden>تسجيل الخروج</button></header><main><section id="login" class="panel"><h2>دخول إدارة المنصة</h2><form id="loginForm"><input name="email" type="email" placeholder="البريد الإلكتروني" required><input name="password" type="password" placeholder="كلمة المرور" required><button class="primary">دخول</button></form><p id="message"></p></section><section id="app" hidden><div id="stats" class="stats"></div><div id="orders" class="stack"></div></section></main><script src="/portal.js"></script><script src="/platform-dashboard.js"></script></body></html>
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>لوحة Élan Scents</title>
+    <link rel="stylesheet" href="/portal.css" />
+  </head>
+  <body>
+    <header>
+      <div>
+        <small>Élan Scents · Platform</small>
+        <h1>لوحة المنصة</h1>
+      </div>
+      <button id="logout" class="ghost" hidden>تسجيل الخروج</button>
+    </header>
+    <main>
+      <section id="login" class="panel">
+        <h2>دخول إدارة المنصة</h2>
+        <form id="loginForm">
+          <input
+            name="email"
+            type="email"
+            placeholder="البريد الإلكتروني"
+            required
+          /><input
+            name="password"
+            type="password"
+            placeholder="كلمة المرور"
+            required
+          /><button class="primary">دخول</button>
+        </form>
+        <p id="message"></p>
+      </section>
+      <section id="app" hidden>
+        <div id="stats" class="stats"></div>
+        <div id="orders" class="stack"></div>
+      </section>
+    </main>
+    <script src="/portal.js"></script>
+    <script src="/platform-dashboard.js"></script>
+  </body>
+</html>
