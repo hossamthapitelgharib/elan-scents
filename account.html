@@ -1,1 +1,60 @@
-<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>حسابي · Élan Scents</title><link rel="stylesheet" href="/portal.css"></head><body><header><div><small>Élan Scents</small><h1>لوحة العميل</h1></div><button id="logout" class="ghost" hidden>تسجيل الخروج</button></header><main><section id="login" class="panel"><h2>تسجيل الدخول</h2><p>سجّل الدخول لمتابعة طلباتك، ومكان كل سلة، واستعادة المنتجات الملغاة.</p><form id="loginForm"><input name="email" type="email" placeholder="البريد الإلكتروني" required><input name="password" type="password" placeholder="كلمة المرور" required><button class="primary">دخول</button></form><p id="message"></p></section><section id="app" hidden><div class="account-intro"><div><span class="eyebrow">متابعة مباشرة</span><h2>كل متجر في مساره، وكل منتج في مكانه</h2><p>تظهر هنا رحلة المنتجات من سلة Élan Scents إلى سلة المتجر ثم العودة أو إتمام الشراء.</p></div><span class="live-pill"><i></i>تحديث تلقائي</span></div><div id="stats" class="stats"></div><div id="orders" class="stack"></div></section></main><a id="cartShortcut" class="cart-shortcut" href="/"><span>سلة Élan Scents</span><b>0</b></a><script src="/portal.js"></script><script src="/account.js"></script></body></html>
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>حسابي · Élan Scents</title>
+    <link rel="stylesheet" href="/portal.css" />
+  </head>
+  <body>
+    <header>
+      <div>
+        <small>Élan Scents</small>
+        <h1>لوحة العميل</h1>
+      </div>
+      <button id="logout" class="ghost" hidden>تسجيل الخروج</button>
+    </header>
+    <main>
+      <section id="login" class="panel">
+        <h2>تسجيل الدخول</h2>
+        <p>
+          سجّل الدخول لمتابعة طلباتك، ومكان كل سلة، واستعادة المنتجات الملغاة.
+        </p>
+        <form id="loginForm">
+          <input
+            name="email"
+            type="email"
+            placeholder="البريد الإلكتروني"
+            required
+          /><input
+            name="password"
+            type="password"
+            placeholder="كلمة المرور"
+            required
+          /><button class="primary">دخول</button>
+        </form>
+        <p id="message"></p>
+      </section>
+      <section id="app" hidden>
+        <div class="account-intro">
+          <div>
+            <span class="eyebrow">متابعة مباشرة</span>
+            <h2>كل متجر في مساره، وكل منتج في مكانه</h2>
+            <p>
+              تظهر هنا رحلة المنتجات من سلة Élan Scents إلى سلة المتجر ثم العودة
+              أو إتمام الشراء.
+            </p>
+          </div>
+          <span class="live-pill"><i></i>تحديث تلقائي</span>
+        </div>
+        <div id="stats" class="stats"></div>
+        <div id="orders" class="stack"></div>
+      </section>
+    </main>
+    <a id="cartShortcut" class="cart-shortcut" href="/"
+      ><span>سلة Élan Scents</span><b>0</b></a
+    >
+    <script src="/portal.js"></script>
+    <script src="/account.js"></script>
+  </body>
+</html>
