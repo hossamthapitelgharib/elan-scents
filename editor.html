@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>إيلان إديتور · Élan Scents</title>
+<link rel="stylesheet" href="/fonts.css?v=20261009-11">
+<style>
+:root{--gold:#c8962a;--ink:#1d1710;--bg:#faf6ee;--line:#e5dbc6;--card:#fff;--bad:#b3261e;--ok:#1b6e3c}
+*{box-sizing:border-box}
+body{margin:0;font-family:'IBM Plex Sans Arabic',Tahoma,sans-serif;background:var(--bg);color:var(--ink)}
+header{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;background:var(--ink);color:#fff;position:sticky;top:0;z-index:5}
+header h1{margin:0;font-size:17px}header small{color:var(--gold)}
+button{font:inherit;cursor:pointer;border-radius:8px;border:1px solid var(--line);background:#fff;padding:7px 12px}
+button.primary{background:var(--gold);border-color:var(--gold);color:#fff;font-weight:600}
+button.danger{color:var(--bad)}button:disabled{opacity:.5;cursor:not-allowed}
+input,textarea,select{font:inherit;width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:#fff}
+textarea{min-height:64px;resize:vertical}
+#login{max-width:380px;margin:60px auto;padding:22px;background:var(--card);border:1px solid var(--line);border-radius:14px}
+#login form{display:grid;gap:10px}
+#app{display:none;grid-template-columns:minmax(300px,440px) 1fr;gap:14px;padding:14px;align-items:start}
+@media(max-width:900px){#app{grid-template-columns:1fr}}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+.panel h2{margin:0 0 10px;font-size:15px}
+.row{border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:8px;background:#fffdf8}
+.row.hidden-sec{opacity:.6}
+.top{display:flex;align-items:center;gap:8px;justify-content:space-between;margin-bottom:6px}
+.top b{font-size:14px}.ctl{display:flex;gap:4px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+label.chk{display:flex;gap:6px;align-items:center;font-size:13px}label.chk input{width:auto}
+small.hint{color:#7a6c52;display:block;margin-top:4px}
+#msg{padding:8px 12px;border-radius:8px;margin:8px 14px;display:none;font-size:14px}
+#msg.ok{display:block;background:#e5f4ea;color:var(--ok)}#msg.err{display:block;background:#fbe9e7;color:var(--bad)}#msg.info{display:block;background:#fff3d6;color:#6b4e00}
+iframe{width:100%;height:78vh;border:1px solid var(--line);border-radius:14px;background:#fff}
+</style>
+</head>
+<body>
+<header><div><small>Élan Scents</small><h1>إيلان إديتور</h1></div><div><button id="logout" hidden>خروج</button></div></header>
+<div id="msg" role="status"></div>
+<section id="login">
+  <h2>دخول المالكة</h2>
+  <form id="loginForm">
+    <input name="email" type="email" placeholder="البريد الإلكتروني" autocomplete="username" required>
+    <input name="password" type="password" placeholder="كلمة المرور" autocomplete="current-password" required>
+    <button class="primary">دخول</button>
+  </form>
+</section>
+<main id="app">
+  <div>
+    <div class="panel"><h2>أقسام الصفحة</h2><div id="sections"></div></div>
+    <div class="panel"><h2>بلوكات نصوص إضافية</h2><div id="blocks"></div><button id="addText">+ إضافة نص</button>
+      <small class="hint">الصور والبانرات هتتضاف في خطوة لاحقة مع مكتبة الصور.</small></div>
+    <div class="panel"><h2>نصوص الأزرار</h2><div id="texts"></div></div>
+    <div class="panel"><button id="save" class="primary">حفظ</button> <small class="hint" id="branchNote"></small></div>
+  </div>
+  <div class="panel"><h2>معاينة الصفحة</h2><iframe id="preview" title="preview" src="/"></iframe></div>
+</main>
+<script src="/design-schema.js?v=20261009-11"></script>
+<script src="/editor.js?v=20261009-1"></script>
+</body>
+</html>

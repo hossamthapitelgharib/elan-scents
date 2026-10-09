@@ -146,9 +146,9 @@ const server = http.createServer(async (req, res) => {
   if (REWRITES.has(pathname)) pathname = REWRITES.get(pathname);
   if (pathname === '/api' || pathname.startsWith('/api/')) return handleApi(req, res, url, pathname);
   if (req.method !== 'GET' && req.method !== 'HEAD') return sendJson(res, 405, { error: 'method_not_allowed' });
-  const file = resolveStatic(url.pathname);
+  const file = resolveStatic(pathname);
   if (!file) { res.statusCode = 404; res.setHeader('Content-Type', 'text/plain; charset=utf-8'); return res.end('Not found'); }
-  applyHeaders(url.pathname, res);
+  applyHeaders(pathname, res);
   serveStatic(req, res, file);
 });
 
