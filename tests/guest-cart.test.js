@@ -24,8 +24,8 @@ test('visitor fingerprint is automatic with no approval prompt, and guest carts 
   const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
   const identity = fs.readFileSync(path.join(__dirname, '..', 'guest-identity.js'), 'utf8');
   const core = fs.readFileSync(path.join(__dirname, '..', 'app-core.js'), 'utf8');
-  const initialMigration = fs.readFileSync(path.join(__dirname, '..', 'supabase/migrations/20261009052500_guest_visitors.sql'), 'utf8');
-  const migration = fs.readFileSync(path.join(__dirname, '..', 'supabase/migrations/20261009053600_auto_guest_capture.sql'), 'utf8');
+  const initialMigration = fs.readFileSync(path.join(__dirname, '..', 'supabase/migrations/20261009022438_guest_visitors.sql'), 'utf8');
+  const migration = fs.readFileSync(path.join(__dirname, '..', 'supabase/migrations/20261009024024_auto_guest_capture.sql'), 'utf8');
   assert.match(html, /guest-identity\.js\?v=20261009-11/);
   assert.match(identity, /setTimeout\(function \(\) \{ resolve\(\)/);
   assert.doesNotMatch(identity, /guest-consent|CONSENT_KEY|data-guest-consent/);
