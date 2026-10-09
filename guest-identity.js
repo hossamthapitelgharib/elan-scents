@@ -1,49 +1,50 @@
 (function () {
   'use strict';
-  var CONSENT_KEY = 'elan_guest_fingerprint_consent';
-  function storedChoice() { try { return localStorage.getItem(CONSENT_KEY) || ''; } catch (_) { return ''; } }
-  function consent() { return storedChoice() === 'yes'; }
+  function hasSavedSession() {
+    try { return !!(JSON.parse(localStorage.getItem('elan_auth_session') || 'null') || {}).access_token; }
+    catch (_) { return false; }
+  }
   function fingerprint() {
     var screen = window.screen || {};
     var timezone = '';
     try { timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (_) {}
+    var ua = navigator.userAgent || '';
+    var platform = navigator.platform || '';
+    if (/Android/i.test(ua)) platform = 'Android';
+    else if (/iPhone|iPad|iPod/i.test(ua) || (/MacIntel/i.test(platform) && (navigator.maxTouchPoints || 0) > 1)) platform = 'iOS';
+    else if (/Windows/i.test(ua) || /Win/i.test(platform)) platform = 'Windows';
+    else if (/Mac/i.test(ua) || /Mac/i.test(platform)) platform = 'macOS';
+    else if (/Linux/i.test(ua) || /Linux/i.test(platform)) platform = 'Linux';
+    var language = (navigator.language || '').split('-')[0];
     return {
-      platform: navigator.platform || '', language: navigator.language || '', timezone: timezone,
+      platform: platform, language: language, timezone: timezone,
       screenWidth: screen.width || 0, screenHeight: screen.height || 0, colorDepth: screen.colorDepth || 0,
       pixelRatio: window.devicePixelRatio || 0, cores: navigator.hardwareConcurrency || 0,
-      memory: navigator.deviceMemory || 0, touchPoints: navigator.maxTouchPoints || 0
+      touchPoints: navigator.maxTouchPoints || 0
     };
   }
   async function request(action, data, token) {
+    var headers = { 'Content-Type': 'application/json' };
+    if (token) headers.Authorization = 'Bearer ' + token;
     var response = await fetch('/api/guest-cart', {
-      method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, token ? { Authorization: 'Bearer ' + token } : {}),
+      method: 'POST', headers: headers,
       body: JSON.stringify(Object.assign({ action: action, fingerprint: fingerprint() }, data || {}))
     });
     var body = await response.json().catch(function () { return {}; });
     if (!response.ok) throw new Error(body.error || 'guest_sync_failed');
     return body;
   }
-  function removeBanner() { var banner = document.getElementById('guestConsent'); if (banner) banner.remove(); }
-  function showBanner() {
-    if (consent() || storedChoice() === 'no' || document.getElementById('guestConsent')) return;
-    var banner = document.createElement('aside');
-    banner.id = 'guestConsent'; banner.className = 'guest-consent'; banner.setAttribute('role', 'dialog'); banner.setAttribute('aria-label', 'مزامنة سلة الزائر');
-    banner.innerHTML = '<div class="guest-consent-copy"><strong>مزامنة سلة الزائر</strong><p>للتعرّف على زيارتك من متصفح آخر، نرسل خصائص تقنية عامة للجهاز إلى خادم المنصة لاشتقاق بصمة رقمية؛ تُخزَّن البصمة المشتقة فقط ولا تُحفظ الخصائص الخام. قد لا تتطابق البصمة عند تغيير الجهاز أو الإعدادات، وقد تتشابه أجهزة مشتركة؛ عندها يمكنك المتابعة على هذا المتصفح فقط.</p></div><div class="guest-consent-actions"><button type="button" data-guest-consent="yes">موافق، فعّل المزامنة</button><button type="button" data-guest-consent="no">المتابعة على هذا المتصفح فقط</button></div>';
-    document.body.appendChild(banner);
-    banner.addEventListener('click', function (event) {
-      var choice = event.target.closest('[data-guest-consent]');
-      if (!choice) return;
-      try { localStorage.setItem(CONSENT_KEY, choice.dataset.guestConsent); } catch (_) {}
-      removeBanner();
-      if (choice.dataset.guestConsent === 'yes') window.dispatchEvent(new Event('elan-guest-consent'));
-    });
+  var identification = null;
+  function resolve() {
+    if (!identification) identification = request('resolve').catch(function (error) { identification = null; throw error; });
+    return identification;
   }
   window.GuestIdentity = {
-    enabled: consent,
-    resolve: function () { return consent() ? request('resolve') : Promise.resolve(null); },
-    save: function (items) { return consent() ? request('save', { items: items }) : Promise.resolve(null); },
-    claim: function (token) { return consent() ? request('claim', {}, token) : Promise.resolve(null); },
-    showConsent: function () { try { localStorage.removeItem(CONSENT_KEY); } catch (_) {} showBanner(); }
+    enabled: function () { return true; },
+    resolve: resolve,
+    save: function (items) { return request('save', { items: items }); },
+    claim: function (token) { return request('claim', {}, token); }
   };
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', showBanner, { once: true }); else showBanner();
+  // Signed-in customers only claim a prior guest basket; new visitors get a server-side record immediately.
+  if (!hasSavedSession()) setTimeout(function () { resolve().catch(function () {}); }, 0);
 })();
