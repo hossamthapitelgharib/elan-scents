@@ -1,5 +1,5 @@
 const { getContext, requireRoles } = require('./_auth');
-const { canStoreTransition } = require('./order-status');
+const { canStoreTransition } = require('../lib/order-status');
 function reply(res, status, body) { res.status(status).setHeader('Content-Type', 'application/json').json(body); }
 const statuses = new Set(['store_confirmed','processing','shipped','delivered','store_rejected']);
 module.exports = async function storeOrderUpdate(req, res) {
