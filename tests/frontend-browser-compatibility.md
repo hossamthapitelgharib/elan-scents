@@ -1,7 +1,7 @@
 # Frontend browser compatibility check
 
 **Date:** 2026-10-09
-**Scope:** Main storefront UI only. No API, Supabase, database, or dashboard changes.
+**Scope:** Main storefront UI, cross-browser normalization, Supabase-authenticated cart synchronization, and customer order listing.
 
 ## Result
 
@@ -47,3 +47,14 @@ There is no server-side User-Agent branching producing different HTML pages. The
 4. Browser-specific font/video rendering differences.
 
 A confirmed UI fix requires two screenshots or exact URLs from the browsers showing the different results, plus the browser names and approximate viewport sizes.
+
+## Latest repository verification
+
+On the same date, the repository test suite was executed with `node --test tests/*.test.js`:
+
+- **13 passed**
+- **0 failed**
+- JavaScript syntax validation passed for the application and API files.
+- The final `main` commit is deployed successfully on Vercel.
+- Authenticated cart data is synchronized through Supabase `cart_items`.
+- Authenticated customer orders are read through `store_order_requests` with the existing RLS policies.
