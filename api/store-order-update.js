@@ -1,4 +1,5 @@
 const { getContext, requireRoles } = require('./_auth');
+const { canStoreTransition } = require('./order-status');
 function reply(res, status, body) { res.status(status).setHeader('Content-Type', 'application/json').json(body); }
 const statuses = new Set(['store_confirmed','processing','shipped','delivered','store_rejected']);
 module.exports = async function storeOrderUpdate(req, res) {
@@ -8,11 +9,16 @@ module.exports = async function storeOrderUpdate(req, res) {
     if (context.error) return reply(res, context.status, { ok: false, error: context.error });
     const body = req.body && typeof req.body === 'object' ? req.body : {};
     if (!body.requestId || !statuses.has(body.status)) return reply(res, 400, { ok: false, error: 'requestId and valid status are required' });
+    const target = await fetch(`${context.supabaseUrl}/rest/v1/store_order_requests?select=id,store_id,tracking_number,status&id=eq.${encodeURIComponent(body.requestId)}&limit=1`, { headers: { apikey: context.serviceRoleKey, Authorization: `Bearer ${context.serviceRoleKey}` } }).then((r) => r.json());
+    if (!target[0]) return reply(res, 404, { ok: false, error: 'order_not_found' });
     if (context.profile.role !== 'platform_admin') {
       const accounts = await fetch(`${context.supabaseUrl}/rest/v1/store_accounts?select=store_id&user_id=eq.${context.user.id}&limit=20`, { headers: { apikey: context.serviceRoleKey, Authorization: `Bearer ${context.serviceRoleKey}` } }).then((r) => r.json());
       const allowed = (accounts || []).map((row) => row.store_id);
-      const target = await fetch(`${context.supabaseUrl}/rest/v1/store_order_requests?select=id,store_id,tracking_number&id=eq.${body.requestId}&limit=1`, { headers: { apikey: context.serviceRoleKey, Authorization: `Bearer ${context.serviceRoleKey}` } }).then((r) => r.json());
       if (!target[0] || !allowed.includes(target[0].store_id)) return reply(res, 403, { ok: false, error: 'store_access_denied' });
+      if (!canStoreTransition(target[0].status, body.status)) return reply(res, 409, { ok: false, error: 'invalid_status_transition', from: target[0].status, to: body.status });
+      if (body.shippingAmount != null || body.totalAmount != null) {
+        if (['shipped','delivered','completed'].includes(target[0].status)) return reply(res, 409, { ok: false, error: 'financial_update_locked' });
+      }
     }
     const patch = { status: body.status, updated_at: new Date().toISOString() };
     if (body.shippingAmount != null) patch.shipping_amount = Number(body.shippingAmount);
@@ -22,7 +28,7 @@ module.exports = async function storeOrderUpdate(req, res) {
     const updated = await response.json();
     if (!response.ok) return reply(res, 502, { ok: false, error: 'supabase_update_failed', details: updated });
     const request = updated[0];
-    await fetch(`${context.supabaseUrl}/rest/v1/store_order_notifications`, { method: 'POST', headers: { apikey: context.serviceRoleKey, Authorization: `Bearer ${context.serviceRoleKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ request_id: request.id, tracking_number: request.tracking_number, event_type: 'store_update', store_status: body.status, match_status: 'pending', payload: body }) });
+    await fetch(`${context.supabaseUrl}/rest/v1/store_order_notifications`, { method: 'POST', headers: { apikey: context.serviceRoleKey, Authorization: `Bearer ${context.serviceRoleKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ request_id: request.id, tracking_number: request.tracking_number, event_type: 'store_update', store_status: body.status, match_status: 'pending', payload: { ...body, source: context.profile.role } }) });
     reply(res, 200, { ok: true, order: request });
   } catch (_) { reply(res, 502, { ok: false, error: 'store_update_failed' }); }
 };
