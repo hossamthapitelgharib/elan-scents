@@ -11,7 +11,7 @@ module.exports = async function dashboardOrders(req, res) {
     }
     if (context.error) return reply(res, context.status, { ok: false, error: context.error });
     const query = req.query || {};
-    const params = new URLSearchParams({ select: '*,stores(name),store_order_request_items(*),store_order_notifications(*)', order: 'created_at.desc', limit: String(Math.min(Math.max(Number(query.limit) || 100, 1), 200)) });
+    const params = new URLSearchParams({ select: '*,stores(name),store_order_request_items(*),store_order_notifications(*),order_operation_events(*),order_reconciliation_checks(*)', order: 'created_at.desc', limit: String(Math.min(Math.max(Number(query.limit) || 100, 1), 200)) });
     if (query.status) params.set('status', `eq.${query.status}`);
     if (query.matchStatus) params.set('reconciliation_status', `eq.${query.matchStatus}`);
     if (query.storeId) params.set('store_id', `eq.${query.storeId}`);
