@@ -1,0 +1,12 @@
+/* Local, versioned font files: no browser-dependent third-party font fetch. */
+@font-face{font-family:'El Messiri';font-style:normal;font-weight:400;font-display:swap;src:url('/assets/fonts/el-messiri-400.ttf') format('truetype')}
+@font-face{font-family:'El Messiri';font-style:normal;font-weight:500;font-display:swap;src:url('/assets/fonts/el-messiri-500.ttf') format('truetype')}
+@font-face{font-family:'El Messiri';font-style:normal;font-weight:600;font-display:swap;src:url('/assets/fonts/el-messiri-600.ttf') format('truetype')}
+@font-face{font-family:'El Messiri';font-style:normal;font-weight:700;font-display:swap;src:url('/assets/fonts/el-messiri-700.ttf') format('truetype')}
+@font-face{font-family:'IBM Plex Sans Arabic';font-style:normal;font-weight:300;font-display:swap;src:url('/assets/fonts/ibm-plex-sans-arabic-300.ttf') format('truetype')}
+@font-face{font-family:'IBM Plex Sans Arabic';font-style:normal;font-weight:400;font-display:swap;src:url('/assets/fonts/ibm-plex-sans-arabic-400.ttf') format('truetype')}
+@font-face{font-family:'IBM Plex Sans Arabic';font-style:normal;font-weight:500;font-display:swap;src:url('/assets/fonts/ibm-plex-sans-arabic-500.ttf') format('truetype')}
+@font-face{font-family:'IBM Plex Sans Arabic';font-style:normal;font-weight:600;font-display:swap;src:url('/assets/fonts/ibm-plex-sans-arabic-600.ttf') format('truetype')}
+@font-face{font-family:'Playfair Display';font-style:normal;font-weight:500;font-display:swap;src:url('/assets/fonts/playfair-display-500.ttf') format('truetype')}
+@font-face{font-family:'Playfair Display';font-style:normal;font-weight:600;font-display:swap;src:url('/assets/fonts/playfair-display-600.ttf') format('truetype')}
+@font-face{font-family:'Playfair Display';font-style:normal;font-weight:700;font-display:swap;src:url('/assets/fonts/playfair-display-700.ttf') format('truetype')}
