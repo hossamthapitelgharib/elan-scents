@@ -44,6 +44,7 @@ function applyArtAndHero(){
   window.playHeroVideo=function(){
     var v=document.getElementById('heroVideo');
     if(!v)return;
+    if(v.__elanHeroVisible===false||document.hidden){v.pause();return;}
     v.muted=true;
     var p=v.play();
     if(p&&p.catch)p.catch(function(){});
@@ -90,6 +91,6 @@ function applyArtAndHero(){
   if(typeof render==='function'){try{render();}catch(e){}}
   watchSheet();
 }
-var CORE='/app-core.js?v=20261009-3';
+var CORE='/app-core.js?v=20261009-5';
 loadScript(CORE, applyArtAndHero);
 })();
