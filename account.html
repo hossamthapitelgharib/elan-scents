@@ -1,1 +1,54 @@
-<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>حسابي · Élan Scents</title><link rel="stylesheet" href="/portal.css"></head><body><header><div><small>Élan Scents</small><h1>لوحة العميل</h1></div><button id="logout" class="ghost" hidden>تسجيل الخروج</button></header><main><section id="login" class="panel"><h2>تسجيل الدخول</h2><p>سجّل الدخول لمتابعة طلباتك، ومكان كل سلة، واستعادة المنتجات الملغاة.</p><form id="loginForm"><input name="email" type="email" placeholder="البريد الإلكتروني" required><input name="password" type="password" placeholder="كلمة المرور" required><button class="primary">دخول</button></form><p id="message"></p></section><section id="app" hidden><div class="account-intro"><div><span class="eyebrow">متابعة مباشرة</span><h2>كل متجر في مساره، وكل منتج في مكانه</h2><p>تظهر هنا رحلة المنتجات من سلة Élan Scents إلى سلة المتجر ثم العودة أو إتمام الشراء.</p></div><span class="live-pill"><i></i>تحديث تلقائي</span></div><div id="stats" class="stats"></div><div id="orders" class="stack"></div></section></main><a id="cartShortcut" class="cart-shortcut" href="/"><span>سلة Élan Scents</span><b>0</b></a><script src="/portal.js"></script><script src="/account.js"></script></body></html>
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>طلباتي · Élan Scents</title>
+  <link rel="stylesheet" href="/portal.css">
+</head>
+<body>
+  <header>
+    <div><small>Élan Scents</small><h1>طلباتي</h1></div>
+    <button id="logout" class="ghost" hidden>تسجيل الخروج</button>
+  </header>
+  <main>
+    <section id="login" class="panel">
+      <h2>تسجيل الدخول</h2>
+      <p>تابع حالة طلباتك الحالية وارجع إلى طلباتك السابقة وقتما تريد.</p>
+      <form id="loginForm">
+        <input name="email" type="email" placeholder="البريد الإلكتروني" required>
+        <input name="password" type="password" placeholder="كلمة المرور" required>
+        <button class="primary">دخول</button>
+      </form>
+      <p id="message"></p>
+    </section>
+    <section id="app" hidden>
+      <div class="orders-welcome">
+        <div><span class="eyebrow">مساحة مختصرة</span><h2>كل طلباتك في مكان واحد</h2><p>الحالة الحالية أولًا، والطلبات السابقة عند الحاجة.</p></div>
+        <span class="orders-count" id="ordersCount"></span>
+      </div>
+      <div id="stats" class="stats orders-stats"></div>
+      <section class="orders-section" aria-labelledby="activeTitle">
+        <div class="section-heading"><h2 id="activeTitle">طلباتك الحالية</h2><span>تحتاج متابعة أو لم تُستلم بعد</span></div>
+        <div id="activeOrders" class="compact-orders"></div>
+      </section>
+      <section class="orders-section" aria-labelledby="recentTitle">
+        <div class="section-heading"><h2 id="recentTitle">آخر الطلبات المكتملة</h2><span>آخر 5 طلبات</span></div>
+        <div id="recentOrders" class="compact-orders"></div>
+      </section>
+      <section class="orders-archive" aria-labelledby="archiveTitle">
+        <div class="section-heading"><h2 id="archiveTitle">البحث في الطلبات السابقة</h2><span>لا تُحذف الطلبات القديمة</span></div>
+        <form id="archiveForm" class="archive-form">
+          <input id="archiveSearch" type="search" placeholder="رقم التتبع">
+          <select id="archiveYear"><option value="">كل السنوات</option></select>
+          <button class="ghost" type="submit">بحث</button>
+        </form>
+        <div id="archiveOrders" class="compact-orders" hidden></div>
+      </section>
+    </section>
+  </main>
+  <a id="cartShortcut" class="cart-shortcut" href="/"><span>سلة Élan Scents</span><b>0</b></a>
+  <script src="/portal.js"></script>
+  <script src="/account.js"></script>
+</body>
+</html>
