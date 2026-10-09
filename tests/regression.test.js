@@ -32,6 +32,17 @@ test('main menu routes طلباتي to the customer dashboard', () => {
   assert.match(account, /id="archiveForm"/);
 });
 
+test('frontend order persistence uses the authenticated Supabase identity', () => {
+  const core = fs.readFileSync(path.join(root, 'app-core.js'), 'utf8');
+  const migration = fs.readFileSync(path.join(root, 'supabase/migrations/20261010021000_harden_order_user_binding.sql'), 'utf8');
+  assert.match(core, /function authUserId\(\)\{return AUTH&&AUTH\.user&&AUTH\.user\.id\|\|''\}/);
+  assert.match(core, /Authorization:'Bearer '\+\(AUTH&&AUTH\.access_token\|\|SB\.key\)/);
+  assert.match(core, /\/rpc\/create_checkout_session/);
+  assert.match(core, /\/rpc\/create_store_order_request/);
+  assert.match(migration, /v_user uuid := auth\.uid\(\)/);
+  assert.match(migration, /c\.id = v_checkout_session_id and c\.user_id = v_user_id/);
+});
+
 test('create-store-order validates login and splits one checkout across stores', async () => {
   const handler = lib('create-store-order');
   const calls = [];
