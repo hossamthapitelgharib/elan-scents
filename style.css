@@ -3,7 +3,7 @@
    Imports base theme then applies current desired overrides.
    Frontend display only. Do not add backend/DB rules here.
    ============================================================ */
-@import url('/style-3.css?v=20261009-5');
+@import url('/style-3.css?v=20261009-8');
 
 /* ---------- Menu: slightly narrower panel + slightly larger items ---------- */
 #menu {
@@ -545,3 +545,12 @@ button,a,input,select,textarea{-webkit-tap-highlight-color:transparent}
 /* Keep hero playback control present in every browser; the poster remains visible if autoplay is blocked. */
 #heroPlay{position:absolute;z-index:3;right:18px;bottom:calc(18px + env(safe-area-inset-bottom,0px));width:42px;height:42px;border:1px solid rgba(255,255,255,.72);border-radius:50%;background:rgba(20,12,4,.48);color:#fff;font:700 16px/1 Arial,sans-serif;display:grid;place-items:center;cursor:pointer;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
 #heroPlay:focus-visible{outline:2px solid #fff;outline-offset:3px}
+
+
+.guest-consent{position:fixed;z-index:10000;left:16px;right:16px;bottom:16px;max-width:900px;margin:0 auto;padding:18px 20px;border:1px solid #d7c3a1;border-radius:14px;background:#fffdf8;color:#272019;box-shadow:0 12px 40px rgba(35,24,10,.24);font:400 14px/1.65 'IBM Plex Sans Arabic','Segoe UI',Tahoma,Arial,sans-serif;direction:rtl}
+.guest-consent-copy strong{display:block;font:600 18px/1.4 'El Messiri','IBM Plex Sans Arabic',sans-serif;color:#76531c}
+.guest-consent-copy p{margin:7px 0 14px}
+.guest-consent-actions{display:flex;gap:10px;flex-wrap:wrap}
+.guest-consent-actions button{min-height:42px;padding:8px 16px;border:1px solid #8b672d;border-radius:8px;background:#8b672d;color:#fff;font:500 14px 'IBM Plex Sans Arabic','Segoe UI',sans-serif;cursor:pointer}
+.guest-consent-actions button[data-guest-consent="no"]{background:#fff;color:#4a4032;border-color:#b7aa96}
+@media(max-width:520px){.guest-consent{left:9px;right:9px;bottom:9px;padding:14px}.guest-consent-actions{flex-direction:column}.guest-consent-actions button{width:100%}}

@@ -11,7 +11,7 @@
       ]
     },
     {
-      "source": "/(index.html|account.html|dashboard.html|store-dashboard.html|platform-dashboard.html|style.css|style-3.css|fonts.css|portal.css|dashboard.css|app.js|app-core.js|texts.js|portal.js|account.js|dashboard.js|store-dashboard.js|platform-dashboard.js|manus-routes.json)",
+      "source": "/(index.html|account.html|dashboard.html|store-dashboard.html|platform-dashboard.html|style.css|style-3.css|fonts.css|portal.css|dashboard.css|app.js|app-core.js|guest-identity.js|texts.js|portal.js|account.js|dashboard.js|store-dashboard.js|platform-dashboard.js|manus-routes.json)",
       "headers": [
         { "key": "Cache-Control", "value": "no-store, max-age=0, must-revalidate" }
       ]
