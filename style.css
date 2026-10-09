@@ -526,3 +526,19 @@ body.sheet-open {
     aspect-ratio: 4 / 3 !important;
   }
 }
+
+/* Cross-browser consistency layer */
+html{min-width:320px;scrollbar-gutter:stable}
+body,button,input,select,textarea{font-family:'IBM Plex Sans Arabic','Segoe UI',Tahoma,Arial,sans-serif}
+button,input,select,textarea{font-size:inherit;line-height:1.35;-webkit-appearance:none;appearance:none}
+button{font-weight:inherit;text-align:center}
+input,select,textarea{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+img,svg{max-width:100%;height:auto}img{display:block}
+button,a,input,select,textarea{-webkit-tap-highlight-color:transparent}
+:focus-visible{outline:2px solid #c8962a;outline-offset:2px}
+#hero{height:calc(var(--app-vh,1vh) * 100)}
+@supports (height:100svh){#hero{height:100svh}}
+@supports not (backdrop-filter:blur(1px)){header,#sheet{background:rgba(255,255,255,.96)!important}}
+@supports not (scrollbar-gutter:stable){html{overflow-y:scroll}}
+.orders-list{display:grid;gap:8px}.order-card{display:grid;grid-template-columns:1fr auto;gap:3px 10px;padding:12px;border:1px solid #e6d9b6;border-radius:12px;background:#fffdf8}.order-card div{display:grid;gap:2px}.order-card small{color:var(--gray);font-size:11px}.order-status{color:var(--gold3);font-size:11px;font-weight:600;align-self:center}
+@media(max-width:680px){.grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.grid .card{min-width:0}}
