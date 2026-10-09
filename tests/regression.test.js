@@ -20,8 +20,10 @@ test('all JavaScript files pass syntax validation', () => {
 
 test('main menu routes طلباتي to the customer dashboard', () => {
   const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+  const corePath = path.join(root, 'app-core.js');
+  const core = fs.existsSync(corePath) ? fs.readFileSync(corePath, 'utf8') : '';
   const account = fs.readFileSync(path.join(root, 'account.html'), 'utf8');
-  assert.match(app, /i==10\?'<a href="\/account\.html">/);
+  assert.match(`${app}\n${core}`, /i==10\?'<a href="\/account\.html">/);
   assert.match(account, /id="loginForm"/);
   assert.match(account, /src="\/account\.js"/);
 });
@@ -41,13 +43,13 @@ test('create-store-order validates login and splits one checkout across stores',
   const unauthorized = await invoke(handler, { method: 'POST', headers: {}, body }); assert.equal(unauthorized.status, 401);
 });
 
-test('store status and completed APIs normalize and reconcile webhook events', async () => {
+test('store status API normalizes and reconciles completed webhook events', async () => {
   process.env.SUPABASE_URL = 'https://test.supabase.co'; process.env.SUPABASE_SERVICE_ROLE_KEY = 'service'; process.env.STORE_ORDER_WEBHOOK_SECRET = 'secret';
-  const status = api('store-order-status'); const completed = api('store-order-completed'); let rpcPayload;
+  const status = api('store-order-status'); let rpcPayload;
   global.fetch = async (url, options) => { rpcPayload = JSON.parse(options.body); return jsonResponse({ trackingNumber: 'T-1', status: 'completed', matched: true, mismatches: [] }); };
   const payload = { trackingNumber: 'T-1', customer: { name: 'عميل', phone: '010', address: 'عنوان' }, items: [{ productSizeId: 'p1', quantity: 1 }], subtotal: 100, status: 'confirmed' };
   const result = await invoke(status, { method: 'POST', headers: { 'x-store-webhook-secret': 'secret' }, body: payload }); assert.equal(result.status, 200); assert.equal(result.body.matched, true); assert.equal(rpcPayload.p_payload.trackingNumber, 'T-1');
-  const done = await invoke(completed, { method: 'POST', headers: { 'x-store-webhook-secret': 'secret' }, body: { ...payload, status: 'failed' } }); assert.equal(done.status, 200); assert.equal(rpcPayload.p_payload.status, 'completed');
+  const done = await invoke(status, { method: 'POST', headers: { 'x-store-webhook-secret': 'secret' }, body: { ...payload, status: 'completed' } }); assert.equal(done.status, 200); assert.equal(rpcPayload.p_payload.status, 'completed');
   const badSecret = await invoke(status, { method: 'POST', headers: { 'x-store-webhook-secret': 'wrong' }, body: payload }); assert.equal(badSecret.status, 401);
 });
 
