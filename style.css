@@ -3,7 +3,7 @@
    Imports base theme then applies current desired overrides.
    Frontend display only. Do not add backend/DB rules here.
    ============================================================ */
-@import url('/style-3.css?v=20261009-10');
+@import url('/style-3.css?v=20261009-11');
 
 /* ---------- Menu: slightly narrower panel + slightly larger items ---------- */
 #menu {
@@ -545,3 +545,19 @@ button,a,input,select,textarea{-webkit-tap-highlight-color:transparent}
 /* Keep hero playback control present in every browser; the poster remains visible if autoplay is blocked. */
 #heroPlay{position:absolute;z-index:3;right:18px;bottom:calc(18px + env(safe-area-inset-bottom,0px));width:42px;height:42px;border:1px solid rgba(255,255,255,.72);border-radius:50%;background:rgba(20,12,4,.48);color:#fff;font:700 16px/1 Arial,sans-serif;display:grid;place-items:center;cursor:pointer;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
 #heroPlay:focus-visible{outline:2px solid #fff;outline-offset:3px}
+
+/* Hero play button hides itself once playback starts (the [hidden] attribute must beat display:grid above). */
+#heroPlay[hidden]{display:none!important}
+
+/* Cross-browser normalisation: identical text sizing, font smoothing and positioning in every engine. */
+html{-webkit-text-size-adjust:100%;-moz-text-size-adjust:100%;text-size-adjust:100%}
+body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility}
+/* Physical fallbacks for logical/inset properties (older Safari, Samsung Internet and Android WebView ignore them). */
+#bar,header{left:0;right:0}
+#mov,#sheet,#hero video,#heroVideo,#hero .hero-overlay,#hero .slot,.card .artbg,.card.art:after{top:0;right:0;bottom:0;left:0}
+[dir=rtl] #menu{right:0;left:auto}
+[dir=ltr] #menu{left:0;right:auto}
+[dir=rtl] .mx{left:14px;right:auto}
+[dir=ltr] .mx{right:14px;left:auto}
+[dir=rtl] #bar div{padding-right:100%}
+[dir=ltr] #bar div{padding-left:100%}
