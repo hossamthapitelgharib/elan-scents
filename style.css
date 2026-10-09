@@ -3,7 +3,7 @@
    Imports base theme then applies current desired overrides.
    Frontend display only. Do not add backend/DB rules here.
    ============================================================ */
-@import url('/style-3.css?v=20261009-1');
+@import url('/style-3.css?v=20261009-2');
 
 /* ---------- Menu: slightly narrower panel + slightly larger items ---------- */
 #menu {
