@@ -90,6 +90,6 @@ function applyArtAndHero(){
   if(typeof render==='function'){try{render();}catch(e){}}
   watchSheet();
 }
-var CORE='https://cdn.jsdelivr.net/gh/hossamthapitelgharib/elan-scents@38fe8eec291e99dfc3797593ae281b451abe39d4/app.js';
+var CORE='/app-core.js?v=20261009-1';
 loadScript(CORE, applyArtAndHero);
 })();
