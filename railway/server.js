@@ -86,6 +86,7 @@ function readBody(req, limit) {
 }
 
 function loadHandler(name) {
+  if (name === 'editor') return require('./editor.js');
   if (!/^[a-z0-9][a-z0-9-]*$/i.test(name)) return null;
   const file = path.join(ROOT, 'api', name + '.js');
   if (!fs.existsSync(file)) return null;

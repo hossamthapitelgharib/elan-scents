@@ -20,7 +20,7 @@
       ]
     },
     {
-      "source": "/(index.html|account.html|dashboard.html|store-dashboard.html|platform-dashboard.html|style.css|style-3.css|fonts.css|portal.css|dashboard.css|app.js|app-core.js|guest-identity.js|texts.js|portal.js|account.js|dashboard.js|store-dashboard.js|platform-dashboard.js|manus-routes.json)",
+      "source": "/(index.html|account.html|dashboard.html|store-dashboard.html|platform-dashboard.html|style.css|style-3.css|fonts.css|portal.css|dashboard.css|app.js|app-core.js|guest-identity.js|texts.js|portal.js|account.js|dashboard.js|store-dashboard.js|platform-dashboard.js|manus-routes.json|design-schema.js|design-layer.js)",
       "headers": [
         {
           "key": "Cache-Control",
@@ -60,6 +60,15 @@
         {
           "key": "Cache-Control",
           "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/design/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, max-age=0, must-revalidate"
         }
       ]
     }
