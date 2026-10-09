@@ -26,7 +26,7 @@ test('visitor fingerprint is automatic with no approval prompt, and guest carts 
   const core = fs.readFileSync(path.join(__dirname, '..', 'app-core.js'), 'utf8');
   const initialMigration = fs.readFileSync(path.join(__dirname, '..', 'supabase/migrations/20261009052500_guest_visitors.sql'), 'utf8');
   const migration = fs.readFileSync(path.join(__dirname, '..', 'supabase/migrations/20261009053600_auto_guest_capture.sql'), 'utf8');
-  assert.match(html, /guest-identity\.js\?v=20261009-10/);
+  assert.match(html, /guest-identity\.js\?v=20261009-11/);
   assert.match(identity, /setTimeout\(function \(\) \{ resolve\(\)/);
   assert.doesNotMatch(identity, /guest-consent|CONSENT_KEY|data-guest-consent/);
   assert.match(core, /GuestIdentity\.claim/);
@@ -58,6 +58,6 @@ test('customer account page loads automatic guest identity before account login 
   const fs = require('node:fs');
   const html = fs.readFileSync(path.join(__dirname, '..', 'account.html'), 'utf8');
   const account = fs.readFileSync(path.join(__dirname, '..', 'account.js'), 'utf8');
-  assert.match(html, /guest-identity\.js\?v=20261009-10/);
+  assert.match(html, /guest-identity\.js\?v=20261009-11/);
   assert.match(account, /GuestIdentity\.claim/);
 });
