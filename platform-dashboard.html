@@ -1,2 +1,39 @@
-<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>لوحة Élan Scents</title><link rel="stylesheet" href="/fonts.css?v=20261009-8">
-<link rel="stylesheet" href="/portal.css?v=20261009-8"></head><body><header><div><small>Élan Scents · Platform</small><h1>لوحة المنصة</h1></div><button id="logout" class="ghost" hidden>تسجيل الخروج</button></header><main><section id="login" class="panel"><h2>دخول إدارة المنصة</h2><form id="loginForm"><input name="email" type="email" placeholder="البريد الإلكتروني" required><input name="password" type="password" placeholder="كلمة المرور" required><button class="primary">دخول</button></form><p id="message"></p></section><section id="app" hidden><div id="stats" class="stats"></div><div id="orders" class="stack"></div></section></main><script src="/portal.js?v=20261009-8"></script><script src="/platform-dashboard.js?v=20261009-8"></script></body></html>
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>لوحة Élan Scents</title>
+  <link rel="stylesheet" href="/fonts.css?v=20261009-10">
+  <link rel="stylesheet" href="/portal.css?v=20261009-10">
+</head>
+<body>
+  <header>
+    <div><small>Élan Scents · Platform</small><h1>لوحة المنصة</h1></div>
+    <button id="logout" class="ghost" hidden>تسجيل الخروج</button>
+  </header>
+  <main>
+    <section id="login" class="panel">
+      <h2>دخول إدارة المنصة</h2>
+      <form id="loginForm"><input name="email" type="email" placeholder="البريد الإلكتروني" required><input name="password" type="password" placeholder="كلمة المرور" required><button class="primary">دخول</button></form>
+      <p id="message"></p>
+    </section>
+    <section id="app" hidden>
+      <div id="stats" class="stats"></div>
+      <p id="platformError" class="platform-error" hidden></p>
+      <section class="panel customer-management" aria-labelledby="customersTitle">
+        <div class="customer-heading"><div><small>Customers</small><h2 id="customersTitle">إدارة العملاء</h2></div><button id="refreshCustomers" class="ghost" type="button">تحديث</button></div>
+        <div id="customerTabs" class="customer-tabs" role="tablist" aria-label="أقسام العملاء">
+          <button id="registeredTab" type="button" role="tab" aria-selected="true" aria-controls="registeredCustomers" data-customer-tab="registered">العملاء المسجلون <b id="registeredCount">0</b></button>
+          <button id="visitorsTab" type="button" role="tab" aria-selected="false" aria-controls="guestCustomers" data-customer-tab="visitors">العملاء الزوار <b id="visitorCount">0</b></button>
+        </div>
+        <div id="registeredCustomers" class="customer-list" role="tabpanel" aria-labelledby="registeredTab"></div>
+        <div id="guestCustomers" class="customer-list" role="tabpanel" aria-labelledby="visitorsTab" hidden></div>
+      </section>
+      <section aria-labelledby="ordersTitle"><h2 id="ordersTitle">طلبات المتاجر</h2><div id="orders" class="stack"></div></section>
+    </section>
+  </main>
+  <script src="/portal.js?v=20261009-10"></script>
+  <script src="/platform-dashboard.js?v=20261009-10"></script>
+</body>
+</html>

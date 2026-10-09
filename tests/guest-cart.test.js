@@ -16,28 +16,29 @@ test('guest cart API uses server-side HMAC and creates/returns only a guest cart
   const res = recorder(); await handler({ method: 'POST', headers: {}, body: { action: 'resolve', fingerprint: { platform: 'x', language: 'ar', screenWidth: 1440, screenHeight: 900 } } }, res);
   assert.equal(res.out.status, 200); assert.equal(res.out.body.visitorId, uuid); assert.equal(res.out.body.cart[0].q, 2);
   assert.match(calls[0].url, /guest_visitors\?on_conflict=fingerprint_hash/); assert.match(calls[0].options.headers.Prefer, /resolution=merge-duplicates/);
-  assert.equal(JSON.stringify(calls[0].options.body).includes('1440'), false);
+  assert.equal(String(calls[0].options.body).includes('1440'), false);
 });
 
-
-test('visitor consent is explicit and guest carts are claimed after login', () => {
-  const html = require('node:fs').readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
-  const identity = require('node:fs').readFileSync(path.join(__dirname, '..', 'guest-identity.js'), 'utf8');
-  const core = require('node:fs').readFileSync(path.join(__dirname, '..', 'app-core.js'), 'utf8');
-  const migration = require('node:fs').readFileSync(path.join(__dirname, '..', 'supabase/migrations/20261009052500_guest_visitors.sql'), 'utf8');
-  assert.match(html, /guest-identity\.js\?v=20261009-8/);
-  assert.match(identity, /المتابعة على هذا المتصفح فقط/);
+test('visitor fingerprint is automatic with no approval prompt, and guest carts are claimed after login', () => {
+  const fs = require('node:fs');
+  const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  const identity = fs.readFileSync(path.join(__dirname, '..', 'guest-identity.js'), 'utf8');
+  const core = fs.readFileSync(path.join(__dirname, '..', 'app-core.js'), 'utf8');
+  const initialMigration = fs.readFileSync(path.join(__dirname, '..', 'supabase/migrations/20261009052500_guest_visitors.sql'), 'utf8');
+  const migration = fs.readFileSync(path.join(__dirname, '..', 'supabase/migrations/20261009053600_auto_guest_capture.sql'), 'utf8');
+  assert.match(html, /guest-identity\.js\?v=20261009-10/);
+  assert.match(identity, /setTimeout\(function \(\) \{ resolve\(\)/);
+  assert.doesNotMatch(identity, /guest-consent|CONSENT_KEY|data-guest-consent/);
   assert.match(core, /GuestIdentity\.claim/);
-  assert.match(migration, /enable row level security/);
-  assert.match(migration, /guest_visitors_platform_admin_read/);
+  assert.match(initialMigration, /enable row level security/);
+  assert.match(initialMigration, /guest_visitors_platform_admin_read/);
+  assert.match(migration, /rename column consent_at to captured_at/i);
 });
 
-
-test('guest cart claim transfers items to the logged-in user and anonymizes the visitor record', async () => {
+test('guest cart claim transfers items to the logged-in user and moves visitor out of the guest section', async () => {
   const userId = '45a6e52c-46c6-42e9-a730-9e5bec3dd201';
-  const calls = []; let inserted; let marked;
+  let inserted; let marked;
   global.fetch = async (url, options = {}) => {
-    calls.push({ url, options });
     if (url.endsWith('/auth/v1/user')) return new Response(JSON.stringify({ id: userId }), { status: 200 });
     if (url.includes('/rest/v1/guest_visitors?select=')) return new Response(JSON.stringify([{ id: uuid, status: 'guest', converted_user_id: null, cart_snapshot: [{ sid: uuid, storeProductId: uuid, q: 3 }] }]), { status: 200 });
     if (url.includes('/rest/v1/cart_items?select=')) return new Response('[]', { status: 200 });
@@ -50,5 +51,13 @@ test('guest cart claim transfers items to the logged-in user and anonymizes the 
   assert.equal(res.out.status, 200); assert.equal(res.out.body.claimed, true);
   assert.equal(inserted.user_id, userId); assert.equal(inserted.store_product_id, uuid); assert.equal(inserted.quantity, 3);
   assert.equal(marked.status, 'converted'); assert.equal(marked.fingerprint_hash, null); assert.deepEqual(marked.cart_snapshot, []);
-  assert.ok(calls.every(call => !String(call.options.headers?.apikey || '').includes('unit-test-server-secret') || call.options.headers.apikey === 'unit-test-server-secret'));
+});
+
+
+test('customer account page loads automatic guest identity before account login logic', () => {
+  const fs = require('node:fs');
+  const html = fs.readFileSync(path.join(__dirname, '..', 'account.html'), 'utf8');
+  const account = fs.readFileSync(path.join(__dirname, '..', 'account.js'), 'utf8');
+  assert.match(html, /guest-identity\.js\?v=20261009-10/);
+  assert.match(account, /GuestIdentity\.claim/);
 });
