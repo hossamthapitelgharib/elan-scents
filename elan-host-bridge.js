@@ -2,7 +2,7 @@
    Backend integration, permissions, layout persistence and rendering must be implemented by the host app. */
 (function(){'use strict';
 const protocol='elan-editor-bridge/v1';
-const allowedActions=new Set(['page.getState','element.select','element.move','element.resize','element.format','element.setText','element.setMedia','element.create','element.duplicate','element.archive','archive.restore','library.open','ui.openCreatePanel','ui.openFormatPanel','ui.openMediaPanel','history.undo','history.redo','page.save','page.markSaved']);
+const allowedActions=new Set(['page.getState','element.select','element.move','element.resize','element.format','element.setText','element.setMedia','element.create','element.duplicate','element.archive','archive.restore','library.open','ui.openCreatePanel','ui.openFormatPanel','ui.openMediaPanel','history.undo','history.redo','page.save']);
 window.ElanHostBridge={install(options){if(!Array.isArray(options.allowedEditorOrigins)||!options.allowedEditorOrigins.length||options.allowedEditorOrigins.some(x=>x==='*'))throw Error('Explicit editor origins required');if(typeof options.authorize!=='function'||typeof options.execute!=='function'||typeof options.getState!=='function')throw Error('authorize, execute and getState implementations required');let session=null;let processing=Promise.resolve();const origins=new Set(options.allowedEditorOrigins.map(x=>new URL(x).origin));
 function send(type,payload){if(session)session.source.postMessage({protocol,type,session:session.id,...payload},session.origin);}
 async function receive(e){const m=e.data;if(!m||m.protocol!==protocol||!origins.has(e.origin)||e.source!==window.parent||window.parent===window)return;

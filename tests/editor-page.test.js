@@ -5,25 +5,40 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
 
-test('editor page is private, never remembers the login, and is served without caching', () => {
+test('editor page is the approved editor, locked behind login, never remembers the session', () => {
   const html = read('editor.html');
-  const js = read('editor.js');
+  const login = read('editor-login.js');
   assert.match(html, /noindex/);
-  assert.match(html, /src="\/editor\.js\?v=/);
-  assert.doesNotMatch(js, /localStorage|sessionStorage|document\.cookie/);
-  assert.doesNotMatch(js, /innerHTML/);
-  const cfg = JSON.parse(read('vercel.json'));
-  assert.ok(cfg.rewrites.some((r) => r.source === '/editor' && r.destination === '/editor.html'));
-  assert.ok(cfg.headers.some((h) => /editor\.html/.test(h.source) && /editor\.js/.test(h.source)));
+  assert.match(html, /elan-editor-bridge\/v1/);
+  assert.match(html, /address\.value=location\.origin/);
+  assert.match(html, /id="elan-gate"/);
+  assert.match(html, /src="\/editor-login\.js\?v=/);
+  assert.doesNotMatch(login, /localStorage|sessionStorage|document\.cookie/);
+  assert.doesNotMatch(html, /elan-scents\.vercel\.app/);
 });
 
-test('editor page only edits what the design schema allows', () => {
-  const ED = require('../design-schema.js');
-  const js = read('editor.js');
-  for (const id of ED.BUILTIN) assert.match(js, new RegExp('\\b' + id + '\\b'));
-  for (const k of ED.TEXT_KEYS) assert.match(js, new RegExp(k));
-  assert.match(js, /expectedRevision/);
-  assert.match(js, /requestId/);
+test('edit mode loads only for the editor and never for customers', () => {
+  const boot = read('edit-boot.js');
+  const index = read('index.html');
+  assert.match(boot, /elan_editor/);
+  assert.match(boot, /window\.parent === window/);
+  assert.match(index, /edit-boot\.js\?v=/);
+  assert.doesNotMatch(index, /edit-host\.js|edit-model\.js|elan-host-bridge\.js/);
+});
+
+test('edit host uses the bridge with same-origin only and confirms saves from the server', () => {
+  const host = read('edit-host.js');
+  assert.match(host, /allowedEditorOrigins: \[location\.origin\]/);
+  assert.doesNotMatch(host, /allowedEditorOrigins:\s*\[\s*'\*'/);
+  assert.match(host, /expectedRevision/);
+  assert.match(host, /published/);
+  assert.doesNotMatch(host, /localStorage|innerHTML/);
+});
+
+test('every no-store header covers the editor files', () => {
+  const cfg = JSON.parse(read('vercel.json'));
+  const src = cfg.headers.map((h) => h.source).join(' ');
+  for (const f of ['editor.html', 'editor-login.js', 'edit-boot.js', 'edit-host.js', 'edit-model.js', 'elan-host-bridge.js']) assert.ok(src.includes(f), f);
 });
 
 test('railway host serves /editor through the rewrite', async () => {
@@ -34,6 +49,6 @@ test('railway host serves /editor through the rewrite', async () => {
     assert.equal(res.status, 200);
     assert.match(res.headers.get('content-type'), /text\/html/);
     assert.match(res.headers.get('cache-control'), /no-store/);
-    assert.match(await res.text(), /إيلان إديتور/);
+    assert.match(await res.text(), /elan-gate/);
   } finally { server.close(); }
 });

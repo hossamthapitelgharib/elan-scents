@@ -24,7 +24,7 @@
       ]
     },
     {
-      "source": "/(index.html|account.html|dashboard.html|store-dashboard.html|platform-dashboard.html|style.css|style-3.css|fonts.css|portal.css|dashboard.css|app.js|app-core.js|guest-identity.js|texts.js|portal.js|account.js|dashboard.js|store-dashboard.js|platform-dashboard.js|manus-routes.json|design-schema.js|design-layer.js|edit-mode.js|elan-host-bridge.js|editor.html|editor.js)",
+      "source": "/(index.html|account.html|dashboard.html|store-dashboard.html|platform-dashboard.html|style.css|style-3.css|fonts.css|portal.css|dashboard.css|app.js|app-core.js|guest-identity.js|texts.js|portal.js|account.js|dashboard.js|store-dashboard.js|platform-dashboard.js|manus-routes.json|design-schema.js|design-layer.js|editor.html|editor-login.js|edit-boot.js|edit-host.js|edit-model.js|elan-host-bridge.js)",
       "headers": [
         {
           "key": "Cache-Control",
