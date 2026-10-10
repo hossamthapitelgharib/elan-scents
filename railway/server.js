@@ -21,7 +21,7 @@ const MIME = {
 };
 
 // Never serve server-side or repo-internal files.
-const BLOCKED_TOP = new Set(['api', 'tests', 'supabase', 'railway', 'editor', 'node_modules', 'src', '.github', '.git']);
+const BLOCKED_TOP = new Set(['api', 'lib', 'reports', 'scripts', 'tests', 'supabase', 'railway', 'editor', 'node_modules', 'src', '.github', '.git']);
 const BLOCKED_FILES = new Set(['package.json', 'package-lock.json', 'vercel.json', 'claude.md', 'readme.md']);
 
 function compile(rules, key) {
