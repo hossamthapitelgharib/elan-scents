@@ -31,12 +31,6 @@ test('edit host uses the bridge with same-origin only and confirms saves from th
   assert.match(host, /allowedEditorOrigins: \[location\.origin\]/);
   assert.doesNotMatch(host, /allowedEditorOrigins:\s*\[\s*'\*'/);
   assert.match(host, /expectedRevision/);
-  assert.match(host, /site-media/);
-  assert.match(host, /device_upload/);
-  assert.match(host, /is_approved: true/);
-  for (const t of ['brands', 'stores', 'occasions', 'aromatic_notes']) assert.match(host, new RegExp("table: '" + t + "'"));
-  assert.match(host, /normName/);
-  assert.match(host, /insertRecord\(pending\[pi\]\)/);
   assert.match(host, /published/);
   assert.doesNotMatch(host, /localStorage|innerHTML/);
 });

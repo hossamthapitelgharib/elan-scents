@@ -22,7 +22,7 @@
     var base = ED.normalize(initial || {}, { strict: false }).design;
     var cur = clone(base);
     cur.order = seqOf(cur);
-    var past = [], future = [], archived = [], page = 'home';
+    var past = [], future = [], archived = [];
 
     function seqOf(d) {
       var all = ED.BUILTIN.concat((d.blocks || []).map(function (b) { return b.id; })), out = [];
@@ -31,46 +31,15 @@
       return out;
     }
     function isBuiltin(id) { return ED.BUILTIN.indexOf(id) !== -1; }
-    function block(id) {
-      var b = (cur.blocks || []).filter(function (x) { return x.id === id; })[0];
-      if (b) return b;
-      var pg = cur.pages || {}, keys = Object.keys(pg);
-      for (var i = 0; i < keys.length; i++) { var f = pg[keys[i]].blocks.filter(function (x) { return x.id === id; })[0]; if (f) return f; }
-      return null;
-    }
-    function pageOf(id) {
-      var pg = cur.pages || {}, keys = Object.keys(pg);
-      for (var i = 0; i < keys.length; i++) if (pg[keys[i]].blocks.some(function (x) { return x.id === id; })) return keys[i];
-      return null;
-    }
-    function displayOrder(key) {           // what the visitor sees: top blocks first, then bottom ones
-      var l = (cur.pages && cur.pages[key] && cur.pages[key].blocks) || [];
-      return l.filter(function (b) { return b.slot !== 'bottom'; }).concat(l.filter(function (b) { return b.slot === 'bottom'; })).map(function (b) { return b.id; });
-    }
-    function pageList(key) { cur.pages = cur.pages || {}; cur.pages[key] = cur.pages[key] || { blocks: [] }; return cur.pages[key].blocks; }
-    function reorderPage(key, ids) {
-      var l = pageList(key), by = {}; l.forEach(function (b) { by[b.id] = b; });
-      cur.pages[key].blocks = ids.map(function (id) { return by[id]; });
-    }
-    function addBlock(b, afterId) {
-      if (page === 'home') { cur.blocks = (cur.blocks || []).concat([b]); place(b.id, afterId); return; }
-      pageList(page).push(b);
-      var ids = displayOrder(page).filter(function (x) { return x !== b.id; }), at = afterId ? ids.indexOf(afterId) : -1;
-      ids.splice(at < 0 ? ids.length : at + 1, 0, b.id); reorderPage(page, ids);
-    }
+    function block(id) { return (cur.blocks || []).filter(function (b) { return b.id === id; })[0]; }
     function commit(mutator) {
       var before = clone(cur);
       mutator();
       cur.order = seqOf(cur);
-      if (cur.pages) { Object.keys(cur.pages).forEach(function (k) { if (!cur.pages[k].blocks.length) delete cur.pages[k]; }); if (!Object.keys(cur.pages).length) delete cur.pages; }
       if (same(before, cur)) return false;
       past.push(before); if (past.length > LIMIT) past.shift();
       future = [];
       return true;
-    }
-    function place(id, afterId) {
-      var s = seqOf(cur).filter(function (x) { return x !== id; }), at = afterId ? s.indexOf(afterId) : -1;
-      s.splice(at < 0 ? s.length : at + 1, 0, id); cur.order = s;
     }
     function section(id) { cur.sections = cur.sections || {}; cur.sections[id] = cur.sections[id] || {}; return cur.sections[id]; }
     function tidy(id) {
@@ -81,10 +50,7 @@
 
     return {
       design: function () { return clone(cur); },
-      sequence: function () { return page === 'home' ? seqOf(cur).slice() : displayOrder(page); },
-      setPage: function (key) { page = key || 'home'; },
-      page: function () { return page; },
-      pageOf: function (id) { return pageOf(id); },
+      sequence: function () { return seqOf(cur).slice(); },
       kind: function (id) { return isBuiltin(id) ? 'section' : (block(id) ? block(id).type : null); },
       info: function (id) { var k = this.kind(id); return k ? { id: id, type: k, name: id } : null; },
       dirty: function () { return !same(Object.assign({}, cur, { order: seqOf(cur) }), Object.assign({}, base, { order: seqOf(base) })); },
@@ -94,16 +60,12 @@
 
       move: function (id, step) {           // one step up (-1) or down (+1)
         return commit(function () {
-          var pk = pageOf(id);
-          if (pk) { var ids = displayOrder(pk), i0 = ids.indexOf(id), j0 = Math.max(0, Math.min(ids.length - 1, i0 + (step < 0 ? -1 : 1))); ids.splice(i0, 1); ids.splice(j0, 0, id); reorderPage(pk, ids); return; }
           var s = seqOf(cur), i = s.indexOf(id); if (i < 0) throw Error('عنصر غير موجود');
           var j = Math.max(0, Math.min(s.length - 1, i + (step < 0 ? -1 : 1))); s.splice(i, 1); s.splice(j, 0, id); cur.order = s;
         });
       },
       moveTo: function (id, index) {
         return commit(function () {
-          var pk = pageOf(id);
-          if (pk) { var ids = displayOrder(pk).filter(function (x) { return x !== id; }); ids.splice(Math.max(0, Math.min(ids.length, index)), 0, id); reorderPage(pk, ids); return; }
           var s = seqOf(cur), i = s.indexOf(id); if (i < 0) throw Error('عنصر غير موجود');
           s.splice(i, 1); s.splice(Math.max(0, Math.min(s.length, index)), 0, id); cur.order = s;
         });
@@ -124,8 +86,6 @@
           var b = block(id); if (!b) throw Error('التنسيق متاح لبلوكات النص والبانر والصور بس');
           b.style = Object.assign({}, b.style);
           if (f.size) { if (SIZES.indexOf(f.size) === -1) throw Error('حجم غير مسموح'); b.style.size = f.size; }
-          var HEX = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
-          ['color', 'background'].forEach(function (k) { if (f[k] === '') delete b.style[k]; else if (f[k] !== undefined) { if (!HEX.test(f[k])) throw Error('لون غير صالح'); b.style[k] = f[k]; } });
           if (f.align) { if (ALIGNS.indexOf(f.align) === -1) throw Error('محاذاة غير مسموحة'); b.style.align = f.align; }
         });
       },
@@ -137,57 +97,17 @@
       },
       createText: function (afterId, text) {
         var id = newId();
-        commit(function () { addBlock({ id: id, type: 'text', style: { align: 'center', size: 'md' }, text: { ar: text || 'نص جديد' } }, afterId); });
-        return id;
-      },
-
-      createBanner: function (afterId, f) {
-        f = f || {}; var id = newId();
         commit(function () {
-          var b = { id: id, type: 'banner', style: { align: 'center', size: 'lg' }, title: { ar: f.title || 'بانر جديد' } };
-          if (f.image) b.image = f.image;
-          addBlock(b, afterId);
+          cur.blocks = (cur.blocks || []).concat([{ id: id, type: 'text', style: { align: 'center', size: 'md' }, text: { ar: text || 'نص جديد' } }]);
+          var s = seqOf(cur).filter(function (x) { return x !== id; }), at = afterId ? s.indexOf(afterId) : -1;
+          s.splice(at < 0 ? s.length : at + 1, 0, id); cur.order = s;
         });
         return id;
       },
-      createImage: function (afterId, src) {
-        var id = newId();
-        commit(function () {
-          addBlock({ id: id, type: 'image', style: { align: 'center', size: 'md' }, src: src, alt: {} }, afterId);
-        });
-        return id;
-      },
-      setMedia: function (id, url) {
-        return commit(function () {
-          var b = block(id); if (!b) throw Error('اختاري بانر أو صورة الأول');
-          if (b.type === 'banner') b.image = url; else if (b.type === 'image') b.src = url; else throw Error('الصور بتتحط على بانر أو صورة بس');
-        });
-      },
-      setSubtitle: function (id, lang, text) {
-        lang = lang === 'en' ? 'en' : 'ar'; text = String(text == null ? '' : text);
-        return commit(function () {
-          var b = block(id); if (!b || b.type !== 'banner') throw Error('العنوان الفرعي للبانر بس');
-          b.subtitle = Object.assign({}, b.subtitle); if (text.trim()) b.subtitle[lang] = text; else delete b.subtitle[lang];
-        });
-      },
-      setHref: function (id, href) {
-        return commit(function () {
-          var b = block(id); if (!b || b.type === 'text') throw Error('الرابط للبانر والصورة بس');
-          href = String(href || '').trim();
-          if (href && !/^(?:\/(?!\/)|#|https:\/\/)[^\s"'<>\\]*$/.test(href)) throw Error('الرابط لازم يبدأ بـ / أو # أو https://');
-          if (href) b.href = href; else delete b.href;
-        });
-      },
-      setSlot: function (id, slot) {
-        return commit(function () { var b = block(id); if (!b || !pageOf(id)) throw Error('المكان (أعلى/أسفل) لبلوكات الصفحات الداخلية بس'); b.slot = slot === 'bottom' ? 'bottom' : 'top'; });
-      },
-      mediaOf: function (id) { var b = block(id); return b ? (b.image || b.src || '') : ''; },
       archive: function (id) {
         return commit(function () {
           if (isBuiltin(id)) { section(id).hidden = true; archived.push({ id: id, kind: 'section' }); return; }
           var b = block(id); if (!b) throw Error('عنصر غير موجود');
-          var pk = pageOf(id);
-          if (pk) { archived.push({ id: id, kind: 'block', block: clone(b), page: pk, index: displayOrder(pk).indexOf(id) }); cur.pages[pk].blocks = cur.pages[pk].blocks.filter(function (x) { return x.id !== id; }); return; }
           archived.push({ id: id, kind: 'block', block: clone(b), index: seqOf(cur).indexOf(id) });
           cur.blocks = cur.blocks.filter(function (x) { return x.id !== id; });
         });
@@ -197,7 +117,6 @@
           if (isBuiltin(id)) { var e = section(id); delete e.hidden; tidy(id); archived = archived.filter(function (a) { return a.id !== id; }); return; }
           var a = archived.filter(function (x) { return x.id === id && x.kind === 'block'; })[0];
           if (!a) throw Error('مفيش حاجة بالاسم ده في الأرشيف');
-          if (a.page) { var l = pageList(a.page); l.push(a.block); var ids = displayOrder(a.page).filter(function (x) { return x !== id; }); ids.splice(Math.min(a.index, ids.length), 0, id); reorderPage(a.page, ids); archived = archived.filter(function (x) { return x !== a; }); return; }
           cur.blocks = (cur.blocks || []).concat([a.block]);
           var s = seqOf(cur).filter(function (x) { return x !== id; }); s.splice(Math.min(a.index, s.length), 0, id); cur.order = s;
           archived = archived.filter(function (x) { return x !== a; });

@@ -102,49 +102,6 @@
     plan.order.forEach(function (id) { if (nodes[id]) main.appendChild(nodes[id]); });
   }
 
-
-  // Inner pages (brands, stores, categories, occasions, notes, collections): blocks go at the top or bottom of #view.
-  function pageKey() {
-    if (!document.body.classList.contains('inner')) return 'home';
-    try {
-      var x = P[P.length - 1];
-      if (!x) return null;
-      if (x.k === 'sec') return 'sec:' + x.id;
-      if (x.k === 'col') return 'col:' + x.id + ':' + x.i;
-      if (x.k === 'brand') return 'brand:' + x.n;
-      if (x.k === 'store') return 'store:' + x.n;
-    } catch (e) { /* no page stack yet */ }
-    return null;
-  }
-
-  function applyPage() {
-    var V = document.getElementById('view');
-    if (!V || !design) return;
-    Array.prototype.slice.call(V.querySelectorAll('[data-elan-custom]')).forEach(function (n) { n.remove(); });
-    var key = pageKey(), pg = design.pages && key && design.pages[key];
-    if (!pg) return;
-    var top = pg.blocks.filter(function (b) { return b.slot !== 'bottom'; });
-    var bottom = pg.blocks.filter(function (b) { return b.slot === 'bottom'; });
-    var h = V.querySelector('h3'), ref = h || null;
-    top.forEach(function (b) {
-      var n = buildBlock(b);
-      if (ref) { ref.parentNode.insertBefore(n, ref.nextSibling); ref = n; } else { V.insertBefore(n, V.firstChild); ref = n; }
-    });
-    bottom.forEach(function (b) { V.appendChild(buildBlock(b)); });
-  }
-
-  function wrapView() {
-    var orig = window.view;
-    if (typeof orig !== 'function' || orig.__elanDesign) return;
-    var wrapped = function () {
-      var r = orig.apply(this, arguments);
-      try { applyPage(); } catch (e) { console.error('design layer', e); }
-      return r;
-    };
-    wrapped.__elanDesign = true;
-    window.view = wrapped;
-  }
-
   function waitFor(test, cb, timeoutMs) {
     var t0 = Date.now();
     (function tick() {
@@ -172,9 +129,8 @@
     design = n.design;
     ensureStyle();
     if (typeof D === 'object' && D) ED.applyTexts(D, design);
-    wrapRender(); wrapView();
+    wrapRender();
     if (typeof window.render === 'function') window.render();
-    if (document.body.classList.contains('inner') && typeof window.view === 'function') window.view();
   }
 
   // Used only by the editor's edit mode: swap in a draft design and redraw. Customers never call this.
@@ -185,13 +141,12 @@
     design = n.design;
     ensureStyle();
     if (typeof D === 'object' && D) ED.applyTexts(D, design);
-    wrapRender(); wrapView();
+    wrapRender();
     if (typeof window.render === 'function') window.render();
-    if (document.body.classList.contains('inner') && typeof window.view === 'function') window.view();
     return true;
   }
 
-  window.ElanDesignLayer = { apply: apply, set: set, pageKey: pageKey, current: function () { return design; } };
+  window.ElanDesignLayer = { apply: apply, set: set, current: function () { return design; } };
 
   fetch('/design/home.json', { cache: 'no-store' })
     .then(function (r) { return r.ok ? r.json() : null; })
