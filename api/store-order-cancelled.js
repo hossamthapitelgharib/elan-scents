@@ -1,3 +1,4 @@
+const crypto = require('node:crypto');
 function reply(res, status, body) {
   res.status(status).setHeader('Content-Type', 'application/json').json(body);
 }
@@ -32,6 +33,7 @@ module.exports = async function storeOrderCancelled(req, res) {
     return;
   }
   payload.trackingNumber = payload.trackingNumber || payload.orderNumber;
+  payload.idempotencyKey = payload.idempotencyKey || payload.eventId || crypto.createHash('sha256').update(JSON.stringify({ trackingNumber: payload.trackingNumber, status: payload.status, reason: payload.reason, items: payload.items })).digest('hex');
   try {
     const response = await fetch(`${supabaseUrl}/rest/v1/rpc/cancel_store_order_request`, {
       method: 'POST',

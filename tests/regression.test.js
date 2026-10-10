@@ -30,6 +30,8 @@ test('main menu routes طلباتي to the customer dashboard', () => {
   assert.match(account, /id="activeOrders"/);
   assert.match(account, /id="recentOrders"/);
   assert.match(account, /id="archiveForm"/);
+  const platform = fs.readFileSync(path.join(root, 'platform-dashboard.html'), 'utf8');
+  assert.match(platform, /id="platformFilters"/);
 });
 
 test('frontend order persistence uses the authenticated Supabase identity', () => {
@@ -63,7 +65,8 @@ test('store status API normalizes and reconciles completed webhook events', asyn
   const status = api('store-order-status'); let rpcPayload;
   global.fetch = async (url, options) => { rpcPayload = JSON.parse(options.body); return jsonResponse({ trackingNumber: 'T-1', status: 'completed', matched: true, mismatches: [] }); };
   const payload = { trackingNumber: 'T-1', customer: { name: 'عميل', phone: '010', address: 'عنوان' }, items: [{ productSizeId: 'p1', quantity: 1 }], subtotal: 100, status: 'confirmed' };
-  const result = await invoke(status, { method: 'POST', headers: { 'x-store-webhook-secret': 'secret' }, body: payload }); assert.equal(result.status, 200); assert.equal(result.body.matched, true); assert.equal(rpcPayload.p_payload.trackingNumber, 'T-1');
+  const result = await invoke(status, { method: 'POST', headers: { 'x-store-webhook-secret': 'secret' }, body: payload }); assert.equal(result.status, 200); assert.equal(result.body.matched, true); assert.equal(rpcPayload.p_payload.trackingNumber, 'T-1'); const firstKey = rpcPayload.p_payload.idempotencyKey;
+  const repeated = await invoke(status, { method: 'POST', headers: { 'x-store-webhook-secret': 'secret' }, body: payload }); assert.equal(repeated.status, 200); assert.equal(rpcPayload.p_payload.idempotencyKey, firstKey);
   const done = await invoke(status, { method: 'POST', headers: { 'x-store-webhook-secret': 'secret' }, body: { ...payload, status: 'completed' } }); assert.equal(done.status, 200); assert.equal(rpcPayload.p_payload.status, 'completed');
   const badSecret = await invoke(status, { method: 'POST', headers: { 'x-store-webhook-secret': 'wrong' }, body: payload }); assert.equal(badSecret.status, 401);
 });
@@ -91,6 +94,7 @@ test('platform, store and customer dashboard APIs enforce their scopes', async (
     return jsonResponse([{ user_id: 'user-1', tracking_number: 'T-1', store_order_requests: [{ store_order_cart_restorations: [{ status: 'restored' }] }] }]);
   };
   const platform = await invoke(api('dashboard-orders'), { method: 'GET', headers: { 'x-dashboard-token': 'dashboard-token' }, query: {} }); assert.equal(platform.status, 200); assert.equal(platform.body.ok, true);
+  const filteredPlatform = await invoke(api('dashboard-orders'), { method: 'GET', headers: { 'x-dashboard-token': 'dashboard-token' }, query: { attention: '1', tracking: 'T-1' } }); assert.equal(filteredPlatform.status, 200);
   const customer = await invoke(api('customer-orders'), baseRequest()); assert.equal(customer.status, 200); assert.equal(customer.body.sessions[0].user_id, 'user-1');
   const store = await invoke(api('store-dashboard-orders'), baseRequest()); assert.equal(store.status, 403);
   delete process.env.DASHBOARD_TOKEN;
