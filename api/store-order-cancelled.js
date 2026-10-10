@@ -1,4 +1,5 @@
 const crypto = require('node:crypto');
+const { checkSecret } = require('../lib/secure');
 function reply(res, status, body) {
   res.status(status).setHeader('Content-Type', 'application/json').json(body);
 }
@@ -8,9 +9,9 @@ module.exports = async function storeOrderCancelled(req, res) {
     reply(res, 405, { ok: false, error: 'method_not_allowed' });
     return;
   }
-  const expectedSecret = process.env.STORE_ORDER_WEBHOOK_SECRET;
-  if (expectedSecret && req.headers['x-store-webhook-secret'] !== expectedSecret) {
-    reply(res, 401, { ok: false, error: 'invalid_webhook_secret' });
+  const denied = checkSecret(req, 'STORE_ORDER_WEBHOOK_SECRET', 'x-store-webhook-secret');
+  if (denied) {
+    reply(res, denied.status, { ok: false, error: denied.error });
     return;
   }
   const body = req.body && typeof req.body === 'object' ? req.body : {};

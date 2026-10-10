@@ -77,9 +77,9 @@ test('store status API normalizes and reconciles completed webhook events', asyn
 });
 
 test('cancellation API returns the tracking number and restoration token', async () => {
-  const handler = api('store-order-cancelled'); delete process.env.STORE_ORDER_WEBHOOK_SECRET; process.env.SUPABASE_URL = 'https://test.supabase.co'; process.env.SUPABASE_SERVICE_ROLE_KEY = 'service';
+  const handler = api('store-order-cancelled'); process.env.STORE_ORDER_WEBHOOK_SECRET = 'cancel-secret'; process.env.SUPABASE_URL = 'https://test.supabase.co'; process.env.SUPABASE_SERVICE_ROLE_KEY = 'service';
   let sent; global.fetch = async (_url, options) => { sent = JSON.parse(options.body); return jsonResponse({ trackingNumber: 'T-2', checkoutTrackingNumber: 'C-1', status: 'store_cancelled', matched: true, mismatches: [], restoreToken: 'restore-1', items: [{ productSizeId: 'p1', quantity: 1 }] }); };
-  const result = await invoke(handler, { method: 'POST', headers: {}, body: { trackingNumber: 'T-2', items: [{ productSizeId: 'p1', quantity: 1 }] } });
+  const result = await invoke(handler, { method: 'POST', headers: { 'x-store-webhook-secret': 'cancel-secret' }, body: { trackingNumber: 'T-2', items: [{ productSizeId: 'p1', quantity: 1 }] } });
   assert.equal(result.status, 200); assert.equal(result.body.status, 'store_cancelled'); assert.equal(result.body.restoreToken, 'restore-1'); assert.equal(sent.p_payload.status, 'store_cancelled');
 });
 
