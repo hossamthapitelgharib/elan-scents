@@ -1,0 +1,22 @@
+# Local dependencies and tool output
+node_modules/
+.vercel/
+.railway/
+
+# Local secrets and environment files
+.env
+.env.*
+!.env.example
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Local logs and test output
+*.log
+coverage/
+
+# Temporary preview artifacts
+.tmp/
