@@ -51,7 +51,7 @@ test('every no-store header covers the editor files', () => {
   for (const f of ['editor.html', 'editor-login.js', 'edit-boot.js', 'edit-host.js', 'edit-model.js', 'elan-host-bridge.js']) assert.ok(src.includes(f), f);
 });
 
-test('railway host serves /editor through the rewrite', async () => {
+test('railway host serves the owner login page at /editor', async () => {
   const server = require('../railway/server.js');
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   try {
@@ -59,6 +59,7 @@ test('railway host serves /editor through the rewrite', async () => {
     assert.equal(res.status, 200);
     assert.match(res.headers.get('content-type'), /text\/html/);
     assert.match(res.headers.get('cache-control'), /no-store/);
-    assert.match(await res.text(), /elan-gate/);
+    // /editor is the owner login page; the editor itself is only sent after an admin session (see editor-host.test.js)
+    assert.match(await res.text(), /editor-login\.js/);
   } finally { server.close(); }
 });

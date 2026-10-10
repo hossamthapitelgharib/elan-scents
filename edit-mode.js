@@ -43,7 +43,7 @@
     checkDirty();
     repaint();
   }
-  function repaint() { layer.setDesign(work); reselect(); }
+  function repaint() { (layer.set || layer.setDesign)(work, { editing: true }); reselect(); }
 
   function undo() { if (!undoStack.length) return false; redoStack.push(JSON.stringify(work)); work = JSON.parse(undoStack.pop()); checkDirty(); repaint(); return true; }
   function redo() { if (!redoStack.length) return false; undoStack.push(JSON.stringify(work)); work = JSON.parse(redoStack.pop()); checkDirty(); repaint(); return true; }

@@ -8,6 +8,9 @@
 
   var design = null;
   var editing = false;
+  var touched = [];
+  var lastDevice = null;
+  var SEC_NAMES = { brands: 'الماركات', offers: 'العروض', new: 'وصل حديثًا', cats: 'الأقسام', master: 'الأعلى مبيعًا', occ: 'المناسبات', notes: 'النوتات العطرية', soon: 'قريبًا', stores: 'المتاجر' };
   var STYLE_ID = 'elan-design-style';
   var CSS = [
     '.elan-block{max-width:900px;margin:18px auto;padding:0 16px;box-sizing:border-box}',
@@ -133,9 +136,98 @@
     return root;
   }
 
+  function hash(str) { var h = 5381, i; for (i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) >>> 0; return h.toString(36); }
+
+  /* Every element the editor can touch, with a stable id that does not change between renders. */
+  function elements() {
+    var out = [], seen = {};
+    function add(id, el, kind, name) { if (!el || seen[id]) return; seen[id] = 1; out.push({ id: id, el: el, kind: kind, name: name }); }
+    var hero = document.getElementById('hero');
+    if (hero) {
+      add('hero', hero, 'hero', 'الواجهة الرئيسية');
+      add('hero:magic', hero.querySelector('.magic'), 'hero-text', 'نص الواجهة');
+      add('hero:counters', hero.querySelector('.counters'), 'hero-counters', 'العدّادات');
+    }
+    var main = document.getElementById('main');
+    if (!main) return out;
+    Array.prototype.slice.call(main.children).forEach(function (c) {
+      if (c.hasAttribute('data-elan-custom')) { add(c.getAttribute('data-elan-id'), c, 'block', 'بلوك إضافي'); return; }
+      if (c.tagName !== 'SECTION' || !c.id || ED.BUILTIN.indexOf(c.id) === -1) return;
+      add('sec:' + c.id, c, 'section', 'سيكشن ' + (SEC_NAMES[c.id] || c.id));
+      add('sec:' + c.id + ':title', c.querySelector('h3'), 'title', 'عنوان ' + (SEC_NAMES[c.id] || c.id));
+      var n = 0;
+      Array.prototype.slice.call(c.querySelectorAll('.card')).forEach(function (card, i) {
+        var base = 'card:' + hash(c.id + '|' + (card.getAttribute('data-go') || 'i' + i)), id = base;
+        while (seen[id]) id = base + '-' + (++n);
+        var h4 = card.querySelector('h4');
+        add(id, card, 'card', 'كارت ' + ((h4 && h4.textContent.trim().slice(0, 24)) || (i + 1)));
+      });
+    });
+    return out;
+  }
+
+  function textTarget(e) {
+    if (e.kind === 'title') return e.el;
+    if (e.kind === 'hero-text') return e.el.querySelector('h2');
+    if (e.kind === 'card') return e.el.querySelector('h4');
+    if (e.kind === 'block') return e.el.querySelector('p, h3');
+    return null;
+  }
+
+  function unpaint(el) {
+    if (el.__elanBase !== undefined) {
+      if (el.__elanBase) el.setAttribute('style', el.__elanBase); else el.removeAttribute('style');
+      delete el.__elanBase; el.removeAttribute('data-elan-edited');
+    }
+    if (el.__elanText) { el.__elanText.node.textContent = el.__elanText.value; delete el.__elanText; }
+    if (el.__elanStrip) { var st = el.__elanStrip; if (st.base) st.node.setAttribute('style', st.base); else st.node.removeAttribute('style'); delete el.__elanStrip; }
+  }
+
+  function paint(entry, ed) {
+    var el = entry.el, st = ed.style || {};
+    el.__elanBase = el.getAttribute('style') || '';
+    el.setAttribute('data-elan-edited', '1');
+    if (ed.hidden || ed.archived) { el.style.display = 'none'; return; }
+    if (ed.dx || ed.dy) {
+      el.style.transform = 'translate(' + (ed.dx || 0) + 'px,' + (ed.dy || 0) + 'px)';
+      el.style.position = el.style.position || 'relative';
+      el.style.zIndex = '3';
+      var strip = entry.kind === 'card' && el.closest('.strip');
+      if (strip && !el.__elanStrip) { el.__elanStrip = { node: strip, base: strip.getAttribute('style') || '' }; strip.style.overflow = 'visible'; }
+    }
+    if (ed.w) { el.style.width = ed.w + 'px'; el.style.maxWidth = 'none'; el.style.flex = '0 0 auto'; }
+    if (ed.h) { el.style.height = ed.h + 'px'; }
+    if (st.color) el.style.color = st.color;
+    if (st.background) el.style.backgroundColor = st.background;
+    if (st.fontSize) el.style.fontSize = st.fontSize + 'px';
+    if (st.weight) el.style.fontWeight = String(st.weight);
+    if (st.radius !== undefined) el.style.borderRadius = st.radius + 'px';
+    if (st.align) el.style.textAlign = st.align === 'start' ? 'start' : st.align === 'end' ? 'end' : 'center';
+    if (st.opacity !== undefined) el.style.opacity = String(st.opacity);
+    if (ed.text) {
+      var node = textTarget(entry), t = ed.text[lang()] || ed.text.ar || ed.text.en;
+      if (node && t) { el.__elanText = { node: node, value: node.textContent }; node.textContent = t; }
+    }
+  }
+
+  /* Free-form edits for the current screen size. Idempotent: always undo the last paint first. */
+  function applyEdits() {
+    touched.forEach(unpaint);
+    touched = [];
+    if (!design || !design.edits) return;
+    var dev = ED.deviceOf(window.innerWidth);
+    elements().forEach(function (entry) {
+      var ed = ED.editFor(design, dev, entry.id);
+      if (!ed) return;
+      paint(entry, ed);
+      touched.push(entry.el);
+    });
+  }
+
   function apply() {
     var main = document.getElementById('main');
-    if (!main || !design || ED.isEmpty(design)) return;
+    if (!main || !design) return;
+    if (ED.isEmpty(design)) { applyEdits(); return; }
 
     // Idempotent: drop what we added before, then re-apply on the freshly rendered page.
     Array.prototype.slice.call(main.querySelectorAll('[data-elan-custom]')).forEach(function (n) { n.remove(); });
@@ -160,6 +252,7 @@
 
     // Only touch the order when the design asks for it or adds blocks.
     plan.order.forEach(function (id) { if (nodes[id]) main.appendChild(nodes[id]); });
+    applyEdits(); // free-form edits from the visual editor, for the current screen size
   }
 
 
@@ -251,7 +344,15 @@
     return true;
   }
 
-  window.ElanDesignLayer = { apply: apply, set: set, pageKey: pageKey, current: function () { return design; } };
+  window.ElanDesignLayer = { apply: apply, set: set, pageKey: pageKey, current: function () { return design; }, applyEdits: applyEdits, elements: elements, textTarget: textTarget };
+
+  // A different screen size means a different set of free-form edits.
+  window.addEventListener('resize', function () {
+    if (!design || !design.edits) return;
+    var d = ED.deviceOf(window.innerWidth);
+    if (d !== lastDevice) { lastDevice = d; try { applyEdits(); } catch (e) { /* keep the page usable */ } }
+  });
+  lastDevice = ED.deviceOf(window.innerWidth);
 
   fetch('/design/home.json', { cache: 'no-store' })
     .then(function (r) { return r.ok ? r.json() : null; })

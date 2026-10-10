@@ -82,14 +82,16 @@ test('cross-site login attempts are refused', async () => {
 });
 
 test('edit mode only loads inside the editor window and never talks to customers', () => {
-  const layer = fs.readFileSync(path.join(root, 'design-layer.js'), 'utf8');
-  assert.match(layer, /window\.parent !== window/);
-  assert.match(layer, /elan_editor=1/);
+  const boot = fs.readFileSync(path.join(root, 'edit-boot.js'), 'utf8');
+  assert.match(boot, /window\.parent === window/);
+  assert.match(boot, /elan_editor/);
+  assert.match(boot, /edit-mode\.js/);
   const edit = fs.readFileSync(path.join(root, 'edit-mode.js'), 'utf8');
   assert.match(edit, /allowedEditorOrigins: \[location\.origin\]/);
   assert.doesNotMatch(edit, /localStorage|sessionStorage|document\.cookie|eval\(|new Function/);
   const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
   assert.doesNotMatch(html, /edit-mode|elan-host-bridge/);
+  assert.match(html, /edit-boot\.js/);
 });
 
 test('free-form edits are validated and resolved per screen size', () => {
