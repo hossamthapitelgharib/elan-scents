@@ -41,6 +41,10 @@
       future = [];
       return true;
     }
+    function place(id, afterId) {
+      var s = seqOf(cur).filter(function (x) { return x !== id; }), at = afterId ? s.indexOf(afterId) : -1;
+      s.splice(at < 0 ? s.length : at + 1, 0, id); cur.order = s;
+    }
     function section(id) { cur.sections = cur.sections || {}; cur.sections[id] = cur.sections[id] || {}; return cur.sections[id]; }
     function tidy(id) {
       var s = cur.sections && cur.sections[id]; if (!s) return;
@@ -86,6 +90,8 @@
           var b = block(id); if (!b) throw Error('التنسيق متاح لبلوكات النص والبانر والصور بس');
           b.style = Object.assign({}, b.style);
           if (f.size) { if (SIZES.indexOf(f.size) === -1) throw Error('حجم غير مسموح'); b.style.size = f.size; }
+          var HEX = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+          ['color', 'background'].forEach(function (k) { if (f[k] === '') delete b.style[k]; else if (f[k] !== undefined) { if (!HEX.test(f[k])) throw Error('لون غير صالح'); b.style[k] = f[k]; } });
           if (f.align) { if (ALIGNS.indexOf(f.align) === -1) throw Error('محاذاة غير مسموحة'); b.style.align = f.align; }
         });
       },
@@ -104,6 +110,45 @@
         });
         return id;
       },
+
+      createBanner: function (afterId, f) {
+        f = f || {}; var id = newId();
+        commit(function () {
+          var b = { id: id, type: 'banner', style: { align: 'center', size: 'lg' }, title: { ar: f.title || 'بانر جديد' } };
+          if (f.image) b.image = f.image;
+          cur.blocks = (cur.blocks || []).concat([b]); place(id, afterId);
+        });
+        return id;
+      },
+      createImage: function (afterId, src) {
+        var id = newId();
+        commit(function () {
+          cur.blocks = (cur.blocks || []).concat([{ id: id, type: 'image', style: { align: 'center', size: 'md' }, src: src, alt: {} }]); place(id, afterId);
+        });
+        return id;
+      },
+      setMedia: function (id, url) {
+        return commit(function () {
+          var b = block(id); if (!b) throw Error('اختاري بانر أو صورة الأول');
+          if (b.type === 'banner') b.image = url; else if (b.type === 'image') b.src = url; else throw Error('الصور بتتحط على بانر أو صورة بس');
+        });
+      },
+      setSubtitle: function (id, lang, text) {
+        lang = lang === 'en' ? 'en' : 'ar'; text = String(text == null ? '' : text);
+        return commit(function () {
+          var b = block(id); if (!b || b.type !== 'banner') throw Error('العنوان الفرعي للبانر بس');
+          b.subtitle = Object.assign({}, b.subtitle); if (text.trim()) b.subtitle[lang] = text; else delete b.subtitle[lang];
+        });
+      },
+      setHref: function (id, href) {
+        return commit(function () {
+          var b = block(id); if (!b || b.type === 'text') throw Error('الرابط للبانر والصورة بس');
+          href = String(href || '').trim();
+          if (href && !/^(?:\/(?!\/)|#|https:\/\/)[^\s"'<>\\]*$/.test(href)) throw Error('الرابط لازم يبدأ بـ / أو # أو https://');
+          if (href) b.href = href; else delete b.href;
+        });
+      },
+      mediaOf: function (id) { var b = block(id); return b ? (b.image || b.src || '') : ''; },
       archive: function (id) {
         return commit(function () {
           if (isBuiltin(id)) { section(id).hidden = true; archived.push({ id: id, kind: 'section' }); return; }
