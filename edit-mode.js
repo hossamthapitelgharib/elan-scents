@@ -6,7 +6,7 @@
   var layer = window.ElanDesignLayer, ED = window.ElanDesign, Bridge = window.ElanHostBridge;
   if (!layer || !ED || !Bridge || window.parent === window) return;
 
-  var work = null, baseRevision = null, hostApi = null, selectedId = null, dirty = false;
+  var work = null, baseJson = '', baseRevision = null, hostApi = null, selectedId = null, dirty = false;
   var undoStack = [], redoStack = [], editing = null, gesture = null, pendingMedia = null;
   var SECTIONS_NAMES = { section: 1 };
 
@@ -17,7 +17,8 @@
 
   /* ---------- working design ---------- */
   function emptyDesign() { return ED.normalize({ version: ED.VERSION }).design; }
-  function setDirty(v) { dirty = !!v; if (hostApi) hostApi.dirty(dirty); }
+  function setDirty(v) { if (!!v === dirty) return; dirty = !!v; if (hostApi) hostApi.dirty(dirty); }
+  function checkDirty() { setDirty(JSON.stringify(work) !== baseJson); }
   function entries() { return layer.elements(); }
   function entryById(id) { var l = entries(); for (var i = 0; i < l.length; i++) if (l[i].id === id) return l[i]; return null; }
   function bucket(dev) { work.edits = work.edits || {}; return (work.edits[dev] = work.edits[dev] || {}); }
@@ -39,13 +40,13 @@
     undoStack.push(JSON.stringify(work)); if (undoStack.length > 100) undoStack.shift();
     redoStack = [];
     fn(work); tidy();
-    setDirty(true);
+    checkDirty();
     repaint();
   }
   function repaint() { layer.setDesign(work); reselect(); }
 
-  function undo() { if (!undoStack.length) return false; redoStack.push(JSON.stringify(work)); work = JSON.parse(undoStack.pop()); setDirty(true); repaint(); return true; }
-  function redo() { if (!redoStack.length) return false; undoStack.push(JSON.stringify(work)); work = JSON.parse(redoStack.pop()); setDirty(true); repaint(); return true; }
+  function undo() { if (!undoStack.length) return false; redoStack.push(JSON.stringify(work)); work = JSON.parse(undoStack.pop()); checkDirty(); repaint(); return true; }
+  function redo() { if (!redoStack.length) return false; undoStack.push(JSON.stringify(work)); work = JSON.parse(redoStack.pop()); checkDirty(); repaint(); return true; }
 
   /* The order of sections and extra blocks exactly as they appear now. */
   function fullOrder() {
@@ -81,12 +82,14 @@
     '.eo-dlg>div{background:#fffaf0;border:1px solid #c2a66a;border-radius:12px;padding:16px;width:min(420px,92vw);font-size:13px}' +
     '.eo-dlg input[type=text]{width:100%;padding:7px;border:1px solid #c2a66a;border-radius:7px;direction:ltr;margin:8px 0}' +
     '.eo-dlg button{font:inherit;padding:6px 12px;border:1px solid #c2a66a;border-radius:7px;background:#fff;cursor:pointer;margin-inline-end:6px}' +
+    '.eo-mv{position:absolute;top:-24px;left:-2px;background:#29251c;color:#fff;font-size:11px;padding:2px 8px;border-radius:5px 5px 0 0;cursor:grab;pointer-events:auto;display:none;touch-action:none;user-select:none}' +
+    '.eo-drop{position:fixed;left:0;right:0;height:3px;background:#c8962a;display:none;pointer-events:none}' +
     '[contenteditable]{outline:2px dashed #c8962a;outline-offset:2px}' +
-    '</style><div class="eo-box"><span class="eo-tag"></span></div><div class="eo-bar"></div><div class="eo-msg"></div>' +
+    '</style><div class="eo-box"><span class="eo-tag"></span><span class="eo-mv">⠿ اسحب لإعادة الترتيب</span></div><div class="eo-drop"></div><div class="eo-bar"></div><div class="eo-msg"></div>' +
     '<div class="eo-dlg"><div><b class="eo-dt"></b><input type="text" class="eo-di" dir="ltr"><p class="eo-dh" style="margin:0 0 8px;color:#7a6a52"></p><button class="eo-ok">تأكيد</button><button class="eo-no">إلغاء</button></div></div>';
   document.body.appendChild(root);
 
-  var box = root.querySelector('.eo-box'), tag = root.querySelector('.eo-tag'), bar = root.querySelector('.eo-bar'), msgEl = root.querySelector('.eo-msg'), dlg = root.querySelector('.eo-dlg');
+  var mv = root.querySelector('.eo-mv'), drop = root.querySelector('.eo-drop'), box = root.querySelector('.eo-box'), tag = root.querySelector('.eo-tag'), bar = root.querySelector('.eo-bar'), msgEl = root.querySelector('.eo-msg'), dlg = root.querySelector('.eo-dlg');
   ['nw', 'n', 'ne', 'w', 'e', 'sw', 's', 'se'].forEach(function (h) {
     var d = document.createElement('i'); d.className = 'eo-h'; d.setAttribute('data-h', h);
     var cur = { nw: 'nwse', se: 'nwse', ne: 'nesw', sw: 'nesw', n: 'ns', s: 'ns', e: 'ew', w: 'ew' }[h];
@@ -118,6 +121,9 @@
     box.style.display = 'block';
     box.style.left = r.left + 'px'; box.style.top = r.top + 'px'; box.style.width = r.width + 'px'; box.style.height = r.height + 'px';
     tag.textContent = e.name;
+    mv.style.display = (e.kind === 'section' || e.kind === 'block') ? 'block' : 'none';
+    var inside = r.top < 30; // keep the labels reachable when the element touches the top of the window
+    tag.style.top = mv.style.top = inside ? '2px' : '-24px';
   }
   function reselect() {
     if (selectedId && !entryById(selectedId)) selectedId = null;
@@ -304,6 +310,40 @@
   window.addEventListener('resize', function () { placeBox(); buildBar(); });
   try { new MutationObserver(function () { requestAnimationFrame(reselect); }).observe(document.getElementById('main'), { childList: true }); } catch (_) { /* optional */ }
 
+  /* ---------- drag a whole section / block to a new place in the page order ---------- */
+  function orderNodes(skipId) {
+    var main = document.getElementById('main');
+    return Array.prototype.slice.call(main.children).filter(function (c) {
+      var id = c.hasAttribute('data-elan-custom') ? c.getAttribute('data-elan-id') : (c.tagName === 'SECTION' && c.id && ED.BUILTIN.indexOf(c.id) !== -1 ? c.id : null);
+      return id && id !== skipId;
+    });
+  }
+  function keyOf(node) { return node.hasAttribute('data-elan-custom') ? node.getAttribute('data-elan-id') : node.id; }
+  mv.addEventListener('pointerdown', function (ev) {
+    var e = selectedId && entryById(selectedId);
+    if (!e || ev.button > 0) return;
+    ev.preventDefault(); ev.stopPropagation();
+    var key = /^sec:/.test(e.id) ? e.id.slice(4) : e.id, target = null;
+    try { mv.setPointerCapture(ev.pointerId); } catch (_) { /* optional */ }
+    drop.style.display = 'block';
+    function moveTo(x) {
+      var list = orderNodes(key), y = x.clientY, ly = null; target = null;
+      for (var i = 0; i < list.length; i++) { var r = list[i].getBoundingClientRect(); if (y < r.top + r.height / 2) { target = keyOf(list[i]); ly = r.top; break; } }
+      if (ly === null && list.length) ly = list[list.length - 1].getBoundingClientRect().bottom;
+      drop.style.top = (ly || 0) + 'px';
+    }
+    function up() {
+      mv.removeEventListener('pointermove', moveTo); mv.removeEventListener('pointerup', up); mv.removeEventListener('pointercancel', up);
+      drop.style.display = 'none';
+      var seq = fullOrder().filter(function (x) { return x !== key; });
+      var at = target ? seq.indexOf(target) : seq.length;
+      var next = seq.slice(); next.splice(at, 0, key);
+      if (JSON.stringify(next) !== JSON.stringify(fullOrder())) mutate(function (d) { d.order = next; });
+    }
+    mv.addEventListener('pointermove', moveTo); mv.addEventListener('pointerup', up); mv.addEventListener('pointercancel', up);
+    moveTo(ev);
+  });
+
   /* ---------- creating blocks ---------- */
   function validBlock(b) { var n = ED.normalize({ version: ED.VERSION, blocks: [b] }, { strict: true }); return n.ok && n.design.blocks.length === 1; }
 
@@ -355,7 +395,7 @@
     p = p || {};
     switch (action) {
       case 'page.getState': return snapshot();
-      case 'page.markSaved': baseRevision = p.revision; undoStack = []; redoStack = []; setDirty(false); if (hostApi) hostApi.revision(baseRevision); return snapshot();
+      case 'page.markSaved': baseRevision = p.revision; undoStack = []; redoStack = []; baseJson = JSON.stringify(work); dirty = true; setDirty(false); if (hostApi) hostApi.revision(baseRevision); return snapshot();
       case 'element.select': select(need(p.elementId).id); return { selected: selectedId };
       case 'element.move': { var e1 = need(p.elementId || selectedId); mutate(function () { var t = edit(device(), e1.id); t.dx = Math.round(+p.dx || 0); t.dy = Math.round(+p.dy || 0); }); return null; }
       case 'element.resize': { var e2 = need(p.elementId || selectedId); mutate(function () { var t = edit(device(), e2.id); if (p.w) t.w = Math.round(p.w); if (p.h) t.h = Math.round(p.h); }); return null; }
@@ -391,7 +431,7 @@
     if (!r.ok || !j.ok) throw new Error('state');
     baseRevision = j.revision === null || j.revision === undefined ? 'initial' : j.revision;
     work = ED.normalize(j.design || { version: ED.VERSION }, { strict: false }).design;
-    undoStack = []; redoStack = []; dirty = false;
+    undoStack = []; redoStack = []; dirty = false; baseJson = JSON.stringify(work);
     repaint();
     return { revision: baseRevision, design: clone(work) };
   }
