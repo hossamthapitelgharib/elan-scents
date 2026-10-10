@@ -1,1 +1,44 @@
-PLACEHOLDER_WILL_FAIL
+/* Footer 9:16 — image as-is, no stretch */
+footer {
+  position: relative !important;
+  width: 100% !important;
+  max-width: min(100%, 540px) !important;
+  aspect-ratio: 9 / 16 !important;
+  height: auto !important;
+  min-height: 0 !important;
+  margin: 0 auto !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  box-sizing: border-box !important;
+  background-color: #6e6e6e !important;
+  background-image: url('/assets/elan-scents-logo.png') !important;
+  background-size: contain !important;
+  background-position: center center !important;
+  background-repeat: no-repeat !important;
+  border-top: 0 !important;
+  color: #fff1cf !important;
+  text-align: center !important;
+}
+footer .footer-logo { display: none !important; }
+footer .fdiv {
+  width: 48px !important;
+  height: 1px !important;
+  margin: 16% auto 0 !important;
+  background: linear-gradient(90deg, transparent, #e6c66f 35%, #fff0c7 50%, #e6c66f 65%, transparent) !important;
+  flex-shrink: 0 !important;
+}
+footer .fcols, footer .fch, footer .fph, footer .fbar, footer .fcred, footer #fcr {
+  position: relative !important;
+  z-index: 2 !important;
+}
+footer .fcols { width: 100%; max-width: 320px; margin: 0 auto; padding: 0 18px; gap: 14px; flex: 0 0 auto; }
+footer .fch { max-width: 280px; margin: 6px auto; padding: 0 16px; flex: 0 0 auto; }
+footer .fph { margin: 6px auto; padding: 0 16px; flex: 0 0 auto; font-size: 14px; color: #ffe4a3 !important; }
+footer .fbar { width: 100%; max-width: 320px; margin: 6px auto 0; padding: 12px 16px 0; flex: 0 0 auto; border-top-color: rgba(255,239,199,.35) !important; color: #fff1cf !important; }
+footer .fcred, footer #fcr { margin: 8px auto 12% !important; padding: 0 16px 8px; flex: 0 0 auto; color: #fff1cf !important; }
+footer .fcols a, footer .fcols span, footer .fch span { color: #fff1cf !important; }
+footer .fcols h5, footer .fch b { color: #ffe4a3 !important; }
