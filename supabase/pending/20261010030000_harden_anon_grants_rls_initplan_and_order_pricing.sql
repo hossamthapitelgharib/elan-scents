@@ -1,5 +1,5 @@
--- RECONCILE BEFORE APPLYING: 20261010014304_harden_order_user_binding (live) already redefines create_store_order_request and
--- requires auth.uid() to be non-null. Section 3 below must keep that check (v_user_id is null -> raise) or it weakens the live function.
+-- RECONCILED with 20261010014304_harden_order_user_binding (live): section 3 keeps its "Authentication required" check
+-- (v_user_id is null -> raise), so this migration does not weaken the live function.
 -- PENDING: not applied to the live database yet. Needs the project owner's approval.
 -- After it is applied, move it to supabase/migrations/ and rename it with the version the database recorded.
 --
@@ -58,6 +58,9 @@ declare
   v_subtotal numeric := 0;
   v_currency text;
 begin
+  if v_user_id is null then
+    raise exception 'Authentication required';
+  end if;
   v_store_id := (p_payload->>'storeId')::uuid;
   if not exists (select 1 from public.stores s where s.id = v_store_id and s.status = 'active') then
     raise exception 'Invalid or inactive store';
@@ -71,7 +74,7 @@ begin
   if jsonb_typeof(p_payload->'items') is distinct from 'array' or jsonb_array_length(p_payload->'items') = 0 then
     raise exception 'Order items are required';
   end if;
-  if v_session_id is not null and not exists (select 1 from public.checkout_sessions cs where cs.id = v_session_id and cs.user_id is not distinct from v_user_id) then
+  if v_session_id is not null and not exists (select 1 from public.checkout_sessions cs where cs.id = v_session_id and cs.user_id = v_user_id) then
     raise exception 'Checkout session not found';
   end if;
 

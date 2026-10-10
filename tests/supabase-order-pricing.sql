@@ -59,6 +59,19 @@ begin
     'items', jsonb_build_array(jsonb_build_object('productSizeId', v_sp.product_size_id, 'storeProductId', v_sp.id,
       'name', 'Test item', 'brand', 'Test', 'size', '50ml', 'quantity', 2, 'unitPrice', v_sp.price, 'total', v_total)));
 
+  -- an unauthenticated call is rejected (keeps the live "Authentication required" guard)
+  perform set_config('request.jwt.claims', '{}', true);
+  perform set_config('request.jwt.claim.sub', '', true);
+  begin
+    perform public.create_store_order_request(v_payload);
+    raise exception 'TEST FAILED: unauthenticated order accepted';
+  exception when others then
+    if sqlerrm like 'TEST FAILED%' then raise; end if;
+    assert sqlerrm = 'Authentication required', 'unexpected error: ' || sqlerrm;
+  end;
+  perform set_config('request.jwt.claims', json_build_object('sub', v_uid, 'role', 'authenticated')::text, true);
+  perform set_config('request.jwt.claim.sub', v_uid::text, true);
+
   -- a valid order is accepted and stores the database values
   v_res := public.create_store_order_request(v_payload);
   assert v_res->>'status' = 'awaiting_store_confirmation', 'valid order accepted';
