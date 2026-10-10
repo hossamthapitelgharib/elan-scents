@@ -5,6 +5,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const editorHost = require('./editor-host.js');
 
 const ROOT = path.resolve(__dirname, '..');
 const PORT = Number(process.env.PORT) || 3000;
@@ -20,7 +21,7 @@ const MIME = {
 };
 
 // Never serve server-side or repo-internal files.
-const BLOCKED_TOP = new Set(['api', 'lib', 'reports', 'tests', 'supabase', 'railway', 'node_modules', 'src', '.github', '.git']);
+const BLOCKED_TOP = new Set(['api', 'tests', 'supabase', 'railway', 'editor', 'node_modules', 'src', '.github', '.git']);
 const BLOCKED_FILES = new Set(['package.json', 'package-lock.json', 'vercel.json', 'claude.md', 'readme.md']);
 
 function compile(rules, key) {
@@ -95,6 +96,7 @@ function loadHandler(name) {
 }
 
 async function handleApi(req, res, url, pathname) {
+  if (pathname === '/api/editor') await editorHost.attachSession(req);
   const name = pathname.replace(/^\/api\//, '').replace(/\/$/, '');
   const handler = loadHandler(name);
   if (!handler) return sendJson(res, 404, { error: 'not_found' });
@@ -143,6 +145,7 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
   let pathname = url.pathname;
   if (pathname === '/health') { res.setHeader('Content-Type', 'text/plain'); return res.end('ok'); }
+  try { if (await editorHost.handle(req, res, pathname)) return; } catch (e) { console.error('editor host error', e && e.message); if (!res.headersSent) return sendJson(res, 500, { error: 'server_error' }); return; }
   if (REWRITES.has(pathname)) pathname = REWRITES.get(pathname);
   if (pathname === '/api' || pathname.startsWith('/api/')) return handleApi(req, res, url, pathname);
   if (req.method !== 'GET' && req.method !== 'HEAD') return sendJson(res, 405, { error: 'method_not_allowed' });
