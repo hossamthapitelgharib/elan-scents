@@ -1,4 +1,13 @@
 const { createHmac } = require('node:crypto');
+const { createLimiter, clientIp } = require('../lib/rate-limit');
+
+// Per client address and per minute. Creating a visitor row (resolve) and claiming are the expensive actions.
+const LIMITS = {
+  resolve: createLimiter({ max: 30, windowMs: 60000 }),
+  claim: createLimiter({ max: 30, windowMs: 60000 }),
+  save: createLimiter({ max: 120, windowMs: 60000 }),
+  track: createLimiter({ max: 300, windowMs: 60000 })
+};
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const json = (res, status, body) => res.status(status).json(body);
@@ -37,6 +46,11 @@ module.exports = async (req, res) => {
   const visitorKey = String(body.visitorKey || '');
   if (!UUID.test(visitorKey)) return json(res, 400, { error: 'invalid_browser_key' });
   if (!['resolve', 'save', 'claim', 'track'].includes(action)) return json(res, 400, { error: 'unsupported_action' });
+  const limit = LIMITS[action](`${clientIp(req)}:${action}`);
+  if (!limit.allowed) {
+    res.setHeader('Retry-After', String(limit.retryAfter));
+    return json(res, 429, { error: 'too_many_requests' });
+  }
 
   const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY;
