@@ -160,7 +160,7 @@ var wd=String(CFG.waNumber||'').replace(/\D/g,''),cs=wd?'<a href="https://wa.me/
 document.getElementById('fcols').innerHTML='<div><h5>'+f.a+'</h5>'+f.b.map(function(x){return '<a href="'+x[1]+'" onclick="document.body.classList.remove(\'inner\')">'+x[0]+'</a>'}).join('')+'<h5 style="margin-top:16px">'+f.c+'</h5>'+soText+'</div><div class="fgap"></div><div><h5>'+f.ct+'</h5>'+em+cs+'</div>';
 document.getElementById('fph').innerHTML='<div class="fsocial">'+soIcon+'</div>'+esc(f.ph);
 document.getElementById('fbar').innerHTML='<span>\u00a9 \u00c9lan Scents 2026</span><span>'+f.tm+'</span><span>'+f.pv+'</span>';
-document.getElementById('fcr').innerHTML='<span>'+(lang=='ar'?'الانشاء والتطوير':'Created and developed')+'</span><img class="growthmark-img" src="/assets/growthmark.png" alt="GrowthMark"><small>'+(lang=='ar'?'الوكيل الرسمى للاعلان والتسويق':'Official Advertising & Marketing Agency')+'</small>'}
+document.getElementById('fcr').innerHTML='<span>'+(lang=='ar'?'الانشاء والتطوير':'Created and developed')+'</span><small>'+(lang=='ar'?'الوكيل الرسمى للاعلان والتسويق':'Official Advertising & Marketing Agency')+'</small>'}
 function T(){return D[lang]}
 function card(cls,h,s,st,go,art){return '<div class="card '+cls+(art?' art':'')+'"'+(go?' data-go="'+go+'"':'')+'>'+(art?'<div class="artbg">'+art+'</div>':'')+'<h4 class="en" style="font-size:16px">'+h+'</h4>'+(s?'<small>'+s+'</small>':'')+(st?'<span class="st">'+st+'</span>':'')+'</div>'}
 function render(){

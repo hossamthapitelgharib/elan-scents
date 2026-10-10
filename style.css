@@ -561,3 +561,39 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-r
 [dir=ltr] .mx{right:14px;left:auto}
 [dir=rtl] #bar div{padding-right:100%}
 [dir=ltr] #bar div{padding-left:100%}
+
+
+/* ---------- GrowthMark footer identity ---------- */
+footer {
+  background: linear-gradient(180deg, #111214 0%, #17130f 52%, #0b0b0c 100%) !important;
+  color: #e8dcc0 !important;
+  border-top: 1px solid #b9852b !important;
+}
+footer .footer-logo {
+  width: min(260px, 72vw) !important;
+  max-width: 72vw !important;
+  height: auto !important;
+  aspect-ratio: 880 / 151 !important;
+  margin: 0 auto 18px !important;
+  object-fit: contain !important;
+  border-radius: 8px !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .28), 0 0 0 1px rgba(201, 150, 42, .25) !important;
+}
+footer .fdiv {
+  background: linear-gradient(90deg, transparent, #c8962a 35%, #f0d58c 50%, #c8962a 65%, transparent) !important;
+}
+footer .fcols a,
+footer .fcols span,
+footer .fch span,
+footer .fbar,
+footer .fcred {
+  color: #d9cfb8 !important;
+}
+footer .fcols h5,
+footer .fph,
+footer .fch b {
+  color: #e2b44d !important;
+}
+footer .fbar {
+  border-top-color: #3a3022 !important;
+}
