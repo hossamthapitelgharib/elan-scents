@@ -562,38 +562,37 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-r
 [dir=rtl] #bar div{padding-right:100%}
 [dir=ltr] #bar div{padding-left:100%}
 
-
-/* ---------- GrowthMark footer identity ---------- */
+/* ---------- Élan Scents footer identity ---------- */
 footer {
-  background: linear-gradient(180deg, #111214 0%, #17130f 52%, #0b0b0c 100%) !important;
-  color: #e8dcc0 !important;
-  border-top: 1px solid #b9852b !important;
+  background: linear-gradient(180deg, #686868 0%, #777777 52%, #626262 100%) !important;
+  color: #fff1cf !important;
+  border-top: 1px solid #f1d58e !important;
 }
 footer .footer-logo {
-  width: min(260px, 72vw) !important;
-  max-width: 72vw !important;
+  width: min(190px, 42vw) !important;
+  max-width: 42vw !important;
   height: auto !important;
-  aspect-ratio: 880 / 151 !important;
+  aspect-ratio: 1 / 1 !important;
   margin: 0 auto 18px !important;
   object-fit: contain !important;
-  border-radius: 8px !important;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, .28), 0 0 0 1px rgba(201, 150, 42, .25) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 8px 24px rgba(38, 33, 25, .24), 0 0 0 1px rgba(255, 235, 179, .36) !important;
 }
 footer .fdiv {
-  background: linear-gradient(90deg, transparent, #c8962a 35%, #f0d58c 50%, #c8962a 65%, transparent) !important;
+  background: linear-gradient(90deg, transparent, #e6c66f 35%, #fff0c7 50%, #e6c66f 65%, transparent) !important;
 }
 footer .fcols a,
 footer .fcols span,
 footer .fch span,
 footer .fbar,
 footer .fcred {
-  color: #d9cfb8 !important;
+  color: #fff1cf !important;
 }
 footer .fcols h5,
 footer .fph,
 footer .fch b {
-  color: #e2b44d !important;
+  color: #ffe4a3 !important;
 }
 footer .fbar {
-  border-top-color: #3a3022 !important;
+  border-top-color: rgba(255, 239, 199, .38) !important;
 }
