@@ -31,6 +31,9 @@ test('edit host uses the bridge with same-origin only and confirms saves from th
   assert.match(host, /allowedEditorOrigins: \[location\.origin\]/);
   assert.doesNotMatch(host, /allowedEditorOrigins:\s*\[\s*'\*'/);
   assert.match(host, /expectedRevision/);
+  assert.match(host, /site-media/);
+  assert.match(host, /device_upload/);
+  assert.match(host, /is_approved: true/);
   assert.match(host, /published/);
   assert.doesNotMatch(host, /localStorage|innerHTML/);
 });
