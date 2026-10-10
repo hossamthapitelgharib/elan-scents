@@ -31,6 +31,7 @@
     '[data-elan-edit].elan-sel{outline:2px solid #c8962a;box-shadow:0 0 0 4px rgba(200,150,42,.18)}',
     '.elan-handle{position:absolute;top:4px;inset-inline-start:4px;z-index:9999;background:#c8962a;color:#fff;border-radius:8px;padding:3px 10px;font:600 12px sans-serif;cursor:grab;touch-action:none;user-select:none}',
     '.elan-drop{position:fixed;left:0;right:0;height:3px;background:#c8962a;z-index:10000;pointer-events:none}',
+    '.elan-bar{position:fixed;bottom:10px;inset-inline-start:10px;z-index:10001;background:#fff;border:1px solid #e5dbc6;border-radius:10px;padding:6px 10px;font:13px sans-serif;box-shadow:0 4px 16px rgba(0,0,0,.15);direction:rtl}.elan-bar select{max-width:220px}',
     '.elan-panel{position:fixed;top:10px;inset-inline-end:10px;z-index:10001;background:#fff;border:1px solid #e5dbc6;border-radius:12px;padding:12px;width:230px;font:14px sans-serif;box-shadow:0 8px 28px rgba(0,0,0,.18);direction:rtl}',
     '.elan-panel b{display:block;margin-bottom:8px}.elan-panel label{display:block;margin:6px 0 2px;font-size:12px}',
     '.elan-panel select,.elan-panel button{width:100%;padding:6px;margin-bottom:4px;font:inherit}',
@@ -47,6 +48,10 @@
 
   function main() { return document.getElementById('main'); }
   function items() {
+    if (model && model.page() !== 'home') {
+      var V = document.getElementById('view'); if (!V) return [];
+      return Array.prototype.slice.call(V.querySelectorAll('[data-elan-custom]')).filter(function (c) { return idOf(c); });
+    }
     var m = main(); if (!m) return [];
     return Array.prototype.slice.call(m.children).filter(function (c) { return idOf(c); });
   }
@@ -74,7 +79,7 @@
   }
   var redrawing = false;
   function redraw() { redrawing = true; Layer.set(model.design(), { editing: true }); redrawing = false; decorate(); notifyDirty(); }
-  function ours(n) { return n.nodeType === 1 && (n.classList.contains('elan-handle') || n.classList.contains('elan-grip') || n.classList.contains('elan-media') || n.classList.contains('elan-drop') || n.classList.contains('elan-panel')); }
+  function ours(n) { return n.nodeType === 1 && (n.classList.contains('elan-handle') || n.classList.contains('elan-grip') || n.classList.contains('elan-media') || n.classList.contains('elan-bar') || n.classList.contains('elan-drop') || n.classList.contains('elan-panel')); }
   new MutationObserver(function (list) {
     if (redrawing) return;
     var foreign = list.some(function (m) { return Array.prototype.concat.call([], Array.prototype.slice.call(m.addedNodes), Array.prototype.slice.call(m.removedNodes)).some(function (n) { return !ours(n); }); });
@@ -198,6 +203,13 @@
         panel.appendChild(ci);
       });
     }
+    if (model.pageOf(id)) {
+      panel.appendChild(mk('label', 'مكان البلوك في الصفحة'));
+      var sl = mk('select'); [['top', 'أعلى الصفحة (تحت العنوان)'], ['bottom', 'أسفل الصفحة']].forEach(function (o) { sl.appendChild(mk('option', o[1], { value: o[0] })); });
+      sl.value = ((model.design().pages[model.pageOf(id)].blocks.filter(function (x) { return x.id === id; })[0]) || {}).slot || 'top';
+      sl.onchange = function () { try { model.setSlot(id, sl.value); redraw(); } catch (e) { say(e.message); } };
+      panel.appendChild(sl);
+    }
     var up = mk('button', '↑ تحريك لفوق'), dn = mk('button', '↓ تحريك لتحت'), cl = mk('button', 'إغلاق');
     up.onclick = function () { if (model.move(id, -1)) redraw(); }; dn.onclick = function () { if (model.move(id, 1)) redraw(); }; cl.onclick = closePanel;
     panel.appendChild(up); panel.appendChild(dn); panel.appendChild(cl); document.body.appendChild(panel);
@@ -269,6 +281,37 @@
     document.body.appendChild(wrap); mediaBox = wrap;
   }
 
+
+  // ---------- page switcher: edit the home page or any inner page ----------
+  var PAGE_NAMES = { 'sec:brands': 'الماركات (القايمة)', 'sec:stores': 'المتاجر (القايمة)', 'sec:cats': 'الأقسام (القايمة)', 'sec:occ': 'المناسبات (القايمة)', 'sec:notes': 'النوتات (القايمة)', 'sec:all': 'كل العطور' };
+  function pageOptions() {
+    var out = [['home', 'الصفحة الرئيسية']];
+    Object.keys(PAGE_NAMES).forEach(function (k) { out.push([k, PAGE_NAMES[k]]); });
+    try { (BR || []).forEach(function (n) { out.push(['brand:' + n, 'ماركة: ' + n]); }); } catch (e) { /* data not loaded */ }
+    try { (ST || []).forEach(function (x) { out.push(['store:' + x[0], 'متجر: ' + x[0]]); }); } catch (e) { /* data not loaded */ }
+    try { ['cats', 'occ', 'notes'].forEach(function (id) { var t = (sec(id) || [])[3] || []; t.forEach(function (n, i) { out.push(['col:' + id + ':' + i, (id === 'cats' ? 'قسم: ' : id === 'occ' ? 'مناسبة: ' : 'نوتة: ') + n]); }); }); } catch (e) { /* data not loaded */ }
+    return out.filter(function (o) { return o[0] === 'home' || ED.isPageKey(o[0]); });
+  }
+  var bar = null;
+  function buildBar() {
+    if (bar) bar.remove();
+    bar = document.createElement('div'); bar.className = 'elan-bar';
+    var l = document.createElement('label'); l.textContent = 'الصفحة: ';
+    var sel = document.createElement('select');
+    pageOptions().forEach(function (o) { var op = document.createElement('option'); op.value = o[0]; op.textContent = o[1]; sel.appendChild(op); });
+    sel.value = model.page();
+    sel.addEventListener('change', function () { gotoPage(sel.value); });
+    l.appendChild(sel); bar.appendChild(l); document.body.appendChild(bar);
+  }
+  function gotoPage(key) {
+    closePanel(); closeMedia(); selected = null;
+    model.setPage(key);
+    if (key === 'home') { document.body.classList.remove('inner'); scrollTo(0, 0); }
+    else { var t = key.slice(0, key.indexOf(':')), rest = key.slice(key.indexOf(':') + 1); window.go(t === 'col' ? 'col|' + rest.replace(':', '|') : t + '|' + rest); }
+    redraw(); select(null);
+    if (bridge) bridge.selection(null);
+  }
+
   // ---------- commands from the editor ----------
   function need(p) { var id = p.elementId || selected; if (!id || !model.kind(id)) throw Error('حددي عنصر الأول بالضغط عليه'); return id; }
   async function savePage(requestId) {
@@ -294,7 +337,7 @@
   async function execute(action, p, ctx) {
     p = p || {};
     switch (action) {
-      case 'page.getState': return { revision: serverRevision, design: model.design(), dirty: model.dirty(), selection: selected };
+      case 'page.getState': return { revision: serverRevision, design: model.design(), dirty: model.dirty(), selection: selected, page: model.page() };
       case 'element.select': need(p); select(p.elementId); return { ok: true };
       case 'element.move': { var id = need(p), ch = typeof p.index === 'number' ? model.moveTo(id, p.index) : model.move(id, p.direction === 'up' || p.direction === -1 ? -1 : 1); if (ch) redraw(); return { moved: ch }; }
       case 'element.resize': { var rid = need(p); if (model.resize(rid, p.size || p.step || 'bigger')) redraw(); return { ok: true }; }
@@ -328,7 +371,7 @@
   bridge = Bridge.install({
     allowedEditorOrigins: [location.origin],
     authorize: authorize,
-    getState: async function () { var d = await loadPublished(); redraw(); select(null); return { revision: d.revision === null ? 'none' : d.revision, design: d.design }; },
+    getState: async function () { var d = await loadPublished(); redraw(); select(null); buildBar(); return { revision: d.revision === null ? 'none' : d.revision, design: d.design }; },
     execute: execute
   });
 })();

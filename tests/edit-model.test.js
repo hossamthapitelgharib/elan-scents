@@ -50,3 +50,20 @@ test('banners and images only accept the allowed media host and safe links', () 
   assert.equal(ED.normalize(m.design(), { strict: true }).ok, false);
   assert.equal(m.kind(i), 'image');
 });
+
+test('inner-page blocks stay on their page, keep top/bottom placement, and survive undo and archive', () => {
+  const ok = 'https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/u/a.png';
+  const m = EM.create({});
+  m.setPage('sec:brands');
+  const a = m.createText(null, 'أول'), b = m.createBanner(a, { title: 'بانر' });
+  m.setMedia(b, ok); m.setSlot(a, 'bottom');
+  assert.deepEqual(m.sequence(), [b, a]);
+  assert.equal(m.pageOf(a), 'sec:brands');
+  m.setPage('home');
+  assert.equal(m.sequence().length, 9);
+  assert.deepEqual(Object.keys(m.design().pages), ['sec:brands']);
+  assert.ok(ED.normalize(m.design(), { strict: true }).ok);
+  m.setPage('sec:brands'); m.archive(b); assert.deepEqual(m.sequence(), [a]);
+  assert.ok(m.restore(b)); assert.equal(m.sequence().length, 2);
+  assert.throws(() => EM.create({}).setSlot('brands', 'bottom'));
+});
