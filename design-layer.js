@@ -19,7 +19,8 @@
     '.elan-banner:before{content:"";position:absolute;inset:0;background:rgba(20,12,4,.35)}',
     '.elan-banner>*{position:relative}.elan-banner h3,.elan-banner p{margin:6px 0;color:#fff}',
     '.elan-image img{max-width:100%;height:auto;display:block;margin:0 auto;border-radius:12px}',
-    '.elan-block a{color:inherit;text-decoration:none;display:block}'
+    '.elan-block a{color:inherit;text-decoration:none;display:block}',
+    '.elan-smart{max-width:1200px}.elan-smart h3{margin:0 0 12px;text-align:start}'
   ].join('\n');
 
   function lang() { return document.documentElement.lang === 'en' ? 'en' : 'ar'; }
@@ -39,6 +40,62 @@
     return e;
   }
 
+
+  // ----- smart sections: definition + items live in Supabase (public read; RLS hides archived/expired ones) -----
+  var smartCache = {};
+  window.ElanPendingSections = window.ElanPendingSections || {};   // edit mode only: drafts not saved yet
+  function perfumeBy(id) { try { return PERFUMES.filter(function (x) { return String(x.id) === String(id); })[0] || null; } catch (e) { return null; } }
+  function autoList(f) {
+    f = f || {};
+    var l = [];
+    try { l = PERFUMES.map(function (p) { return { p: p, b: best(p) }; }).filter(function (x) { return x.b; }); } catch (e) { return []; }
+    l = l.filter(function (x) {
+      var p = x.p;
+      if (f.brand && p.brand !== f.brand) return false;
+      if (f.cat && !(p.cats || []).some(function (i) { return nmOf('cats', i) === f.cat; })) return false;
+      if (f.occ && !(p.occs || []).some(function (i) { return nmOf('occ', i) === f.occ; })) return false;
+      if (f.note && !(p.notes || []).some(function (i) { return nmOf('notes', i) === f.note; })) return false;
+      if (f.store && !p.offers.some(function (o) { return o.store === f.store; })) return false;
+      if (f.flag && !p.offers.some(function (o) { return (o.flags || []).indexOf(f.flag) > -1; })) return false;
+      if (f.min !== undefined && f.min !== '' && x.b.price < +f.min) return false;
+      if (f.max !== undefined && f.max !== '' && x.b.price > +f.max) return false;
+      return true;
+    });
+    if (f.sort === 'price_asc') l.sort(function (a, b) { return a.b.price - b.b.price; });
+    else if (f.sort === 'price_desc') l.sort(function (a, b) { return b.b.price - a.b.price; });
+    else l.sort(function (a, b) { return (b.p.rel || 0) - (a.p.rel || 0); });
+    return l.slice(0, Math.max(1, Math.min(24, +f.limit || 12)));
+  }
+  function manualList(ids) {
+    return ids.map(perfumeBy).filter(Boolean).map(function (p) { return { p: p, b: best(p) }; });
+  }
+  function paint(root, name, list) {
+    root.textContent = '';
+    if (name) { var h = el('h3'); h.textContent = name; root.appendChild(h); }
+    var g = el('div', 'grid section-perfume-grid');
+    g.innerHTML = list.map(function (x) { return pc(x); }).join('');   // pc() output is built from the storefront's own escaped data
+    root.appendChild(g);
+  }
+  function fillSmart(root, ref) {
+    var pend = window.ElanPendingSections[ref];
+    if (pend) { paint(root, pend.name, pend.mode === 'auto' ? autoList(pend.filters) : manualList(pend.items || [])); return; }
+    if (typeof SB === 'undefined' || !SB || !SB.url) { root.remove(); return; }
+    var hit = smartCache[ref];
+    if (hit && Date.now() - hit.t < 60000) { if (hit.def) paint(root, hit.def.name, hit.list()); else root.remove(); return; }
+    var H = { apikey: SB.key, Authorization: 'Bearer ' + SB.key };
+    fetch(SB.url + '/rest/v1/editor_sections?element_id=eq.' + encodeURIComponent(ref) + '&select=id,name,selection_mode,filters&limit=1', { headers: H })
+      .then(function (r) { return r.ok ? r.json() : []; })
+      .then(function (rows) {
+        if (!rows.length) { smartCache[ref] = { t: Date.now(), def: null }; root.remove(); return null; }
+        var def = rows[0];
+        if (def.selection_mode === 'auto') { smartCache[ref] = { t: Date.now(), def: def, list: function () { return autoList(def.filters); } }; paint(root, def.name, autoList(def.filters)); return null; }
+        return fetch(SB.url + '/rest/v1/editor_section_items?section_id=eq.' + def.id + '&select=product_size_id&order=sort_order', { headers: H })
+          .then(function (r) { return r.ok ? r.json() : []; })
+          .then(function (items) { var ids = items.map(function (i) { return i.product_size_id; }); smartCache[ref] = { t: Date.now(), def: def, list: function () { return manualList(ids); } }; paint(root, def.name, manualList(ids)); });
+      })
+      .catch(function () { root.remove(); });
+  }
+
   function buildBlock(b) {
     var st = b.style || {};
     var root = el('div', 'elan-block elan-' + b.type + ' elan-size-' + (st.size || 'md') + ' elan-align-' + (st.align || 'center'));
@@ -47,13 +104,16 @@
     if (st.color) root.style.color = st.color;
     if (st.background) root.style.backgroundColor = st.background;
     var inner = root;
-    if (b.href) {
+    if (b.href && b.type !== 'smart') {
       var a = el('a');
       a.setAttribute('href', b.href);
       root.appendChild(a);
       inner = a;
     }
-    if (b.type === 'text') {
+    if (b.type === 'smart') {
+      root.classList.add('elan-smart');
+      fillSmart(root, b.ref);
+    } else if (b.type === 'text') {
       var p = el('p');
       p.textContent = pick(b.text);
       inner.appendChild(p);

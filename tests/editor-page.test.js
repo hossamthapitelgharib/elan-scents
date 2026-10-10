@@ -34,6 +34,10 @@ test('edit host uses the bridge with same-origin only and confirms saves from th
   assert.match(host, /site-media/);
   assert.match(host, /device_upload/);
   assert.match(host, /is_approved: true/);
+  assert.match(host, /editor_sections/);
+  assert.match(host, /selection_mode/);
+  assert.match(host, /timer_mode/);
+  assert.match(host, /flushSections\(\);\n\s+var r = await api\('POST', \{ action: 'save'/);
   for (const t of ['brands', 'stores', 'occasions', 'aromatic_notes']) assert.match(host, new RegExp("table: '" + t + "'"));
   assert.match(host, /normName/);
   assert.match(host, /insertRecord\(pending\[pi\]\)/);
