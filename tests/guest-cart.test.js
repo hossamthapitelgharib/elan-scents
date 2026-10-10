@@ -69,7 +69,7 @@ test('guest capture is automatic, browser-local, and its migration keeps only is
   const identity = fs.readFileSync(path.join(root, 'guest-identity.js'), 'utf8');
   const core = fs.readFileSync(path.join(root, 'app-core.js'), 'utf8');
   const migration = fs.readFileSync(path.join(root, 'supabase/migrations/20261010014327_guest_browser_identity_analytics.sql'), 'utf8');
-  assert.match(html, /guest-identity\.js\?v=20261010-01/);
+  assert.match(html, /guest-identity\.js\?v=[0-9A-Za-z-]+/);
   assert.match(identity, /localStorage\.getItem\(STORAGE_KEY\)/);
   assert.match(identity, /randomUUID/);
   assert.match(identity, /setTimeout\(function \(\) \{ resolve\(\)/);
@@ -88,6 +88,6 @@ test('guest capture is automatic, browser-local, and its migration keeps only is
 test('customer account page keeps the browser key script before account login logic', () => {
   const html = fs.readFileSync(path.join(__dirname, '..', 'account.html'), 'utf8');
   const account = fs.readFileSync(path.join(__dirname, '..', 'account.js'), 'utf8');
-  assert.match(html, /guest-identity\.js\?v=20261010-01/);
+  assert.match(html, /guest-identity\.js\?v=[0-9A-Za-z-]+/);
   assert.match(account, /GuestIdentity\.claim/);
 });

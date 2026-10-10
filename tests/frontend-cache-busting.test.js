@@ -8,7 +8,8 @@ const index = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const style = fs.readFileSync(path.join(root, 'style.css'), 'utf8');
 const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
 
-const assetVersion = '20261010-01';
+const assetVersion = (index.match(/\/style\.css\?v=([0-9A-Za-z-]+)/) || [])[1];
+assert.ok(assetVersion, 'index.html must version style.css');
 
 test('main storefront pins a cache-busting version on UI assets', () => {
   assert.match(index, new RegExp(`/style\\.css\\?v=${assetVersion}`));
@@ -26,7 +27,7 @@ test('hero video uses a versioned source and autoplay-safe attributes', () => {
 });
 
 test('main storefront loads its application core from the deployment itself', () => {
-  assert.match(app, /var CORE=['"]\/app-core\.js\?v=20261010-01['"]/);
+  assert.match(app, new RegExp(`var CORE=['"]/app-core\\.js\\?v=${assetVersion}['"]`));
   assert.doesNotMatch(app, /jsdelivr|unpkg|cdnjs/);
   assert.ok(fs.existsSync(path.join(root, 'app-core.js')));
 });

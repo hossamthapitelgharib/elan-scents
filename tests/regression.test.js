@@ -34,9 +34,12 @@ test('main menu routes طلباتي to the customer dashboard', () => {
   assert.match(platform, /id="platformFilters"/);
   const storefront = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
   const styles = fs.readFileSync(path.join(root, 'style.css'), 'utf8');
-  assert.match(storefront, /class="footer-logo" src="\/assets\/elan-scents-logo\.png"/);
+  // The footer uses the 9:16 identity background (footer-9x16.css); the separate top logo image was removed on purpose.
+  assert.match(storefront, /<footer>/);
+  assert.doesNotMatch(storefront, /class="footer-logo"/);
+  assert.match(styles, /@import url\('\/footer-9x16\.css\?v=[0-9A-Za-z-]+'\)/);
+  assert.ok(fs.existsSync(path.join(root, 'footer-9x16.css')));
   assert.match(core, /fcr.*growthmark-img/);
-  assert.match(styles, /Élan Scents footer identity/);
 });
 
 test('frontend order persistence uses the authenticated Supabase identity', () => {
