@@ -1,0 +1,80 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/store-order-completed",
+      "destination": "/api/store-order-status"
+    },
+    {
+      "source": "/api/store-order-status-check",
+      "destination": "/api/store-order-status"
+    },
+    {
+      "source": "/editor",
+      "destination": "/editor.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, max-age=0, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/(index.html|account.html|dashboard.html|store-dashboard.html|platform-dashboard.html|style.css|style-3.css|fonts.css|portal.css|dashboard.css|app.js|app-core.js|guest-identity.js|texts.js|portal.js|account.js|dashboard.js|store-dashboard.js|platform-dashboard.js|manus-routes.json|design-schema.js|design-layer.js|edit-mode.js|elan-host-bridge.js|editor.html|editor.js)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, max-age=0, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, max-age=0, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/assets/hero.mp4",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "video/mp4"
+        },
+        {
+          "key": "Accept-Ranges",
+          "value": "bytes"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/assets/hero-poster.jpg",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/design/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, max-age=0, must-revalidate"
+        }
+      ]
+    }
+  ]
+}
