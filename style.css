@@ -3,8 +3,8 @@
    Imports base theme then applies current desired overrides.
    Frontend display only. Do not add backend/DB rules here.
    ============================================================ */
-@import url('/style-3.css?v=20261010-09');
-@import url('/footer-9x16.css?v=20261010-09');
+@import url('/style-3.css?v=20261010-10');
+@import url('/footer-9x16.css?v=20261010-10');
 
 /* ---------- Menu: slightly narrower panel + slightly larger items ---------- */
 #menu {
@@ -168,11 +168,14 @@ header .logo small {
   pointer-events: none;
 }
 
-/* ---------- Occasion cards: same size as Categories ---------- */
+/* ---------- Occasion + Notes cards: same size as Categories ---------- */
 #occ .card.round,
 #occ .strip .card.round,
 #occ .card.occ,
-#occ .card.occ-note {
+#occ .card.occ-note,
+#notes .card.round,
+#notes .strip .card.round,
+#notes .card.notes {
   flex: 0 0 340px !important;
   flex-basis: 340px !important;
   width: 340px !important;
@@ -399,7 +402,10 @@ body.sheet-open {
   #occ .card.round,
   #occ .strip .card.round,
   #occ .card.occ,
-  #occ .card.occ-note {
+  #occ .card.occ-note,
+  #notes .card.round,
+  #notes .strip .card.round,
+  #notes .card.notes {
     flex: 0 0 300px !important;
     flex-basis: 300px !important;
     width: 300px !important;
@@ -494,7 +500,10 @@ body.sheet-open {
   #occ .card.round,
   #occ .strip .card.round,
   #occ .card.occ,
-  #occ .card.occ-note {
+  #occ .card.occ-note,
+  #notes .card.round,
+  #notes .strip .card.round,
+  #notes .card.notes {
     flex: 0 0 min(300px, 92vw) !important;
     flex-basis: min(300px, 92vw) !important;
     width: min(300px, 92vw) !important;
@@ -577,7 +586,10 @@ body.sheet-open {
   #occ .card.round,
   #occ .strip .card.round,
   #occ .card.occ,
-  #occ .card.occ-note {
+  #occ .card.occ-note,
+  #notes .card.round,
+  #notes .strip .card.round,
+  #notes .card.notes {
     flex: 0 0 320px !important;
     flex-basis: 320px !important;
     width: 320px !important;
