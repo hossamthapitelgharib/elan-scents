@@ -30,7 +30,7 @@ header .logo small {
   display: block !important;
 }
 
-/* ---------- Masterpieces card 4:3 ---------- */
+/* ---------- Masterpieces card 4:3 (same size as Categories) ---------- */
 .cb > .card.msel {
   background-image: url('/assets/cards/masterpieces.webp') !important;
   background-size: cover !important;
@@ -39,8 +39,8 @@ header .logo small {
   background-color: #ede8de !important;
   background-clip: border-box !important;
   background-origin: border-box !important;
-  width: 320px !important;
-  max-width: 90vw !important;
+  width: 100% !important;
+  max-width: 340px !important;
   height: auto !important;
   min-height: 0 !important;
   max-height: none !important;
@@ -370,7 +370,8 @@ body.sheet-open {
     aspect-ratio: 4 / 3 !important;
   }
   .cb > .card.msel {
-    width: 280px !important;
+    width: 100% !important;
+    max-width: 300px !important;
     height: auto !important;
     min-height: 0 !important;
     aspect-ratio: 4 / 3 !important;
@@ -451,7 +452,8 @@ body.sheet-open {
   #cats > .cb > .card .st { font-size: 11px !important; }
 
   .cb > .card.msel {
-    width: min(300px, 90vw) !important;
+    width: 100% !important;
+    max-width: 92vw !important;
     height: auto !important;
     min-height: 0 !important;
     aspect-ratio: 4 / 3 !important;
@@ -525,6 +527,9 @@ body.sheet-open {
     height: auto !important;
     min-height: 0 !important;
     aspect-ratio: 4 / 3 !important;
+  }
+  .cb > .card.msel {
+    max-width: 320px !important;
   }
 }
 
