@@ -1,0 +1,9 @@
+# Files that must not be deployed to the public site.
+# NOTE: lib/ (required by api/*) and design/ (read by the storefront) must stay deployed.
+tests
+supabase
+reports
+railway
+CLAUDE.md
+README.md
+.github
