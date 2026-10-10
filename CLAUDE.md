@@ -40,13 +40,19 @@
 ## مهام تتطلب موافقة صاحب المشروع قبل التنفيذ
 - حذف بيانات أو جداول أو ملفات كبيرة.
 - تغيير الصلاحيات أو سياسات RLS أو الأدوار.
-- أي عملية على بيئة الإنتاج (Supabase أو Vercel).
+- أي عملية على بيئة الإنتاج (Supabase أو Railway، وتشمل تغيير متغيرات البيئة والأسرار).
 - تغيير سلوك الدفع أو أرقام التتبع أو تدفق الطلبات.
 
 ## هيكل المشروع
 - المتجر: `index.html` و`app.js` و`app-core.js` و`texts.js` و`style.css` فوق `style-3.css`.
 - اللوحات: `account.*` (العميل) و`dashboard.*` (متابعة الطلبات) و`store-dashboard.*` (المتجر) و`platform-dashboard.*` (المنصة).
-- `api/`: دوال Vercel serverless، والتحقق من المستخدم والدور في `api/_auth.js`.
+- `api/`: دوال الـ API التي يقدّمها `railway/server.js`، والتحقق من المستخدم والدور في `api/_auth.js`.
 - `supabase/migrations/`: ترحيلات قاعدة البيانات.
 - `tests/`: اختبارات `node --test`، والتشغيل بـ `npm test` (Node 20 فأعلى).
 - CI: `.github/workflows/tests.yml` يعمل عند كل push أو PR على `main`.
+
+## الاستضافة
+- الاستضافة الوحيدة الآن هي **Railway** (مشروع `elan-editor`: خدمتا `elan-site` و`elan-editor`، بيئة `production`، النشر من فرع `main`). مشروع Vercel حُذف.
+- `railway/server.js` يقدّم الملفات الثابتة و`/api/*`، ويقرأ الـ headers والـ rewrites من `vercel.json`، فلا يُحذف هذا الملف.
+- متغيرات البيئة المطلوبة على `elan-site`: `SUPABASE_URL` و`SUPABASE_ANON_KEY` و`SUPABASE_SERVICE_ROLE_KEY` و`STORE_ORDER_WEBHOOK_SECRET` (وإلا ترد الـ webhooks بـ 503) و`DASHBOARD_TOKEN` (وإلا ترد لوحات الإدارة بـ 503).
+- حد الطلبات في `lib/rate-limit.js` يعمل داخل ذاكرة العملية، ومع نسخة Railway الواحدة يكون فعّالاً.
