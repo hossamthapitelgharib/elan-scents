@@ -58,6 +58,8 @@ async function loadGuestAnalytics() {
   renderGuestAnalytics(result.analytics);
 }
 
+function filterQuery() { const form=document.querySelector('#platformFilters'); if(!form) return ''; const params=new URLSearchParams(); for(const [key,value] of new FormData(form)){ if(value) params.set(key,value); } const query=params.toString(); return query ? `?${query}` : ''; }
+
 function renderOrders(orders) {
   document.querySelector('#orders').innerHTML = orders.length ? orders.map(order => {
     const events = order.order_operation_events || [];
@@ -88,7 +90,7 @@ async function loadPlatform() {
   document.querySelector('#logout').hidden = false;
   const headers = Portal.auth();
   const responses = await Promise.all([
-    fetch('/api/dashboard-orders', { headers }),
+    fetch('/api/dashboard-orders'+filterQuery(), { headers }),
     fetch('/api/platform-customers', { headers })
   ]);
   const ordersData = await responses[0].json();
@@ -109,6 +111,7 @@ async function loadPlatform() {
 }
 
 activateCustomerTabs();
+document.querySelector('#platformFilters').addEventListener('submit', event => { event.preventDefault(); loadPlatform().catch(reportError); });
 document.querySelector('#refreshCustomers').addEventListener('click', () => loadPlatform().catch(reportError));
 document.querySelector('#guestAnalyticsPeriod').addEventListener('change', () => loadGuestAnalytics().catch(showGuestAnalyticsError));
 document.querySelector('#loginForm').addEventListener('submit', async event => {

@@ -1,3 +1,4 @@
+const crypto = require('node:crypto');
 const ALLOWED_STATUSES = new Set([
   'completed',
   'success',
@@ -21,11 +22,13 @@ function normalizePayload(body) {
     ? { ...body.order, status: body.status || body.order.status, reason: body.reason || body.order.reason }
     : body || {};
 
-  return {
+  const normalized = {
     ...source,
     trackingNumber: source.trackingNumber || source.orderNumber,
     status: String(source.status || '').toLowerCase(),
   };
+  normalized.idempotencyKey = normalized.idempotencyKey || normalized.eventId || crypto.createHash('sha256').update(JSON.stringify({ trackingNumber: normalized.trackingNumber, status: normalized.status, subtotal: normalized.subtotal, items: normalized.items })).digest('hex');
+  return normalized;
 }
 
 function validatePayload(payload) {

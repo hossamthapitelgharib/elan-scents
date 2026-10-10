@@ -15,6 +15,10 @@ module.exports = async function dashboardOrders(req, res) {
     if (query.status) params.set('status', `eq.${query.status}`);
     if (query.matchStatus) params.set('reconciliation_status', `eq.${query.matchStatus}`);
     if (query.storeId) params.set('store_id', `eq.${query.storeId}`);
+    if (query.tracking) params.set('tracking_number', `ilike.*${String(query.tracking).replace(/[(),]/g, '')}*`);
+    if (query.from) params.set('created_at', `gte.${String(query.from)}`);
+    if (query.to) params.set('and', `(created_at.lt.${String(query.to)})`);
+    if (query.attention === '1') params.set('or', '(status.eq.needs_review,reconciliation_status.eq.mismatched)');
     const response = await fetch(`${context.supabaseUrl}/rest/v1/store_order_requests?${params}`, { headers: { apikey: context.serviceRoleKey, Authorization: `Bearer ${context.serviceRoleKey}` } });
     const data = await response.json();
     if (!response.ok) return reply(res, 502, { ok: false, error: 'supabase_read_failed', details: data });
