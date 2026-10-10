@@ -3,8 +3,8 @@
    Imports base theme then applies current desired overrides.
    Frontend display only. Do not add backend/DB rules here.
    ============================================================ */
-@import url('/style-3.css?v=20261010-10');
-@import url('/footer-9x16.css?v=20261010-10');
+@import url('/style-3.css?v=20261010-12');
+@import url('/footer-9x16.css?v=20261010-12');
 
 /* ---------- Menu: slightly narrower panel + slightly larger items ---------- */
 #menu {
