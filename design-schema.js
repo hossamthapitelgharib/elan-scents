@@ -18,12 +18,17 @@
     '/assets/',
     'https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/'
   ];
-  var PAGE_KEY_RE = /^(?:sec:(?:brands|stores|cats|occ|notes|all|offers|new|master|soon)|col:(?:cats|occ|notes):\d{1,3}|brand:[^|"'<>\\\u0000-\u001F]{1,80}|store:[^|"'<>\\\u0000-\u001F]{1,80})$/;
-  var MAX_PAGES = 40;
   var BLOCK_ID_RE = /^x-[a-z0-9_-]{1,36}$/;
   var COLOR_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
   var HREF_RE = /^(?:\/(?!\/)|#|https:\/\/)[^\s"'<>\\]*$/;
   var LANGS = ['ar', 'en'];
+  /* Free-form edits made in the visual editor. Optional, so older files and older readers keep working.
+     Buckets: "all" applies everywhere, then the bucket for the current screen size overrides it. */
+  var DEVICES = ['all', 'desktop', 'tablet', 'mobile'];
+  var EDIT_ID_RE = /^[a-z0-9:_-]{1,60}$/;
+  var WEIGHTS = [400, 500, 600, 700];
+  var EDIT_LIMITS = { ids: 400, offset: 4000, size: 4000, minSize: 16, font: [8, 120], radius: 80 };
+  var BREAKPOINTS = { mobile: 640, tablet: 1024 };
 
   function isObj(x) { return x !== null && typeof x === 'object' && !Array.isArray(x); }
   function has(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }
@@ -103,6 +108,98 @@
     return b;
   }
 
+  function intIn(v, min, max) {
+    if (typeof v !== 'number' || !isFinite(v)) return null;
+    var n = Math.round(v);
+    return n < min || n > max ? null : n;
+  }
+
+  function editOf(raw, errors, where) {
+    var out = {};
+    if (!isObj(raw)) { errors.push(where + ': not an object'); return null; }
+    Object.keys(raw).forEach(function (k) {
+      var v = raw[k], n;
+      if (k === 'dx' || k === 'dy') {
+        n = intIn(v, -EDIT_LIMITS.offset, EDIT_LIMITS.offset);
+        if (n === null) errors.push(where + '.' + k + ': out of range'); else if (n !== 0) out[k] = n;
+      } else if (k === 'w' || k === 'h') {
+        n = intIn(v, EDIT_LIMITS.minSize, EDIT_LIMITS.size);
+        if (n === null) errors.push(where + '.' + k + ': out of range'); else out[k] = n;
+      } else if (k === 'hidden') {
+        if (v === true) out.hidden = true; else if (v !== false) errors.push(where + '.hidden: invalid');
+      } else if (k === 'archived') {
+        if (v === true) out.archived = true; else if (v !== false) errors.push(where + '.archived: invalid');
+      } else if (k === 'text') {
+        var t = loc(v, LIMITS.text);
+        if (t.ar || t.en) out.text = t;
+      } else if (k === 'style') {
+        if (!isObj(v)) { errors.push(where + '.style: not an object'); return; }
+        var st = {};
+        Object.keys(v).forEach(function (sk) {
+          var sv = v[sk];
+          if (sk === 'color' || sk === 'background') {
+            if (typeof sv === 'string' && COLOR_RE.test(sv)) st[sk] = sv; else errors.push(where + '.style.' + sk + ': invalid color');
+          } else if (sk === 'fontSize') {
+            n = intIn(sv, EDIT_LIMITS.font[0], EDIT_LIMITS.font[1]);
+            if (n === null) errors.push(where + '.style.fontSize: out of range'); else st.fontSize = n;
+          } else if (sk === 'radius') {
+            n = intIn(sv, 0, EDIT_LIMITS.radius);
+            if (n === null) errors.push(where + '.style.radius: out of range'); else st.radius = n;
+          } else if (sk === 'weight') {
+            if (WEIGHTS.indexOf(sv) !== -1) st.weight = sv; else errors.push(where + '.style.weight: invalid');
+          } else if (sk === 'align') {
+            if (ALIGNS.indexOf(sv) !== -1) st.align = sv; else errors.push(where + '.style.align: invalid');
+          } else if (sk === 'opacity') {
+            if (typeof sv === 'number' && sv >= 0.1 && sv <= 1) st.opacity = Math.round(sv * 100) / 100; else errors.push(where + '.style.opacity: invalid');
+          } else errors.push(where + '.style.' + sk + ': not editable');
+        });
+        if (Object.keys(st).length) out.style = st;
+      } else errors.push(where + '.' + k + ': not editable');
+    });
+    return Object.keys(out).length ? out : null;
+  }
+
+  function editsOf(raw, errors) {
+    var out = {};
+    if (!isObj(raw)) { errors.push('edits must be an object'); return out; }
+    var count = 0;
+    Object.keys(raw).forEach(function (dev) {
+      if (DEVICES.indexOf(dev) === -1) { errors.push('edits.' + dev + ': unknown screen size'); return; }
+      if (!isObj(raw[dev])) { errors.push('edits.' + dev + ': not an object'); return; }
+      var bucket = {};
+      Object.keys(raw[dev]).forEach(function (id) {
+        if (!EDIT_ID_RE.test(id)) { errors.push('edits.' + dev + ': invalid element id'); return; }
+        if (++count > EDIT_LIMITS.ids) { if (count === EDIT_LIMITS.ids + 1) errors.push('too many edits'); return; }
+        var e = editOf(raw[dev][id], errors, 'edits.' + dev + '.' + id);
+        if (e) bucket[id] = e;
+      });
+      if (Object.keys(bucket).length) out[dev] = bucket;
+    });
+    return out;
+  }
+
+  /* Which bucket matches a screen width. */
+  function deviceOf(width) {
+    return width < BREAKPOINTS.mobile ? 'mobile' : width < BREAKPOINTS.tablet ? 'tablet' : 'desktop';
+  }
+
+  /* Merged edit for one element on one screen size: "all" first, then the size-specific bucket on top. */
+  function editFor(design, device, id) {
+    var ed = design && design.edits;
+    if (!ed) return null;
+    var a = ed.all && ed.all[id], b = ed[device] && ed[device][id];
+    if (!a && !b) return null;
+    var out = {};
+    [a, b].forEach(function (e) {
+      if (!e) return;
+      Object.keys(e).forEach(function (k) {
+        if (k === 'style') out.style = Object.assign({}, out.style || {}, e.style);
+        else out[k] = e[k];
+      });
+    });
+    return out;
+  }
+
   /* normalize(input, {strict}) -> {ok, design, errors}
      Strict mode (server): any problem makes ok=false so nothing invalid is ever committed.
      Lenient mode (storefront): invalid parts are skipped so the page never breaks. */
@@ -138,27 +235,6 @@
       });
     } else if (input.blocks !== undefined) errors.push('blocks must be an array');
 
-    if (isObj(input.pages)) {
-      var keys = Object.keys(input.pages);
-      if (keys.length > MAX_PAGES) errors.push('too many pages');
-      keys.slice(0, MAX_PAGES).forEach(function (key) {
-        if (!PAGE_KEY_RE.test(key)) { errors.push('pages.' + key + ': unknown page'); return; }
-        var pg = input.pages[key];
-        if (!isObj(pg) || !Array.isArray(pg.blocks)) { errors.push('pages.' + key + ': blocks must be an array'); return; }
-        var list = [];
-        pg.blocks.forEach(function (raw, i) {
-          var b = blockOf(raw, errors, 'pages.' + key + '[' + i + ']');
-          if (!b) return;
-          if (seen[b.id]) { errors.push('pages.' + key + '[' + i + ']: duplicate id'); return; }
-          seen[b.id] = true; b.slot = isObj(raw) && raw.slot === 'bottom' ? 'bottom' : 'top';
-          list.push(b);
-        });
-        if (list.length) { design.pages = design.pages || {}; design.pages[key] = { blocks: list }; }
-      });
-      var total = design.blocks.length + Object.keys(design.pages || {}).reduce(function (n, k) { return n + design.pages[k].blocks.length; }, 0);
-      if (total > LIMITS.blocks) errors.push('too many blocks');
-    } else if (input.pages !== undefined) errors.push('pages must be an object');
-
     if (Array.isArray(input.order)) {
       if (input.order.length > LIMITS.order) errors.push('order too long');
       var inOrder = {};
@@ -183,13 +259,19 @@
       });
     } else if (input.texts !== undefined) errors.push('texts must be an object');
 
+    if (input.edits !== undefined) {
+      var ed = editsOf(input.edits, errors);
+      if (Object.keys(ed).length) design.edits = ed;
+    }
+
     var ok = isObj(input) && input.version === VERSION && (!strict || errors.length === 0);
     return { ok: ok, design: design, errors: errors };
   }
 
   function isEmpty(design) {
     return !design || (!Object.keys(design.sections || {}).length && !(design.blocks || []).length &&
-      !(design.order || []).length && !Object.keys(design.texts || {}).length && !Object.keys(design.pages || {}).length);
+      !(design.order || []).length && !Object.keys(design.texts || {}).length &&
+      !Object.keys(design.edits || {}).length);
   }
 
   /* Canonical text that gets committed. Throws if it would be unsafe to commit. */
@@ -237,7 +319,8 @@
 
   return {
     VERSION: VERSION, BUILTIN: BUILTIN, TEXT_KEYS: TEXT_KEYS, LIMITS: LIMITS,
+    DEVICES: DEVICES, BREAKPOINTS: BREAKPOINTS, EDIT_ID_RE: EDIT_ID_RE,
     normalize: normalize, isEmpty: isEmpty, serialize: serialize, plan: plan, applyTexts: applyTexts,
-    isPageKey: function (k) { return typeof k === 'string' && PAGE_KEY_RE.test(k); }
+    deviceOf: deviceOf, editFor: editFor
   };
 });
