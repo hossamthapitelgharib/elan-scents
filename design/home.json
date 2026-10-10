@@ -55,6 +55,11 @@
           "fontSize": 8,
           "color": "#f6f3ee"
         }
+      },
+      "sec:stores:title": {
+        "style": {
+          "fontSize": 16
+        }
       }
     }
   }
