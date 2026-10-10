@@ -36,3 +36,17 @@ test('the model refuses edits the schema does not allow', () => {
   assert.throws(() => m.format(id, { align: 'left' }));
   assert.equal(m.dirty(), true);
 });
+
+test('banners and images only accept the allowed media host and safe links', () => {
+  const ok = 'https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/uploads/2026/a.png';
+  const m = EM.create({});
+  const b = m.createBanner('brands', { title: 'خصم' });
+  m.setMedia(b, ok); m.setSubtitle(b, 'ar', 'لفترة محدودة'); m.setHref(b, '/#offers'); m.format(b, { background: '#112233', color: '#fff' });
+  const i = m.createImage(b, ok);
+  assert.ok(ED.normalize(m.design(), { strict: true }).ok);
+  assert.throws(() => m.setHref(b, 'javascript:alert(1)'));
+  assert.throws(() => m.format(b, { color: 'red' }));
+  m.setMedia(b, 'https://evil.example/x.png');
+  assert.equal(ED.normalize(m.design(), { strict: true }).ok, false);
+  assert.equal(m.kind(i), 'image');
+});
