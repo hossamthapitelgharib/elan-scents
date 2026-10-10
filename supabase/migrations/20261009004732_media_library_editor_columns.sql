@@ -1,4 +1,4 @@
--- Additive only: nullable columns so existing rows/queries are unaffected.
+-- Additive only: nullable columns so existing rows/queries are unaffected (table currently has 0 rows).
 alter table public.media_library
   add column if not exists title text,
   add column if not exists category text,

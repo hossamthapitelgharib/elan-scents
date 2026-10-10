@@ -1,5 +1,5 @@
 -- Editor sections: a section's identity, filters, selection mode and timer.
--- Layout/design lives in GitHub (design/home.json); element_id is the stable id of the element in the design file.
+-- Layout/design lives in GitHub; element_id is the stable id of the element in the design file.
 create table if not exists public.editor_sections (
   id uuid primary key default gen_random_uuid(),
   element_id text not null unique,
@@ -42,6 +42,7 @@ create trigger set_updated_at before update on public.editor_sections
 alter table public.editor_sections enable row level security;
 alter table public.editor_section_items enable row level security;
 
+-- Admin: full access, same pattern as the existing tables.
 create policy admin_all on public.editor_sections for all to authenticated
   using ((select private.is_platform_admin()))
   with check ((select private.is_platform_admin()));
@@ -56,10 +57,11 @@ create policy public_read on public.editor_sections for select to anon, authenti
     and (starts_at is null or starts_at <= now())
     and (ends_at is null or ends_at > now())
   );
--- Items are visible only when their section is visible (the subquery is filtered by the policy above).
+-- Items are visible only when their section is visible (the subquery is itself filtered by the policy above).
 create policy public_read on public.editor_section_items for select to anon, authenticated
   using (exists (select 1 from public.editor_sections s where s.id = section_id));
 
+-- Least privilege: remove default broad grants, then grant only what is needed.
 revoke all on public.editor_sections, public.editor_section_items from anon, authenticated;
 grant select on public.editor_sections, public.editor_section_items to anon;
 grant select, insert, update, delete on public.editor_sections, public.editor_section_items to authenticated;

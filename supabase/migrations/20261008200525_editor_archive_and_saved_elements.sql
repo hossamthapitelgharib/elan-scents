@@ -1,4 +1,4 @@
--- Archive: a deleted/expired element stored whole so it can be restored.
+-- Archive: a deleted/expired element stored whole (layout, definition, bindings, timers, content) so it can be restored.
 -- payload is capped at ~1MB so media binaries can never be embedded; files live in Storage and payload keeps URLs only.
 create table if not exists public.editor_archive (
   id uuid primary key default gen_random_uuid(),
@@ -14,6 +14,7 @@ create table if not exists public.editor_archive (
   updated_at timestamptz not null default now()
 );
 
+-- Saved elements: full reusable element payloads.
 create table if not exists public.editor_saved_elements (
   id uuid primary key default gen_random_uuid(),
   name text not null check (length(btrim(name)) > 0),
