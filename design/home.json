@@ -27,7 +27,7 @@
       },
       "sec:offers:title": {
         "dx": 1,
-        "dy": 9
+        "dy": 3
       },
       "sec:offers": {
         "dx": -19,
@@ -42,7 +42,7 @@
       },
       "sec:offers:title": {
         "style": {
-          "fontSize": 18
+          "fontSize": 16
         }
       },
       "sec:brands:title": {
