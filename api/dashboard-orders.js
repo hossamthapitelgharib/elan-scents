@@ -1,10 +1,11 @@
 const { getContext, requireRoles } = require('./_auth');
+const { safeEqual } = require('../lib/secure');
 function reply(res, status, body) { res.status(status).setHeader('Content-Type', 'application/json').json(body); }
 module.exports = async function dashboardOrders(req, res) {
   if (req.method !== 'GET') return reply(res, 405, { ok: false, error: 'method_not_allowed' });
   try {
     let context;
-    if (process.env.DASHBOARD_TOKEN && req.headers['x-dashboard-token'] === process.env.DASHBOARD_TOKEN) {
+    if (process.env.DASHBOARD_TOKEN && safeEqual(String(req.headers['x-dashboard-token'] || ''), process.env.DASHBOARD_TOKEN)) {
       context = { supabaseUrl: process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL, serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY, profile: { role: 'platform_admin' } };
     } else {
       context = requireRoles(await getContext(req), ['platform_admin']);

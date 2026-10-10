@@ -1,4 +1,5 @@
 const crypto = require('node:crypto');
+const { checkSecret } = require('../lib/secure');
 const ALLOWED_STATUSES = new Set([
   'completed',
   'success',
@@ -53,9 +54,9 @@ module.exports = async function storeOrderStatus(req, res) {
     return;
   }
 
-  const expectedSecret = process.env.STORE_ORDER_WEBHOOK_SECRET;
-  if (expectedSecret && req.headers['x-store-webhook-secret'] !== expectedSecret) {
-    send(res, 401, { ok: false, error: 'invalid_webhook_secret' });
+  const denied = checkSecret(req, 'STORE_ORDER_WEBHOOK_SECRET', 'x-store-webhook-secret');
+  if (denied) {
+    send(res, denied.status, { ok: false, error: denied.error });
     return;
   }
 

@@ -1,3 +1,4 @@
+const { safeEqual } = require('../lib/secure');
 function reply(res, status, body) {
   res.status(status).setHeader('Content-Type', 'application/json').json(body);
 }
@@ -5,7 +6,7 @@ function reply(res, status, body) {
 function auth(req, res) {
   const expected = process.env.DASHBOARD_TOKEN;
   if (!expected) { reply(res, 503, { ok: false, error: 'dashboard_token_not_configured' }); return false; }
-  if (req.headers['x-dashboard-token'] !== expected) { reply(res, 401, { ok: false, error: 'unauthorized' }); return false; }
+  if (!safeEqual(String(req.headers['x-dashboard-token'] || ''), expected)) { reply(res, 401, { ok: false, error: 'unauthorized' }); return false; }
   return true;
 }
 
