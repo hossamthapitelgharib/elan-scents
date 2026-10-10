@@ -17,10 +17,8 @@ test('platform customer dashboard requires a platform admin role', async () => {
 
 test('platform customer dashboard separates registered accounts from active guests and summarizes both baskets', async () => {
   process.env.SUPABASE_URL = 'https://test.supabase.co'; process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-key';
-  const requests = [];
   global.fetch = async (url) => {
     const value = String(url);
-    requests.push(value);
     if (value.endsWith('/auth/v1/user')) return response({ id: adminId });
     if (value.includes('/profiles?select=id,full_name,phone,role&id=')) return response([{ id: adminId, role: 'platform_admin' }]);
     if (value.includes('/profiles?select=id%2Cfull_name%2Cphone%2Crole')) return response([{ id: adminId, role: 'platform_admin' }]);
@@ -34,5 +32,4 @@ test('platform customer dashboard separates registered accounts from active gues
   assert.equal(res.out.body.registeredCustomers[0].cartItems, 2); assert.equal(res.out.body.registeredCustomers[0].cartUnits, 4);
   assert.equal(res.out.body.guestVisitors.length, 1); assert.equal(res.out.body.guestVisitors[0].cart_units, 2);
   assert.equal(res.out.body.counts.registered, 1); assert.equal(res.out.body.counts.visitors, 1);
-  assert.ok(requests.some(url => /identity_version=eq\.2/.test(url)));
 });

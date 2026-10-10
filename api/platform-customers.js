@@ -12,8 +12,8 @@ module.exports = async function platformCustomers(req, res) {
     if (context.error) return reply(res, context.status, { ok: false, error: context.error });
     const headers = { apikey: context.serviceRoleKey, Authorization: `Bearer ${context.serviceRoleKey}` };
     const base = `${context.supabaseUrl}/rest/v1/`;
-      const profileParams = new URLSearchParams({ select: 'id,full_name,phone,created_at', role: 'eq.customer', order: 'created_at.desc', limit: '500' });
-    const guestParams = new URLSearchParams({ select: 'id,fingerprint_hash,cart_snapshot,status,captured_at,first_seen_at,last_seen_at', status: 'eq.guest', identity_version: 'eq.2', order: 'last_seen_at.desc', limit: '500' });
+    const profileParams = new URLSearchParams({ select: 'id,full_name,phone,created_at', role: 'eq.customer', order: 'created_at.desc', limit: '500' });
+    const guestParams = new URLSearchParams({ select: 'id,fingerprint_hash,cart_snapshot,status,captured_at,first_seen_at,last_seen_at', status: 'eq.guest', order: 'last_seen_at.desc', limit: '500' });
     const [profileResponse, guestResponse] = await Promise.all([
       fetch(`${base}profiles?${profileParams}`, { headers }),
       fetch(`${base}guest_visitors?${guestParams}`, { headers })

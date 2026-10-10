@@ -1,5 +1,3 @@
-const crypto = require('node:crypto');
-const { checkSecret } = require('../lib/secure');
 const ALLOWED_STATUSES = new Set([
   'completed',
   'success',
@@ -23,13 +21,11 @@ function normalizePayload(body) {
     ? { ...body.order, status: body.status || body.order.status, reason: body.reason || body.order.reason }
     : body || {};
 
-  const normalized = {
+  return {
     ...source,
     trackingNumber: source.trackingNumber || source.orderNumber,
     status: String(source.status || '').toLowerCase(),
   };
-  normalized.idempotencyKey = normalized.idempotencyKey || normalized.eventId || crypto.createHash('sha256').update(JSON.stringify({ trackingNumber: normalized.trackingNumber, status: normalized.status, subtotal: normalized.subtotal, items: normalized.items })).digest('hex');
-  return normalized;
 }
 
 function validatePayload(payload) {
@@ -54,9 +50,9 @@ module.exports = async function storeOrderStatus(req, res) {
     return;
   }
 
-  const denied = checkSecret(req, 'STORE_ORDER_WEBHOOK_SECRET', 'x-store-webhook-secret');
-  if (denied) {
-    send(res, denied.status, { ok: false, error: denied.error });
+  const expectedSecret = process.env.STORE_ORDER_WEBHOOK_SECRET;
+  if (expectedSecret && req.headers['x-store-webhook-secret'] !== expectedSecret) {
+    send(res, 401, { ok: false, error: 'invalid_webhook_secret' });
     return;
   }
 

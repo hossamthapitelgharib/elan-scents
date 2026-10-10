@@ -1,5 +1,3 @@
-const crypto = require('node:crypto');
-const { checkSecret } = require('../lib/secure');
 function reply(res, status, body) {
   res.status(status).setHeader('Content-Type', 'application/json').json(body);
 }
@@ -9,9 +7,9 @@ module.exports = async function storeOrderCancelled(req, res) {
     reply(res, 405, { ok: false, error: 'method_not_allowed' });
     return;
   }
-  const denied = checkSecret(req, 'STORE_ORDER_WEBHOOK_SECRET', 'x-store-webhook-secret');
-  if (denied) {
-    reply(res, denied.status, { ok: false, error: denied.error });
+  const expectedSecret = process.env.STORE_ORDER_WEBHOOK_SECRET;
+  if (expectedSecret && req.headers['x-store-webhook-secret'] !== expectedSecret) {
+    reply(res, 401, { ok: false, error: 'invalid_webhook_secret' });
     return;
   }
   const body = req.body && typeof req.body === 'object' ? req.body : {};
@@ -34,7 +32,6 @@ module.exports = async function storeOrderCancelled(req, res) {
     return;
   }
   payload.trackingNumber = payload.trackingNumber || payload.orderNumber;
-  payload.idempotencyKey = payload.idempotencyKey || payload.eventId || crypto.createHash('sha256').update(JSON.stringify({ trackingNumber: payload.trackingNumber, status: payload.status, reason: payload.reason, items: payload.items })).digest('hex');
   try {
     const response = await fetch(`${supabaseUrl}/rest/v1/rpc/cancel_store_order_request`, {
       method: 'POST',
