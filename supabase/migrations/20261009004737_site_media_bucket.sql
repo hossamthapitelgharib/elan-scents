@@ -1,5 +1,5 @@
 -- Bucket for editor media. Public READ by URL (the customer site must display these files);
--- WRITE/LIST/DELETE restricted to platform admins. File paths are random uuids (unguessable).
+-- WRITE/LIST/DELETE restricted to platform admins. File paths will be random uuids (unguessable).
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values (
   'site-media', 'site-media', true, 52428800,

@@ -1,0 +1,2 @@
+alter table public.store_order_requests drop constraint if exists store_order_requests_status_check;
+alter table public.store_order_requests add constraint store_order_requests_status_check check (status in ('awaiting_store_confirmation','store_confirmed','processing','shipped','delivered','store_rejected','store_cancelled','needs_review','completed','cancelled'));

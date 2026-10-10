@@ -12,10 +12,11 @@ async function invoke(handler, req) { const res = responseRecorder(); await hand
 function baseRequest(method = 'GET', extra = {}) { return { method, headers: { authorization: 'Bearer test-token', ...(extra.headers || {}) }, query: {}, ...extra }; }
 
 const api = name => require(path.join(root, 'api', name));
+const lib = name => require(path.join(root, 'lib', name));
 
 test('all JavaScript files pass syntax validation', () => {
   for (const file of fs.readdirSync(root).filter(x => x.endsWith('.js'))) execFileSync(process.execPath, ['--check', path.join(root, file)]);
-  for (const file of fs.readdirSync(path.join(root, 'api')).filter(x => x.endsWith('.js'))) execFileSync(process.execPath, ['--check', path.join(root, 'api', file)]);
+  for (const directory of ['api', 'lib']) for (const file of fs.readdirSync(path.join(root, directory)).filter(x => x.endsWith('.js'))) execFileSync(process.execPath, ['--check', path.join(root, directory, file)]);
 });
 
 test('main menu routes طلباتي to the customer dashboard', () => {
@@ -31,8 +32,19 @@ test('main menu routes طلباتي to the customer dashboard', () => {
   assert.match(account, /id="archiveForm"/);
 });
 
+test('frontend order persistence uses the authenticated Supabase identity', () => {
+  const core = fs.readFileSync(path.join(root, 'app-core.js'), 'utf8');
+  const migration = fs.readFileSync(path.join(root, 'supabase/migrations/20261010021000_harden_order_user_binding.sql'), 'utf8');
+  assert.match(core, /function authUserId\(\)\{return AUTH&&AUTH\.user&&AUTH\.user\.id\|\|''\}/);
+  assert.match(core, /Authorization:'Bearer '\+\(AUTH&&AUTH\.access_token\|\|SB\.key\)/);
+  assert.match(core, /\/rpc\/create_checkout_session/);
+  assert.match(core, /\/rpc\/create_store_order_request/);
+  assert.match(migration, /v_user uuid := auth\.uid\(\)/);
+  assert.match(migration, /c\.id = v_checkout_session_id and c\.user_id = v_user_id/);
+});
+
 test('create-store-order validates login and splits one checkout across stores', async () => {
-  const handler = api('create-store-order');
+  const handler = lib('create-store-order');
   const calls = [];
   process.env.SUPABASE_URL = 'https://test.supabase.co'; process.env.SUPABASE_SERVICE_ROLE_KEY = 'service';
   global.fetch = async (url, options = {}) => { calls.push({ url, options }); if (url.endsWith('/create_checkout_session')) return textResponse({ id: 'session-1' }); if (url.endsWith('/create_store_order_request')) return textResponse({ id: `request-${calls.length}`, status: 'awaiting_store_confirmation' }); throw new Error(`unexpected ${url}`); };

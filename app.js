@@ -91,6 +91,6 @@ function applyArtAndHero(){
   if(typeof render==='function'){try{render();}catch(e){}}
   watchSheet();
 }
-var CORE='/app-core.js?v=20261009-11';
+var CORE='/app-core.js?v=20261010-01';
 loadScript(CORE, applyArtAndHero);
 })();

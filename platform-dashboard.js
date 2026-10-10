@@ -22,6 +22,42 @@ function renderCustomers(data) {
   }).join('') : '<div class="empty">لا يوجد زوار نشطون</div>';
 }
 
+function numberP(value) { return Math.max(0, Number(value) || 0).toLocaleString('ar-EG'); }
+function renderGuestAnalytics(analytics) {
+  const data = analytics || {};
+  const periods = { today: 'اليوم', week: 'آخر 7 أيام', month: 'آخر 30 يومًا', year: 'آخر 365 يومًا' };
+  const period = document.querySelector('#guestAnalyticsPeriod').value || data.period || 'today';
+  document.querySelector('#guestAnalyticsRange').textContent = `${periods[period] || periods.today} · ${data.startDate || '—'} – ${data.endDate || '—'}`;
+  const stats = [
+    ['زوار خلال الفترة', data.visitorCount],
+    ['زوار نشطون الآن', data.activeVisitors],
+    ['مشاهدات المنتجات', data.productViews],
+    ['نتائج بحث المنتجات', data.productSearches],
+    ['إضافات إلى السلة', data.cartAdds]
+  ];
+  document.querySelector('#guestAnalyticsStats').innerHTML = stats.map((item, index) => `<div class="stat ${index === 0 ? 'gold' : ''}"><small>${item[0]}</small><b>${numberP(item[1])}</b></div>`).join('');
+  const topProducts = Array.isArray(data.topProducts) ? data.topProducts : [];
+  document.querySelector('#guestTopProducts').innerHTML = topProducts.length ? topProducts.map(product => `<article class="guest-analytics-row"><div><strong>${escP(product.name || 'منتج')}</strong><small>${escP(product.brand_name || '')}</small></div><small class="guest-analytics-counts">مشاهدة: ${numberP(product.views)} (${numberP(product.viewers)} زائر) · بحث: ${numberP(product.searches)} (${numberP(product.searchers)} زائر) · إضافة للسلة: ${numberP(product.cart_adds)}</small></article>`).join('') : '<div class="empty">لا توجد بيانات منتجات لهذه الفترة بعد</div>';
+  const basketProducts = Array.isArray(data.activeBasketProducts) ? data.activeBasketProducts : [];
+  document.querySelector('#guestBasketProducts').innerHTML = basketProducts.length ? basketProducts.map(product => `<article class="guest-analytics-row"><div><strong>${escP(product.name || 'منتج')}</strong><small>${escP(product.brand_name || '')}</small></div><span class="guest-basket-count"><b>${numberP(product.baskets)}</b> سلة · <b>${numberP(product.units)}</b> قطعة</span></article>`).join('') : '<div class="empty">لا توجد منتجات في سلال الزوار النشطة</div>';
+}
+
+function showGuestAnalyticsError(error) {
+  const box = document.querySelector('#guestAnalyticsError');
+  box.textContent = error && error.message ? error.message : 'تعذر تحميل تحليلات الزوار';
+  box.hidden = false;
+}
+
+async function loadGuestAnalytics() {
+  if (!Portal.session()) return;
+  const period = document.querySelector('#guestAnalyticsPeriod').value || 'today';
+  const response = await fetch(`/api/guest-analytics?period=${encodeURIComponent(period)}`, { headers: Portal.auth() });
+  const result = await response.json();
+  if (!response.ok) throw Error(result.error || 'تعذر تحميل تحليلات الزوار');
+  document.querySelector('#guestAnalyticsError').hidden = true;
+  renderGuestAnalytics(result.analytics);
+}
+
 function renderOrders(orders) {
   document.querySelector('#orders').innerHTML = orders.length ? orders.map(order => {
     const events = order.order_operation_events || [];
@@ -41,6 +77,7 @@ function activateCustomerTabs() {
     document.querySelector('#visitorsTab').setAttribute('aria-selected', String(guests));
     document.querySelector('#registeredCustomers').hidden = guests;
     document.querySelector('#guestCustomers').hidden = !guests;
+    document.querySelector('#guestAnalytics').hidden = !guests;
   });
 }
 
@@ -68,10 +105,12 @@ async function loadPlatform() {
   document.querySelector('#platformError').hidden = true;
   renderCustomers(customersData);
   renderOrders(orders);
+  loadGuestAnalytics().catch(showGuestAnalyticsError);
 }
 
 activateCustomerTabs();
 document.querySelector('#refreshCustomers').addEventListener('click', () => loadPlatform().catch(reportError));
+document.querySelector('#guestAnalyticsPeriod').addEventListener('change', () => loadGuestAnalytics().catch(showGuestAnalyticsError));
 document.querySelector('#loginForm').addEventListener('submit', async event => {
   event.preventDefault();
   try { await Portal.login(event.target); await loadPlatform(); }
