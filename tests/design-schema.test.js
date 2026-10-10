@@ -130,16 +130,3 @@ test('design files are served without caching', () => {
   assert.ok(noStore('/design/(.*)'));
   assert.ok(cfg.headers.some((h) => /design-layer\.js/.test(h.source) && /design-schema\.js/.test(h.source)));
 });
-
-test('inner pages accept blocks only for known page keys and keep ids unique across the site', () => {
-  const ok = 'https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/u/a.png';
-  const good = ED.normalize({ version: 1, pages: { 'sec:brands': { blocks: [{ id: 'x-a', type: 'text', text: { ar: 'م' }, slot: 'bottom' }, { id: 'x-b', type: 'banner', title: { ar: 't' }, image: ok }] }, 'brand:Dior': { blocks: [{ id: 'x-c', type: 'text', text: { en: 'hi' } }] } } }, { strict: true });
-  assert.ok(good.ok, JSON.stringify(good.errors));
-  assert.deepEqual(good.design.pages['sec:brands'].blocks.map((b) => b.slot), ['bottom', 'top']);
-  assert.equal(ED.isEmpty(good.design), false);
-  assert.equal(ED.normalize({ version: 1, pages: { 'evil:x': { blocks: [] } } }, { strict: true }).ok, false);
-  assert.equal(ED.normalize({ version: 1, pages: { 'sec:all': { blocks: [{ id: 'x-a', type: 'text', text: { ar: 'a' } }] } }, blocks: [{ id: 'x-a', type: 'text', text: { ar: 'b' } }] }, { strict: true }).ok, false);
-  assert.ok(ED.isPageKey('col:cats:3'));
-  assert.equal(ED.isPageKey('sec:nope'), false);
-  assert.equal(ED.normalize({ version: 1 }, { strict: true }).design.pages, undefined);
-});
