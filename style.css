@@ -3,7 +3,8 @@
    Imports base theme then applies current desired overrides.
    Frontend display only. Do not add backend/DB rules here.
    ============================================================ */
-@import url('/style-3.css?v=20261010-03');
+@import url('/style-3.css?v=20261010-04');
+@import url('/footer-9x16.css?v=20261010-04');
 
 /* ---------- Menu: slightly narrower panel + slightly larger items ---------- */
 #menu {
@@ -595,98 +596,4 @@ footer .fch b {
 }
 footer .fbar {
   border-top-color: rgba(255, 239, 199, .38) !important;
-}
-
-/* ---------- Footer 9:16 identity image ---------- */
-footer {
-  position: relative !important;
-  width: 100% !important;
-  aspect-ratio: 9 / 16 !important;
-  height: auto !important;
-  min-height: 0 !important;
-  margin: 0 auto !important;
-  padding: 0 !important;
-  overflow: hidden !important;
-  display: flex !important;
-  flex-direction: column !important;
-  justify-content: space-between !important;
-  align-items: center !important;
-  box-sizing: border-box !important;
-  background-color: #6e6e6e !important;
-  background-image: url('/assets/elan-scents-logo.png') !important;
-  background-size: cover !important;
-  background-position: center center !important;
-  background-repeat: no-repeat !important;
-  border-top: 0 !important;
-  color: #fff1cf !important;
-  text-align: center !important;
-}
-footer .footer-logo { display: none !important; }
-footer .fdiv {
-  width: 48px !important;
-  height: 1px !important;
-  margin: 16% auto 0 !important;
-  background: linear-gradient(90deg, transparent, #e6c66f 35%, #fff0c7 50%, #e6c66f 65%, transparent) !important;
-  flex-shrink: 0 !important;
-}
-footer .fcols {
-  position: relative !important;
-  z-index: 2 !important;
-  width: 100% !important;
-  max-width: 320px !important;
-  margin: 0 auto !important;
-  padding: 0 18px !important;
-  gap: 14px !important;
-  flex: 0 0 auto !important;
-}
-footer .fch {
-  position: relative !important;
-  z-index: 2 !important;
-  max-width: 280px !important;
-  margin: 6px auto !important;
-  padding: 0 16px !important;
-  flex: 0 0 auto !important;
-}
-footer .fph {
-  position: relative !important;
-  z-index: 2 !important;
-  margin: 6px auto !important;
-  padding: 0 16px !important;
-  flex: 0 0 auto !important;
-  font-size: 14px !important;
-  color: #ffe4a3 !important;
-}
-footer .fbar {
-  position: relative !important;
-  z-index: 2 !important;
-  width: 100% !important;
-  max-width: 320px !important;
-  margin: 6px auto 0 !important;
-  padding: 12px 16px 0 !important;
-  flex: 0 0 auto !important;
-  border-top-color: rgba(255,239,199,.35) !important;
-  color: #fff1cf !important;
-}
-footer .fcred,
-footer #fcr {
-  position: relative !important;
-  z-index: 2 !important;
-  margin: 8px auto 12% !important;
-  padding: 0 16px 8px !important;
-  flex: 0 0 auto !important;
-  color: #fff1cf !important;
-}
-footer .fcols a,
-footer .fcols span,
-footer .fch span { color: #fff1cf !important; }
-footer .fcols h5,
-footer .fch b { color: #ffe4a3 !important; }
-@media (max-width: 960px) {
-  footer { aspect-ratio: 9 / 16 !important; }
-  footer .footer-logo { display: none !important; }
-}
-@media (max-width: 480px) {
-  footer { aspect-ratio: 9 / 16 !important; }
-  footer .footer-logo { display: none !important; }
-  footer .fcols { max-width: 92% !important; }
 }
