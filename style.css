@@ -3,8 +3,8 @@
    Imports base theme then applies current desired overrides.
    Frontend display only. Do not add backend/DB rules here.
    ============================================================ */
-@import url('/style-3.css?v=20261010-08');
-@import url('/footer-9x16.css?v=20261010-08');
+@import url('/style-3.css?v=20261010-09');
+@import url('/footer-9x16.css?v=20261010-09');
 
 /* ---------- Menu: slightly narrower panel + slightly larger items ---------- */
 #menu {
@@ -111,7 +111,7 @@ header .logo small {
   z-index: 2 !important;
 }
 
-/* ---------- Round / occasion / notes cards ---------- */
+/* ---------- Round / occasion / notes cards (default strip size) ---------- */
 .card.round,
 .card.occ-note,
 .card.occ,
@@ -166,6 +166,22 @@ header .logo small {
   z-index: 0;
   background: linear-gradient(180deg, transparent 35%, rgba(20, 12, 4, 0.72) 100%);
   pointer-events: none;
+}
+
+/* ---------- Occasion cards: same size as Categories ---------- */
+#occ .card.round,
+#occ .strip .card.round,
+#occ .card.occ,
+#occ .card.occ-note {
+  flex: 0 0 340px !important;
+  flex-basis: 340px !important;
+  width: 340px !important;
+  max-width: 340px !important;
+  height: auto !important;
+  min-height: 0 !important;
+  aspect-ratio: 4 / 3 !important;
+  padding: 0 !important;
+  border-radius: 20px !important;
 }
 
 /* ---------- Category cards ---------- */
@@ -380,6 +396,19 @@ body.sheet-open {
     border: 0 !important;
   }
 
+  #occ .card.round,
+  #occ .strip .card.round,
+  #occ .card.occ,
+  #occ .card.occ-note {
+    flex: 0 0 300px !important;
+    flex-basis: 300px !important;
+    width: 300px !important;
+    max-width: 300px !important;
+    height: auto !important;
+    min-height: 0 !important;
+    aspect-ratio: 4 / 3 !important;
+  }
+
   img.growthmark-img {
     width: 90px !important;
     max-width: 35vw !important;
@@ -462,6 +491,20 @@ body.sheet-open {
     border: 0 !important;
   }
 
+  #occ .card.round,
+  #occ .strip .card.round,
+  #occ .card.occ,
+  #occ .card.occ-note {
+    flex: 0 0 min(300px, 92vw) !important;
+    flex-basis: min(300px, 92vw) !important;
+    width: min(300px, 92vw) !important;
+    max-width: 92vw !important;
+    height: auto !important;
+    min-height: 0 !important;
+    aspect-ratio: 4 / 3 !important;
+    border-radius: 16px !important;
+  }
+
   .card.pf { flex: 0 0 160px !important; }
   .card.pf .pim { height: 120px !important; }
 
@@ -529,6 +572,15 @@ body.sheet-open {
     aspect-ratio: 4 / 3 !important;
   }
   .cb > .card.msel {
+    max-width: 320px !important;
+  }
+  #occ .card.round,
+  #occ .strip .card.round,
+  #occ .card.occ,
+  #occ .card.occ-note {
+    flex: 0 0 320px !important;
+    flex-basis: 320px !important;
+    width: 320px !important;
     max-width: 320px !important;
   }
 }
