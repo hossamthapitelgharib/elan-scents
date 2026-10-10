@@ -11,8 +11,9 @@
         "w": 574
       },
       "sec:brands:title": {
-        "dx": 2,
-        "dy": 1
+        "dx": 1,
+        "dy": 4,
+        "h": 32
       },
       "sec:master:title": {
         "dx": -7,
@@ -23,12 +24,36 @@
         "dy": -32,
         "w": 264,
         "h": 206
+      },
+      "sec:offers:title": {
+        "dx": 1,
+        "dy": 9
+      },
+      "sec:offers": {
+        "dx": -19,
+        "dy": -28
       }
     },
     "all": {
       "hero:magic": {
         "style": {
           "color": "#f4f3f0"
+        }
+      },
+      "sec:offers:title": {
+        "style": {
+          "fontSize": 18
+        }
+      },
+      "sec:brands:title": {
+        "style": {
+          "fontSize": 15
+        }
+      },
+      "hero:counters": {
+        "style": {
+          "fontSize": 8,
+          "color": "#f6f3ee"
         }
       }
     }
