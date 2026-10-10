@@ -22,7 +22,7 @@
     var base = ED.normalize(initial || {}, { strict: false }).design;
     var cur = clone(base);
     cur.order = seqOf(cur);
-    var past = [], future = [], archived = [], page = 'home';
+    var past = [], future = [], archived = [], page = 'home', pending = {};
 
     function seqOf(d) {
       var all = ED.BUILTIN.concat((d.blocks || []).map(function (b) { return b.id; })), out = [];
@@ -181,6 +181,20 @@
       setSlot: function (id, slot) {
         return commit(function () { var b = block(id); if (!b || !pageOf(id)) throw Error('المكان (أعلى/أسفل) لبلوكات الصفحات الداخلية بس'); b.slot = slot === 'bottom' ? 'bottom' : 'top'; });
       },
+      createSmart: function (afterId, ref) {
+        if (!ED.isRef(ref)) throw Error('مرجع السيكشن غير صالح');
+        var id = newId();
+        commit(function () { addBlock({ id: id, type: 'smart', style: { align: 'center', size: 'md' }, ref: ref }, afterId); });
+        return id;
+      },
+      defineSection: function (def) { pending[def.element_id] = clone(def); },
+      pendingSections: function () {          // only definitions the saved design actually uses
+        var used = {}, d = cur;
+        (d.blocks || []).forEach(function (b) { if (b.type === 'smart') used[b.ref] = 1; });
+        Object.keys(d.pages || {}).forEach(function (k) { d.pages[k].blocks.forEach(function (b) { if (b.type === 'smart') used[b.ref] = 1; }); });
+        return Object.keys(pending).filter(function (r) { return used[r]; }).map(function (r) { return clone(pending[r]); });
+      },
+      clearPending: function () { pending = {}; },
       mediaOf: function (id) { var b = block(id); return b ? (b.image || b.src || '') : ''; },
       archive: function (id) {
         return commit(function () {

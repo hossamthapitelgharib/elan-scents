@@ -10,7 +10,7 @@
   var VERSION = 1;
   var BUILTIN = ['brands', 'offers', 'new', 'cats', 'master', 'occ', 'notes', 'soon', 'stores'];
   var TEXT_KEYS = ['magic', 'view', 'explore', 'contactT', 'send'];
-  var TYPES = ['text', 'banner', 'image'];
+  var TYPES = ['text', 'banner', 'image', 'smart'];
   var SIZES = ['sm', 'md', 'lg', 'xl'];
   var ALIGNS = ['start', 'center', 'end'];
   var LIMITS = { bytes: 200000, blocks: 60, order: 100, text: 600, title: 160, url: 500 };
@@ -20,6 +20,7 @@
   ];
   var PAGE_KEY_RE = /^(?:sec:(?:brands|stores|cats|occ|notes|all|offers|new|master|soon)|col:(?:cats|occ|notes):\d{1,3}|brand:[^|"'<>\\\u0000-\u001F]{1,80}|store:[^|"'<>\\\u0000-\u001F]{1,80})$/;
   var MAX_PAGES = 40;
+  var REF_RE = /^[a-z0-9][a-z0-9_-]{0,59}$/;
   var BLOCK_ID_RE = /^x-[a-z0-9_-]{1,36}$/;
   var COLOR_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
   var HREF_RE = /^(?:\/(?!\/)|#|https:\/\/)[^\s"'<>\\]*$/;
@@ -90,6 +91,9 @@
         if (h) b.href = h; else errors.push(where + ': link not allowed');
       }
       if (!b.title.ar && !b.title.en && !b.image) { errors.push(where + ': banner needs a title or an image'); return null; }
+    } else if (type === 'smart') {
+      if (typeof raw.ref !== 'string' || !REF_RE.test(raw.ref)) { errors.push(where + ': invalid section reference'); return null; }
+      b.ref = raw.ref;
     } else {
       var src = mediaUrl(raw.src);
       if (!src) { errors.push(where + ': image src not allowed'); return null; }
@@ -238,6 +242,7 @@
   return {
     VERSION: VERSION, BUILTIN: BUILTIN, TEXT_KEYS: TEXT_KEYS, LIMITS: LIMITS,
     normalize: normalize, isEmpty: isEmpty, serialize: serialize, plan: plan, applyTexts: applyTexts,
+    isRef: function (r) { return typeof r === 'string' && REF_RE.test(r); },
     isPageKey: function (k) { return typeof k === 'string' && PAGE_KEY_RE.test(k); }
   };
 });

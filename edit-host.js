@@ -8,7 +8,7 @@
 
   var model = null, selected = null, bridge = null, serverRevision = null, authAt = 0, saving = false;
   var NAMES = { brands: 'الماركات', offers: 'العروض', new: 'وصل حديثًا', cats: 'الأقسام', master: 'الأعلى مبيعًا', occ: 'المناسبات', notes: 'النوتات', soon: 'قريبًا', stores: 'المتاجر' };
-  var NOT_YET = 'ده لسه مش متوصل: محتاج ربط سابابيس في خطوة لاحقة.';
+  var NOT_YET = 'إنشاء براند أو متجر أو مناسبة أو نوتة جديدة لسه مش متوصل، هيتضاف في الخطوة الجاية.';
 
   // ---------- server ----------
   function token() { try { return window.parent.elanEditorSession && window.parent.elanEditorSession.token(); } catch (e) { return null; } }
@@ -137,6 +137,7 @@
   document.addEventListener('dblclick', function (e) {
     var n = e.target.closest && e.target.closest('[data-elan-edit]'); if (!n) return;
     var id = idOf(n), kind = model.kind(id), field = null;
+    if (kind === 'smart') return;
     if (kind === 'text') field = n.querySelector('p');
     else if (kind === 'banner') { var hit = e.target.closest && e.target.closest('p'); field = hit && n.contains(hit) ? hit : n.querySelector('h3'); if (hit && n.contains(hit)) kind = 'banner-sub'; }
     else if (kind === 'section') field = n.querySelector('h3');
@@ -170,7 +171,8 @@
     var kind = model.kind(id); panel = document.createElement('div'); panel.className = 'elan-panel';
     function mk(tag, text, props) { var x = document.createElement(tag); if (text) x.textContent = text; Object.keys(props || {}).forEach(function (k) { x[k] = props[k]; }); return x; }
     panel.appendChild(mk('b', 'تنسيق: ' + (NAMES[id] || 'نص')));
-    if (kind !== 'section') {
+    if (kind === 'smart') { panel.appendChild(mk('small', 'محتوى السيكشن واسمه محفوظين في سابابيس.')); }
+    else if (kind !== 'section') {
       var d = model.design(), b = (d.blocks || []).filter(function (x) { return x.id === id; })[0] || {}, sty = b.style || {};
       panel.appendChild(mk('label', 'الحجم'));
       var sz = mk('select'); [['sm', 'صغير'], ['md', 'متوسط'], ['lg', 'كبير'], ['xl', 'كبير جدًا']].forEach(function (o) { var op = mk('option', o[1], { value: o[0] }); sz.appendChild(op); }); sz.value = sty.size || 'md';
@@ -194,7 +196,7 @@
       hr.onchange = function () { try { model.setHref(id, hr.value); redraw(); } catch (e) { say(e.message); hr.value = cur_.href || ''; } };
       panel.appendChild(hr);
     }
-    if (kind !== 'section' && kind !== 'image') {
+    if (kind !== 'section' && kind !== 'image' && kind !== 'smart') {
       var cs = (((model.design().blocks || []).filter(function (x) { return x.id === id; })[0]) || {}).style || {};
       [['color', 'لون النص'], ['background', 'لون الخلفية']].forEach(function (c) {
         panel.appendChild(mk('label', c[1]));
@@ -387,6 +389,93 @@
     document.body.appendChild(panel); name.focus();
   }
 
+
+  // ---------- smart sections / perfume cards: draft in the editor, written to Supabase at Save ----------
+  function rand8() { var a = new Uint8Array(4); crypto.getRandomValues(a); return Array.prototype.map.call(a, function (b) { return b.toString(16).padStart(2, '0'); }).join(''); }
+  function listNames(id) { try { return (sec(id) || [])[3] || []; } catch (e) { return []; } }
+  function openSmart(single) {
+    closeMedia(); closePanel();
+    var wrap = document.createElement('div'); wrap.className = 'elan-media'; var box = document.createElement('div'); wrap.appendChild(box);
+    function mk(tag, text, props) { var x = document.createElement(tag); if (text) x.textContent = text; Object.keys(props || {}).forEach(function (k) { x[k] = props[k]; }); return x; }
+    function field(label, node) { var d = mk('div'); d.style.margin = '6px 0'; d.appendChild(mk('label', label)); d.firstChild.style.cssText = 'display:block;font-size:12px'; node.style.cssText = 'width:100%;padding:6px'; d.appendChild(node); return d; }
+    function select(opts, any) { var x = mk('select'); x.appendChild(mk('option', any, { value: '' })); opts.forEach(function (o) { x.appendChild(mk('option', o, { value: o })); }); return x; }
+    box.appendChild(mk('b', single ? 'كارت عطر' : 'سيكشن جديد'));
+    var name = mk('input', '', { type: 'text', maxLength: 120, placeholder: single ? 'يتحط اسم العطر تلقائيًا لو سبتيه فاضي' : 'اسم السيكشن (بيظهر للعملاء)' });
+    box.appendChild(field('الاسم', name));
+    var mode = mk('select'); mode.appendChild(mk('option', 'اختيار يدوي للعطور', { value: 'manual' })); if (!single) mode.appendChild(mk('option', 'تلقائي بفلاتر', { value: 'auto' }));
+    box.appendChild(field('طريقة الاختيار', mode));
+    var chosen = [];
+    var manual = mk('div'), search = mk('input', '', { type: 'search', placeholder: 'ابحثي باسم العطر أو الماركة' }), results = mk('div'), count = mk('div', '', { className: 'note' });
+    results.style.cssText = 'max-height:180px;overflow:auto;border:1px solid #e5dbc6;border-radius:8px;padding:4px';
+    manual.append(field('العطور', search), results, count);
+    function drawResults() {
+      var q = search.value.trim().toLowerCase(), all = []; try { all = PERFUMES; } catch (e) { /* not loaded */ }
+      var seen = {}, rows = all.filter(function (p) { return !q || (p.name + ' ' + p.brand).toLowerCase().indexOf(q) > -1; }).filter(function (p) { if (seen[p.id]) return false; seen[p.id] = 1; return true; }).slice(0, 40);
+      results.textContent = '';
+      rows.forEach(function (p) {
+        var lab = mk('label'); lab.style.cssText = 'display:flex;gap:6px;align-items:center;padding:3px 2px';
+        var cb = mk('input', '', { type: 'checkbox' }); cb.style.width = 'auto'; cb.checked = chosen.indexOf(p.id) > -1;
+        cb.onchange = function () { if (single && cb.checked) chosen = []; var i = chosen.indexOf(p.id); if (cb.checked && i < 0) { if (chosen.length >= 24) { cb.checked = false; return; } chosen.push(p.id); } if (!cb.checked && i > -1) chosen.splice(i, 1); count.textContent = 'مختار: ' + chosen.length; if (single) drawResults(); };
+        lab.append(cb, mk('span', p.name + ' · ' + p.brand)); results.appendChild(lab);
+      });
+      if (!rows.length) results.textContent = 'مفيش عطور بالاسم ده.';
+    }
+    search.oninput = drawResults; drawResults(); count.textContent = 'مختار: 0';
+    box.appendChild(manual);
+    var auto = mk('div'); auto.hidden = true;
+    var fBrand = select((function () { try { return BR; } catch (e) { return []; } })(), 'كل الماركات'), fCat = select(listNames('cats'), 'كل الأقسام'), fOcc = select(listNames('occ'), 'كل المناسبات'), fNote = select(listNames('notes'), 'كل النوتات'),
+      fStore = select((function () { try { return ST.map(function (x) { return x[0]; }); } catch (e) { return []; } })(), 'كل المتاجر'), fFlag = mk('select'), fSort = mk('select');
+    [['', 'الكل'], ['new', 'الجديد'], ['offers', 'العروض'], ['master', 'الأعلى مبيعًا']].forEach(function (o) { fFlag.appendChild(mk('option', o[1], { value: o[0] })); });
+    [['sales', 'الأكثر مبيعًا'], ['price_asc', 'السعر: الأقل'], ['price_desc', 'السعر: الأعلى']].forEach(function (o) { fSort.appendChild(mk('option', o[1], { value: o[0] })); });
+    var fMin = mk('input', '', { type: 'number', min: 0 }), fMax = mk('input', '', { type: 'number', min: 0 }), fLimit = mk('input', '', { type: 'number', min: 1, max: 24, value: 12 });
+    [['الماركة', fBrand], ['القسم', fCat], ['المناسبة', fOcc], ['النوتة', fNote], ['المتجر', fStore], ['نوع', fFlag], ['أقل سعر', fMin], ['أعلى سعر', fMax], ['الترتيب', fSort], ['أقصى عدد (لحد 24)', fLimit]].forEach(function (x) { auto.appendChild(field(x[0], x[1])); });
+    box.appendChild(auto);
+    mode.onchange = function () { manual.hidden = mode.value === 'auto'; auto.hidden = mode.value !== 'auto'; };
+    var tmode = mk('select'); [['none', 'من غير مؤقت'], ['duration', 'لمدة (ساعات) من وقت النشر'], ['window', 'من تاريخ لتاريخ']].forEach(function (o) { tmode.appendChild(mk('option', o[1], { value: o[0] })); });
+    var hours = mk('input', '', { type: 'number', min: 1, max: 8760, value: 24 }), t1 = mk('input', '', { type: 'datetime-local' }), t2 = mk('input', '', { type: 'datetime-local' });
+    var timerBox = mk('div'); timerBox.append(field('مدة الظهور (ساعات)', hours), field('من', t1), field('إلى', t2));
+    function showTimer() { hours.parentNode.hidden = tmode.value !== 'duration'; t1.parentNode.hidden = t2.parentNode.hidden = tmode.value !== 'window'; }
+    tmode.onchange = showTimer; showTimer();
+    if (!single) { box.appendChild(field('المؤقت (بعد انتهائه بيختفي من الموقع تلقائيًا)', tmode)); box.appendChild(timerBox); }
+    var msg = mk('div', '', { className: 'note' }), ok = mk('button', 'إضافة للصفحة'), cancel = mk('button', 'إلغاء');
+    cancel.onclick = closeMedia;
+    ok.onclick = function () {
+      try {
+        var m = mode.value, def = { element_id: 'sec-' + rand8(), name: name.value.trim(), mode: m, filters: {}, items: [], timer: { mode: 'none' } };
+        if (m === 'manual') { if (!chosen.length) throw Error('اختاري عطر واحد على الأقل.'); def.items = chosen.slice(0, 24); if (!def.name) { var p0 = PERFUMES.filter(function (x) { return x.id === chosen[0]; })[0]; def.name = p0 ? p0.name : ''; } }
+        else {
+          var f = { brand: fBrand.value, cat: fCat.value, occ: fOcc.value, note: fNote.value, store: fStore.value, flag: fFlag.value, sort: fSort.value, limit: Math.max(1, Math.min(24, +fLimit.value || 12)) };
+          if (fMin.value !== '') f.min = Math.max(0, +fMin.value); if (fMax.value !== '') f.max = Math.max(0, +fMax.value);
+          Object.keys(f).forEach(function (k) { if (f[k] === '') delete f[k]; }); def.filters = f;
+        }
+        if (!def.name) throw Error('اكتبي اسم للسيكشن.');
+        if (!single && tmode.value === 'duration') { var h = Math.round(+hours.value); if (!(h >= 1 && h <= 8760)) throw Error('المدة بين 1 و 8760 ساعة.'); def.timer = { mode: 'duration', hours: h }; }
+        if (!single && tmode.value === 'window') { var a = new Date(t1.value), b = new Date(t2.value); if (isNaN(a) || isNaN(b) || b <= a) throw Error('تاريخ النهاية لازم يكون بعد البداية.'); def.timer = { mode: 'window', starts: a.toISOString(), ends: b.toISOString() }; }
+        window.ElanPendingSections[def.element_id] = def; model.defineSection(def);
+        var id = model.createSmart(selected, def.element_id); closeMedia(); redraw(); select(id);
+      } catch (e) { msg.textContent = e.message; }
+    };
+    box.append(msg, ok, cancel); document.body.appendChild(wrap); mediaBox = wrap;
+  }
+
+  async function flushSections() {
+    var defs = model.pendingSections(); if (!defs.length) return;
+    var c = await sbCfg(), J = { 'Content-Type': 'application/json' };
+    for (var i = 0; i < defs.length; i++) {
+      var d = defs[i], now = new Date(), row = { element_id: d.element_id, name: d.name, selection_mode: d.mode, filters: d.mode === 'auto' ? d.filters : {}, timer_mode: d.timer.mode, status: 'active' };
+      if (d.timer.mode === 'duration') { row.duration_hours = d.timer.hours; row.starts_at = now.toISOString(); row.ends_at = new Date(now.getTime() + d.timer.hours * 3600000).toISOString(); }
+      if (d.timer.mode === 'window') { row.starts_at = d.timer.starts; row.ends_at = d.timer.ends; }
+      var r = await fetch(c.url + '/rest/v1/editor_sections', { method: 'POST', headers: sbHeaders(c, Object.assign({ Prefer: 'return=representation' }, J)), body: JSON.stringify(row) }), sid = null;
+      if (r.ok) sid = (await r.json())[0].id;
+      else if (r.status === 409) { var ex = await fetch(c.url + '/rest/v1/editor_sections?element_id=eq.' + encodeURIComponent(d.element_id) + '&select=id', { headers: sbHeaders(c) }); var exr = ex.ok ? await ex.json() : []; sid = exr[0] && exr[0].id; }
+      if (!sid) throw Error('تعذر حفظ السيكشن "' + d.name + '" في سابابيس (' + r.status + '). الموقع المنشور ما اتغيرش.');
+      if (d.mode === 'manual' && d.items.length) {
+        var it = await fetch(c.url + '/rest/v1/editor_section_items?on_conflict=section_id,product_size_id', { method: 'POST', headers: sbHeaders(c, Object.assign({ Prefer: 'resolution=ignore-duplicates,return=minimal' }, J)), body: JSON.stringify(d.items.map(function (psid, n) { return { section_id: sid, product_size_id: psid, sort_order: n }; })) });
+        if (!it.ok) throw Error('تعذر حفظ عطور السيكشن "' + d.name + '" (' + it.status + '). الموقع المنشور ما اتغيرش.');
+      }
+    }
+  }
+
   // ---------- commands from the editor ----------
   function need(p) { var id = p.elementId || selected; if (!id || !model.kind(id)) throw Error('حددي عنصر الأول بالضغط عليه'); return id; }
   async function savePage(requestId) {
@@ -399,13 +488,14 @@
       if (!model.dirty()) { notifyDirty(); return { revision: serverRevision === null ? 'none' : serverRevision, published: true, unchanged: true, recordsOnly: true }; }
       var norm = ED.normalize(model.design(), { strict: true });
       if (!norm.ok) throw Error('فيه تعديل مش مقبول: ' + norm.errors.slice(0, 2).join('، '));
+      await flushSections();
       var r = await api('POST', { action: 'save', design: norm.design, expectedRevision: serverRevision, requestId: requestId }, '');
       if (r.status === 409) throw Error('التصميم اتعدل من مكان تاني. أعيدي فتح الصفحة، وتعديلاتك الحالية لسه عندك لحد ما تقفلي.');
       if (r.status !== 200 || !r.data.ok) throw Error('الحفظ ما نجحش (' + (r.data.error || r.status) + '). الموقع المنشور ما اتغيرش.');
       var rev = r.data.revision, branchNote = r.data.branch;
       for (var i = 0; i < 50; i++) {
         await new Promise(function (ok) { setTimeout(ok, 4000); });
-        try { var s = await api('POST', { action: 'status', revision: rev }, ''); if (s.data && s.data.published) { serverRevision = rev; model.markSaved(norm.design); notifyDirty(); if (bridge) bridge.revision(rev); return { revision: rev, published: true }; } } catch (e) { /* server restarting: keep waiting */ }
+        try { var s = await api('POST', { action: 'status', revision: rev }, ''); if (s.data && s.data.published) { serverRevision = rev; model.markSaved(norm.design); model.clearPending(); notifyDirty(); if (bridge) bridge.revision(rev); return { revision: rev, published: true }; } } catch (e) { /* server restarting: keep waiting */ }
       }
       serverRevision = rev; model.markSaved(norm.design); notifyDirty();
       throw Error('اتحفظ على فرع ' + branchNote + ' لكن الموقع المنشور لسه ما اتحدّثش. ما نعتبرهوش منشور.');
@@ -432,6 +522,8 @@
         if (p.kind === 'text_block') { var tn = model.createText(selected); redraw(); select(tn); return { elementId: tn }; }
         if (p.kind === 'banner') { var bn = model.createBanner(selected); redraw(); select(bn); openMedia(bn); return { elementId: bn }; }
         if (p.kind === 'image') { openMedia(null); return { ok: true }; }
+        if (p.kind === 'section') { openSmart(false); return { ok: true }; }
+        if (p.kind === 'perfume') { openSmart(true); return { ok: true }; }
         if (RECORDS[p.kind]) { openRecordPanel(p.kind); return { ok: true }; }
         throw Error(NOT_YET);
       }
