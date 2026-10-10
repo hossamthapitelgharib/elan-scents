@@ -68,7 +68,7 @@ test('guest capture is automatic, browser-local, and its migration keeps only is
   const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
   const identity = fs.readFileSync(path.join(root, 'guest-identity.js'), 'utf8');
   const core = fs.readFileSync(path.join(root, 'app-core.js'), 'utf8');
-  const migration = fs.readFileSync(path.join(root, 'supabase/migrations/20261010030000_guest_browser_identity_analytics.sql'), 'utf8');
+  const migration = fs.readFileSync(path.join(root, 'supabase/migrations/20261010014327_guest_browser_identity_analytics.sql'), 'utf8');
   assert.match(html, /guest-identity\.js\?v=20261010-01/);
   assert.match(identity, /localStorage\.getItem\(STORAGE_KEY\)/);
   assert.match(identity, /randomUUID/);
