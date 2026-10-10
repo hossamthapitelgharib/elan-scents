@@ -2,7 +2,7 @@
 
 The Home of Gulf Fragrances
 
-Static storefront + order dashboards. Railway is the primary host; the same project remains Vercel-compatible.
+Static storefront + order dashboards. Deployed on Vercel.
 
 ## Active frontend (UI)
 
@@ -20,15 +20,9 @@ Static storefront + order dashboards. Railway is the primary host; the same proj
 - `store-dashboard.html` + `store-dashboard.js`
 - `platform-dashboard.html` + `platform-dashboard.js`
 
-## Server and deployment
+## Not touched by UI cleanup
 
-- `railway/server.js` — dependency-free Railway host for static files and `/api/*` routes
-- `api/` — serverless/API endpoints shared by Railway and Vercel
-- `api/config.js` — shared Supabase config endpoint used by both hosts
-- `package.json` — `npm start` runs the Railway host; `npm test` runs the regression suite
-
-## Data and quality
-
+- `api/` — serverless endpoints
 - `supabase/` — migrations
-- `tests/` — regression tests and safe SQL test scripts
-- `.github/workflows/tests.yml` — runs `npm test` on pushes and pull requests to `main`
+- `config.js` — catalog config endpoint
+- tests / workflows

@@ -3,8 +3,7 @@
    Imports base theme then applies current desired overrides.
    Frontend display only. Do not add backend/DB rules here.
    ============================================================ */
-@import url('/style-3.css?v=20261010-06');
-@import url('/footer-9x16.css?v=20261010-06');
+@import url('/style-3.css?v=20261009-11');
 
 /* ---------- Menu: slightly narrower panel + slightly larger items ---------- */
 #menu {
@@ -30,7 +29,7 @@ header .logo small {
   display: block !important;
 }
 
-/* ---------- Masterpieces card 4:3 (same size as Categories) ---------- */
+/* ---------- Masterpieces card 4:3 ---------- */
 .cb > .card.msel {
   background-image: url('/assets/cards/masterpieces.webp') !important;
   background-size: cover !important;
@@ -39,8 +38,8 @@ header .logo small {
   background-color: #ede8de !important;
   background-clip: border-box !important;
   background-origin: border-box !important;
-  width: 100% !important;
-  max-width: 340px !important;
+  width: 320px !important;
+  max-width: 90vw !important;
   height: auto !important;
   min-height: 0 !important;
   max-height: none !important;
@@ -370,8 +369,7 @@ body.sheet-open {
     aspect-ratio: 4 / 3 !important;
   }
   .cb > .card.msel {
-    width: 100% !important;
-    max-width: 300px !important;
+    width: 280px !important;
     height: auto !important;
     min-height: 0 !important;
     aspect-ratio: 4 / 3 !important;
@@ -452,8 +450,7 @@ body.sheet-open {
   #cats > .cb > .card .st { font-size: 11px !important; }
 
   .cb > .card.msel {
-    width: 100% !important;
-    max-width: 92vw !important;
+    width: min(300px, 90vw) !important;
     height: auto !important;
     min-height: 0 !important;
     aspect-ratio: 4 / 3 !important;
@@ -528,9 +525,6 @@ body.sheet-open {
     min-height: 0 !important;
     aspect-ratio: 4 / 3 !important;
   }
-  .cb > .card.msel {
-    max-width: 320px !important;
-  }
 }
 
 /* Cross-browser consistency layer */
@@ -567,38 +561,3 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-r
 [dir=ltr] .mx{right:14px;left:auto}
 [dir=rtl] #bar div{padding-right:100%}
 [dir=ltr] #bar div{padding-left:100%}
-
-/* ---------- Élan Scents footer identity ---------- */
-footer {
-  background: linear-gradient(180deg, #686868 0%, #777777 52%, #626262 100%) !important;
-  color: #fff1cf !important;
-  border-top: 1px solid #f1d58e !important;
-}
-footer .footer-logo {
-  width: min(190px, 42vw) !important;
-  max-width: 42vw !important;
-  height: auto !important;
-  aspect-ratio: 1 / 1 !important;
-  margin: 0 auto 18px !important;
-  object-fit: contain !important;
-  border-radius: 12px !important;
-  box-shadow: 0 8px 24px rgba(38, 33, 25, .24), 0 0 0 1px rgba(255, 235, 179, .36) !important;
-}
-footer .fdiv {
-  background: linear-gradient(90deg, transparent, #e6c66f 35%, #fff0c7 50%, #e6c66f 65%, transparent) !important;
-}
-footer .fcols a,
-footer .fcols span,
-footer .fch span,
-footer .fbar,
-footer .fcred {
-  color: #fff1cf !important;
-}
-footer .fcols h5,
-footer .fph,
-footer .fch b {
-  color: #ffe4a3 !important;
-}
-footer .fbar {
-  border-top-color: rgba(255, 239, 199, .38) !important;
-}
