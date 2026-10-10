@@ -67,3 +67,15 @@ test('inner-page blocks stay on their page, keep top/bottom placement, and survi
   assert.ok(m.restore(b)); assert.equal(m.sequence().length, 2);
   assert.throws(() => EM.create({}).setSlot('brands', 'bottom'));
 });
+
+test('smart sections keep their definition as a draft until a saved design uses it', () => {
+  const m = EM.create({});
+  const id = m.createSmart('brands', 'sec-ab12cd34');
+  m.defineSection({ element_id: 'sec-ab12cd34', name: 'اخترنا لك', mode: 'manual', items: ['ps1'], filters: {}, timer: { mode: 'none' } });
+  assert.equal(m.kind(id), 'smart');
+  assert.equal(m.pendingSections().length, 1);
+  assert.ok(ED.normalize(m.design(), { strict: true }).ok);
+  m.archive(id);
+  assert.equal(m.pendingSections().length, 0);
+  assert.throws(() => m.createSmart(null, 'BAD REF'));
+});

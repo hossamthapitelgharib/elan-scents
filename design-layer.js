@@ -7,12 +7,7 @@
   if (!ED) return;
 
   var design = null;
-  var touched = [];
-  var lastDevice = null;
-  var SEC_NAMES = { brands: 'الماركات', offers: 'العروض', new: 'وصل حديثًا', cats: 'الأقسام', master: 'الأعلى مبيعًا', occ: 'المناسبات', notes: 'النوتات العطرية', soon: 'قريبًا', stores: 'المتاجر' };
-  function inEditor() {
-    try { return window.parent !== window && /(?:^|[?&])elan_editor=1(?:&|$)/.test(location.search); } catch (e) { return false; }
-  }
+  var editing = false;
   var STYLE_ID = 'elan-design-style';
   var CSS = [
     '.elan-block{max-width:900px;margin:18px auto;padding:0 16px;box-sizing:border-box}',
@@ -24,7 +19,8 @@
     '.elan-banner:before{content:"";position:absolute;inset:0;background:rgba(20,12,4,.35)}',
     '.elan-banner>*{position:relative}.elan-banner h3,.elan-banner p{margin:6px 0;color:#fff}',
     '.elan-image img{max-width:100%;height:auto;display:block;margin:0 auto;border-radius:12px}',
-    '.elan-block a{color:inherit;text-decoration:none;display:block}'
+    '.elan-block a{color:inherit;text-decoration:none;display:block}',
+    '.elan-smart{max-width:1200px}.elan-smart h3{margin:0 0 12px;text-align:start}'
   ].join('\n');
 
   function lang() { return document.documentElement.lang === 'en' ? 'en' : 'ar'; }
@@ -44,6 +40,62 @@
     return e;
   }
 
+
+  // ----- smart sections: definition + items live in Supabase (public read; RLS hides archived/expired ones) -----
+  var smartCache = {};
+  window.ElanPendingSections = window.ElanPendingSections || {};   // edit mode only: drafts not saved yet
+  function perfumeBy(id) { try { return PERFUMES.filter(function (x) { return String(x.id) === String(id); })[0] || null; } catch (e) { return null; } }
+  function autoList(f) {
+    f = f || {};
+    var l = [];
+    try { l = PERFUMES.map(function (p) { return { p: p, b: best(p) }; }).filter(function (x) { return x.b; }); } catch (e) { return []; }
+    l = l.filter(function (x) {
+      var p = x.p;
+      if (f.brand && p.brand !== f.brand) return false;
+      if (f.cat && !(p.cats || []).some(function (i) { return nmOf('cats', i) === f.cat; })) return false;
+      if (f.occ && !(p.occs || []).some(function (i) { return nmOf('occ', i) === f.occ; })) return false;
+      if (f.note && !(p.notes || []).some(function (i) { return nmOf('notes', i) === f.note; })) return false;
+      if (f.store && !p.offers.some(function (o) { return o.store === f.store; })) return false;
+      if (f.flag && !p.offers.some(function (o) { return (o.flags || []).indexOf(f.flag) > -1; })) return false;
+      if (f.min !== undefined && f.min !== '' && x.b.price < +f.min) return false;
+      if (f.max !== undefined && f.max !== '' && x.b.price > +f.max) return false;
+      return true;
+    });
+    if (f.sort === 'price_asc') l.sort(function (a, b) { return a.b.price - b.b.price; });
+    else if (f.sort === 'price_desc') l.sort(function (a, b) { return b.b.price - a.b.price; });
+    else l.sort(function (a, b) { return (b.p.rel || 0) - (a.p.rel || 0); });
+    return l.slice(0, Math.max(1, Math.min(24, +f.limit || 12)));
+  }
+  function manualList(ids) {
+    return ids.map(perfumeBy).filter(Boolean).map(function (p) { return { p: p, b: best(p) }; });
+  }
+  function paint(root, name, list) {
+    root.textContent = '';
+    if (name) { var h = el('h3'); h.textContent = name; root.appendChild(h); }
+    var g = el('div', 'grid section-perfume-grid');
+    g.innerHTML = list.map(function (x) { return pc(x); }).join('');   // pc() output is built from the storefront's own escaped data
+    root.appendChild(g);
+  }
+  function fillSmart(root, ref) {
+    var pend = window.ElanPendingSections[ref];
+    if (pend) { paint(root, pend.name, pend.mode === 'auto' ? autoList(pend.filters) : manualList(pend.items || [])); return; }
+    if (typeof SB === 'undefined' || !SB || !SB.url) { root.remove(); return; }
+    var hit = smartCache[ref];
+    if (hit && Date.now() - hit.t < 60000) { if (hit.def) paint(root, hit.def.name, hit.list()); else root.remove(); return; }
+    var H = { apikey: SB.key, Authorization: 'Bearer ' + SB.key };
+    fetch(SB.url + '/rest/v1/editor_sections?element_id=eq.' + encodeURIComponent(ref) + '&select=id,name,selection_mode,filters&limit=1', { headers: H })
+      .then(function (r) { return r.ok ? r.json() : []; })
+      .then(function (rows) {
+        if (!rows.length) { smartCache[ref] = { t: Date.now(), def: null }; root.remove(); return null; }
+        var def = rows[0];
+        if (def.selection_mode === 'auto') { smartCache[ref] = { t: Date.now(), def: def, list: function () { return autoList(def.filters); } }; paint(root, def.name, autoList(def.filters)); return null; }
+        return fetch(SB.url + '/rest/v1/editor_section_items?section_id=eq.' + def.id + '&select=product_size_id&order=sort_order', { headers: H })
+          .then(function (r) { return r.ok ? r.json() : []; })
+          .then(function (items) { var ids = items.map(function (i) { return i.product_size_id; }); smartCache[ref] = { t: Date.now(), def: def, list: function () { return manualList(ids); } }; paint(root, def.name, manualList(ids)); });
+      })
+      .catch(function () { root.remove(); });
+  }
+
   function buildBlock(b) {
     var st = b.style || {};
     var root = el('div', 'elan-block elan-' + b.type + ' elan-size-' + (st.size || 'md') + ' elan-align-' + (st.align || 'center'));
@@ -52,13 +104,16 @@
     if (st.color) root.style.color = st.color;
     if (st.background) root.style.backgroundColor = st.background;
     var inner = root;
-    if (b.href) {
+    if (b.href && b.type !== 'smart') {
       var a = el('a');
       a.setAttribute('href', b.href);
       root.appendChild(a);
       inner = a;
     }
-    if (b.type === 'text') {
+    if (b.type === 'smart') {
+      root.classList.add('elan-smart');
+      fillSmart(root, b.ref);
+    } else if (b.type === 'text') {
       var p = el('p');
       p.textContent = pick(b.text);
       inner.appendChild(p);
@@ -78,98 +133,9 @@
     return root;
   }
 
-
-  function hash(str) { var h = 5381, i; for (i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) >>> 0; return h.toString(36); }
-
-  /* Every element the editor can touch, with a stable id that does not change between renders. */
-  function elements() {
-    var out = [], seen = {};
-    function add(id, el, kind, name) { if (!el || seen[id]) return; seen[id] = 1; out.push({ id: id, el: el, kind: kind, name: name }); }
-    var hero = document.getElementById('hero');
-    if (hero) {
-      add('hero', hero, 'hero', 'الواجهة الرئيسية');
-      add('hero:magic', hero.querySelector('.magic'), 'hero-text', 'نص الواجهة');
-      add('hero:counters', hero.querySelector('.counters'), 'hero-counters', 'العدّادات');
-    }
-    var main = document.getElementById('main');
-    if (!main) return out;
-    Array.prototype.slice.call(main.children).forEach(function (c) {
-      if (c.hasAttribute('data-elan-custom')) { add(c.getAttribute('data-elan-id'), c, 'block', 'بلوك إضافي'); return; }
-      if (c.tagName !== 'SECTION' || !c.id || ED.BUILTIN.indexOf(c.id) === -1) return;
-      add('sec:' + c.id, c, 'section', 'سيكشن ' + (SEC_NAMES[c.id] || c.id));
-      add('sec:' + c.id + ':title', c.querySelector('h3'), 'title', 'عنوان ' + (SEC_NAMES[c.id] || c.id));
-      var n = 0;
-      Array.prototype.slice.call(c.querySelectorAll('.card')).forEach(function (card, i) {
-        var base = 'card:' + hash(c.id + '|' + (card.getAttribute('data-go') || 'i' + i)), id = base;
-        while (seen[id]) id = base + '-' + (++n);
-        var h4 = card.querySelector('h4');
-        add(id, card, 'card', 'كارت ' + ((h4 && h4.textContent.trim().slice(0, 24)) || (i + 1)));
-      });
-    });
-    return out;
-  }
-
-  function textTarget(e) {
-    if (e.kind === 'title') return e.el;
-    if (e.kind === 'hero-text') return e.el.querySelector('h2');
-    if (e.kind === 'card') return e.el.querySelector('h4');
-    if (e.kind === 'block') return e.el.querySelector('p, h3');
-    return null;
-  }
-
-  function unpaint(el) {
-    if (el.__elanBase !== undefined) {
-      if (el.__elanBase) el.setAttribute('style', el.__elanBase); else el.removeAttribute('style');
-      delete el.__elanBase; el.removeAttribute('data-elan-edited');
-    }
-    if (el.__elanText) { el.__elanText.node.textContent = el.__elanText.value; delete el.__elanText; }
-    if (el.__elanStrip) { var st = el.__elanStrip; if (st.base) st.node.setAttribute('style', st.base); else st.node.removeAttribute('style'); delete el.__elanStrip; }
-  }
-
-  function paint(entry, ed) {
-    var el = entry.el, st = ed.style || {};
-    el.__elanBase = el.getAttribute('style') || '';
-    el.setAttribute('data-elan-edited', '1');
-    if (ed.hidden || ed.archived) { el.style.display = 'none'; return; }
-    if (ed.dx || ed.dy) {
-      el.style.transform = 'translate(' + (ed.dx || 0) + 'px,' + (ed.dy || 0) + 'px)';
-      el.style.position = el.style.position || 'relative';
-      el.style.zIndex = '3';
-      var strip = entry.kind === 'card' && el.closest('.strip');
-      if (strip && !el.__elanStrip) { el.__elanStrip = { node: strip, base: strip.getAttribute('style') || '' }; strip.style.overflow = 'visible'; }
-    }
-    if (ed.w) { el.style.width = ed.w + 'px'; el.style.maxWidth = 'none'; el.style.flex = '0 0 auto'; }
-    if (ed.h) { el.style.height = ed.h + 'px'; }
-    if (st.color) el.style.color = st.color;
-    if (st.background) el.style.backgroundColor = st.background;
-    if (st.fontSize) el.style.fontSize = st.fontSize + 'px';
-    if (st.weight) el.style.fontWeight = String(st.weight);
-    if (st.radius !== undefined) el.style.borderRadius = st.radius + 'px';
-    if (st.align) el.style.textAlign = st.align === 'start' ? 'start' : st.align === 'end' ? 'end' : 'center';
-    if (st.opacity !== undefined) el.style.opacity = String(st.opacity);
-    if (ed.text) {
-      var node = textTarget(entry), t = ed.text[lang()] || ed.text.ar || ed.text.en;
-      if (node && t) { el.__elanText = { node: node, value: node.textContent }; node.textContent = t; }
-    }
-  }
-
-  /* Free-form edits for the current screen size. Idempotent: always undo the last paint first. */
-  function applyEdits() {
-    touched.forEach(unpaint);
-    touched = [];
-    if (!design || !design.edits) return;
-    var dev = ED.deviceOf(window.innerWidth);
-    elements().forEach(function (entry) {
-      var ed = ED.editFor(design, dev, entry.id);
-      if (!ed) return;
-      paint(entry, ed);
-      touched.push(entry.el);
-    });
-  }
-
   function apply() {
     var main = document.getElementById('main');
-    if (!main || !design || ED.isEmpty(design)) { if (design) applyEdits(); return; }
+    if (!main || !design || ED.isEmpty(design)) return;
 
     // Idempotent: drop what we added before, then re-apply on the freshly rendered page.
     Array.prototype.slice.call(main.querySelectorAll('[data-elan-custom]')).forEach(function (n) { n.remove(); });
@@ -183,8 +149,8 @@
     var plan = ED.plan(design, present, lang());
 
     plan.hide.forEach(function (id) {
-      nodes[id].style.display = 'none';
       nodes[id].setAttribute('data-elan-hidden', '1');
+      if (editing) nodes[id].style.opacity = '.4'; else nodes[id].style.display = 'none';
     });
     Object.keys(plan.titles).forEach(function (id) {
       var h = nodes[id].querySelector('h3');
@@ -194,7 +160,49 @@
 
     // Only touch the order when the design asks for it or adds blocks.
     plan.order.forEach(function (id) { if (nodes[id]) main.appendChild(nodes[id]); });
-    applyEdits();
+  }
+
+
+  // Inner pages (brands, stores, categories, occasions, notes, collections): blocks go at the top or bottom of #view.
+  function pageKey() {
+    if (!document.body.classList.contains('inner')) return 'home';
+    try {
+      var x = P[P.length - 1];
+      if (!x) return null;
+      if (x.k === 'sec') return 'sec:' + x.id;
+      if (x.k === 'col') return 'col:' + x.id + ':' + x.i;
+      if (x.k === 'brand') return 'brand:' + x.n;
+      if (x.k === 'store') return 'store:' + x.n;
+    } catch (e) { /* no page stack yet */ }
+    return null;
+  }
+
+  function applyPage() {
+    var V = document.getElementById('view');
+    if (!V || !design) return;
+    Array.prototype.slice.call(V.querySelectorAll('[data-elan-custom]')).forEach(function (n) { n.remove(); });
+    var key = pageKey(), pg = design.pages && key && design.pages[key];
+    if (!pg) return;
+    var top = pg.blocks.filter(function (b) { return b.slot !== 'bottom'; });
+    var bottom = pg.blocks.filter(function (b) { return b.slot === 'bottom'; });
+    var h = V.querySelector('h3'), ref = h || null;
+    top.forEach(function (b) {
+      var n = buildBlock(b);
+      if (ref) { ref.parentNode.insertBefore(n, ref.nextSibling); ref = n; } else { V.insertBefore(n, V.firstChild); ref = n; }
+    });
+    bottom.forEach(function (b) { V.appendChild(buildBlock(b)); });
+  }
+
+  function wrapView() {
+    var orig = window.view;
+    if (typeof orig !== 'function' || orig.__elanDesign) return;
+    var wrapped = function () {
+      var r = orig.apply(this, arguments);
+      try { applyPage(); } catch (e) { console.error('design layer', e); }
+      return r;
+    };
+    wrapped.__elanDesign = true;
+    window.view = wrapped;
   }
 
   function waitFor(test, cb, timeoutMs) {
@@ -220,52 +228,37 @@
 
   function start(json) {
     var n = ED.normalize(json, { strict: false });
-    var editing = inEditor();
-    if (!n.ok && !editing) return;
-    if (!n.ok) n = { ok: true, design: ED.normalize({ version: ED.VERSION }).design };
-    if (ED.isEmpty(n.design) && !editing) return; // nothing to do: page stays untouched
+    if (!n.ok || ED.isEmpty(n.design)) return; // nothing to do: page stays untouched
     design = n.design;
     ensureStyle();
     if (typeof D === 'object' && D) ED.applyTexts(D, design);
-    wrapRender();
+    wrapRender(); wrapView();
     if (typeof window.render === 'function') window.render();
-    if (editing) loadEditMode();
-    window.addEventListener('resize', function () {
-      var d = ED.deviceOf(window.innerWidth);
-      if (d !== lastDevice) { lastDevice = d; try { applyEdits(); } catch (e) { /* keep page usable */ } }
-    });
-    lastDevice = ED.deviceOf(window.innerWidth);
+    if (document.body.classList.contains('inner') && typeof window.view === 'function') window.view();
   }
 
-  function loadEditMode() {
-    var b = document.createElement('script');
-    b.src = '/elan-host-bridge.js?v=20261010-02';
-    b.onload = function () {
-      var m = document.createElement('script');
-      m.src = '/edit-mode.js?v=20261010-02';
-      document.head.appendChild(m);
-    };
-    document.head.appendChild(b);
-  }
-
-  /* Editor only: replace the working design and repaint. */
-  function setDesign(next) {
-    var n = ED.normalize(next, { strict: false });
+  // Used only by the editor's edit mode: swap in a draft design and redraw. Customers never call this.
+  function set(json, opts) {
+    var n = ED.normalize(json, { strict: false });
+    if (!n.ok) return false;
+    editing = !!(opts && opts.editing);
     design = n.design;
     ensureStyle();
-    wrapRender();
+    if (typeof D === 'object' && D) ED.applyTexts(D, design);
+    wrapRender(); wrapView();
     if (typeof window.render === 'function') window.render();
+    if (document.body.classList.contains('inner') && typeof window.view === 'function') window.view();
+    return true;
   }
 
-  window.ElanDesignLayer = { apply: apply, applyEdits: applyEdits, elements: elements, textTarget: textTarget, setDesign: setDesign, current: function () { return design; } };
+  window.ElanDesignLayer = { apply: apply, set: set, pageKey: pageKey, current: function () { return design; } };
 
   fetch('/design/home.json', { cache: 'no-store' })
     .then(function (r) { return r.ok ? r.json() : null; })
     .then(function (json) {
-      if (!json && inEditor()) json = { version: ED.VERSION };
       if (!json) return;
       waitFor(function () { return typeof window.render === 'function' && document.getElementById('main'); },
         function () { start(json); }, 15000);
     })
-    .catch(function () { if (inEditor()) waitFor(function () { return typeof window.render === 'function' && document.getElementById('main'); }, function () { start({ version: ED.VERSION }); }, 15000); /* otherwise the design is optional */ });
+    .catch(function () { /* design is optional */ });
 })();

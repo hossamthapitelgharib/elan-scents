@@ -143,3 +143,12 @@ test('inner pages accept blocks only for known page keys and keep ids unique acr
   assert.equal(ED.isPageKey('sec:nope'), false);
   assert.equal(ED.normalize({ version: 1 }, { strict: true }).design.pages, undefined);
 });
+
+test('smart sections are stored as a reference only, never as prices or stock', () => {
+  const ok = ED.normalize({ version: 1, blocks: [{ id: 'x-sm', type: 'smart', ref: 'sec-a1b2c3d4', price: 99, items: ['ps1'] }] }, { strict: true });
+  assert.ok(ok.ok, JSON.stringify(ok.errors));
+  assert.deepEqual(ok.design.blocks[0], { id: 'x-sm', type: 'smart', style: { align: 'center', size: 'md' }, ref: 'sec-a1b2c3d4' });
+  assert.equal(ED.normalize({ version: 1, blocks: [{ id: 'x-sm', type: 'smart', ref: 'BAD REF' }] }, { strict: true }).ok, false);
+  assert.equal(ED.normalize({ version: 1, blocks: [{ id: 'x-sm', type: 'smart' }] }, { strict: true }).ok, false);
+  assert.ok(ED.isRef('sec-1a2b') && !ED.isRef('../x'));
+});
