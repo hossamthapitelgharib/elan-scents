@@ -86,7 +86,7 @@
     if (foreign) decorate();
   }).observe(document.documentElement, { childList: true, subtree: true });
 
-  function notifyDirty() { if (bridge) bridge.dirty(model.dirty()); }
+  function notifyDirty() { if (bridge) bridge.dirty(model.dirty() || pending.length > 0); }
   function select(id) {
     selected = id; decorate();
     if (bridge) bridge.selection(id ? { id: id, name: NAMES[id] || id, type: model.kind(id) } : null);
@@ -241,13 +241,14 @@
   }
   var mediaBox = null;
   function closeMedia() { if (mediaBox) { mediaBox.remove(); mediaBox = null; } }
-  function pickMedia(targetId, url) {
+  function pickMedia(targetId, url, cb) {
+    if (cb) { cb(url); closeMedia(); return; }
     var k = targetId && model.kind(targetId), id;
     if (k === 'banner' || k === 'image') { model.setMedia(targetId, url); id = targetId; }
     else { id = model.createImage(selected, url); }
     redraw(); select(id); closeMedia();
   }
-  function openMedia(targetId) {
+  function openMedia(targetId, cb) {
     closeMedia(); closePanel();
     var wrap = document.createElement('div'); wrap.className = 'elan-media'; var box = document.createElement('div'); wrap.appendChild(box);
     function mk(tag, text, props) { var x = document.createElement(tag); if (text) x.textContent = text; Object.keys(props || {}).forEach(function (k) { x[k] = props[k]; }); return x; }
@@ -262,7 +263,7 @@
         msg.textContent = 'بيتحمّل...';
         try {
           var rows = await listLibrary(offset); offset += rows.length; msg.textContent = (offset === 0 && !rows.length) ? 'المكتبة فاضية. ارفعي صورة من الجهاز.' : '';
-          rows.forEach(function (r) { var im = mk('img', '', { src: r.file_url, alt: r.title || '', loading: 'lazy' }); im.onclick = function () { try { pickMedia(targetId, r.file_url); } catch (e) { msg.textContent = e.message; } }; grid.appendChild(im); });
+          rows.forEach(function (r) { var im = mk('img', '', { src: r.file_url, alt: r.title || '', loading: 'lazy' }); im.onclick = function () { try { pickMedia(targetId, r.file_url, cb); } catch (e) { msg.textContent = e.message; } }; grid.appendChild(im); });
           more.hidden = rows.length < 24;
         } catch (e) { msg.textContent = e.message; more.hidden = true; }
       }
@@ -273,7 +274,7 @@
       msg.textContent = 'صور فقط، لحد 10 ميجا.';
       f.onchange = async function () {
         if (!f.files[0]) return; msg.textContent = 'بيترفع...';
-        try { var url = await uploadImage(f.files[0]); pickMedia(targetId, url); } catch (e) { msg.textContent = e.message; }
+        try { var url = await uploadImage(f.files[0]); pickMedia(targetId, url, cb); } catch (e) { msg.textContent = e.message; }
       };
     }
     function showAi() { body.textContent = ''; body.appendChild(mk('div', 'التوليد بالذكاء الاصطناعي محتاج مفتاح على السيرفر وموافقتك على التكلفة، ولسه ما اتفعّلش.', { className: 'note' })); }
@@ -312,13 +313,90 @@
     if (bridge) bridge.selection(null);
   }
 
+
+  // ---------- real records (brand / store / occasion / note): queued in the draft, created in Supabase only on Save ----------
+  var RECORDS = {
+    brand: { table: 'brands', label: 'ماركة', warn: 'الماركة هتظهر للعملاء بعد الحفظ.' },
+    store: { table: 'stores', label: 'متجر', warn: 'المتجر هيبقى نشط وظاهر للعملاء بعد الحفظ.' },
+    occasion: { table: 'occasions', label: 'مناسبة', warn: '' },
+    note: { table: 'aromatic_notes', label: 'نوتة عطرية', warn: '' }
+  };
+  var pending = [];
+  function normName(v) { return String(v || '').normalize('NFKD').replace(/[\u064B-\u065F\u0670]/g, '').replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').toLowerCase().replace(/[^a-z0-9\u0600-\u06FF]/g, ''); }
+  async function dbNames(table) {
+    var c = await sbCfg(), r = await fetch(c.url + '/rest/v1/' + table + '?select=name&limit=3000', { headers: sbHeaders(c), cache: 'no-store' });
+    if (!r.ok) throw Error('تعذر فحص التكرار (' + r.status + ').');
+    return (await r.json()).map(function (x) { return x.name; });
+  }
+  function slugOf(name, kind) {
+    var a = String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 50);
+    return a || kind + '-' + Math.random().toString(16).slice(2, 8);
+  }
+  async function insertRecord(rec) {
+    var def = RECORDS[rec.kind], c = await sbCfg();
+    var names = await dbNames(def.table);
+    if (names.some(function (n) { return normName(n) === normName(rec.name); })) return 'exists';
+    var base = { name: rec.name };
+    if (rec.kind === 'brand') Object.assign(base, { is_active: true }, rec.description ? { description: rec.description } : {}, rec.image ? { official_logo_url: rec.image } : {});
+    else if (rec.kind === 'store') Object.assign(base, { status: 'active' }, rec.description ? { short_description: rec.description } : {}, rec.image ? { logo_url: rec.image } : {});
+    else if (rec.image) base.image_url = rec.image;
+    for (var i = 0; i < 4; i++) {
+      var row = Object.assign({}, base);
+      if (rec.kind === 'brand' || rec.kind === 'store') row.slug = slugOf(rec.name, rec.kind) + (i ? '-' + Math.random().toString(16).slice(2, 6) : '');
+      var r = await fetch(c.url + '/rest/v1/' + def.table, { method: 'POST', headers: sbHeaders(c, { 'Content-Type': 'application/json', Prefer: 'return=minimal' }), body: JSON.stringify(row) });
+      if (r.ok) return 'created';
+      if (r.status === 409 && (rec.kind === 'brand' || rec.kind === 'store')) continue;
+      throw Error('إضافة ' + def.label + ' "' + rec.name + '" فشلت (' + r.status + ').');
+    }
+    throw Error('تعذر إيجاد اسم مختصر متاح لـ "' + rec.name + '".');
+  }
+  function draftShow(rec) {            // makes the new record visible in this draft only
+    try {
+      if (rec.kind === 'brand') BR.push(rec.name);
+      else if (rec.kind === 'store') ST.push([rec.name, rec.description || '']);
+      else (sec(rec.kind === 'occasion' ? 'occ' : 'notes')[3]).push(rec.name);
+    } catch (e) { /* the page shows it after the next refresh */ }
+  }
+  function openRecordPanel(kind) {
+    var def = RECORDS[kind]; closePanel(); closeMedia();
+    panel = document.createElement('div'); panel.className = 'elan-panel';
+    function mk(tag, text, props) { var x = document.createElement(tag); if (text) x.textContent = text; Object.keys(props || {}).forEach(function (k) { x[k] = props[k]; }); return x; }
+    panel.appendChild(mk('b', 'إضافة ' + def.label + ' جديدة'));
+    var name = mk('input', '', { type: 'text', placeholder: 'الاسم' }); name.style.cssText = 'width:100%;padding:6px;margin-bottom:6px';
+    panel.appendChild(name);
+    var desc = null, image = '';
+    if (kind === 'brand' || kind === 'store') { desc = mk('input', '', { type: 'text', placeholder: kind === 'brand' ? 'وصف قصير (اختياري)' : 'وصف قصير (اختياري)' }); desc.style.cssText = 'width:100%;padding:6px;margin-bottom:6px'; panel.appendChild(desc); }
+    var imgBtn = mk('button', kind === 'brand' || kind === 'store' ? 'اختيار لوجو (اختياري)' : 'اختيار صورة (اختياري)'), imgNote = mk('small');
+    imgBtn.onclick = function () { openMedia(null, function (u) { image = u; imgNote.textContent = 'تم اختيار صورة ✓'; }); };
+    panel.append(imgBtn, imgNote);
+    var msg = mk('small'); msg.style.cssText = 'display:block;margin:6px 0;color:#6b4e00'; msg.textContent = (def.warn ? def.warn + ' ' : '') + 'بتتسجل في سابابيس لما تضغطي حفظ، ومش قبلها.';
+    var add = mk('button', 'إضافة للمسودة'), close = mk('button', 'إغلاق');
+    add.onclick = async function () {
+      var n = name.value.trim().replace(/\s+/g, ' ');
+      if (!n || n.length > 120) { msg.textContent = 'اكتبي اسم (لحد 120 حرف).'; return; }
+      add.disabled = true; msg.textContent = 'بنفحص إن مفيش تكرار...';
+      try {
+        var names = await dbNames(def.table);
+        if (names.concat(pending.filter(function (p) { return p.kind === kind; }).map(function (p) { return p.name; })).some(function (x) { return normName(x) === normName(n); })) { msg.textContent = 'موجودة بالفعل بنفس الاسم، مش هتتكرر.'; return; }
+        var rec = { kind: kind, name: n, description: desc ? desc.value.trim().slice(0, 300) : '', image: image };
+        pending.push(rec); draftShow(rec); notifyDirty(); redraw(); closePanel(); say('اتضافت للمسودة: ' + n);
+      } catch (e) { msg.textContent = e.message; } finally { add.disabled = false; }
+    };
+    close.onclick = closePanel; panel.append(msg, add, close);
+    if (pending.length) { var pl = mk('small', 'في الانتظار: ' + pending.map(function (p) { return RECORDS[p.kind].label + ' ' + p.name; }).join('، ')); pl.style.display = 'block'; panel.appendChild(pl); }
+    document.body.appendChild(panel); name.focus();
+  }
+
   // ---------- commands from the editor ----------
   function need(p) { var id = p.elementId || selected; if (!id || !model.kind(id)) throw Error('حددي عنصر الأول بالضغط عليه'); return id; }
   async function savePage(requestId) {
     if (saving) throw Error('الحفظ شغال بالفعل');
     saving = true;
     try {
-      if (!model.dirty()) return { revision: serverRevision === null ? 'none' : serverRevision, published: true, unchanged: true };
+      if (!model.dirty() && !pending.length) return { revision: serverRevision === null ? 'none' : serverRevision, published: true, unchanged: true };
+      for (var pi = 0; pi < pending.length; pi++) await insertRecord(pending[pi]);   // real records first; a retry never duplicates
+      pending = [];
+      if (!model.dirty()) { notifyDirty(); return { revision: serverRevision === null ? 'none' : serverRevision, published: true, unchanged: true, recordsOnly: true }; }
       var norm = ED.normalize(model.design(), { strict: true });
       if (!norm.ok) throw Error('فيه تعديل مش مقبول: ' + norm.errors.slice(0, 2).join('، '));
       var r = await api('POST', { action: 'save', design: norm.design, expectedRevision: serverRevision, requestId: requestId }, '');
@@ -337,7 +415,7 @@
   async function execute(action, p, ctx) {
     p = p || {};
     switch (action) {
-      case 'page.getState': return { revision: serverRevision, design: model.design(), dirty: model.dirty(), selection: selected, page: model.page() };
+      case 'page.getState': return { revision: serverRevision, design: model.design(), dirty: model.dirty() || pending.length > 0, selection: selected, page: model.page(), pendingRecords: pending.length };
       case 'element.select': need(p); select(p.elementId); return { ok: true };
       case 'element.move': { var id = need(p), ch = typeof p.index === 'number' ? model.moveTo(id, p.index) : model.move(id, p.direction === 'up' || p.direction === -1 ? -1 : 1); if (ch) redraw(); return { moved: ch }; }
       case 'element.resize': { var rid = need(p); if (model.resize(rid, p.size || p.step || 'bigger')) redraw(); return { ok: true }; }
@@ -354,6 +432,7 @@
         if (p.kind === 'text_block') { var tn = model.createText(selected); redraw(); select(tn); return { elementId: tn }; }
         if (p.kind === 'banner') { var bn = model.createBanner(selected); redraw(); select(bn); openMedia(bn); return { elementId: bn }; }
         if (p.kind === 'image') { openMedia(null); return { ok: true }; }
+        if (RECORDS[p.kind]) { openRecordPanel(p.kind); return { ok: true }; }
         throw Error(NOT_YET);
       }
       case 'library.open': case 'ui.openMediaPanel': { var tgt = p.elementId || selected; openMedia(tgt && ['banner', 'image'].indexOf(model.kind(tgt)) !== -1 ? tgt : null); return { ok: true }; }
