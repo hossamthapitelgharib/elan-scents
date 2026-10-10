@@ -3,5 +3,27 @@
   "sections": {},
   "order": [],
   "blocks": [],
-  "texts": {}
+  "texts": {},
+  "edits": {
+    "desktop": {
+      "hero:counters": {
+        "dx": -371,
+        "w": 574
+      },
+      "sec:brands:title": {
+        "dx": 2,
+        "dy": 1
+      },
+      "sec:master:title": {
+        "dx": -7,
+        "dy": -41
+      },
+      "card:1wt173k": {
+        "dx": -6,
+        "dy": -32,
+        "w": 334,
+        "h": 231
+      }
+    }
+  }
 }
