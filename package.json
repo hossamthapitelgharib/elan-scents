@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "description": "Élan Scents storefront and order dashboards",
   "scripts": {
+    "start": "node railway/server.js",
     "test": "node --test tests/*.test.js"
   },
   "engines": {
