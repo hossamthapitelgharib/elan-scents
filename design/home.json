@@ -10,11 +10,6 @@
         "dx": -371,
         "w": 574
       },
-      "sec:brands:title": {
-        "dx": 1,
-        "dy": 4,
-        "h": 32
-      },
       "sec:master:title": {
         "dx": -7,
         "dy": -41
@@ -45,11 +40,6 @@
           "fontSize": 16
         }
       },
-      "sec:brands:title": {
-        "style": {
-          "fontSize": 15
-        }
-      },
       "hero:counters": {
         "style": {
           "fontSize": 8,
@@ -60,6 +50,60 @@
         "style": {
           "fontSize": 16
         }
+      },
+      "sec:new:title": {
+        "style": {
+          "fontSize": 16
+        }
+      },
+      "card:trvi8h": {
+        "style": {
+          "align": "end"
+        }
+      },
+      "sec:cats:title": {
+        "style": {
+          "fontSize": 16
+        }
+      },
+      "sec:master:title": {
+        "style": {
+          "fontSize": 20
+        }
+      },
+      "sec:occ:title": {
+        "style": {
+          "fontSize": 16
+        }
+      },
+      "sec:notes:title": {
+        "style": {
+          "fontSize": 16
+        }
+      },
+      "sec:soon:title": {
+        "style": {
+          "fontSize": 16
+        }
+      }
+    },
+    "mobile": {
+      "sec:master:title": {
+        "dy": -37,
+        "h": 55,
+        "dx": -2
+      },
+      "sec:master": {
+        "dx": 6,
+        "dy": -28
+      },
+      "sec:soon:title": {
+        "dx": 7,
+        "dy": -7
+      },
+      "sec:stores": {
+        "dx": -17,
+        "dy": -25
       }
     }
   }
