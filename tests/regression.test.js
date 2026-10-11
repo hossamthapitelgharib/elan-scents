@@ -38,7 +38,7 @@ test('main menu routes طلباتي to the customer dashboard', () => {
   assert.match(storefront, /<footer>/);
   assert.match(storefront, /class="footer-background"/);
   assert.ok(fs.existsSync(path.join(root, 'assets/footer-background.png')));
-  assert.match(styles, /aspect-ratio: 235 \/ 418/);
+  assert.match(styles, /aspect-ratio: 235 \/ 424/);
   assert.match(styles, /object-fit: cover/);
   assert.doesNotMatch(styles, /url\('\/assets\/footer-emblem\.png'\)/);
   assert.doesNotMatch(storefront, /elan-scents-logo\.png/);
