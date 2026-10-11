@@ -4,7 +4,8 @@
   var ERR = {
     invalid_credentials: 'البريد أو كلمة السر غلط.', forbidden: 'الحساب ده مش مسموح له بالإديتور.',
     too_many_attempts: 'محاولات كتير. استني شوية وجرّبي تاني.', supabase_service_configuration_missing: 'إعدادات سابابيس ناقصة على Railway.',
-    auth_unreachable: 'مفيش اتصال بسابابيس، جرّبي تاني.'
+    auth_unreachable: 'مفيش اتصال بسابابيس، جرّبي تاني.',
+    role_check_failed: 'كلمة السر صح، لكن السيرفر فشل يتحقق من صلاحيات الحساب (مفتاح الخدمة على Railway غالباً).'
   };
   function say(t, bad) { msg.textContent = t; msg.className = 'msg' + (bad ? ' err' : ''); }
   async function go() {
