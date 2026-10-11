@@ -19,5 +19,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Unify asset versions
+        run: node scripts/bump-asset-version.js 20261011-10
       - name: Run regression suite
         run: npm test
