@@ -33,7 +33,6 @@ function watchSheet(){
     var mo=new MutationObserver(sync);
     mo.observe(sheet,{attributes:true,attributeFilter:['hidden','style','class']});
   }catch(e){}
-  // also catch programmatic toggles via clicks on cart/fav/notif buttons
   document.addEventListener('click',function(){
     setTimeout(sync,0);
     setTimeout(sync,50);
@@ -91,6 +90,6 @@ function applyArtAndHero(){
   if(typeof render==='function'){try{render();}catch(e){}}
   watchSheet();
 }
-var CORE='/app-core.js?v=20261011-05';
+var CORE='/app-core.js?v=20261011-07';
 loadScript(CORE, applyArtAndHero);
 })();
