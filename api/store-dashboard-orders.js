@@ -14,7 +14,7 @@ module.exports = async function storeDashboardOrders(req, res) {
       storeIds = (accounts || []).map((row) => row.store_id);
     }
     if (!storeIds.length) return reply(res, 200, { ok: true, stores: [], orders: [] });
-    const params = new URLSearchParams({ select: '*,stores(name),store_order_request_items(*),store_order_notifications(*)', order: 'created_at.desc', limit: '100' });
+    const params = new URLSearchParams({ select: '*,stores(name),store_order_request_items(*),store_order_notifications(*),store_shipments(*)', order: 'created_at.desc', limit: '100' });
     params.set('store_id', `in.(${storeIds.join(',')})`);
     if (req.query && req.query.status) params.set('status', `eq.${req.query.status}`);
     const response = await fetch(`${context.supabaseUrl}/rest/v1/store_order_requests?${params}`, { headers: { apikey: context.serviceRoleKey, Authorization: `Bearer ${context.serviceRoleKey}` } });

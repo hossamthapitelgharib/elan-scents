@@ -116,6 +116,38 @@ test('store dashboard and order update require store ownership or platform role'
   const invalid = await invoke(api('store-order-update'), { method: 'PATCH', headers: { authorization: 'Bearer test-token' }, body: { requestId: 'request-1', status: 'delivered' } }); assert.equal(invalid.status, 409); assert.equal(invalid.body.error, 'invalid_status_transition');
 });
 
+test('store shipment updates stay scoped to the store order and never call a carrier API', async () => {
+  process.env.SUPABASE_URL = 'https://test.supabase.co'; process.env.SUPABASE_SERVICE_ROLE_KEY = 'service';
+  let saved; const calls = [];
+  global.fetch = async (url, options = {}) => {
+    calls.push({ url, options });
+    if (url.includes('/auth/v1/user')) return jsonResponse({ id: 'store-user' });
+    if (url.includes('/profiles')) return jsonResponse([{ id: 'store-user', role: 'store_admin' }]);
+    if (url.includes('/store_order_requests?')) return jsonResponse([{ id: 'request-1', store_id: 'store-a', tracking_number: 'T-1', status: 'processing' }]);
+    if (url.includes('/store_accounts?')) return jsonResponse([{ store_id: 'store-a' }]);
+    if (url.includes('/store_shipments?select=')) return jsonResponse([]);
+    if (url.includes('/store_shipments?on_conflict=')) { saved = JSON.parse(options.body); return jsonResponse([{ id: 'shipment-1', ...saved }]); }
+    if (url.includes('/store_order_notifications')) return jsonResponse({});
+    throw new Error(`unexpected ${url}`);
+  };
+  const result = await invoke(api('store-shipment-update'), { method: 'PATCH', headers: { authorization: 'Bearer test-token' }, body: { requestId: 'request-1', carrierName: 'شركة المتجر', trackingCode: 'LOCAL-1', shippingStatus: 'in_transit', estimatedDeliveryAt: '2026-10-15', statusNote: 'في الطريق' } });
+  assert.equal(result.status, 200); assert.equal(result.body.shipment.request_id, 'request-1'); assert.equal(saved.store_id, 'store-a'); assert.equal(saved.shipping_status, 'in_transit');
+  assert.equal(calls.some(x => /carrier|shipping-provider/i.test(x.url)), false);
+});
+
+test('shipping UI and migration keep carrier integration out of the platform', () => {
+  const migration = fs.readFileSync(path.join(root, 'supabase/migrations/20261011012356_store_managed_shipments.sql'), 'utf8');
+  const customer = fs.readFileSync(path.join(root, 'account.js'), 'utf8');
+  const store = fs.readFileSync(path.join(root, 'store-dashboard.js'), 'utf8');
+  const customerApi = fs.readFileSync(path.join(root, 'api/customer-orders.js'), 'utf8');
+  const storeApi = fs.readFileSync(path.join(root, 'api/store-dashboard-orders.js'), 'utf8');
+  assert.match(migration, /request_id uuid not null unique references public\.store_order_requests/);
+  assert.match(migration, /private\.is_store_member\(store_id\)/);
+  assert.doesNotMatch(migration, /api_key|webhook_url|carrier_endpoint/i);
+  assert.match(customer, /store_shipments/); assert.match(store, /store-shipment-update/);
+  assert.match(customerApi, /store_shipments\(\*\)/); assert.match(storeApi, /store_shipments\(\*\)/);
+});
+
 test('notification API reads and marks only accessible notifications', async () => {
   process.env.SUPABASE_URL = 'https://test.supabase.co'; process.env.SUPABASE_SERVICE_ROLE_KEY = 'service';
   global.fetch = async (url, options = {}) => { if (url.includes('/auth/v1/user')) return jsonResponse({ id: 'customer-1' }); if (url.includes('/profiles')) return jsonResponse([{ id: 'customer-1', role: 'customer' }]); if (options.method === 'PATCH') return jsonResponse([{ id: 'n1', is_read: true }]); return jsonResponse([{ id: 'n1', user_id: 'customer-1', type: 'store_cancelled', is_read: false }]); };

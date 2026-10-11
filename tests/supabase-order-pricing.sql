@@ -1,4 +1,4 @@
--- Real-database test for supabase/pending/20261010030000_harden_anon_grants_rls_initplan_and_order_pricing.sql
+-- Real-database test for supabase/pending/20261011012357_harden_anon_grants_rls_initplan_and_order_pricing.sql
 -- Run AFTER the migration inside one transaction. Everything is rolled back; no test data is left in Supabase.
 -- Note: anon reads the catalog through column-level SELECT grants, so privileges are checked with has_any_column_privilege.
 -- Uses an existing auth user and an existing purchasable store product; creates no real customer data.

@@ -8,7 +8,7 @@ module.exports = async function customerOrders(req, res) {
     const query = req.query || {};
     const limit = Math.min(Math.max(Number(query.limit) || 100, 1), 100);
     const offset = Math.max(Number(query.offset) || 0, 0);
-    const params = new URLSearchParams({ select: '*,store_order_requests(*,stores(name),store_order_request_items(*),store_order_cart_restorations(*))', user_id: `eq.${context.user.id}`, order: 'created_at.desc', limit: String(limit), offset: String(offset) });
+    const params = new URLSearchParams({ select: '*,store_order_requests(*,stores(name),store_order_request_items(*),store_order_cart_restorations(*),store_shipments(*))', user_id: `eq.${context.user.id}`, order: 'created_at.desc', limit: String(limit), offset: String(offset) });
     if (query.year && /^\d{4}$/.test(String(query.year))) {
       params.set('created_at', `gte.${String(query.year)}-01-01`);
       params.set('and', `(created_at.lt.${Number(query.year)+1}-01-01)`);
