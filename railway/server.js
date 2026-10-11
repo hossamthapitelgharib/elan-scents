@@ -146,6 +146,7 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
   let pathname = url.pathname;
   if (pathname === '/health') { res.setHeader('Content-Type', 'text/plain'); return res.end('ok'); }
+  if (pathname === '/' && process.env.EDITOR_ROOT_REDIRECT === '1' && (req.method === 'GET' || req.method === 'HEAD')) { res.statusCode = 302; res.setHeader('Location', '/editor'); res.setHeader('Cache-Control', 'no-store'); return res.end(); }
   try { if (await editorHost.handle(req, res, pathname)) return; } catch (e) { console.error('editor host error', e && e.message); if (!res.headersSent) return sendJson(res, 500, { error: 'server_error' }); return; }
   if (REWRITES.has(pathname)) pathname = REWRITES.get(pathname);
   if (pathname === '/api' || pathname.startsWith('/api/')) return handleApi(req, res, url, pathname);
