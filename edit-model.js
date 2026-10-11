@@ -6,274 +6,300 @@
 })(typeof self !== 'undefined' ? self : this, function (ED) {
   'use strict';
 
+  var SIZES = ['sm', 'md', 'lg', 'xl'];
+  var ALIGNS = ['start', 'center', 'end'];
+
   function clone(d) { return JSON.parse(JSON.stringify(d)); }
   function empty() {
-    return { version: ED.VERSION, sections: {}, order: [], blocks: [], texts: {}, pages: {}, edits: {} };
+    return { version: ED.VERSION, sections: {}, order: ED.BUILTIN.slice(), blocks: [], texts: {}, pages: {}, edits: {} };
   }
+  function same(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
 
   function create(initial) {
-    var n = ED.normalize(initial || {}, { strict: false });
-    var design = n.ok ? n.design : empty();
-    if (!design.pages) design.pages = {};
-    if (!design.edits) design.edits = {};
-    var history = [], future = [], dirty = false;
-    var page = 'home';
-    var pendingSections = [];
+    var n0 = ED.normalize(initial || {}, { strict: false });
+    var cur = n0.ok ? n0.design : empty();
+    if (!cur.pages) cur.pages = {};
+    if (!cur.order || !cur.order.length) cur.order = ED.BUILTIN.slice();
+    var base = clone(cur);
+    var past = [], future = [], archived = [], page = 'home', pending = {};
 
-    function snap() {
-      history.push(clone({ design: design, page: page, pendingSections: pendingSections }));
-      if (history.length > 40) history.shift();
-      future = [];
-      dirty = true;
+    function seqOf(d) {
+      var blockIds = (d.blocks || []).map(function (b) { return b.id; });
+      var all = ED.BUILTIN.concat(blockIds), out = [];
+      (d.order || []).forEach(function (id) { if (all.indexOf(id) !== -1 && out.indexOf(id) === -1) out.push(id); });
+      all.forEach(function (id) { if (out.indexOf(id) === -1) out.push(id); });
+      return out;
     }
-
-    function seq() {
-      if (page === 'home') {
-        var blockIds = (design.blocks || []).map(function (b) { return b.id; });
-        var all = ED.BUILTIN.concat(blockIds), out = [];
-        (design.order || []).forEach(function (id) { if (all.indexOf(id) !== -1 && out.indexOf(id) === -1) out.push(id); });
-        all.forEach(function (id) { if (out.indexOf(id) === -1) out.push(id); });
-        return out;
-      }
-      var pg = design.pages[page];
-      return pg ? pg.blocks.slice() : [];
-    }
-
-    function kind(id) {
-      if (ED.BUILTIN.indexOf(id) !== -1) return 'section';
-      var b = (design.blocks || []).filter(function (x) { return x.id === id; })[0];
-      if (b) return b.type;
-      for (var k in design.pages || {}) {
-        var bb = design.pages[k].blocks.filter(function (x) { return x.id === id; })[0];
-        if (bb) return bb.type;
-      }
-      return null;
-    }
-
-    function pageOf(id) {
-      if (ED.BUILTIN.indexOf(id) !== -1 || (design.blocks || []).some(function (b) { return b.id === id; })) return 'home';
-      for (var k in design.pages || {}) {
-        if (design.pages[k].blocks.some(function (b) { return b.id === id; })) return k;
-      }
-      return null;
-    }
-
-    function move(id, dir) {
-      if (page === 'home') {
-        var s = seq(), i = s.indexOf(id), j = i + dir;
-        if (i < 0 || j < 0 || j >= s.length) return false;
-        snap(); s.splice(i, 1); s.splice(j, 0, id); design.order = s; return true;
-      }
-      var pg = design.pages[page]; if (!pg) return false;
-      var list = pg.blocks, i2 = list.findIndex(function (b) { return b.id === id; }), j2 = i2 + dir;
-      if (i2 < 0 || j2 < 0 || j2 >= list.length) return false;
-      snap(); var item = list.splice(i2, 1)[0]; list.splice(j2, 0, item); return true;
-    }
-
-    function rid() {
-      return 'x-' + Math.random().toString(36).slice(2, 10);
-    }
-
-    function createText(after, ar) {
-      snap();
-      var b = { id: rid(), type: 'text', style: { align: 'center', size: 'md' }, text: { ar: ar || 'نص جديد' }, slot: 'top' };
-      if (page === 'home') {
-        design.blocks.push(b);
-        var s = seq(); if (after && s.indexOf(after) !== -1) s.splice(s.indexOf(after) + 1, 0, b.id); else s.push(b.id);
-        design.order = s;
-      } else {
-        design.pages[page] = design.pages[page] || { blocks: [] };
-        var list = design.pages[page].blocks;
-        if (after) { var i = list.findIndex(function (x) { return x.id === after; }); if (i >= 0) list.splice(i + 1, 0, b); else list.push(b); }
-        else list.push(b);
-      }
-      return b.id;
-    }
-
-    function createBanner(after, opts) {
-      snap();
-      opts = opts || {};
-      var b = { id: rid(), type: 'banner', style: { align: 'center', size: 'md' }, title: { ar: opts.title || 'بانر' }, slot: 'top' };
-      if (page === 'home') { design.blocks.push(b); design.order = seq().concat([b.id]); }
-      else { design.pages[page] = design.pages[page] || { blocks: [] }; design.pages[page].blocks.push(b); }
-      return b.id;
-    }
-
-    function createImage(after, src) {
-      snap();
-      var b = { id: rid(), type: 'image', style: { align: 'center', size: 'md' }, src: src, alt: {}, slot: 'top' };
-      if (page === 'home') { design.blocks.push(b); design.order = seq().concat([b.id]); }
-      else { design.pages[page] = design.pages[page] || { blocks: [] }; design.pages[page].blocks.push(b); }
-      return b.id;
-    }
-
-    function createSmart(after, ref) {
-      if (!ED.isRef(ref)) throw new Error('invalid smart ref');
-      snap();
-      var b = { id: rid(), type: 'smart', style: { align: 'center', size: 'md' }, ref: ref, slot: 'top' };
-      if (page === 'home') { design.blocks.push(b); design.order = seq().concat([b.id]); }
-      else { design.pages[page] = design.pages[page] || { blocks: [] }; design.pages[page].blocks.push(b); }
-      return b.id;
-    }
-
-    function findBlock(id) {
-      var b = (design.blocks || []).filter(function (x) { return x.id === id; })[0];
+    function isBuiltin(id) { return ED.BUILTIN.indexOf(id) !== -1; }
+    function block(id) {
+      var b = (cur.blocks || []).filter(function (x) { return x.id === id; })[0];
       if (b) return b;
-      for (var k in design.pages || {}) {
-        b = design.pages[k].blocks.filter(function (x) { return x.id === id; })[0];
+      for (var k in cur.pages || {}) {
+        b = cur.pages[k].blocks.filter(function (x) { return x.id === id; })[0];
         if (b) return b;
       }
       return null;
     }
-
-    function setText(id, lang, value) {
-      if (ED.BUILTIN.indexOf(id) !== -1) {
-        snap();
-        design.sections[id] = design.sections[id] || {};
-        design.sections[id].title = design.sections[id].title || {};
-        if (value) design.sections[id].title[lang] = value; else delete design.sections[id].title[lang];
-        return;
+    function pageOf(id) {
+      if (isBuiltin(id) || (cur.blocks || []).some(function (b) { return b.id === id; })) return null;
+      for (var k in cur.pages || {}) {
+        if (cur.pages[k].blocks.some(function (b) { return b.id === id; })) return k;
       }
-      var b = findBlock(id); if (!b || b.type !== 'text') return;
-      snap(); b.text = b.text || {}; if (value) b.text[lang] = value; else delete b.text[lang];
+      return null;
     }
-
-    function format(id, style) {
-      var b = findBlock(id);
-      if (!b) throw new Error('cannot format section');
-      snap(); b.style = Object.assign({}, b.style || {}, style);
-      // validate via schema on save
-      var test = clone(design);
-      var n = ED.normalize(test, { strict: true });
-      if (!n.ok) { /* revert is handled by not keeping bad - but we already snapped */ }
+    function pageList(pk) {
+      if (!cur.pages[pk]) cur.pages[pk] = { blocks: [] };
+      return cur.pages[pk].blocks;
     }
-
-    function resize(id, dir) {
-      var b = findBlock(id); if (!b) return;
-      var sizes = ['sm', 'md', 'lg', 'xl'];
-      var cur = (b.style && b.style.size) || 'md';
-      var i = sizes.indexOf(cur);
-      if (dir === 'bigger' && i < sizes.length - 1) format(id, { size: sizes[i + 1] });
-      if (dir === 'smaller' && i > 0) format(id, { size: sizes[i - 1] });
+    function displayOrder(pk) {
+      return pageList(pk).map(function (b) { return b.id; });
     }
-
-    function setMedia(id, url) {
-      var b = findBlock(id); if (!b) return;
-      snap();
-      if (b.type === 'banner') b.image = url;
-      else if (b.type === 'image') b.src = url;
+    function reorderPage(pk, ids) {
+      var map = {};
+      pageList(pk).forEach(function (b) { map[b.id] = b; });
+      cur.pages[pk].blocks = ids.map(function (id) { return map[id]; }).filter(Boolean);
     }
-
-    function setSubtitle(id, lang, value) {
-      var b = findBlock(id); if (!b || b.type !== 'banner') return;
-      snap(); b.subtitle = b.subtitle || {}; if (value) b.subtitle[lang] = value; else delete b.subtitle[lang];
+    function section(id) {
+      cur.sections[id] = cur.sections[id] || {};
+      return cur.sections[id];
     }
-
-    function setHref(id, href) {
-      var b = findBlock(id); if (!b) return;
-      if (href && !/^(?:\/(?!\/)|#|https:\/\/)/.test(href)) throw new Error('bad href');
-      snap(); if (href) b.href = href; else delete b.href;
-    }
-
-    function setSlot(id, slot) {
-      if (ED.BUILTIN.indexOf(id) !== -1) throw new Error('sections have no slot');
-      var b = findBlock(id); if (!b) return;
-      snap(); b.slot = slot === 'bottom' ? 'bottom' : 'top';
-    }
-
-    function archive(id) {
-      snap();
-      if (ED.BUILTIN.indexOf(id) !== -1) {
-        design.sections[id] = design.sections[id] || {};
-        design.sections[id].hidden = true;
-        return;
+    function tidy(id) {
+      var s = cur.sections[id];
+      if (!s) return;
+      if (s.title) {
+        if (!s.title.ar) delete s.title.ar;
+        if (!s.title.en) delete s.title.en;
+        if (!s.title.ar && !s.title.en) delete s.title;
       }
-      design.blocks = (design.blocks || []).filter(function (b) { return b.id !== id; });
-      design.order = (design.order || []).filter(function (x) { return x !== id; });
-      for (var k in design.pages || {}) {
-        design.pages[k].blocks = design.pages[k].blocks.filter(function (b) { return b.id !== id; });
-      }
-      pendingSections = pendingSections.filter(function (s) {
-        var b = findBlock(id);
-        return true;
-      });
-      // remove pending section if archived smart
-      pendingSections = pendingSections.filter(function (s) {
-        // keep all for simplicity if block gone
-        return design.blocks.concat.apply([], Object.keys(design.pages || {}).map(function (k) { return design.pages[k].blocks; })).some(function (b) { return b.type === 'smart' && b.ref === s.element_id; }) || (design.blocks || []).some(function (b) { return b.type === 'smart' && b.ref === s.element_id; });
-      });
+      if (!s.hidden && !s.title) delete cur.sections[id];
     }
-
-    function restore(id) {
-      if (ED.BUILTIN.indexOf(id) !== -1) {
-        snap();
-        if (design.sections[id]) delete design.sections[id].hidden;
-        if (design.sections[id] && !design.sections[id].title && !design.sections[id].hidden) delete design.sections[id];
-        return true;
-      }
-      // restore from history is via undo; simple restore for archived blocks not fully tracked
-      return false;
+    function rid() {
+      var a = new Uint8Array(8);
+      if (typeof crypto !== 'undefined' && crypto.getRandomValues) crypto.getRandomValues(a);
+      else for (var i = 0; i < 8; i++) a[i] = Math.floor(Math.random() * 256);
+      return 'x-' + Array.prototype.map.call(a, function (b) { return b.toString(16).padStart(2, '0'); }).join('').slice(0, 8);
     }
-
-    function undo() {
-      if (!history.length) return false;
-      future.push(clone({ design: design, page: page, pendingSections: pendingSections }));
-      var prev = history.pop();
-      design = prev.design; page = prev.page; pendingSections = prev.pendingSections;
-      dirty = history.length > 0;
+    function commit(fn) {
+      past.push(clone(cur));
+      if (past.length > 40) past.shift();
+      future = [];
+      fn();
       return true;
-    }
-
-    function redo() {
-      if (!future.length) return false;
-      history.push(clone({ design: design, page: page, pendingSections: pendingSections }));
-      var next = future.pop();
-      design = next.design; page = next.page; pendingSections = next.pendingSections;
-      dirty = true;
-      return true;
-    }
-
-    function setPage(key) {
-      if (key !== 'home' && !ED.isPageKey(key) && key !== 'home') {
-        if (key === 'home') { page = 'home'; return; }
-      }
-      page = key === 'home' ? 'home' : key;
-      if (page !== 'home' && !design.pages[page]) design.pages[page] = { blocks: [] };
-    }
-
-    function defineSection(def) {
-      snap();
-      pendingSections = pendingSections.filter(function (s) { return s.element_id !== def.element_id; });
-      pendingSections.push(def);
     }
 
     return {
-      design: function () { return clone(design); },
-      dirty: function () { return dirty; },
-      sequence: function () { return page === 'home' ? seq() : (design.pages[page] ? design.pages[page].blocks.map(function (b) { return b; }) : []); },
-      kind: kind,
-      pageOf: pageOf,
-      move: move,
-      createText: createText,
-      createBanner: createBanner,
-      createImage: createImage,
-      createSmart: createSmart,
-      setText: setText,
-      format: format,
-      resize: resize,
-      setMedia: setMedia,
-      setSubtitle: setSubtitle,
-      setHref: setHref,
-      setSlot: setSlot,
-      archive: archive,
-      restore: restore,
-      undo: undo,
-      redo: redo,
-      setPage: setPage,
-      defineSection: defineSection,
-      pendingSections: function () { return pendingSections.slice(); }
+      design: function () { return clone(cur); },
+      sequence: function () { return page === 'home' ? seqOf(cur).slice() : displayOrder(page); },
+      setPage: function (key) { page = key || 'home'; },
+      page: function () { return page; },
+      pageOf: function (id) { return pageOf(id); },
+      kind: function (id) { return isBuiltin(id) ? 'section' : (block(id) ? block(id).type : null); },
+      info: function (id) { var k = this.kind(id); return k ? { id: id, type: k, name: id } : null; },
+      dirty: function () { return !same(Object.assign({}, cur, { order: seqOf(cur) }), Object.assign({}, base, { order: seqOf(base) })); },
+      archivedItems: function () { return clone(archived); },
+      canUndo: function () { return past.length > 0; },
+      canRedo: function () { return future.length > 0; },
+
+      move: function (id, step) {
+        return commit(function () {
+          var pk = pageOf(id);
+          if (pk) {
+            var ids = displayOrder(pk), i0 = ids.indexOf(id);
+            var j0 = Math.max(0, Math.min(ids.length - 1, i0 + (step < 0 ? -1 : 1)));
+            ids.splice(i0, 1); ids.splice(j0, 0, id); reorderPage(pk, ids); return;
+          }
+          var s = seqOf(cur), i = s.indexOf(id); if (i < 0) throw Error('\u0639\u0646\u0635\u0631 \u063a\u064a\u0631 \u0645\u0648\u062c\u0648\u062f');
+          var j = Math.max(0, Math.min(s.length - 1, i + (step < 0 ? -1 : 1)));
+          s.splice(i, 1); s.splice(j, 0, id); cur.order = s;
+        });
+      },
+      moveTo: function (id, index) {
+        return commit(function () {
+          var pk = pageOf(id);
+          if (pk) {
+            var ids = displayOrder(pk), i0 = ids.indexOf(id);
+            ids.splice(i0, 1);
+            ids.splice(Math.max(0, Math.min(ids.length, index)), 0, id);
+            reorderPage(pk, ids); return;
+          }
+          var s = seqOf(cur), i = s.indexOf(id); if (i < 0) throw Error('\u0639\u0646\u0635\u0631 \u063a\u064a\u0631 \u0645\u0648\u062c\u0648\u062f');
+          s.splice(i, 1); s.splice(Math.max(0, Math.min(s.length, index)), 0, id); cur.order = s;
+        });
+      },
+
+      setText: function (id, lang, value) {
+        return commit(function () {
+          if (isBuiltin(id)) {
+            var e = section(id);
+            e.title = e.title || {};
+            if (value) e.title[lang] = value; else delete e.title[lang];
+            tidy(id); return;
+          }
+          var b = block(id); if (!b || b.type !== 'text') throw Error('not text');
+          b.text = b.text || {};
+          if (value) b.text[lang] = value; else delete b.text[lang];
+        });
+      },
+      format: function (id, style) {
+        if (isBuiltin(id)) throw Error('cannot format section');
+        var b = block(id); if (!b) throw Error('missing');
+        if (style.size && SIZES.indexOf(style.size) === -1) throw Error('bad size');
+        if (style.align && ALIGNS.indexOf(style.align) === -1) throw Error('bad align');
+        return commit(function () {
+          b.style = Object.assign({}, b.style || {}, style);
+        });
+      },
+      resize: function (id, dir) {
+        var b = block(id); if (!b) return false;
+        var curSize = (b.style && b.style.size) || 'md';
+        var i = SIZES.indexOf(curSize);
+        if (dir === 'bigger' && i < SIZES.length - 1) return this.format(id, { size: SIZES[i + 1] });
+        if (dir === 'smaller' && i > 0) return this.format(id, { size: SIZES[i - 1] });
+        return false;
+      },
+
+      createText: function (after, ar) {
+        var id = rid();
+        commit(function () {
+          var b = { id: id, type: 'text', style: { align: 'center', size: 'md' }, text: { ar: ar || '\u0646\u0635 \u062c\u062f\u064a\u062f' }, slot: 'top' };
+          if (page === 'home') {
+            cur.blocks.push(b);
+            var s = seqOf(cur);
+            if (after && s.indexOf(after) !== -1) s.splice(s.indexOf(after) + 1, 0, id); else s.push(id);
+            cur.order = s;
+          } else {
+            var list = pageList(page);
+            if (after) {
+              var i = list.findIndex(function (x) { return x.id === after; });
+              if (i >= 0) list.splice(i + 1, 0, b); else list.push(b);
+            } else list.push(b);
+          }
+        });
+        return id;
+      },
+      createBanner: function (after, opts) {
+        opts = opts || {};
+        var id = rid();
+        commit(function () {
+          var b = { id: id, type: 'banner', style: { align: 'center', size: 'md' }, title: { ar: opts.title || '\u0628\u0627\u0646\u0631' }, slot: 'top' };
+          if (page === 'home') { cur.blocks.push(b); cur.order = seqOf(cur).concat([id]); }
+          else pageList(page).push(b);
+        });
+        return id;
+      },
+      createImage: function (after, src) {
+        var id = rid();
+        commit(function () {
+          var b = { id: id, type: 'image', style: { align: 'center', size: 'md' }, src: src, alt: {}, slot: 'top' };
+          if (page === 'home') { cur.blocks.push(b); cur.order = seqOf(cur).concat([id]); }
+          else pageList(page).push(b);
+        });
+        return id;
+      },
+      createSmart: function (after, ref) {
+        if (!ED.isRef(ref)) throw Error('BAD REF');
+        var id = rid();
+        commit(function () {
+          var b = { id: id, type: 'smart', style: { align: 'center', size: 'md' }, ref: ref, slot: 'top' };
+          if (page === 'home') { cur.blocks.push(b); cur.order = seqOf(cur).concat([id]); }
+          else pageList(page).push(b);
+        });
+        return id;
+      },
+
+      setMedia: function (id, url) {
+        return commit(function () {
+          var b = block(id); if (!b) throw Error('missing');
+          if (b.type === 'banner') b.image = url;
+          else if (b.type === 'image') b.src = url;
+          else throw Error('not media');
+        });
+      },
+      setSubtitle: function (id, lang, value) {
+        return commit(function () {
+          var b = block(id); if (!b || b.type !== 'banner') throw Error('not banner');
+          b.subtitle = b.subtitle || {};
+          if (value) b.subtitle[lang] = value; else delete b.subtitle[lang];
+        });
+      },
+      setHref: function (id, href) {
+        if (href && !/^(?:\/(?!\/)|#|https:\/\/)/.test(href)) throw Error('bad href');
+        return commit(function () {
+          var b = block(id); if (!b) throw Error('missing');
+          if (href) b.href = href; else delete b.href;
+        });
+      },
+      setSlot: function (id, slot) {
+        if (isBuiltin(id)) throw Error('sections have no slot');
+        return commit(function () {
+          var b = block(id); if (!b) throw Error('missing');
+          b.slot = slot === 'bottom' ? 'bottom' : 'top';
+        });
+      },
+
+      archive: function (id) {
+        return commit(function () {
+          if (isBuiltin(id)) { section(id).hidden = true; archived.push({ id: id, kind: 'section' }); return; }
+          var b = block(id); if (!b) throw Error('missing');
+          var pk = pageOf(id);
+          if (pk) {
+            archived.push({ id: id, kind: 'block', block: clone(b), page: pk, index: displayOrder(pk).indexOf(id) });
+            cur.pages[pk].blocks = cur.pages[pk].blocks.filter(function (x) { return x.id !== id; });
+          } else {
+            archived.push({ id: id, kind: 'block', block: clone(b), index: seqOf(cur).indexOf(id) });
+            cur.blocks = cur.blocks.filter(function (x) { return x.id !== id; });
+            cur.order = seqOf(cur).filter(function (x) { return x !== id; });
+          }
+          if (b.type === 'smart' && pending[b.ref]) delete pending[b.ref];
+        });
+      },
+      restore: function (id) {
+        return commit(function () {
+          if (isBuiltin(id)) {
+            var e = section(id); delete e.hidden; tidy(id);
+            archived = archived.filter(function (x) { return !(x.id === id && x.kind === 'section'); });
+            return;
+          }
+          var a = archived.filter(function (x) { return x.id === id && x.kind === 'block'; })[0];
+          if (!a) throw Error('not archived');
+          if (a.page) {
+            var l = pageList(a.page); l.push(a.block);
+          } else {
+            cur.blocks.push(a.block);
+            var s = seqOf(cur);
+            if (s.indexOf(id) === -1) s.push(id);
+            cur.order = s;
+          }
+          archived = archived.filter(function (x) { return x !== a; });
+        });
+      },
+
+      undo: function () {
+        if (!past.length) return false;
+        future.push(clone(cur)); cur = past.pop(); return true;
+      },
+      redo: function () {
+        if (!future.length) return false;
+        past.push(clone(cur)); cur = future.pop(); return true;
+      },
+
+      defineSection: function (def) {
+        if (!def || !def.element_id) throw Error('bad section');
+        pending[def.element_id] = def;
+      },
+      pendingSections: function () {
+        return Object.keys(pending).map(function (k) { return pending[k]; });
+      },
+
+      /* Mark current design as the clean baseline after a successful save. */
+      markClean: function (design) {
+        base = ED.normalize(design || cur, { strict: false }).design;
+        base.order = seqOf(base);
+        cur = clone(base);
+        past = []; future = [];
+      }
     };
   }
 
-  return { create: create };
+  return { create: create, SIZES: SIZES, ALIGNS: ALIGNS };
 });
