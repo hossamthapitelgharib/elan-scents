@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* Sets ONE cache-busting version (?v=...) on every local .css/.js reference of the storefront, portals and editor.
+/* Sets ONE cache-busting version (?v=...) on every local .css/.js reference of the storefront and portals.
    Usage: node scripts/bump-asset-version.js [version]   (default: next YYYYMMDD-NN)
    Run it whenever any frontend asset (html/js/css) changes, then commit. Media (mp4/jpg) keeps its own version. */
 const fs = require('node:fs');
@@ -9,7 +9,7 @@ const root = path.resolve(__dirname, '..');
 const REF = /(\/[A-Za-z0-9._\-\/]+\.(?:css|js))\?v=([A-Za-z0-9\-]+)/g;
 
 function targets() {
-  return [...fs.readdirSync(root).filter((f) => f.endsWith('.html')), 'app.js', 'style.css']
+  return [...fs.readdirSync(root).filter((f) => f.endsWith('.html') && f !== 'editor.html'), 'app.js', 'style.css']
     .filter((f) => fs.existsSync(path.join(root, f)));
 }
 
