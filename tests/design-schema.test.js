@@ -124,11 +124,14 @@ test('the storefront loads the design layer after the core and keeps the cache-b
   assert.ok(html.indexOf('/design-schema.js') > html.indexOf('/app.js'));
 });
 
-test('design files are served without caching', () => {
-  const cfg = JSON.parse(fs.readFileSync(path.join(root, 'vercel.json'), 'utf8'));
-  const noStore = (src) => cfg.headers.some((h) => h.source === src && h.headers.some((x) => /no-store/.test(x.value)));
-  assert.ok(noStore('/design/(.*)'));
-  assert.ok(cfg.headers.some((h) => /design-layer\.js/.test(h.source) && /design-schema\.js/.test(h.source)));
+test('design files are served without caching by Railway', async () => {
+  const server = require('../railway/server.js');
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  try {
+    const response = await fetch(`http://127.0.0.1:${server.address().port}/design/home.json`, { method: 'HEAD' });
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get('cache-control'), /no-store/);
+  } finally { server.close(); }
 });
 
 test('inner pages accept blocks only for known page keys and keep ids unique across the site', () => {

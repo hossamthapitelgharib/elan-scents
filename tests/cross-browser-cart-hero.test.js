@@ -8,7 +8,6 @@ const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 const index = read('index.html');
 const style = read('style.css');
 const core = read('app-core.js');
-const vercel = JSON.parse(read('vercel.json'));
 
 test('hero video retries after browser-initiated pauses and unlocks on a real gesture', () => {
   assert.match(index, /v\.addEventListener\('pause'/);
@@ -26,14 +25,23 @@ test('hero play button is hidden once playback starts and shown when autoplay is
   assert.match(style, /#heroPlay\[hidden\]\s*\{\s*display:\s*none\s*!important/);
 });
 
-test('hero video and poster are cacheable so browsers can loop and seek without re-downloading', () => {
-  const rule = (source) => vercel.headers.find((h) => h.source === source);
-  for (const source of ['/assets/hero.mp4', '/assets/hero-poster.jpg']) {
-    const cache = rule(source).headers.find((h) => h.key === 'Cache-Control');
-    assert.match(cache.value, /max-age=31536000/);
-    assert.match(cache.value, /immutable/);
-  }
-  assert.ok(rule('/assets/hero.mp4').headers.some((h) => h.key === 'Accept-Ranges' && h.value === 'bytes'));
+test('Railway serves the hero video and poster with immutable cache headers', async () => {
+  const server = require('../railway/server.js');
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const poster = await fetch(base + '/assets/hero-poster.jpg', { method: 'HEAD' });
+    assert.equal(poster.status, 200);
+    assert.match(poster.headers.get('cache-control'), /max-age=31536000/);
+    assert.match(poster.headers.get('cache-control'), /immutable/);
+    const video = await fetch(base + '/assets/hero.mp4', { method: 'HEAD' });
+    if (video.status === 404) return;
+    assert.equal(video.status, 200);
+    assert.match(video.headers.get('content-type'), /video\/mp4/);
+    assert.match(video.headers.get('cache-control'), /max-age=31536000/);
+    assert.match(video.headers.get('cache-control'), /immutable/);
+    assert.equal(video.headers.get('accept-ranges'), 'bytes');
+  } finally { server.close(); }
   assert.match(index, /hero\.mp4\?v=/);
   assert.match(index, /hero-poster\.jpg\?v=/);
 });

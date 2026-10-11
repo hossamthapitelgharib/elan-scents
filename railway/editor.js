@@ -1,4 +1,4 @@
-/* Élan Scents — editor API (ONE function: Vercel Hobby allows 12, so every editor action lives here).
+/* Élan Scents — one guarded editor API endpoint on Railway.
    Admin only. Writes exactly one file (design/home.json) with one commit per save.
    Repo, path and branch come from server configuration, never from the request. */
 const crypto = require('crypto');
@@ -20,21 +20,21 @@ function gitBlobSha(text) {
   return crypto.createHash('sha1').update(Buffer.concat([Buffer.from('blob ' + bytes.length + '\0'), bytes])).digest('hex');
 }
 
-/* Production writes to main. A preview deployment writes ONLY to the branch it was built from,
-   so testing the editor can never touch production. */
+/* Production writes to main. Non-production environments must target an isolated branch. */
 function config(env) {
   env = env || process.env;
-  const isProd = env.VERCEL_ENV === 'production' || env.EDITOR_ENV === 'production';
+  const environment = String(env.RAILWAY_ENVIRONMENT_NAME || env.EDITOR_ENV || '').toLowerCase();
+  const isProd = environment === 'production';
   const token = env.GITHUB_TOKEN;
   const repo = env.GITHUB_REPO || DEFAULT_REPO;
-  const branch = env.EDITOR_TARGET_BRANCH || (isProd ? 'main' : env.VERCEL_GIT_COMMIT_REF);
-  const host = isProd ? env.VERCEL_PROJECT_PRODUCTION_URL : env.VERCEL_BRANCH_URL;
+  const branch = env.EDITOR_TARGET_BRANCH || (isProd ? 'main' : env.EDITOR_BRANCH);
+  const host = env.RAILWAY_PUBLIC_DOMAIN;
   const origin = env.EDITOR_SITE_ORIGIN || (host ? 'https://' + host : '');
   if (!token || !branch || !origin) return { error: 'editor_not_configured' };
   if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) return { error: 'editor_not_configured' };
   if (!/^[\w./-]{1,100}$/.test(branch) || branch.indexOf('..') !== -1) return { error: 'editor_not_configured' };
   if (!/^https:\/\/[\w.-]+(:\d+)?$/.test(origin.replace(/\/+$/, ''))) return { error: 'editor_not_configured' };
-  if (branch === 'main' && !isProd && env.EDITOR_ALLOW_MAIN_FROM_PREVIEW !== '1') return { error: 'preview_cannot_write_main' };
+  if (branch === 'main' && !isProd && env.EDITOR_ALLOW_MAIN_FROM_NONPROD !== '1') return { error: 'main_branch_requires_production' };
   return { token, repo, branch, origin: origin.replace(/\/+$/, ''), isProd };
 }
 

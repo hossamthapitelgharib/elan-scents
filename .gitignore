@@ -1,6 +1,5 @@
 # Local dependencies and tool output
 node_modules/
-.vercel/
 .railway/
 
 # Local secrets and environment files

@@ -33,15 +33,20 @@ test('main storefront loads its application core from the deployment itself', ()
 });
 
 
-test('browser theme and viewport rules do not depend on OS dark mode or svh support', () => {
+test('browser theme and viewport rules do not depend on OS dark mode or svh support and Railway avoids stale asset caches', async () => {
   const css = fs.readFileSync(path.join(root, 'style.css'), 'utf8');
   const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-  const headers = JSON.parse(fs.readFileSync(path.join(root, 'vercel.json'), 'utf8')).headers;
   assert.match(css, /color-scheme\s*:\s*light/);
   assert.match(css, /#hero\s*\{\s*height:\s*calc\(var\(--app-vh/);
   assert.doesNotMatch(css, /@supports\s*\(height:\s*100svh\)/);
   assert.match(html, /poster="\/assets\/hero-poster\.jpg\?v=\d{8}-\d+"/);
-  assert.ok(headers.some(rule => rule.source === '/assets/(.*)' && rule.headers.some(h => h.key === 'Cache-Control' && /no-store/.test(h.value))));
+  const server = require('../railway/server.js');
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  try {
+    const asset = await fetch(`http://127.0.0.1:${server.address().port}/assets/cards/note-citrus.webp`, { method: 'HEAD' });
+    assert.equal(asset.status, 200);
+    assert.match(asset.headers.get('cache-control'), /no-store/);
+  } finally { server.close(); }
 });
 
 

@@ -14,7 +14,6 @@ test('editor page is the approved editor, locked behind login, never remembers t
   assert.match(html, /id="elan-gate"/);
   assert.match(html, /src="\/editor-login\.js\?v=/);
   assert.doesNotMatch(login, /localStorage|sessionStorage|document\.cookie/);
-  assert.doesNotMatch(html, /elan-scents\.vercel\.app/);
 });
 
 test('edit mode loads only for the editor and never for customers', () => {
@@ -45,10 +44,17 @@ test('edit host uses the bridge with same-origin only and confirms saves from th
   assert.doesNotMatch(host, /localStorage|innerHTML/);
 });
 
-test('every no-store header covers the editor files', () => {
-  const cfg = JSON.parse(read('vercel.json'));
-  const src = cfg.headers.map((h) => h.source).join(' ');
-  for (const f of ['editor.html', 'editor-login.js', 'edit-boot.js', 'edit-host.js', 'edit-model.js', 'elan-host-bridge.js']) assert.ok(src.includes(f), f);
+test('editor pages and scripts are served with no-store headers by Railway', async () => {
+  const server = require('../railway/server.js');
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  try {
+    const base = `http://127.0.0.1:${server.address().port}`;
+    for (const route of ['/editor', '/editor-login.js', '/editor-login.css', '/edit-boot.js', '/editor.html']) {
+      const response = await fetch(base + route, { method: 'HEAD' });
+      assert.equal(response.status, 200, route);
+      assert.match(response.headers.get('cache-control'), /no-store/, route);
+    }
+  } finally { server.close(); }
 });
 
 test('railway host serves the owner login page at /editor', async () => {

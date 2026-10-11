@@ -13,7 +13,7 @@ const sha40 = (c) => c.repeat(40);
 function envFor(extra) {
   return Object.assign({
     SUPABASE_URL: SB, SUPABASE_SERVICE_ROLE_KEY: 'service', GITHUB_TOKEN: 'ghp_test',
-    VERCEL_ENV: 'preview', VERCEL_GIT_COMMIT_REF: 'editor-v1', VERCEL_BRANCH_URL: 'elan-git-editor-v1.vercel.app'
+    EDITOR_ENV: 'development', EDITOR_TARGET_BRANCH: 'editor-v1', EDITOR_SITE_ORIGIN: 'https://elan-editor.up.railway.app'
   }, extra || {});
 }
 
@@ -43,7 +43,7 @@ async function run({ method = 'POST', body, query, role = 'platform_admin', toke
   const savedEnv = {};
   const e = envFor(env);
   Object.keys(e).forEach((k) => { savedEnv[k] = process.env[k]; process.env[k] = e[k]; });
-  ['GITHUB_TOKEN', 'VERCEL_ENV', 'VERCEL_GIT_COMMIT_REF', 'VERCEL_BRANCH_URL', 'EDITOR_TARGET_BRANCH', 'EDITOR_SITE_ORIGIN'].forEach((k) => { if (!(k in e)) { savedEnv[k] = process.env[k]; delete process.env[k]; } });
+  ['GITHUB_TOKEN', 'RAILWAY_ENVIRONMENT_NAME', 'RAILWAY_PUBLIC_DOMAIN', 'EDITOR_ENV', 'EDITOR_TARGET_BRANCH', 'EDITOR_BRANCH', 'EDITOR_SITE_ORIGIN', 'EDITOR_ALLOW_MAIN_FROM_NONPROD'].forEach((k) => { if (!(k in e)) { savedEnv[k] = process.env[k]; delete process.env[k]; } });
   const realFetch = global.fetch;
   const siteCalls = [];
   global.fetch = async (url, opts) => {
@@ -67,7 +67,7 @@ async function run({ method = 'POST', body, query, role = 'platform_admin', toke
 const goodDesign = () => ({ version: 1, sections: { offers: { hidden: true } }, order: [], blocks: [], texts: {} });
 const saveBody = (over) => Object.assign({ action: 'save', design: goodDesign(), expectedRevision: gitBlobSha(EMPTY), requestId: 'req-12345678' }, over || {});
 
-test('the editor handler lives in railway/ and never adds a Vercel function', () => {
+test('the editor handler is hosted by the Railway API adapter', () => {
   const files = fs.readdirSync(path.join(__dirname, '..', 'api'));
   assert.ok(!files.includes('editor.js'));
   assert.ok(fs.existsSync(path.join(__dirname, '..', 'railway', 'editor.js')));
@@ -100,12 +100,12 @@ test('refuses to run when GitHub is not configured', async () => {
   assert.equal(r.res.body.error, 'editor_not_configured');
 });
 
-test('a preview can never write to main, and production writes to main', async () => {
+test('non-production environments cannot write main, while production targets main', async () => {
   const gh = fakeGithub(EMPTY);
-  const bad = await run({ method: 'GET', env: { VERCEL_GIT_COMMIT_REF: 'main' }, github: gh });
+  const bad = await run({ method: 'GET', env: { EDITOR_ENV: 'staging', EDITOR_TARGET_BRANCH: 'main' }, github: gh });
   assert.equal(bad.res.statusCode, 503);
-  assert.equal(bad.res.body.error, 'preview_cannot_write_main');
-  const prod = await run({ method: 'GET', env: { VERCEL_ENV: 'production', VERCEL_PROJECT_PRODUCTION_URL: 'elan.example.test' }, github: gh });
+  assert.equal(bad.res.body.error, 'main_branch_requires_production');
+  const prod = await run({ method: 'GET', env: { RAILWAY_ENVIRONMENT_NAME: 'production', EDITOR_TARGET_BRANCH: '', EDITOR_SITE_ORIGIN: 'https://elan.example.test' }, github: gh });
   assert.equal(prod.res.statusCode, 200);
   assert.equal(prod.res.body.branch, 'main');
   const preview = await run({ method: 'GET', github: gh });
@@ -208,7 +208,7 @@ test('status reports published only when the live site serves the committed byte
   const gh = fakeGithub(text);
   const live = await run({ body: { action: 'status', revision: rev }, github: gh, live: () => ({ status: 200, text }) });
   assert.equal(live.res.body.published, true);
-  assert.match(live.siteCalls[0], /^https:\/\/elan-git-editor-v1\.vercel\.app\/design\/home\.json\?cb=/);
+  assert.match(live.siteCalls[0], /^https:\/\/elan-editor\.up\.railway\.app\/design\/home\.json\?cb=/);
   const old = await run({ body: { action: 'status', revision: rev }, github: gh, live: () => ({ status: 200, text: EMPTY }) });
   assert.equal(old.res.body.published, false);
   const down = await run({ body: { action: 'status', revision: rev }, github: gh, live: () => ({ status: 503, text: '' }) });

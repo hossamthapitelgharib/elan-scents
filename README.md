@@ -2,33 +2,35 @@
 
 The Home of Gulf Fragrances
 
-Static storefront + order dashboards. Railway is the primary host; the same project remains Vercel-compatible.
+Static storefront and order dashboards. **Railway is the sole hosting platform.**
 
-## Active frontend (UI)
+## Active frontend
 
-- `index.html` — main storefront shell (mobile / tablet / desktop)
-- `app.js` — UI overrides + loads stable core from pinned release
-- `style.css` — active styles (imports `style-3.css` base, then overrides)
-- `style-3.css` — base theme
-- `texts.js` — AR/EN copy + ART card markup
-- `assets/` — hero video, category/occasion cards, growthmark
+- `index.html` — storefront shell for mobile, tablet and desktop
+- `app.js` — UI overrides and version-pinned loading of `app-core.js`
+- `style.css` and `style-3.css` — active styles and base theme
+- `texts.js` — Arabic/English copy and card markup
+- `assets/` — hero video, product/category imagery and fonts
 
-## Portals (UI)
+## Portals
 
-- `account.html` + `account.js` + `portal.css` / `portal.js`
-- `dashboard.html` + `dashboard.js` + `dashboard.css`
-- `store-dashboard.html` + `store-dashboard.js`
-- `platform-dashboard.html` + `platform-dashboard.js`
+- `account.html`, `account.js`, `portal.css`, `portal.js` — customer orders and account access
+- `dashboard.html`, `dashboard.js`, `dashboard.css` — order operations
+- `store-dashboard.html`, `store-dashboard.js` — store portal
+- `platform-dashboard.html`, `platform-dashboard.js` — platform administration and customer analytics
 
-## Server and deployment
+## Railway runtime
 
-- `railway/server.js` — dependency-free Railway host for static files and `/api/*` routes
-- `api/` — serverless/API endpoints shared by Railway and Vercel
-- `api/config.js` — shared Supabase config endpoint used by both hosts
-- `package.json` — `npm start` runs the Railway host; `npm test` runs the regression suite
+- `railway/server.js` — dependency-free Node host for static files and `/api/*` routes; owns route aliases, cache policy and byte-range video responses
+- `railway/editor.js` and `railway/editor-host.js` — protected site editor and GitHub-backed design updates
+- `api/` — request handlers served by the Railway host
+- `api/config.js` — Supabase public client configuration for the site
+- `package.json` — `npm start` runs Railway; `npm test` runs the regression suite
+
+The editor uses Railway variables such as `RAILWAY_ENVIRONMENT_NAME`, `RAILWAY_PUBLIC_DOMAIN`, `EDITOR_TARGET_BRANCH`, and `EDITOR_SITE_ORIGIN`. Keep `EDITOR_SITE_ORIGIN` set to the public `elan-site` origin when the editor runs as a separate Railway service.
 
 ## Data and quality
 
-- `supabase/` — migrations
+- `supabase/` — database migrations and rollback scripts
 - `tests/` — regression tests and safe SQL test scripts
 - `.github/workflows/tests.yml` — runs `npm test` on pushes and pull requests to `main`
