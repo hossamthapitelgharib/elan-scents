@@ -3,8 +3,8 @@
    Imports base theme then applies current desired overrides.
    Frontend display only. Do not add backend/DB rules here.
    ============================================================ */
-@import url('/style-3.css?v=20261011-04');
-@import url('/footer-9x16.css?v=20261011-04');
+@import url('/style-3.css?v=20261011-05');
+@import url('/footer-9x16.css?v=20261011-05');
 
 /* ---------- Menu: slightly narrower panel + slightly larger items ---------- */
 #menu {
@@ -692,7 +692,7 @@ footer .footer-emblem {
 /* The supplied artwork is the complete footer canvas; keep it intact and layer content above it. */
 footer {
   max-width: min(100%, 540px) !important;
-  aspect-ratio: 235 / 424 !important;
+  aspect-ratio: 235 / 508 !important;
   min-height: 0 !important;
   height: auto !important;
   background: #6e6e6e !important;
