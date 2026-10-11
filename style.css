@@ -3,8 +3,8 @@
    Imports base theme then applies current desired overrides.
    Frontend display only. Do not add backend/DB rules here.
    ============================================================ */
-@import url('/style-3.css?v=20261011-06');
-@import url('/footer-9x16.css?v=20261011-06');
+@import url('/style-3.css?v=20261011-07');
+@import url('/footer-9x16.css?v=20261011-07');
 
 /* ---------- Menu: slightly narrower panel + slightly larger items ---------- */
 #menu {
@@ -507,17 +507,12 @@ button,a,input,select,textarea{-webkit-tap-highlight-color:transparent}
 .orders-list{display:grid;gap:8px}.order-card{display:grid;grid-template-columns:1fr auto;gap:3px 10px;padding:12px;border:1px solid #e6d9b6;border-radius:12px;background:#fffdf8}.order-card div{display:grid;gap:2px}.order-card small{color:var(--gray);font-size:11px}.order-status{color:var(--gold3);font-size:11px;font-weight:600;align-self:center}
 @media(max-width:680px){.grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.grid .card{min-width:0}}
 
-/* Keep hero playback control present in every browser; the poster remains visible if autoplay is blocked. */
 #heroPlay{position:absolute;z-index:3;right:18px;bottom:calc(18px + env(safe-area-inset-bottom,0px));width:42px;height:42px;border:1px solid rgba(255,255,255,.72);border-radius:50%;background:rgba(20,12,4,.48);color:#fff;font:700 16px/1 Arial,sans-serif;display:grid;place-items:center;cursor:pointer;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
 #heroPlay:focus-visible{outline:2px solid #fff;outline-offset:3px}
-
-/* Hero play button hides itself once playback starts (the [hidden] attribute must beat display:grid above). */
 #heroPlay[hidden]{display:none!important}
 
-/* Cross-browser normalisation: identical text sizing, font smoothing and positioning in every engine. */
 html{-webkit-text-size-adjust:100%;-moz-text-size-adjust:100%;text-size-adjust:100%}
 body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility}
-/* Physical fallbacks for logical/inset properties (older Safari, Samsung Internet and Android WebView ignore them). */
 #bar,header{left:0;right:0}
 #mov,#sheet,#hero video,#heroVideo,#hero .hero-overlay,#hero .slot,.card .artbg,.card.art:after{top:0;right:0;bottom:0;left:0}
 [dir=rtl] #menu{right:0;left:auto}
