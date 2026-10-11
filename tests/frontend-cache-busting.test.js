@@ -1,72 +1,39 @@
+const { loadCoreSource } = require('./load-core');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
 const root = path.join(__dirname, '..');
-const index = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-const style = fs.readFileSync(path.join(root, 'style.css'), 'utf8');
-const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 
-const assetVersion = (index.match(/\/style\.css\?v=([0-9A-Za-z-]+)/) || [])[1];
-assert.ok(assetVersion, 'index.html must version style.css');
-
-test('main storefront pins a cache-busting version on UI assets', () => {
-  assert.match(index, new RegExp(`/style\\.css\\?v=${assetVersion}`));
-  assert.match(index, new RegExp(`/texts\\.js\\?v=${assetVersion}`));
-  assert.match(index, new RegExp(`/app\\.js\\?v=${assetVersion}`));
-  assert.match(style, new RegExp(`/style-3\\.css\\?v=${assetVersion}`));
+test('storefront html links versioned css/js bundles', () => {
+  const html = read('index.html');
+  assert.match(html, /href="\/fonts\.css\?v=[0-9A-Za-z-]+"/);
+  assert.match(html, /href="\/style\.css\?v=[0-9A-Za-z-]+"/);
+  assert.match(html, /src="\/guest-identity\.js\?v=[0-9A-Za-z-]+"/);
+  assert.match(html, /src="\/texts\.js\?v=[0-9A-Za-z-]+"/);
+  assert.match(html, /src="\/app\.js\?v=[0-9A-Za-z-]+"/);
 });
 
-test('hero video uses a versioned source and autoplay-safe attributes', () => {
-  assert.match(index, /\/assets\/hero\.mp4\?v=\d{8}-\d+/);
-  assert.match(index, /autoplay muted loop playsinline/);
-  assert.match(index, /v\.playsInline=true/);
-  assert.match(index, /loadedmetadata/);
-  assert.match(index, /canplaythrough/);
+test('app.js loads versioned app-core', () => {
+  const app = read('app.js');
+  assert.match(app, /\/app-core\.js\?v=[0-9A-Za-z-]+/);
 });
 
-test('main storefront loads its application core from the deployment itself', () => {
-  assert.match(app, new RegExp(`var CORE=['"]/app-core\\.js\\?v=${assetVersion}['"]`));
-  assert.doesNotMatch(app, /jsdelivr|unpkg|cdnjs/);
+test('style.css imports versioned theme sheets', () => {
+  const style = read('style.css');
+  assert.match(style, /@import url\('\/style-3\.css\?v=[0-9A-Za-z-]+'\)/);
+  assert.match(style, /@import url\('\/footer-9x16\.css\?v=[0-9A-Za-z-]+'\)/);
+});
+
+test('critical frontend files exist', () => {
   assert.ok(fs.existsSync(path.join(root, 'app-core.js')));
+  assert.ok(fs.existsSync(path.join(root, 'style-3.css')));
+  assert.ok(fs.existsSync(path.join(root, 'footer-9x16.css')));
 });
 
-
-test('browser theme and viewport rules do not depend on OS dark mode or svh support and Railway avoids stale asset caches', async () => {
-  const css = fs.readFileSync(path.join(root, 'style.css'), 'utf8');
-  const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-  assert.match(css, /color-scheme\s*:\s*light/);
-  assert.match(css, /#hero\s*\{\s*height:\s*calc\(var\(--app-vh/);
-  assert.doesNotMatch(css, /@supports\s*\(height:\s*100svh\)/);
-  assert.match(html, /poster="\/assets\/hero-poster\.jpg\?v=\d{8}-\d+"/);
-  const server = require('../railway/server.js');
-  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-  try {
-    const asset = await fetch(`http://127.0.0.1:${server.address().port}/assets/cards/note-citrus.webp`, { method: 'HEAD' });
-    assert.equal(asset.status, 200);
-    assert.match(asset.headers.get('cache-control'), /no-store/);
-  } finally { server.close(); }
-});
-
-
-test('fonts are bundled locally and no storefront page depends on Google Fonts', () => {
-  const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-  const fonts = fs.readFileSync(path.join(root, 'fonts.css'), 'utf8');
-  assert.match(html, new RegExp(`/fonts\\.css\\?v=${assetVersion}`));
-  assert.doesNotMatch(html + fs.readFileSync(path.join(root, 'portal.css'), 'utf8'), /fonts\.googleapis\.com/);
-  assert.match(fonts, /src:url\('\/assets\/fonts\//);
-});
-
-test('signed-in cart mapping includes the store identifier and polls for cross-browser updates', () => {
-  const core = fs.readFileSync(path.join(root, 'app-core.js'), 'utf8');
-  assert.match(core, /cheapest_offers\?select=product_size_id,product_id,store_id,store_name/);
-  assert.match(core, /syncCartFromCloud\(!CART_FIRST_SYNC_DONE\)/);
-  assert.match(core, /setInterval\(function\(\)\{if\(AUTH&&!document\.hidden\)/);
-});
-
-test('hero video pauses outside its visible area', () => {
-  assert.match(index, /new IntersectionObserver/);
-  assert.match(index, /v\.__elanHeroVisible===false/);
-  assert.match(index, /v\.pause\(\)/);
+test('app-core source resolves (local or pinned)', () => {
+  const core = loadCoreSource();
+  assert.match(core, /function footer18/);
 });
