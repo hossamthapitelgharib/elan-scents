@@ -3,8 +3,8 @@
    Imports base theme then applies current desired overrides.
    Frontend display only. Do not add backend/DB rules here.
    ============================================================ */
-@import url('/style-3.css?v=20261011-05');
-@import url('/footer-9x16.css?v=20261011-05');
+@import url('/style-3.css?v=20261011-06');
+@import url('/footer-9x16.css?v=20261011-06');
 
 /* ---------- Menu: slightly narrower panel + slightly larger items ---------- */
 #menu {
@@ -214,86 +214,6 @@ header .logo small {
   object-position: center center !important;
 }
 
-/* ---------- Footer credit + growthmark ---------- */
-#fcr,
-.fcred {
-  display: flex !important;
-  flex-direction: column !important;
-  align-items: center !important;
-  justify-content: center !important;
-  gap: 8px !important;
-  margin-top: 18px !important;
-  padding: 0 16px 12px !important;
-  text-align: center !important;
-}
-#fcr span,
-.fcred span {
-  font-size: 11px !important;
-  opacity: 0.7 !important;
-  order: 1;
-}
-#fcr .growthmark-img,
-.fcred .growthmark-img,
-img.growthmark-img {
-  display: block !important;
-  width: 110px !important;
-  max-width: 40vw !important;
-  height: auto !important;
-  margin: 6px auto !important;
-  object-fit: contain !important;
-  order: 2;
-}
-#fcr small,
-.fcred small {
-  font-size: 10px !important;
-  opacity: 0.55 !important;
-  order: 3;
-}
-
-/* ---------- Footer ---------- */
-footer {
-  background: #858585 !important;
-  background: linear-gradient(180deg, #8a8a8a 0%, #858585 50%, #7a7a7a 100%) !important;
-  color: #f5e6c0 !important;
-  border-top: 1px solid #9a9a9a !important;
-  padding: 36px 18px 100px !important;
-  text-align: center !important;
-}
-footer .footer-logo {
-  display: block !important;
-  width: 140px !important;
-  max-width: 40vw !important;
-  height: 140px !important;
-  margin: 0 auto 16px !important;
-  object-fit: contain !important;
-}
-footer .fdiv {
-  background: linear-gradient(90deg, transparent, #d4c4a0, transparent) !important;
-}
-footer a {
-  color: #f0e0b8 !important;
-}
-footer .fcols h5 {
-  background: linear-gradient(135deg, #f3c94f, #c8962a 50%, #8a5e0c) !important;
-  -webkit-background-clip: text !important;
-  background-clip: text !important;
-  color: transparent !important;
-}
-footer .fcols a,
-footer .fcols span {
-  color: #e8dcc0 !important;
-}
-footer .fph {
-  color: #f3c94f !important;
-}
-footer .fbar {
-  border-top-color: #6a6a6a !important;
-  color: #d9cfb8 !important;
-}
-footer .fcred {
-  color: #c8b898 !important;
-}
-
 /* ---------- Sheet (cart / fav / notif) ---------- */
 body.sheet-open {
   overflow: hidden !important;
@@ -414,16 +334,6 @@ body.sheet-open {
     min-height: 0 !important;
     aspect-ratio: 4 / 3 !important;
   }
-
-  img.growthmark-img {
-    width: 90px !important;
-    max-width: 35vw !important;
-  }
-  footer .footer-logo {
-    width: 130px !important;
-    max-width: 38vw !important;
-    height: 130px !important;
-  }
 }
 
 @media (max-width: 480px) {
@@ -531,21 +441,6 @@ body.sheet-open {
     padding-left: 12px !important;
     padding-right: 12px !important;
   }
-  footer {
-    padding-left: 12px !important;
-    padding-right: 12px !important;
-  }
-  .fcols { gap: 14px !important; }
-
-  img.growthmark-img {
-    width: 80px !important;
-    max-width: 30vw !important;
-  }
-  footer .footer-logo {
-    width: 110px !important;
-    max-width: 36vw !important;
-    height: 110px !important;
-  }
 
   #sheet .sheet-close,
   .sheet-close {
@@ -632,85 +527,4 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-r
 [dir=rtl] #bar div{padding-right:100%}
 [dir=ltr] #bar div{padding-left:100%}
 
-/* ---------- Élan Scents footer identity ---------- */
-footer {
-  background: linear-gradient(180deg, #686868 0%, #777777 52%, #626262 100%) !important;
-  color: #fff1cf !important;
-  border-top: 1px solid #f1d58e !important;
-}
-footer .footer-logo {
-  width: min(190px, 42vw) !important;
-  max-width: 42vw !important;
-  height: auto !important;
-  aspect-ratio: 1 / 1 !important;
-  margin: 0 auto 18px !important;
-  object-fit: contain !important;
-  border-radius: 12px !important;
-  box-shadow: 0 8px 24px rgba(38, 33, 25, .24), 0 0 0 1px rgba(255, 235, 179, .36) !important;
-}
-footer .fdiv {
-  background: linear-gradient(90deg, transparent, #e6c66f 35%, #fff0c7 50%, #e6c66f 65%, transparent) !important;
-}
-footer .fcols a,
-footer .fcols span,
-footer .fch span,
-footer .fbar,
-footer .fcred {
-  color: #fff1cf !important;
-}
-footer .fcols h5,
-footer .fph,
-footer .fch b {
-  color: #ffe4a3 !important;
-}
-footer .fbar {
-  border-top-color: rgba(255, 239, 199, .38) !important;
-}
-
-/* ---------- Supplied centered footer emblem ---------- */
-footer {
-  background: linear-gradient(180deg, #7c7c7b 0%, #727271 43%, #686768 70%, #5d5b5d 100%) !important;
-  display: grid !important;
-}
-footer .footer-logo { display: none !important; }
-footer .footer-emblem {
-  grid-area: emblem !important;
-  display: block !important;
-  width: min(220px, 30vw) !important;
-  max-width: 100% !important;
-  height: auto !important;
-  aspect-ratio: 507 / 512 !important;
-  object-fit: cover !important;
-  margin: 0 auto !important;
-  border-radius: 18px !important;
-  box-shadow: 0 10px 26px rgba(35, 34, 35, .2) !important;
-}
-@media (max-width: 680px) {
-  footer .footer-emblem { display: none !important; }
-}
-
-/* The supplied artwork is the complete footer canvas; keep it intact and layer content above it. */
-footer {
-  max-width: min(100%, 540px) !important;
-  aspect-ratio: 235 / 508 !important;
-  min-height: 0 !important;
-  height: auto !important;
-  background: #6e6e6e !important;
-  display: flex !important;
-}
-footer .footer-background {
-  position: absolute !important;
-  top: 0 !important;
-  left: 0 !important;
-  right: 0 !important;
-  bottom: auto !important;
-  z-index: 0 !important;
-  width: 100% !important;
-  height: auto !important;
-  object-fit: cover !important;
-  object-position: center center !important;
-  border-radius: 0 !important;
-  box-shadow: none !important;
-}
-footer .footer-emblem,
-footer .footer-logo { display: none !important; }
+/* Footer visuals controlled exclusively by footer-9x16.css */
