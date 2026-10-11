@@ -1,0 +1,185 @@
+/* Élan Scents — targeted footer repair based on the site's actual markup.
+   Load this AFTER /style.css. */
+
+/* One continuous gray surface; content is returned to normal flow. */
+footer {
+  --footer-unified-bg: #777;
+  position: relative !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  width: 100% !important;
+  height: auto !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: clamp(410px, 104vw, 520px) 18px 28px !important;
+  overflow: hidden !important;
+  background: var(--footer-unified-bg) !important;
+  color: #fff1cf !important;
+  border: 0 !important;
+  text-align: center !important;
+  isolation: isolate !important;
+}
+
+/* The supplied footer artwork has a different-color band at the bottom.
+   Clip that part; the unified gray footer color remains visible below it. */
+footer > img.footer-background {
+  position: absolute !important;
+  z-index: -1 !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: auto !important;
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  object-fit: fill !important;
+  object-position: center top !important;
+  clip-path: inset(0 0 20% 0) !important;
+  pointer-events: none !important;
+}
+
+/* Arrange the real footer blocks underneath the central artwork. */
+footer > .fdiv,
+footer > .fcols,
+footer > .fch,
+footer > .fph,
+footer > .fbar,
+footer > .fcred {
+  position: relative !important;
+  inset: auto !important;
+  float: none !important;
+  transform: none !important;
+  flex: 0 0 auto !important;
+  width: 100% !important;
+  max-width: 900px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  text-align: center !important;
+}
+
+footer > .fdiv {
+  margin-top: 0 !important;
+  margin-bottom: 24px !important;
+}
+
+footer > .fcols {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  gap: 20px !important;
+  margin-bottom: 20px !important;
+}
+
+footer > .fcols > .fgap {
+  display: none !important;
+}
+
+footer .fcols > div {
+  min-width: 0 !important;
+  width: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  gap: 10px !important;
+}
+
+footer .fcols h5 {
+  margin: 0 0 4px !important;
+}
+
+footer .fcols a,
+footer .fcols span {
+  display: block !important;
+  max-width: 100% !important;
+  overflow-wrap: anywhere !important;
+  margin: 0 !important;
+}
+
+footer > .fch {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  gap: 10px !important;
+  margin-bottom: 20px !important;
+}
+
+footer > .fch > div {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  gap: 4px !important;
+}
+
+footer > .fph {
+  margin-bottom: 18px !important;
+  overflow-wrap: anywhere !important;
+}
+
+footer .fsocial {
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  gap: 14px !important;
+  margin: 0 auto 14px !important;
+}
+
+footer > .fbar {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  justify-content: center !important;
+  align-items: center !important;
+  gap: 12px 20px !important;
+  border-top: 1px solid rgba(255, 239, 199, .38) !important;
+  padding: 16px 4px 0 !important;
+  margin-bottom: 16px !important;
+}
+
+footer > .fcred {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  padding: 0 4px 4px !important;
+  margin-bottom: 0 !important;
+}
+
+footer .fcred .growthmark-img {
+  display: block !important;
+  width: 110px !important;
+  max-width: 40vw !important;
+  height: auto !important;
+  margin: 4px auto !important;
+  object-fit: contain !important;
+}
+
+@media (min-width: 701px) {
+  footer {
+    padding-top: min(42vw, 520px) !important;
+  }
+
+  footer > .fcols {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    align-items: start !important;
+    gap: 28px !important;
+  }
+
+  footer .fcols > div {
+    align-items: center !important;
+  }
+}
+
+@media (max-width: 480px) {
+  footer {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+    padding-bottom: max(24px, env(safe-area-inset-bottom)) !important;
+  }
+
+  footer .fcred .growthmark-img {
+    width: 90px !important;
+  }
+}
