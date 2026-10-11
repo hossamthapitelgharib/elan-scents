@@ -116,7 +116,7 @@ function resolveStatic(pathname) {
   if (rel === '/' || rel === '') rel = '/index.html';
   const parts = rel.split('/').filter(Boolean);
   if (!parts.length || parts.some((p) => p.startsWith('.') || p === '..')) return null;
-  if (BLOCKED_TOP.has(parts[0].toLowerCase()) || (parts.length === 1 && BLOCKED_FILES.has(parts[0].toLowerCase()))) return null;
+  if (BLOCKED_TOP.has(parts[0].toLowerCase()) || /^elan-editor/i.test(parts[0]) || (parts.length === 1 && BLOCKED_FILES.has(parts[0].toLowerCase()))) return null;
   const file = path.join(ROOT, ...parts);
   if (!file.startsWith(ROOT + path.sep)) return null;
   try { if (!fs.statSync(file).isFile()) return null; } catch (e) { return null; }
