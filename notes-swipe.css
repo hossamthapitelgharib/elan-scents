@@ -1,0 +1,69 @@
+/* ---------- Notes: Swipeable Cards stack ---------- */
+#notes .strip.card-stack {
+  position: relative;
+  display: block;
+  overflow: visible;
+  height: 280px;
+  max-width: 360px;
+  margin: 12px auto 28px;
+  padding: 16px 8px 24px;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+}
+#notes .strip.card-stack .card {
+  position: absolute;
+  left: 50%;
+  top: 16px;
+  width: min(300px, 86%);
+  max-width: 300px;
+  height: auto;
+  aspect-ratio: 4 / 3;
+  margin: 0;
+  flex: none;
+  transform-origin: center center;
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.3s ease, box-shadow 0.3s ease;
+  box-shadow: 0 10px 28px rgba(0,0,0,0.14);
+  cursor: grab;
+  will-change: transform;
+}
+#notes .strip.card-stack .card:active { cursor: grabbing; }
+#notes .strip.card-stack .card.stack-front {
+  z-index: 5;
+  box-shadow: 0 14px 36px rgba(0,0,0,0.2), 0 0 0 2px #c8962a55;
+}
+#notes .strip.card-stack .card.stack-dragging { transition: none; }
+#notes .strip.card-stack .stack-hint {
+  position: absolute;
+  left: 0; right: 0; bottom: 2px;
+  text-align: center;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: #8a7350;
+  pointer-events: none;
+}
+#notes .strip.card-stack .stack-dots {
+  position: absolute;
+  left: 0; right: 0; bottom: 18px;
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  pointer-events: none;
+  z-index: 6;
+}
+#notes .strip.card-stack .stack-dots i {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: #c8b89a;
+  opacity: 0.45;
+  display: block;
+}
+#notes .strip.card-stack .stack-dots i.on {
+  opacity: 1;
+  background: #c8962a;
+  transform: scale(1.2);
+}
+@media (max-width: 480px) {
+  #notes .strip.card-stack { height: 250px; max-width: 320px; }
+  #notes .strip.card-stack .card { width: min(280px, 88%); max-width: 280px; }
+}
