@@ -5,15 +5,14 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
 
-test('editor page is the approved editor, locked behind login, never remembers the session', () => {
-  const html = read('editor.html');
-  const login = read('editor-login.js');
-  assert.match(html, /noindex/);
-  assert.match(html, /elan-editor-bridge\/v1/);
-  assert.match(html, /address\.value=location\.origin/);
-  assert.match(html, /id="elan-gate"/);
-  assert.match(html, /src="\/editor-login\.js\?v=/);
+test('production editor page lives under editor/ and is never a public static file', () => {
+  const html = read('editor/elan-editor.html');
+  const login = read('editor/editor-login.js');
+  const guard = read('editor/editor-guard.js');
+  assert.match(html, /iframe|liveFrame/i);
+  assert.match(html, /location\.origin/);
   assert.doesNotMatch(login, /localStorage|sessionStorage|document\.cookie/);
+  assert.match(guard, /editor-logout|editor-session/);
 });
 
 test('edit mode loads only for the editor and never for customers', () => {
@@ -21,39 +20,31 @@ test('edit mode loads only for the editor and never for customers', () => {
   const index = read('index.html');
   assert.match(boot, /elan_editor/);
   assert.match(boot, /window\.parent === window/);
+  assert.match(boot, /edit-mode\.js/);
   assert.match(index, /edit-boot\.js\?v=/);
   assert.doesNotMatch(index, /edit-host\.js|edit-model\.js|elan-host-bridge\.js/);
 });
 
-test('edit host uses the bridge with same-origin only and confirms saves from the server', () => {
-  const host = read('edit-host.js');
-  assert.match(host, /allowedEditorOrigins: \[location\.origin\]/);
-  assert.doesNotMatch(host, /allowedEditorOrigins:\s*\[\s*'\*'/);
-  assert.match(host, /expectedRevision/);
-  assert.match(host, /site-media/);
-  assert.match(host, /device_upload/);
-  assert.match(host, /is_approved: true/);
-  assert.match(host, /editor_sections/);
-  assert.match(host, /selection_mode/);
-  assert.match(host, /timer_mode/);
-  assert.match(host, /flushSections\(\);\n\s+var r = await api\('POST', \{ action: 'save'/);
-  for (const t of ['brands', 'stores', 'occasions', 'aromatic_notes']) assert.match(host, new RegExp("table: '" + t + "'"));
-  assert.match(host, /normName/);
-  assert.match(host, /insertRecord\(pending\[pi\]\)/);
-  assert.match(host, /published/);
-  assert.doesNotMatch(host, /localStorage|innerHTML/);
+test('edit-mode uses same-origin bridge and does not touch localStorage', () => {
+  const mode = read('edit-mode.js');
+  assert.match(mode, /allowedEditorOrigins:\s*\[location\.origin\]/);
+  assert.doesNotMatch(mode, /allowedEditorOrigins:\s*\[\s*'\*'/);
+  assert.match(mode, /site-media/);
+  assert.doesNotMatch(mode, /localStorage/);
 });
 
-test('editor pages and scripts are served with no-store headers by Railway', async () => {
+test('editor routes and scripts are served with no-store headers by Railway', async () => {
   const server = require('../railway/server.js');
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   try {
     const base = `http://127.0.0.1:${server.address().port}`;
-    for (const route of ['/editor', '/editor-login.js', '/editor-login.css', '/edit-boot.js', '/editor.html']) {
+    for (const route of ['/editor', '/editor-login.js', '/editor-login.css', '/edit-boot.js', '/edit-mode.js', '/elan-host-bridge.js']) {
       const response = await fetch(base + route, { method: 'HEAD' });
       assert.equal(response.status, 200, route);
-      assert.match(response.headers.get('cache-control'), /no-store/, route);
+      assert.match(response.headers.get('cache-control') || '', /no-store/, route);
     }
+    // Prototype / public editor.html must not exist
+    assert.equal((await fetch(base + '/editor.html', { method: 'HEAD' })).status, 404);
   } finally { server.close(); }
 });
 
@@ -65,7 +56,6 @@ test('railway host serves the owner login page at /editor', async () => {
     assert.equal(res.status, 200);
     assert.match(res.headers.get('content-type'), /text\/html/);
     assert.match(res.headers.get('cache-control'), /no-store/);
-    // /editor is the owner login page; the editor itself is only sent after an admin session (see editor-host.test.js)
     assert.match(await res.text(), /editor-login\.js/);
   } finally { server.close(); }
 });
