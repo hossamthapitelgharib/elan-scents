@@ -15,14 +15,16 @@ function createBrowser(storage, generatedKey) {
     removeItem(key) { storage.delete(key); }
   };
   const context = {
-    window: { crypto: { randomUUID: () => generatedKey } },
+    window: { crypto: { randomUUID: () => generatedKey }, addEventListener() {} },
     localStorage,
     fetch: async (_url, options) => {
       requests.push(JSON.parse(options.body));
       return new Response(JSON.stringify({ ok: true, visitorId: 'visitor', status: 'guest', cart: [] }), { status: 200 });
     },
     Response,
-    setTimeout() { return 0; }
+    setTimeout() { return 0; },
+    setInterval() { return 0; },
+    document: { visibilityState: 'visible', addEventListener() {} }
   };
   vm.runInNewContext(source, context, { filename: 'guest-identity.js' });
   return { identity: context.window.GuestIdentity, requests, storage };

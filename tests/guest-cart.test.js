@@ -72,7 +72,7 @@ test('guest capture is automatic, browser-local, and its migration keeps only is
   assert.match(html, /guest-identity\.js\?v=[0-9A-Za-z-]+/);
   assert.match(identity, /localStorage\.getItem\(STORAGE_KEY\)/);
   assert.match(identity, /randomUUID/);
-  assert.match(identity, /setTimeout\(function \(\) \{ resolve\(\)/);
+  assert.match(identity, /setTimeout\(function \(\) \{ startSession\(\)/);
   assert.doesNotMatch(identity, /navigator\.userAgent|screenWidth|fingerprint\(\)/);
   assert.match(identity, /track: track/);
   assert.match(core, /GuestIdentity\.claim/);

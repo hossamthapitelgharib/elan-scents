@@ -2,18 +2,23 @@
   'use strict';
 
   var STORAGE_KEY = 'elan_guest_browser_key_v2';
+  var SESSION_KEY = 'elan_customer_activity_session_v1';
   var UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   var cachedKey = null;
   var identification = null;
   var saveQueue = Promise.resolve();
+  var cachedSessionId = null;
+  var sessionStarted = false;
+  var startingSession = null;
 
   function savedSession() {
     try { return JSON.parse(localStorage.getItem('elan_auth_session') || 'null'); }
     catch (_) { return null; }
   }
 
-  function hasSavedSession() {
-    return !!(savedSession() || {}).access_token;
+  function accessToken() {
+    var session = savedSession();
+    return session && session.access_token || '';
   }
 
   function createKey() {
@@ -42,15 +47,25 @@
     }
   }
 
+  function sessionId() {
+    if (cachedSessionId) return cachedSessionId;
+    try {
+      var stored = sessionStorage.getItem(SESSION_KEY);
+      if (stored && UUID.test(stored)) return (cachedSessionId = stored);
+      cachedSessionId = createKey();
+      sessionStorage.setItem(SESSION_KEY, cachedSessionId);
+      return cachedSessionId;
+    } catch (_) {
+      cachedSessionId = createKey();
+      return cachedSessionId;
+    }
+  }
+
   async function request(action, data, token) {
     var headers = { 'Content-Type': 'application/json' };
     if (token) headers.Authorization = 'Bearer ' + token;
     var payload = Object.assign({}, data || {}, { action: action, visitorKey: visitorKey() });
-    var response = await fetch('/api/guest-cart', {
-      method: 'POST',
-      headers: headers,
-      body: JSON.stringify(payload)
-    });
+    var response = await fetch('/api/guest-cart', { method: 'POST', headers: headers, body: JSON.stringify(payload) });
     var body = await response.json().catch(function () { return {}; });
     if (!response.ok) throw new Error(body.error || 'guest_sync_failed');
     return body;
@@ -72,6 +87,42 @@
     return saveQueue;
   }
 
+  function sendActivity(action, data, token, keepalive) {
+    var headers = { 'Content-Type': 'application/json' };
+    if (token) headers.Authorization = 'Bearer ' + token;
+    var payload = Object.assign({}, data || {}, { action: action, sessionId: sessionId() });
+    if (!token) payload.visitorKey = visitorKey();
+    return fetch('/api/customer-activity', {
+      method: 'POST', headers: headers, body: JSON.stringify(payload), keepalive: !!keepalive
+    }).then(function (response) {
+      return response.json().catch(function () { return {}; }).then(function (body) {
+        if (!response.ok) throw new Error(body.error || 'activity_unavailable');
+        return body;
+      });
+    });
+  }
+
+  function sendSession(action, keepalive) {
+    var token = accessToken();
+    var send = function () { return sendActivity('session', { sessionAction: action }, token, keepalive); };
+    return token ? send() : resolve().then(send);
+  }
+
+  function startSession(token) {
+    if (sessionStarted) return Promise.resolve({ ok: true });
+    if (startingSession) return startingSession;
+    var authToken = token || accessToken();
+    var start = function () {
+      return sendActivity('session', { sessionAction: 'start' }, authToken || null).then(function (result) {
+        sessionStarted = !!result.tracked;
+        return result;
+      });
+    };
+    startingSession = authToken ? start() : resolve().then(start);
+    startingSession = startingSession.catch(function (error) { sessionStarted = false; throw error; }).finally(function () { startingSession = null; });
+    return startingSession;
+  }
+
   function clearKey() {
     try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
     cachedKey = null;
@@ -81,15 +132,22 @@
   function claim(token) {
     return saveQueue.catch(function () {}).then(function () { return request('claim', {}, token); }).then(function (result) {
       if (result && result.ok) clearKey();
-      return result;
+      return startSession(token).catch(function () { return result; }).then(function () { return result; });
     });
   }
 
-  function track(eventType, productId) {
-    if (hasSavedSession()) return Promise.resolve({ ok: true, tracked: false });
-    return resolve().then(function () {
-      return request('track', { eventType: eventType, productId: productId });
-    });
+  function track(eventType, productId, productSizeId, storeProductId, quantity) {
+    if (!['view', 'search', 'cart_add', 'cart_remove'].includes(eventType) || !productId) return Promise.resolve({ ok: true, tracked: false });
+    var token = accessToken();
+    var data = {
+      eventType: eventType,
+      productId: String(productId),
+      productSizeId: productSizeId ? String(productSizeId) : null,
+      storeProductId: storeProductId ? String(storeProductId) : null,
+      quantity: quantity == null ? null : Number(quantity)
+    };
+    var send = function () { return sendActivity('track', data, token || null); };
+    return token ? send() : resolve().then(send);
   }
 
   window.GuestIdentity = {
@@ -97,16 +155,33 @@
     resolve: resolve,
     save: save,
     claim: claim,
-    track: track
+    track: track,
+    sessionId: sessionId,
+    startSession: startSession
   };
 
-  // Existing visitors keep their basket; each browser profile gets its own stable key.
   var session = savedSession();
   if (session && session.access_token) {
     try {
-      if (localStorage.getItem(STORAGE_KEY)) setTimeout(function () { claim(session.access_token).catch(function () {}); }, 0);
-    } catch (_) {}
+      if (localStorage.getItem(STORAGE_KEY)) setTimeout(function () { claim(session.access_token).catch(function () { startSession(session.access_token).catch(function () {}); }); }, 0);
+      else setTimeout(function () { startSession(session.access_token).catch(function () {}); }, 0);
+    } catch (_) { setTimeout(function () { startSession(session.access_token).catch(function () {}); }, 0); }
   } else {
-    setTimeout(function () { resolve().catch(function () {}); }, 0);
+    setTimeout(function () { startSession().catch(function () {}); }, 0);
   }
+
+  setInterval(function () {
+    if (sessionStarted && document.visibilityState !== 'hidden') sendSession('heartbeat').catch(function () {});
+  }, 30000);
+  window.addEventListener('pagehide', function () {
+    if (!sessionStarted) return;
+    sessionStarted = false;
+    sendSession('end', true).catch(function () {});
+  });
+  window.addEventListener('pageshow', function () {
+    if (!sessionStarted) startSession().catch(function () {});
+  });
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible' && !sessionStarted) startSession().catch(function () {});
+  });
 })();

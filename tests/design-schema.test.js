@@ -8,11 +8,11 @@ const root = path.join(__dirname, '..');
 const MEDIA = 'https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/a1b2.webp';
 const base = () => ({ version: 1, sections: {}, order: [], blocks: [], texts: {} });
 
-test('the committed design file is valid and empty, so the page is unchanged', () => {
+test('the committed owner design is valid and retains its saved customizations', () => {
   const file = JSON.parse(fs.readFileSync(path.join(root, 'design', 'home.json'), 'utf8'));
   const n = ED.normalize(file, { strict: true });
   assert.equal(n.ok, true, n.errors.join('; '));
-  assert.equal(ED.isEmpty(n.design), true);
+  assert.equal(ED.isEmpty(n.design), false);
 });
 
 test('an empty design produces an empty plan (zero DOM changes)', () => {
