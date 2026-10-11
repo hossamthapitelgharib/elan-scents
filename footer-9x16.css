@@ -1,26 +1,31 @@
-/* Footer layout: unified background + clean stacked order */
+/* Footer: height locked to background artwork — no extra colored band */
 footer {
   position: relative !important;
   width: 100% !important;
-  max-width: none !important;
+  max-width: 540px !important;
+  margin: 0 auto !important;
+  /* Match footer-background.png (940×1672) so the image is the full canvas */
+  aspect-ratio: 940 / 1672 !important;
   height: auto !important;
   min-height: 0 !important;
-  margin: 0 !important;
-  padding: 36px 20px 28px !important;
+  max-height: none !important;
+  padding: clamp(20px, 4vw, 36px) clamp(14px, 3.5vw, 24px) clamp(16px, 3vw, 28px) !important;
   overflow: hidden !important;
   display: flex !important;
   flex-direction: column !important;
   align-items: center !important;
+  justify-content: flex-start !important;
   gap: 0 !important;
   box-sizing: border-box !important;
-  background: #6e6e6e !important;
+  /* Same tone as artwork; never shows as a separate strip */
+  background: transparent !important;
   color: #fff1cf !important;
   text-align: center !important;
   border-top: 0 !important;
   isolation: isolate !important;
 }
 
-/* Background fills entire footer — no color band at bottom */
+/* Background image = entire footer surface */
 footer .footer-background {
   position: absolute !important;
   left: 0 !important;
@@ -34,7 +39,7 @@ footer .footer-background {
   max-width: none !important;
   max-height: none !important;
   object-fit: cover !important;
-  object-position: center center !important;
+  object-position: center top !important;
   margin: 0 !important;
   border: 0 !important;
   border-radius: 0 !important;
@@ -47,32 +52,29 @@ footer .footer-emblem {
   display: none !important;
 }
 
-/* All content above background */
 footer > *:not(.footer-background) {
   position: relative !important;
   z-index: 1 !important;
 }
 
-/* 1) Thin gold divider at top of content */
 footer .fdiv {
   width: 64px !important;
   height: 1px !important;
-  margin: 0 auto 22px !important;
+  margin: 0 auto 18px !important;
   background: linear-gradient(90deg, transparent, #f5d993 35%, #fff1cf 50%, #f5d993 65%, transparent) !important;
   flex-shrink: 0 !important;
 }
 
-/* 2) Two columns: Browse | Contact */
 footer .fcols {
   display: grid !important;
   grid-template-columns: 1fr 1fr !important;
   align-items: start !important;
   justify-items: center !important;
   width: 100% !important;
-  max-width: 520px !important;
-  margin: 0 auto 20px !important;
+  max-width: 100% !important;
+  margin: 0 auto 14px !important;
   padding: 0 !important;
-  gap: 16px 24px !important;
+  gap: 12px 16px !important;
   text-align: center !important;
 }
 footer .fcols .fgap {
@@ -82,12 +84,12 @@ footer .fcols > div {
   display: flex !important;
   flex-direction: column !important;
   align-items: center !important;
-  gap: 6px !important;
+  gap: 5px !important;
   min-width: 0 !important;
 }
 footer .fcols h5 {
   margin: 0 0 4px !important;
-  font-size: 14px !important;
+  font-size: 13px !important;
   font-weight: 700 !important;
   color: #ffe4a3 !important;
   text-shadow: 0 1px 3px rgba(20, 18, 18, .65) !important;
@@ -95,8 +97,8 @@ footer .fcols h5 {
 footer .fcols a,
 footer .fcols span {
   display: block !important;
-  font-size: 13px !important;
-  line-height: 1.45 !important;
+  font-size: 12px !important;
+  line-height: 1.4 !important;
   color: #fff1cf !important;
   text-decoration: none !important;
   text-shadow: 0 1px 3px rgba(20, 18, 18, .65) !important;
@@ -105,22 +107,19 @@ footer .fcols a:hover {
   color: #ffe4a3 !important;
 }
 
-/* 3) Contact chips (WhatsApp / Phone / Email) — hide if Coming soon clutter */
 footer .fch {
   display: none !important;
 }
 
-/* 4) Tagline + social icons */
 footer .fph {
   display: flex !important;
   flex-direction: column !important;
   align-items: center !important;
-  gap: 12px !important;
+  gap: 10px !important;
   width: 100% !important;
-  max-width: 520px !important;
-  margin: 0 auto 18px !important;
+  margin: 0 auto 12px !important;
   padding: 0 !important;
-  font-size: 14px !important;
+  font-size: 13px !important;
   color: #ffe4a3 !important;
   text-shadow: 0 1px 3px rgba(20, 18, 18, .65) !important;
 }
@@ -128,60 +127,54 @@ footer .fph .fsocial {
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  gap: 12px !important;
+  gap: 10px !important;
 }
-footer .fph .fsocial span {
+footer .fph .fsocial span,
+footer .fph .fsocial a {
   display: grid !important;
   place-items: center !important;
-  width: 36px !important;
-  height: 36px !important;
+  width: 34px !important;
+  height: 34px !important;
   border-radius: 50% !important;
   background: rgba(0, 0, 0, .28) !important;
 }
 footer .fph .fsocial svg {
-  width: 18px !important;
-  height: 18px !important;
+  width: 17px !important;
+  height: 17px !important;
 }
 
-/* 5) Copyright bar */
 footer .fbar {
   display: flex !important;
   flex-wrap: wrap !important;
   align-items: center !important;
   justify-content: center !important;
-  gap: 10px 16px !important;
+  gap: 8px 12px !important;
   width: 100% !important;
-  max-width: 520px !important;
-  margin: 0 auto 16px !important;
-  padding: 14px 8px 0 !important;
+  margin: 0 auto 10px !important;
+  padding: 12px 6px 0 !important;
   border-top: 1px solid rgba(255, 239, 199, .28) !important;
-  font-size: 12px !important;
+  font-size: 11px !important;
   color: #f0e6c8 !important;
   text-shadow: 0 1px 3px rgba(20, 18, 18, .65) !important;
 }
-footer .fbar span {
-  cursor: default !important;
-}
 
-/* 6) GrowthMark credit — centered, consistent */
 footer .fcred,
 footer #fcr {
   display: flex !important;
   flex-direction: column !important;
   align-items: center !important;
   justify-content: center !important;
-  gap: 6px !important;
+  gap: 5px !important;
   width: 100% !important;
-  max-width: 520px !important;
   margin: 0 auto !important;
-  padding: 4px 8px 0 !important;
+  padding: 2px 6px 0 !important;
   color: #fff1cf !important;
   text-align: center !important;
   text-shadow: 0 1px 3px rgba(20, 18, 18, .65) !important;
 }
 footer .fcred span,
 footer #fcr span {
-  font-size: 11px !important;
+  font-size: 10px !important;
   opacity: 0.85 !important;
   order: 1 !important;
 }
@@ -189,40 +182,33 @@ footer .fcred .growthmark-img,
 footer #fcr .growthmark-img,
 footer img.growthmark-img {
   display: block !important;
-  width: 100px !important;
-  max-width: 36vw !important;
+  width: 90px !important;
+  max-width: 32vw !important;
   height: auto !important;
-  margin: 4px auto !important;
+  margin: 2px auto !important;
   object-fit: contain !important;
   order: 2 !important;
 }
 footer .fcred small,
 footer #fcr small {
-  font-size: 10px !important;
+  font-size: 9px !important;
   opacity: 0.7 !important;
   order: 3 !important;
 }
 
-@media (max-width: 600px) {
+@media (min-width: 541px) {
   footer {
-    padding: 28px 16px 24px !important;
+    max-width: min(100%, 540px) !important;
   }
-  footer .fcols {
+}
+
+@media (max-width: 400px) {
+  footer {
     max-width: 100% !important;
-    gap: 14px 12px !important;
-  }
-  footer .fcols h5 {
-    font-size: 13px !important;
+    padding: 18px 12px 14px !important;
   }
   footer .fcols a,
   footer .fcols span {
-    font-size: 12px !important;
-  }
-  footer .fph {
-    font-size: 13px !important;
-  }
-  footer .fbar {
     font-size: 11px !important;
-    gap: 8px 12px !important;
   }
 }
