@@ -1,44 +1,114 @@
-/* Footer 9:16 — image as-is, no stretch */
+/* Footer identity — centered supplied Élan Scents emblem with matching gray palette. */
 footer {
   position: relative !important;
   width: 100% !important;
-  max-width: min(100%, 540px) !important;
-  aspect-ratio: 9 / 16 !important;
-  height: auto !important;
-  min-height: 0 !important;
+  max-width: min(100%, 760px) !important;
+  min-height: 440px !important;
   margin: 0 auto !important;
-  padding: 0 !important;
+  padding: 34px 18px 92px !important;
   overflow: hidden !important;
-  display: flex !important;
-  flex-direction: column !important;
-  justify-content: space-between !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(150px, 220px) minmax(0, 1fr) !important;
+  grid-template-areas:
+    "divider divider divider"
+    "links emblem contact"
+    "phone phone phone"
+    "bar bar bar"
+    "credit credit credit" !important;
   align-items: center !important;
+  gap: 16px !important;
   box-sizing: border-box !important;
-  background-color: #6e6e6e !important;
-  background-image: url('/assets/elan-scents-logo.png') !important;
-  background-size: contain !important;
-  background-position: center center !important;
-  background-repeat: no-repeat !important;
-  border-top: 0 !important;
+  background: linear-gradient(180deg, #7c7c7b 0%, #727271 43%, #686768 70%, #5d5b5d 100%) !important;
   color: #fff1cf !important;
   text-align: center !important;
+  border-top: 1px solid rgba(255, 239, 199, .28) !important;
 }
 footer .footer-logo { display: none !important; }
+footer .footer-emblem {
+  grid-area: emblem !important;
+  display: block !important;
+  width: min(220px, 30vw) !important;
+  max-width: 100% !important;
+  height: auto !important;
+  aspect-ratio: 507 / 512 !important;
+  object-fit: cover !important;
+  object-position: center !important;
+  margin: 0 auto !important;
+  border: 0 !important;
+  border-radius: 18px !important;
+  box-shadow: 0 10px 26px rgba(35, 34, 35, .2) !important;
+}
 footer .fdiv {
-  width: 48px !important;
+  grid-area: divider !important;
+  width: 72px !important;
   height: 1px !important;
-  margin: 16% auto 0 !important;
-  background: linear-gradient(90deg, transparent, #e6c66f 35%, #fff0c7 50%, #e6c66f 65%, transparent) !important;
-  flex-shrink: 0 !important;
+  margin: 0 auto !important;
+  background: linear-gradient(90deg, transparent, #f5d993 35%, #fff1cf 50%, #f5d993 65%, transparent) !important;
 }
-footer .fcols, footer .fch, footer .fph, footer .fbar, footer .fcred, footer #fcr {
-  position: relative !important;
-  z-index: 2 !important;
+footer .fcols,
+footer .fch,
+footer .fph,
+footer .fbar,
+footer .fcred,
+footer #fcr { position: relative !important; z-index: 2 !important; }
+footer .fcols {
+  grid-area: links !important;
+  width: 100% !important;
+  max-width: 230px !important;
+  margin: 0 auto !important;
+  padding: 0 !important;
+  gap: 14px !important;
 }
-footer .fcols { width: 100%; max-width: 320px; margin: 0 auto; padding: 0 18px; gap: 14px; flex: 0 0 auto; }
-footer .fch { max-width: 280px; margin: 6px auto; padding: 0 16px; flex: 0 0 auto; }
-footer .fph { margin: 6px auto; padding: 0 16px; flex: 0 0 auto; font-size: 14px; color: #ffe4a3 !important; }
-footer .fbar { width: 100%; max-width: 320px; margin: 6px auto 0; padding: 12px 16px 0; flex: 0 0 auto; border-top-color: rgba(255,239,199,.35) !important; color: #fff1cf !important; }
-footer .fcred, footer #fcr { margin: 8px auto 12% !important; padding: 0 16px 8px; flex: 0 0 auto; color: #fff1cf !important; }
-footer .fcols a, footer .fcols span, footer .fch span { color: #fff1cf !important; }
-footer .fcols h5, footer .fch b { color: #ffe4a3 !important; }
+footer .fch {
+  grid-area: contact !important;
+  width: 100% !important;
+  max-width: 230px !important;
+  margin: 0 auto !important;
+  padding: 0 !important;
+}
+footer .fph {
+  grid-area: phone !important;
+  margin: 0 auto !important;
+  padding: 0 !important;
+  font-size: 14px !important;
+}
+footer .fbar {
+  grid-area: bar !important;
+  width: 100% !important;
+  max-width: 520px !important;
+  margin: 0 auto !important;
+  padding: 14px 16px 0 !important;
+  border-top-color: rgba(255, 239, 199, .36) !important;
+}
+footer .fcred,
+footer #fcr {
+  grid-area: credit !important;
+  margin: 0 auto !important;
+  padding: 0 16px 8px !important;
+  color: #fff1cf !important;
+}
+footer .fcols a,
+footer .fcols span,
+footer .fch span { color: #fff1cf !important; }
+footer .fcols h5,
+footer .fch b { color: #ffe4a3 !important; }
+
+@media (max-width: 680px) {
+  footer {
+    min-height: 0 !important;
+    grid-template-columns: 1fr !important;
+    grid-template-areas:
+      "divider"
+      "emblem"
+      "links"
+      "contact"
+      "phone"
+      "bar"
+      "credit" !important;
+    padding: 28px 16px calc(72px + env(safe-area-inset-bottom, 0px)) !important;
+    gap: 14px !important;
+  }
+  footer .footer-emblem { width: min(230px, 64vw) !important; }
+  footer .fcols,
+  footer .fch { max-width: 320px !important; }
+}

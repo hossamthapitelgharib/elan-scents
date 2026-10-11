@@ -34,9 +34,11 @@ test('main menu routes طلباتي to the customer dashboard', () => {
   assert.match(platform, /id="platformFilters"/);
   const storefront = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
   const styles = fs.readFileSync(path.join(root, 'style.css'), 'utf8');
-  // The current owner design includes the footer logo and the 9:16 identity background.
+  // The current owner design includes the supplied centered footer emblem and identity background.
   assert.match(storefront, /<footer>/);
-  assert.match(storefront, /class="footer-logo"/);
+  assert.match(storefront, /class="footer-emblem"/);
+  assert.ok(fs.existsSync(path.join(root, 'assets/footer-emblem.png')));
+  assert.doesNotMatch(storefront, /elan-scents-logo\.png/);
   assert.match(styles, /@import url\('\/footer-9x16\.css\?v=[0-9A-Za-z-]+'\)/);
   assert.ok(fs.existsSync(path.join(root, 'footer-9x16.css')));
   assert.match(core, /fcr.*growthmark-img/);
