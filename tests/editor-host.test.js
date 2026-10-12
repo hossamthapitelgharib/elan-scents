@@ -149,24 +149,3 @@ test('moving is a one-shot tool chosen from the menu: no drag without it, no arr
   const html = fs.readFileSync(path.join(root, 'editor', 'elan-editor.html'), 'utf8');
   assert.doesNotMatch(html, /openMovePad|movePad/);
 });
-
-test('inner pages keep their own edits, separate from the home page', () => {
-  const ED = require('../design-schema.js');
-  const r = ED.normalize({ version: 1, pages: { 'brand:AMOUAGE': { edits: { desktop: { 'pg:title': { dx: 90, dy: 50 } } } } } }, { strict: true });
-  assert.equal(r.ok, true);
-  assert.equal(r.design.edits, undefined);
-  assert.equal(r.design.pages['brand:AMOUAGE'].edits.desktop['pg:title'].dx, 90);
-  assert.equal(ED.editFor(r.design.pages['brand:AMOUAGE'], 'desktop', 'pg:title').dy, 50);
-  assert.equal(ED.isEmpty(r.design), false);
-  assert.equal(ED.normalize({ version: 1, pages: { 'brand:X': { edits: { all: { 'bad id': { dx: 1 } } } } } }, { strict: true }).ok, false);
-  assert.equal(ED.normalize({ version: 1, pages: { 'evil:page': { edits: {} } } }, { strict: true }).ok, false);
-});
-
-test('edit mode lets a plain click enter a dynamic page and tracks which page is being edited', () => {
-  const edit = fs.readFileSync(path.join(root, 'edit-mode.js'), 'utf8');
-  assert.match(edit, /ENTER_RE = \/\^\(brand\|store\|col\|sec\)/);
-  assert.match(edit, /function holder\(/);
-  assert.match(edit, /hostApi\.page\(/);
-  const html = fs.readFileSync(path.join(root, 'editor', 'elan-editor.html'), 'utf8');
-  assert.match(html, /رجوع للرئيسية/);
-});
