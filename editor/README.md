@@ -27,13 +27,13 @@ The live editor runs **on the same Railway service as the storefront** (`elan-sc
 | `elan-host-bridge.js` | postMessage bridge parent ↔ iframe |
 | `edit-model.js` | Pure draft model (undo/redo); used by tests / editor logic |
 
-## Removed from repo root (do not reintroduce)
+## Removed (do not reintroduce)
 
-- `editor.html` — localStorage prototype, not production
-- root `editor.js` — old form UI (API is `railway/editor.js`)
-- root `editor-login.js` — duplicate of `editor/editor-login.js`
-- `edit-host.js` — superseded by `edit-mode.js` (recoverable from git history)
+- `editor.html` — localStorage prototype (deleted 2026-10-12)
+- root `editor-login.js` — moved to `editor/editor-login.js`
+- `edit-host.js` — superseded by `edit-mode.js`
+- `elan-editor-handoff-summary.md`, `elan-editor-master-spec.md`, `elan-original-tools-golden.json` — outdated docs/snapshots
 
 ## Separate repo
 
-`hossamthapitelgharib/elan-editor` is a **standalone** editor service (older parallel deploy). Production uses **this** repo only.
+`hossamthapitelgharib/elan-editor` is a **standalone** older parallel deploy. Production uses **this** repo only.
