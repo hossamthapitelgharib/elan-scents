@@ -5,50 +5,50 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
 
-test('editor page is the approved editor, locked behind login, never remembers the session', () => {
-  const html = read('editor.html');
-  const login = read('editor-login.js');
-  assert.match(html, /noindex/);
-  assert.match(html, /elan-editor-bridge\/v1/);
-  assert.match(html, /address\.value=location\.origin/);
-  assert.match(html, /id="elan-gate"/);
-  assert.match(html, /src="\/editor-login\.js\?v=/);
+test('production editor lives under editor/ and is gated by login', () => {
+  const page = read('editor/elan-editor.html');
+  const login = read('editor/editor-login.js');
+  const loginHtml = read('editor/login.html');
+  const guard = read('editor/editor-guard.js');
+
+  assert.match(page, /elan-editor-bridge\/v1/);
+  assert.match(page, /noindex/);
+  assert.match(loginHtml, /دخول المالكة/);
+  assert.match(loginHtml, /editor-login\.js/);
   assert.doesNotMatch(login, /localStorage|sessionStorage|document\.cookie/);
-  assert.doesNotMatch(html, /elan-scents\.vercel\.app/);
+  assert.match(guard, /editor-logout/);
+  assert.match(guard, /editor-session/);
 });
 
-test('edit mode loads only for the editor and never for customers', () => {
+test('edit mode loads only for the editor iframe and never for customers', () => {
   const boot = read('edit-boot.js');
   const index = read('index.html');
   assert.match(boot, /elan_editor/);
   assert.match(boot, /window\.parent === window/);
+  assert.match(boot, /edit-mode\.js/);
   assert.match(index, /edit-boot\.js\?v=/);
-  assert.doesNotMatch(index, /edit-host\.js|edit-model\.js|elan-host-bridge\.js/);
+  assert.doesNotMatch(index, /edit-mode\.js|elan-host-bridge\.js|edit-model\.js/);
 });
 
-test('edit host uses the bridge with same-origin only and confirms saves from the server', () => {
-  const host = read('edit-host.js');
-  assert.match(host, /allowedEditorOrigins: \[location\.origin\]/);
-  assert.doesNotMatch(host, /allowedEditorOrigins:\s*\[\s*'\*'/);
-  assert.match(host, /expectedRevision/);
-  assert.match(host, /site-media/);
-  assert.match(host, /device_upload/);
-  assert.match(host, /is_approved: true/);
-  assert.match(host, /editor_sections/);
-  assert.match(host, /selection_mode/);
-  assert.match(host, /timer_mode/);
-  assert.match(host, /flushSections\(\);\n\s+var r = await api\('POST', \{ action: 'save'/);
-  for (const t of ['brands', 'stores', 'occasions', 'aromatic_notes']) assert.match(host, new RegExp("table: '" + t + "'"));
-  assert.match(host, /normName/);
-  assert.match(host, /insertRecord\(pending\[pi\]\)/);
-  assert.match(host, /published/);
-  assert.doesNotMatch(host, /localStorage|innerHTML/);
+test('edit-mode uses same-origin bridge and confirms server-side saves', () => {
+  const mode = read('edit-mode.js');
+  assert.match(mode, /allowedEditorOrigins:\s*\[location\.origin\]/);
+  assert.doesNotMatch(mode, /allowedEditorOrigins:\s*\[\s*'\*'/);
+  assert.match(mode, /expectedRevision/);
+  assert.match(mode, /page\.save/);
+  assert.doesNotMatch(mode, /localStorage|sessionStorage|document\.cookie|eval\(|new Function/);
 });
 
-test('every no-store header covers the editor files', () => {
+test('vercel.json no longer routes /editor to the deleted prototype', () => {
   const cfg = JSON.parse(read('vercel.json'));
-  const src = cfg.headers.map((h) => h.source).join(' ');
-  for (const f of ['editor.html', 'editor-login.js', 'edit-boot.js', 'edit-host.js', 'edit-model.js', 'elan-host-bridge.js']) assert.ok(src.includes(f), f);
+  const rewrites = (cfg.rewrites || []).map((r) => r.source + '->' + r.destination).join(' ');
+  assert.doesNotMatch(rewrites, /\/editor->\/editor\.html/);
+  const src = (cfg.headers || []).map((h) => h.source).join(' ');
+  assert.doesNotMatch(src, /editor\.html/);
+  assert.doesNotMatch(src, /edit-host\.js/);
+  for (const f of ['edit-boot.js', 'edit-mode.js', 'edit-model.js', 'elan-host-bridge.js']) {
+    assert.ok(src.includes(f), f + ' should stay in no-store headers');
+  }
 });
 
 test('railway host serves the owner login page at /editor', async () => {
@@ -59,7 +59,8 @@ test('railway host serves the owner login page at /editor', async () => {
     assert.equal(res.status, 200);
     assert.match(res.headers.get('content-type'), /text\/html/);
     assert.match(res.headers.get('cache-control'), /no-store/);
-    // /editor is the owner login page; the editor itself is only sent after an admin session (see editor-host.test.js)
     assert.match(await res.text(), /editor-login\.js/);
-  } finally { server.close(); }
+  } finally {
+    server.close();
+  }
 });
