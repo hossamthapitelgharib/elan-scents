@@ -161,34 +161,47 @@ function initNotesPager(){
   layoutNotesPager(strip);
 }
 
-/* ---------- Occasion: Parallax Slider ---------- */
-function layoutOccParallax(strip){
+/* ---------- Occasion: Fan / Deck Spread ---------- */
+function layoutFanDeck(strip){
   var cards=Array.prototype.slice.call(strip.querySelectorAll('.card'));
   if(!cards.length)return;
-  var idx=parseInt(strip.dataset.pxIndex||'0',10)||0;
   var n=cards.length;
-  if(idx<0)idx=0; if(idx>=n)idx=n-1;
-  strip.dataset.pxIndex=String(idx);
+  var focus=parseInt(strip.dataset.fanFocus||'-1',10);
+  var mid=(n-1)/2;
+  var maxAngle=Math.min(28, 10 + n*3);
+  var step=n>1 ? (maxAngle*2)/(n-1) : 0;
+
   cards.forEach(function(card,i){
-    card.classList.remove('px-active','px-prev','px-next','px-dragging');
-    card.style.transform='';
-    card.style.opacity='';
-    var art=card.querySelector('.artbg');
-    var fg=card.querySelector('.px-fg');
-    if(art) art.style.transform='';
-    if(fg) fg.style.transform='';
-    if(i===idx) card.classList.add('px-active');
-    else if(i===((idx-1+n)%n)) card.classList.add('px-prev');
-    else card.classList.add('px-next');
+    var offset=i-mid;
+    var angle=-maxAngle + i*step;
+    if(n===1) angle=0;
+    var x=offset*38;
+    var y=Math.abs(offset)*6;
+    var scale=0.88;
+    var z=10+i;
+
+    if(focus===i){
+      angle=0; x=0; y=-18; scale=1.08; z=40;
+      card.classList.add('fan-focus');
+    }else{
+      card.classList.remove('fan-focus');
+      if(focus>=0){
+        // push non-focused slightly outward
+        x=offset*48;
+        scale=0.82;
+        y=Math.abs(offset)*10 + 8;
+      }
+    }
+
+    card.style.zIndex=String(z);
+    card.style.transform='translate(-50%, -50%) translate('+x+'px,'+y+'px) rotate('+angle+'deg) scale('+scale+')';
+    card.style.opacity=focus>=0 && focus!==i ? '0.72' : '1';
   });
-  var dots=strip.querySelectorAll('.px-dots button');
-  dots.forEach(function(d,i){
-    d.classList.toggle('on',i===idx);
-    d.setAttribute('aria-current',i===idx?'true':'false');
-  });
+
+  strip.classList.toggle('has-focus', focus>=0);
 }
 
-function initOccParallax(){
+function initOccFanDeck(){
   var sec=document.getElementById('occ');
   if(!sec)return;
   var strip=sec.querySelector('.strip');
@@ -196,127 +209,124 @@ function initOccParallax(){
   var cards=Array.prototype.slice.call(strip.querySelectorAll('.card'));
   if(cards.length<1)return;
 
-  if(strip.classList.contains('parallax-slider')){
-    layoutOccParallax(strip);
+  if(strip.classList.contains('fan-deck')){
+    layoutFanDeck(strip);
     return;
   }
 
-  strip.classList.add('parallax-slider');
-  strip.dataset.pxIndex='0';
+  // clean any previous parallax classes/structure
+  strip.classList.remove('parallax-slider');
+  strip.classList.add('fan-deck');
+  strip.dataset.fanFocus='-1';
 
-  // wrap foreground content (everything except .artbg)
+  // wrap text content in fan-fg
   cards.forEach(function(card){
-    if(card.querySelector('.px-fg'))return;
+    if(card.querySelector('.fan-fg'))return;
     var fg=document.createElement('div');
-    fg.className='px-fg';
+    fg.className='fan-fg';
     Array.prototype.slice.call(card.childNodes).forEach(function(node){
-      if(node.nodeType===1 && node.classList && node.classList.contains('artbg')) return;
+      if(node.nodeType===1 && node.classList && (node.classList.contains('artbg')||node.classList.contains('px-fg'))){
+        if(node.classList.contains('px-fg')){
+          // unwrap old parallax fg
+          while(node.firstChild) fg.appendChild(node.firstChild);
+        }
+        return;
+      }
       fg.appendChild(node);
     });
+    var oldPx=card.querySelector('.px-fg');
+    if(oldPx) oldPx.remove();
     card.appendChild(fg);
   });
 
-  var track=document.createElement('div');
-  track.className='px-track';
-  var viewport=document.createElement('div');
-  viewport.className='px-viewport';
-  cards.forEach(function(c){ viewport.appendChild(c); });
-  track.appendChild(viewport);
-  strip.insertBefore(track, strip.firstChild);
+  // stage wrapper
+  var stage=document.createElement('div');
+  stage.className='fan-stage';
+  cards.forEach(function(c){ stage.appendChild(c); });
+  // remove leftover track/viewport if any
+  var oldTrack=strip.querySelector('.px-track');
+  if(oldTrack) oldTrack.remove();
+  strip.insertBefore(stage, strip.firstChild);
 
-  var dots=document.createElement('div');
-  dots.className='px-dots';
-  dots.setAttribute('role','tablist');
-  dots.setAttribute('aria-label', document.documentElement.lang==='en' ? 'Occasions' : 'المناسبات');
-  cards.forEach(function(_,i){
-    var b=document.createElement('button');
-    b.type='button';
-    b.setAttribute('aria-label', (document.documentElement.lang==='en'?'Occasion ':'مناسبة ')+(i+1));
-    b.addEventListener('click',function(e){
-      e.preventDefault(); e.stopPropagation();
-      strip.dataset.pxIndex=String(i);
-      layoutOccParallax(strip);
-    });
-    dots.appendChild(b);
-  });
-  strip.appendChild(dots);
+  // remove old dots/hints
+  var oldDots=strip.querySelector('.px-dots');
+  if(oldDots) oldDots.remove();
+  var oldHint=strip.querySelector('.px-hint');
+  if(oldHint) oldHint.remove();
 
   var hint=document.createElement('div');
-  hint.className='px-hint';
-  hint.textContent=document.documentElement.lang==='en' ? 'Swipe · parallax' : 'اسحب · بارالاكس';
+  hint.className='fan-hint';
+  hint.textContent=document.documentElement.lang==='en'
+    ? 'Tap a card · fan spread'
+    : 'اضغط على كارت · مروحة';
   strip.appendChild(hint);
 
-  var startX=0,startY=0,dx=0,dragging=false,axisLocked=0,activeEl=null,didDrag=false;
-  var PARALLAX=0.38; // bg moves slower than card
+  var openBtn=document.createElement('button');
+  openBtn.type='button';
+  openBtn.className='fan-open-btn';
+  openBtn.textContent=document.documentElement.lang==='en' ? 'Open' : 'فتح';
+  strip.appendChild(openBtn);
 
-  function go(delta){
-    var n=cards.length;
-    if(n<2)return;
-    var idx=parseInt(strip.dataset.pxIndex||'0',10)||0;
-    idx=(idx+delta+n)%n;
-    strip.dataset.pxIndex=String(idx);
-    layoutOccParallax(strip);
-  }
-
-  strip.addEventListener('pointerdown',function(e){
-    var c=e.target.closest('.card');
-    if(!c||!c.classList.contains('px-active'))return;
-    if(e.target.closest('.px-dots'))return;
-    dragging=true; axisLocked=0; dx=0; didDrag=false;
-    startX=e.clientX; startY=e.clientY; activeEl=c;
-    c.classList.add('px-dragging');
-    try{ strip.setPointerCapture(e.pointerId); }catch(err){}
+  openBtn.addEventListener('click',function(e){
+    e.preventDefault();
+    e.stopPropagation();
+    var focus=parseInt(strip.dataset.fanFocus||'-1',10);
+    if(focus<0||!cards[focus])return;
+    var go=cards[focus].getAttribute('data-go');
+    if(go && typeof window.go==='function') window.go(go);
+    else if(go){
+      // fallback: dispatch click on the card's navigation
+      cards[focus].click();
+    }
   });
 
-  strip.addEventListener('pointermove',function(e){
-    if(!dragging||!activeEl)return;
-    var mx=e.clientX-startX, my=e.clientY-startY;
-    if(!axisLocked){
-      if(Math.abs(mx)+Math.abs(my)<10)return;
-      axisLocked=Math.abs(mx)>Math.abs(my)?1:-1;
-      if(axisLocked<0){
-        dragging=false;
-        activeEl.classList.remove('px-dragging');
-        activeEl.style.transform='';
-        var a=activeEl.querySelector('.artbg'), f=activeEl.querySelector('.px-fg');
-        if(a)a.style.transform='';
-        if(f)f.style.transform='';
-        activeEl=null;
+  cards.forEach(function(card,i){
+    card.addEventListener('click',function(e){
+      e.preventDefault();
+      e.stopPropagation();
+      var cur=parseInt(strip.dataset.fanFocus||'-1',10);
+      if(cur===i){
+        // second tap on focused → open
+        var go=card.getAttribute('data-go');
+        if(go && typeof window.go==='function') window.go(go);
+        else if(go) card.click();
         return;
       }
-    }
-    didDrag=true; dx=mx;
-    // card follows finger
-    activeEl.style.transform='translateX('+dx+'px)';
-    activeEl.style.opacity=String(Math.max(0.4, 1-Math.abs(dx)/360));
-    // parallax: background slower, foreground slightly faster
-    var art=activeEl.querySelector('.artbg');
-    var fg=activeEl.querySelector('.px-fg');
-    if(art) art.style.transform='translateX('+(-dx*PARALLAX)+'px) scale(1.12)';
-    if(fg) fg.style.transform='translateX('+(dx*0.12)+'px)';
+      strip.dataset.fanFocus=String(i);
+      layoutFanDeck(strip);
+    }, true);
   });
 
-  function endDrag(){
-    if(!activeEl)return;
-    var el=activeEl;
-    el.classList.remove('px-dragging');
-    el.style.transform=''; el.style.opacity='';
-    var art=el.querySelector('.artbg'), fg=el.querySelector('.px-fg');
-    if(art) art.style.transform='';
-    if(fg) fg.style.transform='';
-    if(Math.abs(dx)>70) go(dx<0?1:-1);
-    else layoutOccParallax(strip);
-    dragging=false; axisLocked=0; activeEl=null;
-    setTimeout(function(){ didDrag=false; }, 40);
+  // swipe on stage rotates focus
+  var startX=0,dx=0,dragging=false,axisLocked=0;
+  stage.addEventListener('pointerdown',function(e){
+    if(e.target.closest('.fan-open-btn'))return;
+    dragging=true; axisLocked=0; dx=0; startX=e.clientX;
+    try{ stage.setPointerCapture(e.pointerId); }catch(err){}
+  });
+  stage.addEventListener('pointermove',function(e){
+    if(!dragging)return;
+    dx=e.clientX-startX;
+    if(!axisLocked && Math.abs(dx)>12) axisLocked=1;
+  });
+  function endSwipe(){
+    if(!dragging)return;
+    dragging=false;
+    if(Math.abs(dx)<50)return;
+    var n=cards.length;
+    var cur=parseInt(strip.dataset.fanFocus||'-1',10);
+    if(cur<0) cur=Math.floor(n/2);
+    // swipe left → next index
+    var next=dx<0 ? Math.min(n-1,cur+1) : Math.max(0,cur-1);
+    strip.dataset.fanFocus=String(next);
+    layoutFanDeck(strip);
   }
+  stage.addEventListener('pointerup', endSwipe);
+  stage.addEventListener('pointercancel', endSwipe);
 
-  strip.addEventListener('pointerup', endDrag);
-  strip.addEventListener('pointercancel', endDrag);
-  strip.addEventListener('click', function(e){
-    if(didDrag){ e.preventDefault(); e.stopPropagation(); }
-  }, true);
-
-  layoutOccParallax(strip);
+  // start with middle card focused
+  strip.dataset.fanFocus=String(Math.floor(cards.length/2));
+  layoutFanDeck(strip);
 }
 
 function applyArtAndHero(){
@@ -370,12 +380,12 @@ function applyArtAndHero(){
     render=function(){
       _elanRender.apply(this,arguments);
       try{initNotesPager();}catch(err){}
-      try{initOccParallax();}catch(err){}
+      try{initOccFanDeck();}catch(err){}
     };
     try{render();}catch(e){}
   }
   watchSheet();
 }
-var CORE='/app-core.js?v=20261012-04';
+var CORE='/app-core.js?v=20261012-05';
 loadScript(CORE, applyArtAndHero);
 })();
