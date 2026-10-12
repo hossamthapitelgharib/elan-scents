@@ -128,3 +128,45 @@ test('the editor page wires the original context menu, format dialog and header 
   const edit = fs.readFileSync(path.join(root, 'edit-mode.js'), 'utf8');
   assert.match(edit, /hostApi\.context/);
 });
+
+test('the menu is built from a tool registry so new capabilities are one register() call', () => {
+  const edit = fs.readFileSync(path.join(root, 'edit-mode.js'), 'utf8');
+  assert.match(edit, /window\.ElanEditTools = \{ register: registerTool/);
+  for (const label of ['تحريك العنصر', 'تنسيق النص: الخط • اللون • الحجم • 3D', 'إنشاء نص', 'نسخ العنصر']) assert.ok(edit.includes(label), label);
+  const html = fs.readFileSync(path.join(root, 'editor', 'elan-editor.html'), 'utf8');
+  assert.match(html, /info\.tools/);
+  for (const label of ['رفع على GitHub', 'نشر على Railway', 'تحميل النسخة الجديدة', 'خروج']) assert.ok(html.includes(label), label);
+  const bridge = fs.readFileSync(path.join(root, 'elan-host-bridge.js'), 'utf8');
+  for (const action of ['tool.run', 'element.nudge', 'page.markSaved']) assert.ok(bridge.includes(action), action);
+});
+
+test('moving is a one-shot tool chosen from the menu: no drag without it, no arrow keys, it ends on release', () => {
+  const edit = fs.readFileSync(path.join(root, 'edit-mode.js'), 'utf8');
+  assert.match(edit, /function armMove/);
+  assert.match(edit, /function disarmMove/);
+  assert.match(edit, /if \(g\.mode === 'move'\) disarmMove\(\)/);
+  assert.doesNotMatch(edit, /Arrow(Left|Right|Up|Down)/);
+  const html = fs.readFileSync(path.join(root, 'editor', 'elan-editor.html'), 'utf8');
+  assert.doesNotMatch(html, /openMovePad|movePad/);
+});
+
+test('inner pages keep their own edits, separate from the home page', () => {
+  const ED = require('../design-schema.js');
+  const r = ED.normalize({ version: 1, pages: { 'brand:AMOUAGE': { edits: { desktop: { 'pg:title': { dx: 90, dy: 50 } } } } } }, { strict: true });
+  assert.equal(r.ok, true);
+  assert.equal(r.design.edits, undefined);
+  assert.equal(r.design.pages['brand:AMOUAGE'].edits.desktop['pg:title'].dx, 90);
+  assert.equal(ED.editFor(r.design.pages['brand:AMOUAGE'], 'desktop', 'pg:title').dy, 50);
+  assert.equal(ED.isEmpty(r.design), false);
+  assert.equal(ED.normalize({ version: 1, pages: { 'brand:X': { edits: { all: { 'bad id': { dx: 1 } } } } } }, { strict: true }).ok, false);
+  assert.equal(ED.normalize({ version: 1, pages: { 'evil:page': { edits: {} } } }, { strict: true }).ok, false);
+});
+
+test('edit mode lets a plain click enter a dynamic page and tracks which page is being edited', () => {
+  const edit = fs.readFileSync(path.join(root, 'edit-mode.js'), 'utf8');
+  assert.match(edit, /ENTER_RE = \/\^\(brand\|store\|col\|sec\)/);
+  assert.match(edit, /function holder\(/);
+  assert.match(edit, /hostApi\.page\(/);
+  const html = fs.readFileSync(path.join(root, 'editor', 'elan-editor.html'), 'utf8');
+  assert.match(html, /رجوع للرئيسية/);
+});
