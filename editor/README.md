@@ -1,60 +1,44 @@
-# Editor package — all on `main`
+# Élan Scents Editor — file map
 
-Public surface + admin UI live under `editor/`.
+The editor's browser UI and editor-only implementation live in `editor/`. This inventory distinguishes editor-owned files from storefront-shared code and runtime adapters that must stay in their framework locations.
 
-## Admin UI (private — only via `railway/editor-host.js`)
+## Admin interface (private)
 
-| Path | Role |
-|------|------|
-| `editor/login.html` | Login at `/editor` |
-| `editor/editor-login.js` | Login form → `/api/editor-login` |
-| `editor/editor-login.css` | Login styles |
-| `editor/elan-editor.html` | Editor UI after admin session |
-| `editor/editor-guard.js` | Logout + session check |
+| Path | Purpose |
+|---|---|
+| `editor/login.html` | Owner login page served at `/editor` |
+| `editor/editor-login.js` | Login form client for `/api/editor-login` |
+| `editor/editor-login.css` | Login page styles |
+| `editor/elan-editor.html` | Authenticated editor UI |
+| `editor/editor-guard.js` | Logout control and session-expiry guard |
 
-## Site-side tools (public under `/editor/*` only)
+The editor host (`railway/editor-host.js`) gates the UI and protects its source. Do not expose `editor/elan-editor.html`, `editor/login.html`, or `editor/editor-guard.js` as ordinary static files.
 
-Railway serves **only** these filenames from `editor/`:
+## Site-side editor tools (public only under `/editor/*`)
 
-| Path | URL | Role |
-|------|-----|------|
-| `editor/edit-boot.js` | `/editor/edit-boot.js` | Loads tools when `?elan_editor=1` + framed |
-| `editor/edit-mode.js` | `/editor/edit-mode.js` | Entry → loads full body from `/edit-mode.js` |
-| `editor/edit-model.js` | `/editor/edit-model.js` | Node re-export of root `edit-model.js` |
-| `editor/elan-host-bridge.js` | `/editor/elan-host-bridge.js` | postMessage bridge |
+| Path | Served URL | Purpose |
+|---|---|---|
+| `editor/edit-boot.js` | `/editor/edit-boot.js` | Loads tools only when the storefront is framed with `?elan_editor=1` |
+| `editor/edit-mode.js` | `/editor/edit-mode.js` | Full visual edit-mode implementation |
+| `editor/edit-model.js` | `/editor/edit-model.js` | Draft model; also imported by Node tests |
+| `editor/elan-host-bridge.js` | `/editor/elan-host-bridge.js` | Same-origin postMessage bridge |
 
-## Implementation bodies (still at repo root)
+The Railway allowlist in `railway/server.js` controls the public editor-tool filenames. Keep these files in sync with that allowlist and the Vercel no-store headers. The normal storefront only loads `editor/edit-boot.js`; customers do not load the editor implementation.
 
-| File | Size | Why at root |
-|------|------|-------------|
-| `edit-mode.js` | ~30KB | Full visual edit-mode; entry is under `editor/` |
-| `edit-model.js` | ~13KB | Draft model for Node tests / logic |
-| `design-schema.js` / `design-layer.js` / `design/` | — | Shared with the storefront |
+## Integration files (kept in framework/shared locations)
 
-### Optional: fully inline under `editor/` (local git)
+| Path | Why it stays outside `editor/` |
+|---|---|
+| `railway/editor-host.js`, `railway/editor-session.js` | Railway route/session adapters and private UI gate |
+| `railway/editor.js`, `api/editor.js` | Deployment-specific API entry points |
+| `design-schema.js`, `design-layer.js`, `design/home.json` | Shared with storefront rendering and design persistence |
+| `supabase/migrations/*editor*.sql` | Ordered database migrations; must remain in Supabase's migration directory |
+| `tests/*editor*`, `tests/edit-model.test.js` | Regression and security tests for editor behavior |
 
-```bash
-git clone https://github.com/hossamthapitelgharib/elan-scents.git && cd elan-scents
-cp edit-mode.js editor/edit-mode.js
-# fix design-schema require for editor/ location:
-sed -i "s|require('./design-schema.js')|require('../design-schema.js')|" edit-model.js
-cp edit-model.js editor/edit-model.js
-# then delete root bodies after tests pass:
-# git rm edit-mode.js edit-model.js
-# update tests/editor-page.test.js to read('editor/edit-mode.js')
-# git add -A && git commit -m 'editor: fully inline edit-mode + edit-model under editor/'
-# git push
-```
+## Organization rules
 
-## Server
-
-| File | Role |
-|------|------|
-| `railway/editor-host.js` | Gates `/editor`, login assets, CSP |
-| `railway/editor-session.js` | In-memory admin sessions |
-| `railway/editor.js` | `/api/editor` writes `design/home.json` |
-| `api/editor.js` | Same API surface |
-
-## Do not reintroduce at root
-
-- `edit-boot.js`, `elan-host-bridge.js` — live under `editor/` only
+- Keep editor-only browser implementation and UI assets in `editor/`.
+- Keep storefront-shared design logic/data at the project root and `design/`.
+- Keep request handlers in the hosting locations (`api/` and `railway/`) and migrations in `supabase/migrations/`.
+- Do not add duplicate editor implementation files at the repository root.
+- Preserve the API URLs and static allowlists when moving files; update tests and this inventory in the same change.

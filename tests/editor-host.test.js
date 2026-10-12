@@ -82,11 +82,11 @@ test('cross-site login attempts are refused', async () => {
 });
 
 test('edit mode only loads inside the editor window and never talks to customers', () => {
-  const boot = fs.readFileSync(path.join(root, 'edit-boot.js'), 'utf8');
+  const boot = fs.readFileSync(path.join(root, 'editor', 'edit-boot.js'), 'utf8');
   assert.match(boot, /window\.parent === window/);
   assert.match(boot, /elan_editor/);
   assert.match(boot, /edit-mode\.js/);
-  const edit = fs.readFileSync(path.join(root, 'edit-mode.js'), 'utf8');
+  const edit = fs.readFileSync(path.join(root, 'editor', 'edit-mode.js'), 'utf8');
   assert.match(edit, /allowedEditorOrigins: \[location\.origin\]/);
   assert.doesNotMatch(edit, /localStorage|sessionStorage|document\.cookie|eval\(|new Function/);
   const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');

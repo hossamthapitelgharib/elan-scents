@@ -31,7 +31,7 @@ test('edit mode loads only for the editor iframe and never for customers', () =>
 });
 
 test('edit-mode uses same-origin bridge and defers saves to the parent editor', () => {
-  const mode = read('edit-mode.js');
+  const mode = read('editor/edit-mode.js');
   assert.match(mode, /allowedEditorOrigins:\s*\[location\.origin\]/);
   assert.doesNotMatch(mode, /allowedEditorOrigins:\s*\[\s*'\*'/);
   assert.match(mode, /page\.save/);
@@ -47,8 +47,9 @@ test('vercel.json no longer routes /editor to the deleted prototype', () => {
   assert.doesNotMatch(src, /editor\.html/);
   assert.doesNotMatch(src, /edit-host\.js/);
   for (const f of ['edit-boot.js', 'edit-mode.js', 'edit-model.js', 'elan-host-bridge.js']) {
-    assert.ok(src.includes(f), f + ' should stay in no-store headers');
+    assert.ok(src.includes('editor/' + f), f + ' should stay in no-store headers under editor/');
   }
+  assert.doesNotMatch(src, /\|edit-mode\.js\||\|edit-model\.js\|/);
 });
 
 test('railway host serves the owner login page at /editor', async () => {
@@ -60,6 +61,22 @@ test('railway host serves the owner login page at /editor', async () => {
     assert.match(res.headers.get('content-type'), /text\/html/);
     assert.match(res.headers.get('cache-control'), /no-store/);
     assert.match(await res.text(), /editor-login\.js/);
+  } finally {
+    server.close();
+  }
+});
+
+test('Railway serves the consolidated editor implementation only under /editor/', async () => {
+  const server = require('../railway/server.js');
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  try {
+    const base = 'http://127.0.0.1:' + server.address().port;
+    const moved = await fetch(base + '/editor/edit-mode.js');
+    assert.equal(moved.status, 200);
+    assert.match(moved.headers.get('cache-control'), /no-store/);
+    assert.match(await moved.text(), /allowedEditorOrigins:\s*\[location\.origin\]/);
+    assert.equal((await fetch(base + '/edit-mode.js')).status, 404);
+    assert.equal((await fetch(base + '/edit-model.js')).status, 404);
   } finally {
     server.close();
   }
