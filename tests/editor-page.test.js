@@ -21,7 +21,7 @@ test('production editor lives under editor/ and is gated by login', () => {
 });
 
 test('edit mode loads only for the editor iframe and never for customers', () => {
-  const boot = read('edit-boot.js');
+  const boot = read('editor/edit-boot.js');
   const index = read('index.html');
   assert.match(boot, /elan_editor/);
   assert.match(boot, /window\.parent === window/);
