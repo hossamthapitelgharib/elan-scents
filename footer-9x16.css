@@ -39,7 +39,7 @@ footer .footer-background {
   max-width: none !important;
   max-height: none !important;
   object-fit: cover !important;
-  object-position: center 42% !important;
+  object-position: center 52% !important;
   margin: 0 !important;
   border: 0 !important;
   border-radius: 0 !important;
@@ -117,7 +117,7 @@ footer .fph {
   align-items: center !important;
   gap: 8px !important;
   width: 100% !important;
-  margin: auto auto 6px !important;
+  margin: clamp(28px, 6vh, 56px) auto 6px !important;
   padding: 0 !important;
   font-size: 13px !important;
   color: #ffe4a3 !important;
