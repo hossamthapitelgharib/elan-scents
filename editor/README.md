@@ -1,6 +1,6 @@
-# Editor package (production) — all on `main`
+# Editor package — all on `main`
 
-Entry points and admin UI live under `editor/`.
+Public surface + admin UI live under `editor/`.
 
 ## Admin UI (private — only via `railway/editor-host.js`)
 
@@ -14,22 +14,37 @@ Entry points and admin UI live under `editor/`.
 
 ## Site-side tools (public under `/editor/*` only)
 
-Railway serves **only** these filenames as static files from `editor/`:
+Railway serves **only** these filenames from `editor/`:
 
 | Path | URL | Role |
 |------|-----|------|
 | `editor/edit-boot.js` | `/editor/edit-boot.js` | Loads tools when `?elan_editor=1` + framed |
-| `editor/edit-mode.js` | `/editor/edit-mode.js` | Entry; loads full body from `/edit-mode.js` |
+| `editor/edit-mode.js` | `/editor/edit-mode.js` | Entry → loads full body from `/edit-mode.js` |
 | `editor/edit-model.js` | `/editor/edit-model.js` | Node re-export of root `edit-model.js` |
 | `editor/elan-host-bridge.js` | `/editor/elan-host-bridge.js` | postMessage bridge |
 
-## Still at repo root (implementation body)
+## Implementation bodies (still at repo root)
 
-| File | Why |
-|------|-----|
-| `edit-mode.js` | Full visual edit-mode body (~30KB); entry is under `editor/` |
-| `edit-model.js` | Draft model for Node tests / logic |
-| `design-schema.js` / `design-layer.js` / `design/` | Shared with the storefront |
+| File | Size | Why at root |
+|------|------|-------------|
+| `edit-mode.js` | ~30KB | Full visual edit-mode; entry is under `editor/` |
+| `edit-model.js` | ~13KB | Draft model for Node tests / logic |
+| `design-schema.js` / `design-layer.js` / `design/` | — | Shared with the storefront |
+
+### Optional: fully inline under `editor/` (local git)
+
+```bash
+git clone https://github.com/hossamthapitelgharib/elan-scents.git && cd elan-scents
+cp edit-mode.js editor/edit-mode.js
+# fix design-schema require for editor/ location:
+sed -i "s|require('./design-schema.js')|require('../design-schema.js')|" edit-model.js
+cp edit-model.js editor/edit-model.js
+# then delete root bodies after tests pass:
+# git rm edit-mode.js edit-model.js
+# update tests/editor-page.test.js to read('editor/edit-mode.js')
+# git add -A && git commit -m 'editor: fully inline edit-mode + edit-model under editor/'
+# git push
+```
 
 ## Server
 
