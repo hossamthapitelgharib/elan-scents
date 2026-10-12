@@ -45,7 +45,7 @@ test('main menu routes to the customer dashboard and footer artwork is configure
   assert.match(storefront, /class="footer-background"/);
   assert.ok(fs.existsSync(path.join(root, 'assets/footer-background.png')));
   const footerCss = fs.readFileSync(path.join(root, 'footer-9x16.css'), 'utf8');
-  assert.match(footerCss, /aspect-ratio:\s*940\s*\/\s*\d+/);
+  assert.match(footerCss, /aspect-ratio:\s*940\s*\/\s*1672/);
   assert.match(footerCss, /object-fit:\s*cover/);
   assert.doesNotMatch(styles, /url\('\/assets\/footer-emblem\.png'\)/);
   assert.doesNotMatch(storefront, /elan-scents-logo\.png/);
