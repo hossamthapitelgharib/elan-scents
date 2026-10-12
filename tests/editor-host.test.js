@@ -128,3 +128,14 @@ test('the editor page wires the original context menu, format dialog and header 
   const edit = fs.readFileSync(path.join(root, 'edit-mode.js'), 'utf8');
   assert.match(edit, /hostApi\.context/);
 });
+
+test('the menu is built from a tool registry so new capabilities are one register() call', () => {
+  const edit = fs.readFileSync(path.join(root, 'edit-mode.js'), 'utf8');
+  assert.match(edit, /window\.ElanEditTools = \{ register: registerTool/);
+  for (const label of ['تحريك عنصر', 'تنسيق النص: الخط • اللون • الحجم • 3D', 'إنشاء نص', 'نسخ العنصر']) assert.ok(edit.includes(label), label);
+  const html = fs.readFileSync(path.join(root, 'editor', 'elan-editor.html'), 'utf8');
+  assert.match(html, /info\.tools/);
+  for (const label of ['رفع على GitHub', 'نشر على Railway', 'تحميل النسخة الجديدة', 'خروج']) assert.ok(html.includes(label), label);
+  const bridge = fs.readFileSync(path.join(root, 'elan-host-bridge.js'), 'utf8');
+  for (const action of ['tool.run', 'element.nudge', 'page.markSaved']) assert.ok(bridge.includes(action), action);
+});

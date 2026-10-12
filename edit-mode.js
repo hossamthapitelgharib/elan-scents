@@ -206,7 +206,10 @@
   window.addEventListener('pointerup', function (ev) {
     if (!gesture) return;
     var g = gesture; gesture = null;
-    if (!g.moved) return;
+    if (!g.moved) {
+      if (g.mode === 'move' && hostApi) { var ge = entryById(g.id); hostApi.context({ x: ev.clientX, y: ev.clientY, element: info(ge), tools: toolList(info(ge)) }); }
+      return;
+    }
     ev.preventDefault();
     mutate(function () {
       var e = edit(device(), g.id);
@@ -230,7 +233,7 @@
     if (editing) commitText();
     var e = pick(ev.clientX, ev.clientY);
     select(e ? e.id : null);
-    if (hostApi) hostApi.context({ x: ev.clientX, y: ev.clientY, element: info(e) });
+    if (hostApi) hostApi.context({ x: ev.clientX, y: ev.clientY, element: info(e), tools: toolList(info(e)) });
   }, true);
 
   function startText(id) {
@@ -330,6 +333,32 @@
     mutate(function (d) { var t = d.blocks.filter(function (x) { return x.id === id; })[0]; if (t.type === 'image') t.src = src; else t.image = src; });
   }
 
+
+  /* ---------- tools: the editor's menu is built from this list, so a new capability = one new register() call ---------- */
+  var TOOLS = [];
+  function registerTool(t) { TOOLS = TOOLS.filter(function (x) { return x.id !== t.id; }).concat([t]); }
+  function toolList(i) {
+    return TOOLS.map(function (t) { return { id: t.id, label: t.label, ui: t.ui || null, enabled: t.when ? !!t.when(i) : true }; });
+  }
+  var NEEDS_DB = 'بيتربط بسابابيس في المرحلة الجاية.';
+  function later(label) { return function () { throw new Error(label + ' ' + NEEDS_DB); }; }
+  function has(i) { return !!i; }
+  function hasText(i) { return !!(i && i.canText); }
+  registerTool({ id: 'format', label: 'تنسيق النص: الخط • اللون • الحجم • 3D', ui: 'format', when: has });
+  registerTool({ id: 'move', label: 'تحريك عنصر', ui: 'movepad', when: has });
+  [['create_section', 'إنشاء سيكشن'], ['create_brand', 'إنشاء كارت براند'], ['create_store', 'إنشاء كارت متجر'], ['create_perfume', 'إنشاء كارت عطر'], ['create_occasion', 'إنشاء مناسبة'], ['create_note', 'إنشاء نوتة عطر']].forEach(function (x) { registerTool({ id: x[0], label: x[1], run: later(x[1]) }); });
+  registerTool({ id: 'create_text_block', label: 'إنشاء كتلة نصية', run: function (c) { return createBlock('text_block', { at: c.at }); } });
+  registerTool({ id: 'create_banner', label: 'إنشاء بانر صورة أو فيديو', run: function (c) { return createBlock('banner', { at: c.at }); } });
+  registerTool({ id: 'create_text', label: 'إنشاء نص', run: function (c) { return createBlock('text_block', { at: c.at }); } });
+  registerTool({ id: 'media', label: 'رفع صورة أو فيديو داخل العناصر أو الهيرو', when: function (i) { return !!i && ['card', 'banner', 'image', 'section'].indexOf(i.type) !== -1; }, run: function (c) { return mediaPrompt().then(function (src) { setMedia(c.id, src); return null; }); } });
+  registerTool({ id: 'media_delete', label: 'حذف ميديا الكارت أو الهيرو إلى الأرشيف', when: function () { return false; }, run: later('حذف الميديا') });
+  registerTool({ id: 'edit_text', label: 'تعديل النص بالكيبورد', when: hasText, run: function (c) { startText(c.id); return null; } });
+  registerTool({ id: 'copy', label: 'نسخ العنصر', when: has, run: function (c) { return execute('element.duplicate', { elementId: c.id }, {}); } });
+  registerTool({ id: 'archive', label: 'حذف العنصر إلى الأرشيف', when: has, run: function (c) { archive(c.id); return null; } });
+  registerTool({ id: 'library_save', label: 'حفظ العنصر في المكتبة', when: has, run: later('المكتبة') });
+  registerTool({ id: 'library_download', label: 'تنزيل العنصر للمكتبة كملف', when: has, run: later('المكتبة') });
+  window.ElanEditTools = { register: registerTool, list: function () { return TOOLS.slice(); } };
+
   /* ---------- commands from the editor ---------- */
   function archiveList() {
     var out = [], e = (work.edits && work.edits.all) || {};
@@ -358,6 +387,20 @@
         var r0 = e6.el.getBoundingClientRect();
         mutate(function (d) { d.blocks.push(copy); d.order = order; var from = d.edits && ((d.edits.all || {})[src.id]); if (from) d.edits.all[copy.id] = JSON.parse(JSON.stringify(from)); });
         select(copy.id); placeAt(copy.id, { x: r0.left + 20, y: r0.top + 20 }); return { elementId: copy.id };
+      }
+      case 'tool.run': {
+        var tool = TOOLS.filter(function (x) { return x.id === p.id; })[0];
+        if (!tool) throw new Error('أداة غير معروفة');
+        var ei = p.elementId ? entryById(p.elementId) : null, inf = info(ei);
+        if (tool.when && !tool.when(inf)) throw new Error('الأداة دي مش متاحة للعنصر ده.');
+        var out = await tool.run({ id: p.elementId || null, info: inf, at: p.at || null });
+        return out === undefined ? null : out;
+      }
+      case 'element.nudge': {
+        var en = need(p.elementId || selectedId), nb = base(en.id);
+        var ndx = nb.dx + Math.round(+p.dx || 0), ndy = nb.dy + Math.round(+p.dy || 0);
+        mutate(function () { var t = edit(device(), en.id); if (ndx) t.dx = ndx; else delete t.dx; if (ndy) t.dy = ndy; else delete t.dy; });
+        return null;
       }
       case 'element.edit': { var e9 = need(p.elementId || selectedId); startText(e9.id); return null; }
       case 'element.archive': archive(need(p.elementId || selectedId).id); return null;
