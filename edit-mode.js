@@ -70,19 +70,34 @@
   root.innerHTML = '<style>' +
     '#elan-eo-root{position:fixed;inset:0;pointer-events:none;z-index:2147483000;font-family:"IBM Plex Sans Arabic",system-ui,sans-serif;direction:rtl}' +
     '#elan-eo-root *{box-sizing:border-box}' +
-    '.eo-box{position:fixed;outline:2px solid #c8962a;background:rgba(200,150,42,.06);display:none}' +
-    '.eo-h{position:absolute;width:13px;height:13px;right:-6px;bottom:-6px;background:#c8962a;border-radius:3px;cursor:nwse-resize;pointer-events:auto;touch-action:none}' +
+    '.eo-box{position:fixed;border:2px solid #c8962a;background:rgba(200,150,42,.08);display:none}' +
+    '.eo-tag{position:absolute;top:-24px;right:-2px;background:#c8962a;color:#fff;font-size:11px;padding:2px 7px;border-radius:5px 5px 0 0;white-space:nowrap}' +
+    '.eo-h{position:absolute;width:12px;height:12px;background:#fff;border:2px solid #c8962a;border-radius:3px;pointer-events:auto;touch-action:none}' +
+    '.eo-bar{position:fixed;top:8px;left:50%;transform:translateX(-50%);max-width:calc(100vw - 16px);display:none;flex-wrap:wrap;gap:6px;align-items:center;padding:7px 9px;background:#fffaf0;border:1px solid #c2a66a;border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.18);pointer-events:auto;font-size:12px;color:#29251c}' +
+    '.eo-bar button,.eo-bar select,.eo-bar input[type=number]{font:inherit;padding:4px 8px;border:1px solid #c2a66a;border-radius:6px;background:#fff;color:#29251c;cursor:pointer}' +
+    '.eo-bar input[type=color]{width:30px;height:26px;padding:0;border:1px solid #c2a66a;border-radius:6px;background:#fff}' +
+    '.eo-bar label{display:flex;gap:4px;align-items:center}.eo-bar input[type=number]{width:56px}' +
     '.eo-msg{position:fixed;bottom:12px;left:50%;transform:translateX(-50%);background:#29251c;color:#fff;padding:8px 14px;border-radius:9px;font-size:13px;display:none;max-width:90vw;pointer-events:none}' +
     '.eo-dlg{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.35);pointer-events:auto}' +
     '.eo-dlg>div{background:#fffaf0;border:1px solid #c2a66a;border-radius:12px;padding:16px;width:min(420px,92vw);font-size:13px}' +
     '.eo-dlg input[type=text]{width:100%;padding:7px;border:1px solid #c2a66a;border-radius:7px;direction:ltr;margin:8px 0}' +
     '.eo-dlg button{font:inherit;padding:6px 12px;border:1px solid #c2a66a;border-radius:7px;background:#fff;cursor:pointer;margin-inline-end:6px}' +
+    '.eo-mv{position:absolute;top:-24px;left:-2px;background:#29251c;color:#fff;font-size:11px;padding:2px 8px;border-radius:5px 5px 0 0;cursor:grab;pointer-events:auto;display:none;touch-action:none;user-select:none}' +
+    '.eo-drop{position:fixed;left:0;right:0;height:3px;background:#c8962a;display:none;pointer-events:none}' +
     '[contenteditable]{outline:2px dashed #c8962a;outline-offset:2px}' +
-    '</style><div class="eo-box"><i class="eo-h" data-h="se"></i></div><div class="eo-msg"></div>' +
+    '</style><div class="eo-box"><span class="eo-tag"></span><span class="eo-mv">⠿ اسحب لإعادة الترتيب</span></div><div class="eo-drop"></div><div class="eo-bar"></div><div class="eo-msg"></div>' +
     '<div class="eo-dlg"><div><b class="eo-dt"></b><input type="text" class="eo-di" dir="ltr"><p class="eo-dh" style="margin:0 0 8px;color:#7a6a52"></p><button class="eo-ok">تأكيد</button><button class="eo-no">إلغاء</button></div></div>';
   document.body.appendChild(root);
 
-  var box = root.querySelector('.eo-box'), msgEl = root.querySelector('.eo-msg'), dlg = root.querySelector('.eo-dlg');
+  var mv = root.querySelector('.eo-mv'), drop = root.querySelector('.eo-drop'), box = root.querySelector('.eo-box'), tag = root.querySelector('.eo-tag'), bar = root.querySelector('.eo-bar'), msgEl = root.querySelector('.eo-msg'), dlg = root.querySelector('.eo-dlg');
+  ['nw', 'n', 'ne', 'w', 'e', 'sw', 's', 'se'].forEach(function (h) {
+    var d = document.createElement('i'); d.className = 'eo-h'; d.setAttribute('data-h', h);
+    var cur = { nw: 'nwse', se: 'nwse', ne: 'nesw', sw: 'nesw', n: 'ns', s: 'ns', e: 'ew', w: 'ew' }[h];
+    d.style.cursor = cur + '-resize';
+    d.style.top = h.indexOf('n') !== -1 ? '-7px' : h.indexOf('s') !== -1 ? 'calc(100% - 5px)' : 'calc(50% - 6px)';
+    d.style.left = h.indexOf('w') !== -1 ? '-7px' : h.indexOf('e') !== -1 ? 'calc(100% - 5px)' : 'calc(50% - 6px)';
+    box.appendChild(d);
+  });
 
   var msgTimer = null;
   function say(text) { msgEl.textContent = text; msgEl.style.display = 'block'; clearTimeout(msgTimer); msgTimer = setTimeout(function () { msgEl.style.display = 'none'; }, 3500); }
@@ -101,55 +116,79 @@
 
   function placeBox() {
     var e = selectedId && entryById(selectedId);
-    if (!e || (e.el.style.display === 'none')) { box.style.display = 'none'; return; }
+    if (!e || (e.el.style.display === 'none')) { box.style.display = 'none'; bar.style.display = 'none'; return; }
     var r = e.el.getBoundingClientRect();
     box.style.display = 'block';
     box.style.left = r.left + 'px'; box.style.top = r.top + 'px'; box.style.width = r.width + 'px'; box.style.height = r.height + 'px';
+    tag.textContent = e.name;
+    mv.style.display = (e.kind === 'section' || e.kind === 'block') ? 'block' : 'none';
+    var inside = r.top < 30; // keep the labels reachable when the element touches the top of the window
+    tag.style.top = mv.style.top = inside ? '2px' : '-24px';
   }
+  function reselect() {
+    if (selectedId && !entryById(selectedId)) selectedId = null;
+    placeBox(); buildBar();
+    if (hostApi) { var e = selectedId && entryById(selectedId); hostApi.selection(e ? { id: e.id, name: e.name, kind: e.kind } : null); }
+  }
+  function select(id) { selectedId = id; reselect(); }
+
+  /* ---------- format bar ---------- */
+  function cur(id) { return ED.editFor(work, device(), id) || {}; }
   function rgbToHex(c) {
     var m = /rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(c || '');
     if (!m) return '#000000';
     return '#' + [m[1], m[2], m[3]].map(function (n) { return ('0' + (+n).toString(16)).slice(-2); }).join('');
   }
-  function cur(id) { return ED.editFor(work, device(), id) || {}; }
-  /* What the editor needs to know about an element: the original editor's type names plus its current look. */
-  var TYPE_OF = { section: 'section', title: 'text', 'hero-text': 'text', hero: 'section', 'hero-counters': 'text', card: 'card', block: 'block' };
-  function info(e) {
-    if (!e) return null;
-    var node = layer.textTarget(e) || e.el, cs = getComputedStyle(node), st = cur(e.id).style || {};
-    var blk = work.blocks.filter(function (b) { return b.id === e.id; })[0];
-    var type = blk ? ({ text: 'text_block', banner: 'banner', image: 'image' })[blk.type] : (TYPE_OF[e.kind] || 'text');
-    return {
-      id: e.id, name: e.name, kind: e.kind, type: type, canText: !!layer.textTarget(e), isBlock: !!blk,
-      style: {
-        fontFamily: st.fontFamily || (cs.fontFamily || '').split(',')[0].replace(/["']/g, '').trim(),
-        fontSize: st.fontSize || Math.round(parseFloat(cs.fontSize) || 16),
-        color: st.color || rgbToHex(cs.color), background: st.background || rgbToHex(getComputedStyle(e.el).backgroundColor),
-        align: st.align || ({ start: 'right', end: 'left', center: 'center', left: 'left', right: 'right' })[cs.textAlign] || 'right',
-        effect: st.effect || 'none'
-      }
-    };
-  }
-  function reselect() {
-    if (selectedId && !entryById(selectedId)) selectedId = null;
-    placeBox();
-    if (hostApi) hostApi.selection(info(selectedId && entryById(selectedId)));
-  }
-  function select(id) { selectedId = id; reselect(); }
-
   function setStyle(id, key, val) {
     mutate(function (d) {
       var e = edit('all', id); e.style = e.style || {};
       if (val === null) delete e.style[key]; else e.style[key] = val;
     });
   }
+  function btn(label, title, fn) { var b = document.createElement('button'); b.textContent = label; b.title = title; b.onclick = fn; return b; }
+  function lab(text, node) { var l = document.createElement('label'); l.appendChild(document.createTextNode(text)); l.appendChild(node); return l; }
+
+  function buildBar() {
+    bar.textContent = '';
+    var e = selectedId && entryById(selectedId);
+    if (!e) { bar.style.display = 'none'; return; }
+    var cs = getComputedStyle(e.el), st = cur(e.id).style || {};
+    var color = document.createElement('input'); color.type = 'color'; color.value = st.color || rgbToHex(cs.color);
+    color.onchange = function () { setStyle(e.id, 'color', color.value); };
+    var bg = document.createElement('input'); bg.type = 'color'; bg.value = st.background || rgbToHex(cs.backgroundColor);
+    bg.onchange = function () { setStyle(e.id, 'background', bg.value); };
+    var fs = document.createElement('input'); fs.type = 'number'; fs.min = 8; fs.max = 120; fs.value = st.fontSize || Math.round(parseFloat(cs.fontSize) || 16);
+    fs.onchange = function () { setStyle(e.id, 'fontSize', Math.max(8, Math.min(120, Math.round(+fs.value || 16)))); };
+    var wt = document.createElement('select');
+    [[400, 'عادي'], [500, 'متوسط'], [600, 'سميك'], [700, 'عريض']].forEach(function (o) { var op = document.createElement('option'); op.value = o[0]; op.textContent = o[1]; wt.appendChild(op); });
+    wt.value = st.weight || (parseInt(cs.fontWeight, 10) >= 700 ? 700 : parseInt(cs.fontWeight, 10) >= 600 ? 600 : parseInt(cs.fontWeight, 10) >= 500 ? 500 : 400);
+    wt.onchange = function () { setStyle(e.id, 'weight', +wt.value); };
+    var rad = document.createElement('input'); rad.type = 'number'; rad.min = 0; rad.max = 80; rad.value = st.radius !== undefined ? st.radius : Math.round(parseFloat(cs.borderTopLeftRadius) || 0);
+    rad.onchange = function () { setStyle(e.id, 'radius', Math.max(0, Math.min(80, Math.round(+rad.value || 0)))); };
+    var op = document.createElement('input'); op.type = 'number'; op.min = 10; op.max = 100; op.step = 10; op.value = Math.round((st.opacity !== undefined ? st.opacity : 1) * 100);
+    op.onchange = function () { setStyle(e.id, 'opacity', Math.max(10, Math.min(100, +op.value || 100)) / 100); };
+
+    bar.appendChild(lab('لون النص', color)); bar.appendChild(lab('الخلفية', bg)); bar.appendChild(lab('الحجم', fs));
+    bar.appendChild(lab('السُّمك', wt)); bar.appendChild(lab('الزوايا', rad)); bar.appendChild(lab('الشفافية %', op));
+    [['start', '⇤', 'محاذاة للبداية'], ['center', '↔', 'منتصف'], ['end', '⇥', 'محاذاة للنهاية']].forEach(function (a) { bar.appendChild(btn(a[1], a[2], function () { setStyle(e.id, 'align', a[0]); })); });
+    if (/^(sec:[a-z]+|x-.+)$/.test(e.id)) {
+      bar.appendChild(btn('▲', 'قدّم في الترتيب', function () { reorder(e.id, -1); }));
+      bar.appendChild(btn('▼', 'أخّر في الترتيب', function () { reorder(e.id, 1); }));
+    }
+    bar.appendChild(btn('إخفاء على هذا الجهاز', 'إخفاء على ' + device(), function () { mutate(function () { edit(device(), e.id).hidden = true; }); selectedId = null; reselect(); }));
+    bar.appendChild(btn('أرشفة', 'أرشفة العنصر', function () { archive(e.id); }));
+    bar.appendChild(btn('إعادة ضبط', 'إلغاء كل تعديلات العنصر', function () { resetElement(e.id); }));
+    var dv = document.createElement('span'); dv.textContent = 'الجهاز: ' + ({ desktop: 'لاب', tablet: 'تابلت', mobile: 'موبايل' })[device()]; dv.style.color = '#7a6a52'; bar.appendChild(dv);
+    bar.style.display = 'flex';
+  }
+
   function reorder(id, delta) {
     var key = /^sec:/.test(id) ? id.slice(4) : id, seq = fullOrder(), i = seq.indexOf(key), j = i + delta;
     if (i < 0 || j < 0 || j >= seq.length) return;
     mutate(function (d) { seq.splice(i, 1); seq.splice(j, 0, key); d.order = seq; });
   }
   function resetElement(id) { mutate(function (d) { if (d.edits) Object.keys(d.edits).forEach(function (dev) { delete d.edits[dev][id]; }); }); }
-  function archive(id) { mutate(function () { edit('all', id).archived = true; }); selectedId = null; reselect(); say('اتحط في الأرشيف. تقدر ترجّعه من الأرشيف.'); }
+  function archive(id) { mutate(function () { edit('all', id).archived = true; }); selectedId = null; reselect(); say('اتحط في الأرشيف. تقدر ترجّعه بأمر الاستعادة.'); }
 
   /* ---------- picking, drag, resize, text ---------- */
   function inUi(t) { return t && t.nodeType === 1 && root.contains(t); }
@@ -218,20 +257,9 @@
   }, true);
 
   // Nothing on the page may act while editing: no links, no cart, no forms.
-  ['click', 'auxclick', 'submit', 'dragstart'].forEach(function (t) {
+  ['click', 'auxclick', 'submit', 'contextmenu', 'dragstart'].forEach(function (t) {
     window.addEventListener(t, function (ev) { if (inUi(ev.target)) return; if (editing && editing.node.contains(ev.target)) return; ev.preventDefault(); ev.stopPropagation(); }, true);
   });
-
-
-  /* Right-click: the editor shows the original context menu; this side only reports what is under the pointer. */
-  window.addEventListener('contextmenu', function (ev) {
-    if (inUi(ev.target)) return;
-    ev.preventDefault(); ev.stopPropagation();
-    if (editing) commitText();
-    var e = pick(ev.clientX, ev.clientY);
-    select(e ? e.id : null);
-    if (hostApi) hostApi.context({ x: ev.clientX, y: ev.clientY, element: info(e) });
-  }, true);
 
   function startText(id) {
     var e = entryById(id), node = e && layer.textTarget(e);
@@ -279,19 +307,44 @@
     }
   }, true);
   window.addEventListener('scroll', placeBox, true);
-  window.addEventListener('resize', function () { placeBox(); });
+  window.addEventListener('resize', function () { placeBox(); buildBar(); });
   try { new MutationObserver(function () { requestAnimationFrame(reselect); }).observe(document.getElementById('main'), { childList: true }); } catch (_) { /* optional */ }
 
-  /* ---------- creating blocks ---------- */
-  /* Put an element so its top-left corner sits at a point of the window, for the current screen size. */
-  function placeAt(id, at) {
-    var e = entryById(id); if (!e) return;
-    var r = e.el.getBoundingClientRect(), b = base(id);
-    var dx = Math.round(b.dx + (at.x - r.left)), dy = Math.round(b.dy + (at.y - r.top));
-    mutate(function () { var t = edit(device(), id); if (dx) t.dx = dx; else delete t.dx; if (dy) t.dy = dy; else delete t.dy; });
-    try { e.el.scrollIntoView({ block: 'nearest' }); } catch (_) { /* optional */ }
+  /* ---------- drag a whole section / block to a new place in the page order ---------- */
+  function orderNodes(skipId) {
+    var main = document.getElementById('main');
+    return Array.prototype.slice.call(main.children).filter(function (c) {
+      var id = c.hasAttribute('data-elan-custom') ? c.getAttribute('data-elan-id') : (c.tagName === 'SECTION' && c.id && ED.BUILTIN.indexOf(c.id) !== -1 ? c.id : null);
+      return id && id !== skipId;
+    });
   }
+  function keyOf(node) { return node.hasAttribute('data-elan-custom') ? node.getAttribute('data-elan-id') : node.id; }
+  mv.addEventListener('pointerdown', function (ev) {
+    var e = selectedId && entryById(selectedId);
+    if (!e || ev.button > 0) return;
+    ev.preventDefault(); ev.stopPropagation();
+    var key = /^sec:/.test(e.id) ? e.id.slice(4) : e.id, target = null;
+    try { mv.setPointerCapture(ev.pointerId); } catch (_) { /* optional */ }
+    drop.style.display = 'block';
+    function moveTo(x) {
+      var list = orderNodes(key), y = x.clientY, ly = null; target = null;
+      for (var i = 0; i < list.length; i++) { var r = list[i].getBoundingClientRect(); if (y < r.top + r.height / 2) { target = keyOf(list[i]); ly = r.top; break; } }
+      if (ly === null && list.length) ly = list[list.length - 1].getBoundingClientRect().bottom;
+      drop.style.top = (ly || 0) + 'px';
+    }
+    function up() {
+      mv.removeEventListener('pointermove', moveTo); mv.removeEventListener('pointerup', up); mv.removeEventListener('pointercancel', up);
+      drop.style.display = 'none';
+      var seq = fullOrder().filter(function (x) { return x !== key; });
+      var at = target ? seq.indexOf(target) : seq.length;
+      var next = seq.slice(); next.splice(at, 0, key);
+      if (JSON.stringify(next) !== JSON.stringify(fullOrder())) mutate(function (d) { d.order = next; });
+    }
+    mv.addEventListener('pointermove', moveTo); mv.addEventListener('pointerup', up); mv.addEventListener('pointercancel', up);
+    moveTo(ev);
+  });
 
+  /* ---------- creating blocks ---------- */
   function validBlock(b) { var n = ED.normalize({ version: ED.VERSION, blocks: [b] }, { strict: true }); return n.ok && n.design.blocks.length === 1; }
 
   function insertAfterSelected(blockId) {
@@ -311,7 +364,6 @@
     var order = insertAfterSelected(id);
     mutate(function (d) { d.blocks.push(b); d.order = order; });
     select(id);
-    if (opts.at) placeAt(id, opts.at);
     return { elementId: id };
   }
 
@@ -336,7 +388,7 @@
     Object.keys(e).forEach(function (id) { if (e[id].archived) out.push({ id: id, name: (entryById(id) || { name: id }).name }); });
     return out;
   }
-  function snapshot() { return { revision: baseRevision, design: clone(work), device: device(), dirty: dirty, archive: archiveList(), selected: info(selectedId && entryById(selectedId)) }; }
+  function snapshot() { return { revision: baseRevision, design: clone(work), device: device(), dirty: dirty, archive: archiveList() }; }
   function need(id) { var e = id && entryById(id); if (!e) throw new Error('اختاري عنصر الأول.'); return e; }
 
   async function execute(action, p, meta) {
@@ -347,28 +399,25 @@
       case 'element.select': select(need(p.elementId).id); return { selected: selectedId };
       case 'element.move': { var e1 = need(p.elementId || selectedId); mutate(function () { var t = edit(device(), e1.id); t.dx = Math.round(+p.dx || 0); t.dy = Math.round(+p.dy || 0); }); return null; }
       case 'element.resize': { var e2 = need(p.elementId || selectedId); mutate(function () { var t = edit(device(), e2.id); if (p.w) t.w = Math.round(p.w); if (p.h) t.h = Math.round(p.h); }); return null; }
-      case 'element.format': { var e3 = need(p.elementId || selectedId), sty = p.style || {}; mutate(function (d) { var t = edit('all', e3.id); t.style = t.style || {}; Object.keys(sty).forEach(function (k) { if (sty[k] === null) delete t.style[k]; else t.style[k] = sty[k]; }); }); return null; }
+      case 'element.format': { var e3 = need(p.elementId || selectedId); Object.keys(p.style || {}).forEach(function (k) { setStyle(e3.id, k, p.style[k]); }); return null; }
       case 'element.setText': { var e4 = need(p.elementId || selectedId); mutate(function () { var t = edit('all', e4.id); t.text = t.text || {}; t.text[lang()] = String(p.text || '').slice(0, 600); }); return null; }
       case 'element.setMedia': { var e5 = need(p.elementId || selectedId); setMedia(e5.id, p.src || await mediaPrompt(e5.id)); return null; }
       case 'element.create': return createBlock(p.kind, p);
       case 'element.duplicate': {
         var e6 = need(p.elementId || selectedId), src = work.blocks.filter(function (b) { return b.id === e6.id; })[0];
         if (!src) throw new Error('التكرار متاح للبلوكات الإضافية بس.');
-        var copy = clone(src); copy.id = 'x-' + rid(); var order = fullOrder(), b0 = base(src.id); order.splice(order.indexOf(src.id) + 1, 0, copy.id);
-        var r0 = e6.el.getBoundingClientRect();
-        mutate(function (d) { d.blocks.push(copy); d.order = order; var from = d.edits && ((d.edits.all || {})[src.id]); if (from) d.edits.all[copy.id] = JSON.parse(JSON.stringify(from)); });
-        select(copy.id); placeAt(copy.id, { x: r0.left + 20, y: r0.top + 20 }); return { elementId: copy.id };
+        var copy = clone(src); copy.id = 'x-' + rid(); var order = fullOrder(); order.splice(order.indexOf(src.id) + 1, 0, copy.id);
+        mutate(function (d) { d.blocks.push(copy); d.order = order; }); select(copy.id); return { elementId: copy.id };
       }
-      case 'element.edit': { var e9 = need(p.elementId || selectedId); startText(e9.id); return null; }
       case 'element.archive': archive(need(p.elementId || selectedId).id); return null;
       case 'archive.restore': mutate(function (d) { if (d.edits) Object.keys(d.edits).forEach(function (dev) { if (d.edits[dev][p.elementId]) delete d.edits[dev][p.elementId].archived; }); }); return snapshot();
       case 'history.undo': return { ok: undo() };
       case 'history.redo': return { ok: redo() };
-      case 'ui.openFormatPanel': if (p.elementId) select(need(p.elementId).id); if (!selectedId) throw new Error('اضغطي على عنصر في الصفحة الأول.'); return null;
+      case 'ui.openFormatPanel': if (p.elementId) select(need(p.elementId).id); if (!selectedId) throw new Error('اضغطي على عنصر في الصفحة الأول.'); buildBar(); return null;
       case 'ui.openMediaPanel': { var id7 = p.elementId || selectedId; if (!id7) throw new Error('اختاري بانر أو صورة الأول.'); setMedia(id7, await mediaPrompt(id7)); return null; }
       case 'ui.openCreatePanel':
-        if (p.kind === 'banner' || p.kind === 'text_block' || p.kind === 'text') return createBlock(p.kind === 'text' ? 'text_block' : p.kind, { at: p.at });
-        if (p.kind === 'image') { var src8 = await mediaPrompt(); return createBlock('image', { src: src8, at: p.at }); }
+        if (p.kind === 'banner' || p.kind === 'text_block') return createBlock(p.kind, {});
+        if (p.kind === 'image') { var src8 = await mediaPrompt(); return createBlock('image', { src: src8 }); }
         throw new Error('إنشاء ' + p.kind + ' بيتربط بسابابيس في المرحلة الجاية. المتاح دلوقتي: بانر ونص وصورة.');
       case 'library.open': throw new Error('المكتبة بتتربط بسابابيس في المرحلة الجاية.');
       case 'page.save': throw new Error('الحفظ بيتم من الإديتور نفسه بعد التحقق من الإدارة.');
