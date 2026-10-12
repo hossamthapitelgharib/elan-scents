@@ -192,7 +192,7 @@ function closeQuickSearch(){var w=document.getElementById('quickSearch');if(w)w.
 var qsw=document.getElementById('quickSearch'),qsi=document.getElementById('quickSearchInput');
 if(qsw&&qsi){qsi.placeholder=LB[lang].s;document.getElementById('quickSearchBtn').onclick=function(){qsw.hidden=!qsw.hidden;if(!qsw.hidden){qsi.placeholder=LB[lang].s;qsi.focus()}};qsi.oninput=function(){quickSearchResults(qsi.value)};document.getElementById('quickSearchForm').onsubmit=function(e){e.preventDefault();var q=qsi.value.trim();if(!q)return;closeQuickSearch();go('sec|all');F.q=q;view()}}
 document.addEventListener('click',function(e){if(qsw&&!qsw.hidden&&!e.target.closest('#quickSearch')&&!e.target.closest('#quickSearchBtn'))closeQuickSearch()});
-document.addEventListener('keydown',function(e){if(e.key==='Escape'){closeQuickSearch();closeSheet()}});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'){closeQuickSearch();closeSheet();var menu=document.getElementById('menu');if(menu)menu.classList.remove('open')}});
 document.addEventListener('click',function(e){var item=e.target.closest('[data-quick-id]');if(item){closeQuickSearch();go('prod|'+item.dataset.quickId)}});
 document.getElementById('mb').onclick=function(){document.getElementById('menu').classList.toggle('open')};
 // 3D shadow on proximity of pointer/finger

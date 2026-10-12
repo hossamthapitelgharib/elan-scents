@@ -10,6 +10,7 @@ const editorHost = require('./editor-host.js');
 const ROOT = path.resolve(__dirname, '..');
 const PORT = Number(process.env.PORT) || 3000;
 const MAX_BODY = 1000000;
+const MAX_EDITOR_BODY = 300000;
 const CONFIG = (() => { try { return JSON.parse(fs.readFileSync(path.join(ROOT, 'vercel.json'), 'utf8')); } catch (e) { return {}; } })();
 
 const MIME = {
@@ -23,7 +24,7 @@ const MIME = {
 // Never serve server-side or repo-internal files.
 // Full editor UI stays private (served only via editor-host). These scripts are loaded by the
 // storefront iframe when ?elan_editor=1 — they must be publicly readable.
-const BLOCKED_TOP = new Set(['api', 'tests', 'supabase', 'railway', 'node_modules', 'src', '.github', '.git']);
+const BLOCKED_TOP = new Set(['api', 'tests', 'supabase', 'railway', 'node_modules', 'src', 'lib', 'scripts', 'reports', '.github', '.git']);
 const EDITOR_PUBLIC_FILES = new Set(['edit-boot.js', 'edit-mode.js', 'edit-model.js', 'elan-host-bridge.js']);
 const BLOCKED_FILES = new Set(['package.json', 'package-lock.json', 'vercel.json', 'claude.md', 'readme.md']);
 
@@ -82,8 +83,13 @@ function parseBody(raw, type) {
 
 function readBody(req, limit) {
   return new Promise((resolve, reject) => {
-    const chunks = []; let size = 0;
-    req.on('data', (c) => { size += c.length; if (size > limit) { reject(Object.assign(new Error('too_big'), { code: 413 })); req.destroy(); return; } chunks.push(c); });
+    const chunks = []; let size = 0; let tooBig = false;
+    req.on('data', (c) => {
+      if (tooBig) return;
+      size += c.length;
+      if (size > limit) { tooBig = true; reject(Object.assign(new Error('too_big'), { code: 413 })); return; }
+      chunks.push(c);
+    });
     req.on('end', () => resolve(Buffer.concat(chunks)));
     req.on('error', reject);
   });
@@ -104,7 +110,8 @@ async function handleApi(req, res, url, pathname) {
   const handler = loadHandler(name);
   if (!handler) return sendJson(res, 404, { error: 'not_found' });
   let raw = Buffer.alloc(0);
-  try { raw = await readBody(req, MAX_BODY); } catch (e) { return sendJson(res, e.code === 413 ? 413 : 400, { error: e.code === 413 ? 'payload_too_large' : 'bad_request' }); }
+  const bodyLimit = pathname === '/api/editor' ? MAX_EDITOR_BODY : MAX_BODY;
+  try { raw = await readBody(req, bodyLimit); } catch (e) { return sendJson(res, e.code === 413 ? 413 : 400, { error: e.code === 413 ? 'payload_too_large' : 'bad_request' }); }
   try { req.body = parseBody(raw, req.headers['content-type'] || ''); } catch (e) { return sendJson(res, 400, { error: 'invalid_json' }); }
   req.query = parseQuery(url.searchParams);
   wrapResponse(res);
@@ -154,6 +161,12 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
   let pathname = url.pathname;
   if (pathname === '/health') { res.setHeader('Content-Type', 'text/plain'); return res.end('ok'); }
+  if (pathname === '/' && process.env.EDITOR_ROOT_REDIRECT === '1' && (req.method === 'GET' || req.method === 'HEAD')) {
+    res.statusCode = 302;
+    res.setHeader('Location', '/editor');
+    res.setHeader('Cache-Control', 'no-store');
+    return res.end();
+  }
   try { if (await editorHost.handle(req, res, pathname)) return; } catch (e) { console.error('editor host error', e && e.message); if (!res.headersSent) return sendJson(res, 500, { error: 'server_error' }); return; }
   if (REWRITES.has(pathname)) pathname = REWRITES.get(pathname);
   if (pathname === '/api' || pathname.startsWith('/api/')) return handleApi(req, res, url, pathname);

@@ -121,8 +121,7 @@
           "fontSize": 12,
           "color": "#17140f",
           "background": "#000000",
-          "align": "right",
-          "effect": "none"
+          "align": "start"
         }
       }
     },

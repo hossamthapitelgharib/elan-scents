@@ -23,14 +23,14 @@ The editor host (`railway/editor-host.js`) gates the UI and protects its source.
 | `editor/edit-model.js` | `/editor/edit-model.js` | Draft model; also imported by Node tests |
 | `editor/elan-host-bridge.js` | `/editor/elan-host-bridge.js` | Same-origin postMessage bridge |
 
-The Railway allowlist in `railway/server.js` controls the public editor-tool filenames. Keep these files in sync with that allowlist and the Vercel no-store headers. The normal storefront only loads `editor/edit-boot.js`; customers do not load the editor implementation.
+The Railway allowlist in `railway/server.js` controls the public editor-tool filenames. Keep these files in sync with that allowlist and Railway's no-store headers. The normal storefront only loads `editor/edit-boot.js`; customers do not load the editor implementation.
 
 ## Integration files (kept in framework/shared locations)
 
 | Path | Why it stays outside `editor/` |
 |---|---|
 | `railway/editor-host.js`, `railway/editor-session.js` | Railway route/session adapters and private UI gate |
-| `railway/editor.js`, `api/editor.js` | Deployment-specific API entry points |
+| `railway/editor.js` | The single editor API handler, mounted by `railway/server.js` |
 | `design-schema.js`, `design-layer.js`, `design/home.json` | Shared with storefront rendering and design persistence |
 | `supabase/migrations/*editor*.sql` | Ordered database migrations; must remain in Supabase's migration directory |
 | `tests/*editor*`, `tests/edit-model.test.js` | Regression and security tests for editor behavior |

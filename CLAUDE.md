@@ -59,10 +59,9 @@
 - حد الطلبات في `lib/rate-limit.js` يعمل داخل ذاكرة العملية، ومع نسخة Railway الواحدة يكون فعّالاً.
 
 ## المحرر (مصدر واحد فقط)
-- المحرر المعتمد هو الموجود في هذا المستودع: `editor/elan-editor.html` مع `edit-mode.js` و`design-layer.js` و`design-schema.js` و`elan-host-bridge.js`، ويقدّمه `railway/editor-host.js` على `/editor` بتسجيل دخول المالك. لا نسخة أخرى معتمدة.
+- المحرر المعتمد هو الموجود في هذا المستودع: `editor/elan-editor.html` مع `editor/edit-mode.js` و`editor/design-layer.js` و`editor/design-schema.js` و`editor/elan-host-bridge.js`، ويقدّمه `railway/editor-host.js` على `/editor` بتسجيل دخول المالك. لا نسخة أخرى معتمدة.
 - لا تُنشأ نسخ موازية للمحرر (مجلدات مثل `elan-editor-look-v3` أو مستودع منفصل). أي تطوير يُدمج في الملفات أعلاه مباشرة، وتبقى الاختبارات في `tests/editor-host.test.js`.
 - أي مجلد أو ملف يبدأ اسمه بـ `elan-editor` لا يُقدَّم للعامة أبداً (محجوب في `railway/server.js`).
 - لا ترفع ملفات يدوياً من المتصفح ("Add files via upload") فوق ملفات يعمل عليها الوكلاء؛ اطلب من Claude الدمج حتى لا تُستبدل تعديلات الآخرين.
 - خدمة Railway باسم `elan-editor` تشغّل نفس كود هذا المستودع (فرع `main`) ومعها `EDITOR_ROOT_REDIRECT=1` ليفتح نطاقها مباشرة على `/editor`. لا تُنشأ خدمة محرر بمستودع آخر.
 - خدمة `elan-site` تنتظر نجاح CI قبل النشر (Wait for CI). أي رفعة تفشل فيها الاختبارات تظهر في Railway بحالة Skipped ولا تُنشر. لذلك شغّل `npm test` قبل الرفع، ولا تثبّت في الاختبارات قيماً بصرية قابلة للتعديل مثل ارتفاعات الفوتر.
-

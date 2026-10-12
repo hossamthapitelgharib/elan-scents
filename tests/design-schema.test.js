@@ -13,6 +13,11 @@ test('the committed owner design is valid and retains its saved customizations',
   const n = ED.normalize(file, { strict: true });
   assert.equal(n.ok, true, n.errors.join('; '));
   assert.equal(ED.isEmpty(n.design), false);
+  const offers = n.design.edits.all['sec:offers'].style;
+  assert.equal(offers.align, 'start');
+  assert.equal(offers.fontSize, 12);
+  assert.equal(offers.color, '#17140f');
+  assert.equal(offers.background, '#000000');
 });
 
 test('an empty design produces an empty plan (zero DOM changes)', () => {

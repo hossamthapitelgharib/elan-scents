@@ -7,7 +7,7 @@ const path = require('node:path');
 test('customer activity migration preserves RLS, full product joins, four rankings, and transfers logs on claim', () => {
   const root = path.join(__dirname, '..');
   const migration = fs.readFileSync(path.join(root, 'supabase/migrations/20261011001908_customer_activity_details.sql'), 'utf8');
-  const dashboard = fs.readFileSync(path.join(root, 'platform-dashboard.html'), 'utf8');
+  const dashboard = fs.readFileSync(path.join(root, 'platform-dashboard.js'), 'utf8');
   const identity = fs.readFileSync(path.join(root, 'guest-identity.js'), 'utf8');
   const core = loadCoreSource();
   assert.match(migration, /create table if not exists public\.customer_sessions/i);

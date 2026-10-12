@@ -33,8 +33,17 @@ async function login(email, password, ip) {
   } catch (_) { return { status: 502, error: 'auth_unreachable' }; }
   const j = await r.json().catch(() => ({}));
   if (!r.ok || !j.access_token) return { status: 401, error: 'invalid_credentials' };
-  const ctx = requireRoles(await getContext({ headers: { authorization: 'Bearer ' + j.access_token } }), ['platform_admin']);
-  if (ctx.error) return { status: ctx.status === 403 ? 403 : 401, error: ctx.status === 403 ? 'forbidden' : 'invalid_credentials' };
+  let ctx;
+  try {
+    ctx = requireRoles(await getContext({ headers: { authorization: 'Bearer ' + j.access_token } }), ['platform_admin']);
+  } catch (_) {
+    return { status: 502, error: 'role_check_failed' };
+  }
+  if (ctx.error) {
+    if (ctx.status === 403) return { status: 403, error: 'forbidden' };
+    if (ctx.status === 503) return { status: 503, error: ctx.error };
+    return { status: 502, error: 'role_check_failed' };
+  }
   const id = crypto.randomBytes(32).toString('hex');
   const now = Date.now();
   sessions.set(id, { token: j.access_token, refresh: j.refresh_token, expiresAt: now + (Number(j.expires_in) || 3600) * 1000, created: now, last: now, email: ctx.user.email || '' });

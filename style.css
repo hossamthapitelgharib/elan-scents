@@ -3,8 +3,8 @@
    Imports base theme then applies current desired overrides.
    Frontend display only. Do not add backend/DB rules here.
    ============================================================ */
-@import url('/style-3.css?v=20261010-12');
-@import url('/footer-9x16.css?v=20261010-12');
+@import url('/style-3.css?v=20261013-01');
+@import url('/footer-9x16.css?v=20261013-01');
 
 /* ---------- Menu: slightly narrower panel + slightly larger items ---------- */
 #menu {
@@ -666,3 +666,19 @@ footer .fch b {
 footer .fbar {
   border-top-color: rgba(255, 239, 199, .38) !important;
 }
+
+
+/* ---------- Storefront layout: a centered phone-width column on every screen ---------- */
+html { background: #f3eee3 !important; }
+html,body{overflow-x:clip!important;max-width:100%!important}
+body{max-width:540px!important;margin-inline:auto!important;background:#fff!important;position:relative}
+#bar,header{max-width:540px!important;margin-inline:auto!important}
+#bar .gold,#barT{background:none!important;-webkit-background-clip:border-box!important;background-clip:border-box!important;color:#b8821a!important;-webkit-text-fill-color:#b8821a!important;filter:none!important;text-shadow:none!important}
+header .logo small{background:none!important;-webkit-background-clip:border-box!important;background-clip:border-box!important;color:#b8821a!important;-webkit-text-fill-color:#b8821a!important;filter:none!important;text-shadow:none!important}
+#menu{width:min(52vw,190px)!important;max-width:190px!important;padding:64px 14px 24px!important;overscroll-behavior:contain!important;touch-action:pan-y!important;-webkit-overflow-scrolling:touch!important}
+#menu a:not(.mlogo){font-size:13px!important;padding:9px 0!important}
+#mov{touch-action:none!important;overscroll-behavior:contain!important}
+#hero{width:100%!important;max-width:540px!important;margin-inline:auto!important}
+[dir=rtl] #menu{right:max(0px,calc((100vw - 540px)/2))!important;left:auto!important}
+[dir=ltr] #menu{left:max(0px,calc((100vw - 540px)/2))!important;right:auto!important}
+body.scroll-locked{position:fixed!important;left:0!important;right:0!important;margin-inline:auto!important;width:100%!important;max-width:540px!important;overflow:hidden!important}
