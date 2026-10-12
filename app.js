@@ -186,7 +186,6 @@ function layoutFanDeck(strip){
     }else{
       card.classList.remove('fan-focus');
       if(focus>=0){
-        // push non-focused slightly outward
         x=offset*48;
         scale=0.82;
         y=Math.abs(offset)*10 + 8;
@@ -214,12 +213,10 @@ function initOccFanDeck(){
     return;
   }
 
-  // clean any previous parallax classes/structure
   strip.classList.remove('parallax-slider');
   strip.classList.add('fan-deck');
   strip.dataset.fanFocus='-1';
 
-  // wrap text content in fan-fg
   cards.forEach(function(card){
     if(card.querySelector('.fan-fg'))return;
     var fg=document.createElement('div');
@@ -227,7 +224,6 @@ function initOccFanDeck(){
     Array.prototype.slice.call(card.childNodes).forEach(function(node){
       if(node.nodeType===1 && node.classList && (node.classList.contains('artbg')||node.classList.contains('px-fg'))){
         if(node.classList.contains('px-fg')){
-          // unwrap old parallax fg
           while(node.firstChild) fg.appendChild(node.firstChild);
         }
         return;
@@ -239,16 +235,13 @@ function initOccFanDeck(){
     card.appendChild(fg);
   });
 
-  // stage wrapper
   var stage=document.createElement('div');
   stage.className='fan-stage';
   cards.forEach(function(c){ stage.appendChild(c); });
-  // remove leftover track/viewport if any
   var oldTrack=strip.querySelector('.px-track');
   if(oldTrack) oldTrack.remove();
   strip.insertBefore(stage, strip.firstChild);
 
-  // remove old dots/hints
   var oldDots=strip.querySelector('.px-dots');
   if(oldDots) oldDots.remove();
   var oldHint=strip.querySelector('.px-hint');
@@ -272,12 +265,8 @@ function initOccFanDeck(){
     e.stopPropagation();
     var focus=parseInt(strip.dataset.fanFocus||'-1',10);
     if(focus<0||!cards[focus])return;
-    var go=cards[focus].getAttribute('data-go');
-    if(go && typeof window.go==='function') window.go(go);
-    else if(go){
-      // fallback: dispatch click on the card's navigation
-      cards[focus].click();
-    }
+    var goAttr=cards[focus].getAttribute('data-go');
+    if(goAttr && typeof window.go==='function') window.go(goAttr);
   });
 
   cards.forEach(function(card,i){
@@ -286,10 +275,8 @@ function initOccFanDeck(){
       e.stopPropagation();
       var cur=parseInt(strip.dataset.fanFocus||'-1',10);
       if(cur===i){
-        // second tap on focused → open
-        var go=card.getAttribute('data-go');
-        if(go && typeof window.go==='function') window.go(go);
-        else if(go) card.click();
+        var goAttr=card.getAttribute('data-go');
+        if(goAttr && typeof window.go==='function') window.go(goAttr);
         return;
       }
       strip.dataset.fanFocus=String(i);
@@ -297,17 +284,15 @@ function initOccFanDeck(){
     }, true);
   });
 
-  // swipe on stage rotates focus
-  var startX=0,dx=0,dragging=false,axisLocked=0;
+  var startX=0,dx=0,dragging=false;
   stage.addEventListener('pointerdown',function(e){
     if(e.target.closest('.fan-open-btn'))return;
-    dragging=true; axisLocked=0; dx=0; startX=e.clientX;
+    dragging=true; dx=0; startX=e.clientX;
     try{ stage.setPointerCapture(e.pointerId); }catch(err){}
   });
   stage.addEventListener('pointermove',function(e){
     if(!dragging)return;
     dx=e.clientX-startX;
-    if(!axisLocked && Math.abs(dx)>12) axisLocked=1;
   });
   function endSwipe(){
     if(!dragging)return;
@@ -316,7 +301,6 @@ function initOccFanDeck(){
     var n=cards.length;
     var cur=parseInt(strip.dataset.fanFocus||'-1',10);
     if(cur<0) cur=Math.floor(n/2);
-    // swipe left → next index
     var next=dx<0 ? Math.min(n-1,cur+1) : Math.max(0,cur-1);
     strip.dataset.fanFocus=String(next);
     layoutFanDeck(strip);
@@ -324,9 +308,101 @@ function initOccFanDeck(){
   stage.addEventListener('pointerup', endSwipe);
   stage.addEventListener('pointercancel', endSwipe);
 
-  // start with middle card focused
   strip.dataset.fanFocus=String(Math.floor(cards.length/2));
   layoutFanDeck(strip);
+}
+
+/* ---------- Categories: Morph / Shared Element ---------- */
+var morphBusy=false;
+
+function runMorphTransition(card, goTarget, done){
+  if(morphBusy)return;
+  morphBusy=true;
+
+  var rect=card.getBoundingClientRect();
+  card.classList.add('morph-source');
+
+  var backdrop=document.createElement('div');
+  backdrop.className='elan-morph-backdrop';
+  document.body.appendChild(backdrop);
+
+  var clone=card.cloneNode(true);
+  clone.classList.add('elan-morph-clone');
+  clone.classList.remove('morph-source');
+  clone.removeAttribute('data-go');
+  clone.style.top=rect.top+'px';
+  clone.style.left=rect.left+'px';
+  clone.style.width=rect.width+'px';
+  clone.style.height=rect.height+'px';
+
+  var veil=document.createElement('div');
+  veil.className='morph-veil';
+  clone.appendChild(veil);
+
+  var label=document.createElement('div');
+  label.className='morph-label';
+  label.textContent=document.documentElement.lang==='en' ? 'Opening…' : 'جاري الفتح…';
+  clone.appendChild(label);
+
+  document.body.appendChild(clone);
+
+  // force reflow then expand
+  void clone.offsetWidth;
+  requestAnimationFrame(function(){
+    backdrop.classList.add('on');
+    clone.classList.add('expanded');
+
+    var vw=window.innerWidth;
+    var vh=window.innerHeight;
+    var targetW=Math.min(vw*0.92, 420);
+    var targetH=Math.min(vh*0.55, 360);
+    var targetLeft=(vw-targetW)/2;
+    var targetTop=Math.max(24, (vh-targetH)/2 - 20);
+
+    clone.style.top=targetTop+'px';
+    clone.style.left=targetLeft+'px';
+    clone.style.width=targetW+'px';
+    clone.style.height=targetH+'px';
+  });
+
+  var finished=false;
+  function finish(){
+    if(finished)return;
+    finished=true;
+    if(typeof window.go==='function' && goTarget) window.go(goTarget);
+    setTimeout(function(){
+      if(clone.parentNode) clone.parentNode.removeChild(clone);
+      if(backdrop.parentNode) backdrop.parentNode.removeChild(backdrop);
+      card.classList.remove('morph-source');
+      morphBusy=false;
+      if(typeof done==='function') done();
+    }, 180);
+  }
+
+  setTimeout(finish, 520);
+  clone.addEventListener('transitionend', function onEnd(e){
+    if(e.propertyName==='width'||e.propertyName==='top'){
+      clone.removeEventListener('transitionend', onEnd);
+      finish();
+    }
+  });
+}
+
+function initCatsMorph(){
+  var sec=document.getElementById('cats');
+  if(!sec)return;
+  if(sec.dataset.morphInit==='1')return;
+  sec.dataset.morphInit='1';
+
+  sec.addEventListener('click', function(e){
+    var card=e.target.closest('.card[data-go]');
+    if(!card || !sec.contains(card))return;
+    var goTarget=card.getAttribute('data-go');
+    if(!goTarget)return;
+    e.preventDefault();
+    e.stopPropagation();
+    runMorphTransition(card, goTarget);
+  }, true);
 }
 
 function applyArtAndHero(){
@@ -381,11 +457,12 @@ function applyArtAndHero(){
       _elanRender.apply(this,arguments);
       try{initNotesPager();}catch(err){}
       try{initOccFanDeck();}catch(err){}
+      try{initCatsMorph();}catch(err){}
     };
     try{render();}catch(e){}
   }
   watchSheet();
 }
-var CORE='/app-core.js?v=20261012-05';
+var CORE='/app-core.js?v=20261012-06';
 loadScript(CORE, applyArtAndHero);
 })();
