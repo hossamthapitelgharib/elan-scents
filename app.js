@@ -23,11 +23,11 @@ function lockBodyScroll(lock){
   }
 }
 function watchSheet(){
-  var sheet=document.getElementById('sheet');
+  var sheet=document.getElementById('sheet'),menu=document.getElementById('menu');
   if(!sheet)return;
-  var sync=function(){ lockBodyScroll(!sheet.hasAttribute('hidden')); };
+  var sync=function(){ lockBodyScroll(!sheet.hasAttribute('hidden')||!!(menu&&menu.classList.contains('open'))); };
   sync();
-  try{ var mo=new MutationObserver(sync); mo.observe(sheet,{attributes:true,attributeFilter:['hidden','style','class']}); }catch(e){}
+  try{ var mo=new MutationObserver(sync); mo.observe(sheet,{attributes:true,attributeFilter:['hidden','style','class']}); if(menu)mo.observe(menu,{attributes:true,attributeFilter:['class']}); }catch(e){}
   document.addEventListener('click',function(){ setTimeout(sync,0); setTimeout(sync,50); setTimeout(sync,200); },true);
 }
 function layoutNotesStack(strip){
@@ -157,6 +157,6 @@ function applyArtAndHero(){
   }
   watchSheet();
 }
-var CORE='/app-core.js?v=20261012-01';
+var CORE='/app-core.js?v=20261012-02';
 loadScript(CORE, applyArtAndHero);
 })();

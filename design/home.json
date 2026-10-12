@@ -32,10 +32,6 @@
   "texts": {},
   "edits": {
     "desktop": {
-      "hero:counters": {
-        "dx": -371,
-        "w": 574
-      },
       "sec:master:title": {
         "dx": -6,
         "dy": -50
