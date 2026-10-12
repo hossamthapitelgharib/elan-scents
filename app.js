@@ -1,12 +1,14 @@
 (function(){
 function loadScript(src, cb){
   var s=document.createElement('script');
-  s.src=src; s.onload=cb;
+  s.src=src;
+  s.onload=cb;
   s.onerror=function(){console.error('failed to load',src)};
   document.head.appendChild(s);
 }
 function lockBodyScroll(lock){
-  var body=document.body; if(!body)return;
+  var body=document.body;
+  if(!body)return;
   if(lock){
     if(body.classList.contains('sheet-open'))return;
     body.dataset.scrollY=String(window.scrollY||window.pageYOffset||0);
@@ -15,295 +17,29 @@ function lockBodyScroll(lock){
   }else{
     if(!body.classList.contains('sheet-open'))return;
     var y=parseInt(body.dataset.scrollY||'0',10)||0;
-    body.classList.remove('sheet-open'); body.style.top='';
+    body.classList.remove('sheet-open');
+    body.style.top='';
     window.scrollTo(0,y);
   }
 }
 function watchSheet(){
-  var sheet=document.getElementById('sheet'),menu=document.getElementById('menu');
+  var sheet=document.getElementById('sheet');
   if(!sheet)return;
-  var sync=function(){ lockBodyScroll(!sheet.hasAttribute('hidden')||!!(menu&&menu.classList.contains('open'))); };
+  var sync=function(){
+    lockBodyScroll(!sheet.hasAttribute('hidden'));
+  };
   sync();
-  try{ var mo=new MutationObserver(sync); mo.observe(sheet,{attributes:true,attributeFilter:['hidden','style','class']}); if(menu)mo.observe(menu,{attributes:true,attributeFilter:['class']}); }catch(e){}
-  document.addEventListener('click',function(){ setTimeout(sync,0); setTimeout(sync,50); setTimeout(sync,200); },true);
-}
-function navGo(target){
-  if(!target)return;
-  if(typeof window.go==='function') window.go(target);
-  else if(typeof go==='function') go(target);
-}
-
-/* ---------- Notes: full-page pager ---------- */
-function layoutNotesPager(strip){
-  var cards=Array.prototype.slice.call(strip.querySelectorAll('.card'));
-  if(!cards.length)return;
-  var idx=parseInt(strip.dataset.pageIndex||'0',10)||0;
-  var n=cards.length;
-  if(idx<0)idx=0; if(idx>=n)idx=n-1;
-  strip.dataset.pageIndex=String(idx);
-  cards.forEach(function(card,i){
-    card.classList.remove('page-active','page-prev','page-next','page-dragging');
-    card.style.transform=''; card.style.opacity='';
-    if(i===idx) card.classList.add('page-active');
-    else if(i===((idx-1+n)%n)) card.classList.add('page-prev');
-    else card.classList.add('page-next');
-  });
-  var dots=strip.querySelectorAll('.pager-dots button');
-  dots.forEach(function(d,i){ d.classList.toggle('on',i===idx); });
-}
-function initNotesPager(){
-  var sec=document.getElementById('notes');
-  if(!sec)return;
-  var strip=sec.querySelector('.strip');
-  if(!strip)return;
-  var cards=Array.prototype.slice.call(strip.querySelectorAll('.card'));
-  if(cards.length<1)return;
-  if(strip.classList.contains('card-pager')){ layoutNotesPager(strip); return; }
-  strip.classList.add('card-pager');
-  strip.dataset.pageIndex='0';
-  var track=document.createElement('div'); track.className='pager-track';
-  var viewport=document.createElement('div'); viewport.className='pager-viewport';
-  cards.forEach(function(c){ viewport.appendChild(c); });
-  track.appendChild(viewport);
-  strip.insertBefore(track, strip.firstChild);
-  var dots=document.createElement('div'); dots.className='pager-dots';
-  cards.forEach(function(_,i){
-    var b=document.createElement('button'); b.type='button';
-    b.addEventListener('click',function(e){ e.preventDefault(); e.stopPropagation(); strip.dataset.pageIndex=String(i); layoutNotesPager(strip); });
-    dots.appendChild(b);
-  });
-  strip.appendChild(dots);
-  var hint=document.createElement('div'); hint.className='pager-hint';
-  hint.textContent=document.documentElement.lang==='en'?'Swipe · tap to open':'اسحب · اضغط للفتح';
-  strip.appendChild(hint);
-  var startX=0,dx=0,dragging=false,activeEl=null,didDrag=false;
-  function goPage(delta){
-    var n=cards.length; if(n<2)return;
-    var idx=parseInt(strip.dataset.pageIndex||'0',10)||0;
-    strip.dataset.pageIndex=String((idx+delta+n)%n);
-    layoutNotesPager(strip);
-  }
-  strip.addEventListener('pointerdown',function(e){
-    var c=e.target.closest('.card');
-    if(!c||!c.classList.contains('page-active'))return;
-    if(e.target.closest('.pager-dots'))return;
-    dragging=true; dx=0; didDrag=false; startX=e.clientX; activeEl=c;
-    c.classList.add('page-dragging');
-    try{strip.setPointerCapture(e.pointerId);}catch(err){}
-  });
-  strip.addEventListener('pointermove',function(e){
-    if(!dragging||!activeEl)return;
-    var mx=e.clientX-startX;
-    if(Math.abs(mx)<10&&!didDrag)return;
-    didDrag=true; dx=mx;
-    activeEl.style.transform='translateX('+dx+'px)';
-    activeEl.style.opacity=String(Math.max(0.35,1-Math.abs(dx)/320));
-  });
-  function endDrag(){
-    if(!activeEl)return;
-    activeEl.classList.remove('page-dragging');
-    activeEl.style.transform=''; activeEl.style.opacity='';
-    if(Math.abs(dx)>60) goPage(dx<0?1:-1); else layoutNotesPager(strip);
-    dragging=false; activeEl=null;
-    setTimeout(function(){didDrag=false;},40);
-  }
-  strip.addEventListener('pointerup',endDrag);
-  strip.addEventListener('pointercancel',endDrag);
-  strip.addEventListener('click',function(e){ if(didDrag){e.preventDefault();e.stopPropagation();} },true);
-  layoutNotesPager(strip);
-}
-
-/* ---------- Occasion: Cover Flow 3D ---------- */
-function layoutOccCoverFlow(sec){
-  var items=Array.prototype.slice.call(sec.querySelectorAll('.cf-stage .cf-item'));
-  if(!items.length)return;
-  var idx=parseInt(sec.dataset.cfIndex||'0',10)||0;
-  var n=items.length;
-  if(idx<0)idx=0; if(idx>=n)idx=n-1;
-  sec.dataset.cfIndex=String(idx);
-  items.forEach(function(el,i){
-    var d=i-idx;
-    el.classList.remove('cf-center','cf-side','cf-far');
-    var x, rot, scale, z, opacity;
-    if(d===0){ el.classList.add('cf-center'); x=0; rot=0; scale=1; z=20; opacity=1; }
-    else if(Math.abs(d)===1){ el.classList.add('cf-side'); x=d*165; rot=d*-38; scale=0.8; z=10; opacity=0.88; }
-    else { el.classList.add('cf-far'); x=d*185; rot=d*-50; scale=0.64; z=2; opacity=0.3; }
-    el.style.zIndex=String(z);
-    el.style.opacity=String(opacity);
-    el.style.transform='translate(-50%, -50%) translateX('+x+'px) rotateY('+rot+'deg) scale('+scale+')';
-  });
-  var dots=sec.querySelectorAll('.cf-dots button');
-  dots.forEach(function(d,i){ d.classList.toggle('on',i===idx); });
-}
-function initOccCoverFlow(){
-  var sec=document.getElementById('occ');
-  if(!sec)return;
-  var strip=sec.querySelector('.strip');
-  if(!strip)return;
-  var cards=Array.prototype.slice.call(strip.querySelectorAll('.card'));
-  if(cards.length<1)return;
-  if(sec.classList.contains('cover-flow-sec')){ layoutOccCoverFlow(sec); return; }
-  sec.classList.add('cover-flow-sec');
-  sec.dataset.cfIndex='0';
-
-  var stage=document.createElement('div');
-  stage.className='cf-stage';
-  cards.forEach(function(card){
-    var wrap=document.createElement('div');
-    wrap.className='cf-item';
-    wrap.appendChild(card);
-    stage.appendChild(wrap);
-  });
-  // hide original strip content structure
-  strip.style.display='none';
-  var sub=sec.querySelector('.sub');
-  if(sub&&sub.nextSibling) sec.insertBefore(stage, sub.nextSibling);
-  else sec.appendChild(stage);
-
-  var dots=document.createElement('div'); dots.className='cf-dots';
-  cards.forEach(function(_,i){
-    var b=document.createElement('button'); b.type='button';
-    b.addEventListener('click',function(e){
-      e.preventDefault(); e.stopPropagation();
-      sec.dataset.cfIndex=String(i); layoutOccCoverFlow(sec);
-    });
-    dots.appendChild(b);
-  });
-  stage.parentNode.insertBefore(dots, stage.nextSibling);
-
-  var hint=document.createElement('div'); hint.className='cf-hint';
-  hint.textContent=document.documentElement.lang==='en'?'Swipe · Cover Flow':'اسحب · كفر فلو';
-  dots.parentNode.insertBefore(hint, dots.nextSibling);
-
-  stage.addEventListener('click',function(e){
-    var item=e.target.closest('.cf-item');
-    if(!item||!stage.contains(item))return;
-    e.preventDefault(); e.stopPropagation();
-    var items=Array.prototype.slice.call(stage.querySelectorAll('.cf-item'));
-    var i=items.indexOf(item);
-    if(i<0)return;
-    var cur=parseInt(sec.dataset.cfIndex||'0',10)||0;
-    if(i===cur){
-      var card=item.querySelector('.card[data-go]');
-      if(card) navGo(card.getAttribute('data-go'));
-    }else{
-      sec.dataset.cfIndex=String(i); layoutOccCoverFlow(sec);
-    }
+  try{
+    var mo=new MutationObserver(sync);
+    mo.observe(sheet,{attributes:true,attributeFilter:['hidden','style','class']});
+  }catch(e){}
+  // also catch programmatic toggles via clicks on cart/fav/notif buttons
+  document.addEventListener('click',function(){
+    setTimeout(sync,0);
+    setTimeout(sync,50);
+    setTimeout(sync,200);
   },true);
-
-  var startX=0,dx=0,dragging=false;
-  stage.addEventListener('pointerdown',function(e){
-    dragging=true; dx=0; startX=e.clientX;
-    try{stage.setPointerCapture(e.pointerId);}catch(err){}
-  });
-  stage.addEventListener('pointermove',function(e){ if(dragging) dx=e.clientX-startX; });
-  function endSwipe(){
-    if(!dragging)return; dragging=false;
-    if(Math.abs(dx)<50)return;
-    var n=cards.length;
-    var cur=parseInt(sec.dataset.cfIndex||'0',10)||0;
-    var next=dx<0?Math.min(n-1,cur+1):Math.max(0,cur-1);
-    sec.dataset.cfIndex=String(next); layoutOccCoverFlow(sec);
-  }
-  stage.addEventListener('pointerup',endSwipe);
-  stage.addEventListener('pointercancel',endSwipe);
-  layoutOccCoverFlow(sec);
 }
-
-/* ---------- Categories: Fan / Deck Spread ---------- */
-function layoutCatsFan(sec){
-  var items=Array.prototype.slice.call(sec.querySelectorAll('.fan-stage .cb'));
-  if(!items.length)return;
-  var n=items.length;
-  var focus=parseInt(sec.dataset.fanFocus||'-1',10);
-  var mid=(n-1)/2;
-  var maxAngle=Math.min(28,10+n*3);
-  var step=n>1?(maxAngle*2)/(n-1):0;
-  items.forEach(function(el,i){
-    var offset=i-mid;
-    var angle=-maxAngle+i*step;
-    if(n===1) angle=0;
-    var x=offset*42, y=Math.abs(offset)*8, scale=0.88, z=10+i;
-    if(focus===i){
-      angle=0; x=0; y=-20; scale=1.08; z=40;
-      el.classList.add('fan-focus');
-    }else{
-      el.classList.remove('fan-focus');
-      if(focus>=0){ x=offset*52; scale=0.82; y=Math.abs(offset)*12+10; }
-    }
-    el.style.zIndex=String(z);
-    el.style.transform='translate(-50%, -50%) translate('+x+'px,'+y+'px) rotate('+angle+'deg) scale('+scale+')';
-    el.style.opacity=focus>=0&&focus!==i?'0.72':'1';
-  });
-  sec.classList.toggle('has-focus', focus>=0);
-}
-function initCatsFanDeck(){
-  var sec=document.getElementById('cats');
-  if(!sec)return;
-  var blocks=Array.prototype.slice.call(sec.querySelectorAll('.cb'));
-  if(blocks.length<1)return;
-  if(sec.classList.contains('fan-deck-sec')){ layoutCatsFan(sec); return; }
-  sec.classList.add('fan-deck-sec');
-  sec.dataset.fanFocus=String(Math.floor(blocks.length/2));
-
-  var stage=document.createElement('div');
-  stage.className='fan-stage';
-  blocks.forEach(function(b){ stage.appendChild(b); });
-  var sub=sec.querySelector('.sub');
-  if(sub&&sub.nextSibling) sec.insertBefore(stage, sub.nextSibling);
-  else sec.appendChild(stage);
-
-  var hint=document.createElement('div'); hint.className='fan-hint';
-  hint.textContent=document.documentElement.lang==='en'?'Tap a card · fan spread':'اضغط على كارت · مروحة';
-  stage.parentNode.insertBefore(hint, stage.nextSibling);
-
-  var openBtn=document.createElement('button');
-  openBtn.type='button'; openBtn.className='fan-open-btn';
-  openBtn.textContent=document.documentElement.lang==='en'?'Open':'فتح';
-  hint.parentNode.insertBefore(openBtn, hint.nextSibling);
-
-  openBtn.addEventListener('click',function(e){
-    e.preventDefault(); e.stopPropagation();
-    var focus=parseInt(sec.dataset.fanFocus||'-1',10);
-    if(focus<0||!blocks[focus])return;
-    var card=blocks[focus].querySelector('.card[data-go]');
-    if(card) navGo(card.getAttribute('data-go'));
-  });
-
-  blocks.forEach(function(el,i){
-    el.addEventListener('click',function(e){
-      e.preventDefault(); e.stopPropagation();
-      var cur=parseInt(sec.dataset.fanFocus||'-1',10);
-      if(cur===i){
-        var card=el.querySelector('.card[data-go]');
-        if(card) navGo(card.getAttribute('data-go'));
-        return;
-      }
-      sec.dataset.fanFocus=String(i); layoutCatsFan(sec);
-    },true);
-  });
-
-  var startX=0,dx=0,dragging=false;
-  stage.addEventListener('pointerdown',function(e){
-    if(e.target.closest('.fan-open-btn'))return;
-    dragging=true; dx=0; startX=e.clientX;
-    try{stage.setPointerCapture(e.pointerId);}catch(err){}
-  });
-  stage.addEventListener('pointermove',function(e){ if(dragging) dx=e.clientX-startX; });
-  function endSwipe(){
-    if(!dragging)return; dragging=false;
-    if(Math.abs(dx)<50)return;
-    var n=blocks.length;
-    var cur=parseInt(sec.dataset.fanFocus||'-1',10);
-    if(cur<0) cur=Math.floor(n/2);
-    var next=dx<0?Math.min(n-1,cur+1):Math.max(0,cur-1);
-    sec.dataset.fanFocus=String(next); layoutCatsFan(sec);
-  }
-  stage.addEventListener('pointerup',endSwipe);
-  stage.addEventListener('pointercancel',endSwipe);
-  layoutCatsFan(sec);
-}
-
 function applyArtAndHero(){
   window.playHeroVideo=function(){
     var v=document.getElementById('heroVideo');
@@ -326,7 +62,9 @@ function applyArtAndHero(){
         }catch(err){}
       }
       playHeroVideo();
-    }else if(typeof _hero==='function'){ _hero(); }
+    }else if(typeof _hero==='function'){
+      _hero();
+    }
   };
   try{playHeroVideo();}catch(e){}
   document.addEventListener('click',function(e){
@@ -350,18 +88,9 @@ function applyArtAndHero(){
     notes3:S('<defs><linearGradient id="o" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3a2010"/><stop offset="1" stop-color="#0c0604"/></linearGradient></defs><rect width="200" height="140" fill="url(#o)"/><rect x="30" y="50" width="50" height="14" rx="3" fill="#5a3820" transform="rotate(-12 55 57)"/><rect x="80" y="70" width="60" height="16" rx="3" fill="#6a4028" transform="rotate(8 110 78)"/><rect x="50" y="95" width="45" height="12" rx="3" fill="#4a2818" transform="rotate(-5 72 101)"/><rect x="110" y="40" width="55" height="15" rx="3" fill="#5a3018" transform="rotate(15 137 47)"/>'),
     notes4:S('<defs><linearGradient id="c" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#88b060"/><stop offset="1" stop-color="#2a5020"/></linearGradient></defs><rect width="200" height="140" fill="url(#c)"/><ellipse cx="70" cy="75" rx="22" ry="38" fill="#3a6828"/><ellipse cx="100" cy="60" rx="22" ry="38" fill="#448030"/><ellipse cx="130" cy="80" rx="22" ry="38" fill="#3a6828"/><ellipse cx="70" cy="70" rx="10" ry="14" fill="#b8d070"/><ellipse cx="100" cy="55" rx="10" ry="14" fill="#c0d880"/><ellipse cx="130" cy="75" rx="10" ry="14" fill="#b8d070"/>')
   });
-  if(typeof render==='function'){
-    var _elanRender=render;
-    render=function(){
-      _elanRender.apply(this,arguments);
-      try{initNotesPager();}catch(err){}
-      try{initOccCoverFlow();}catch(err){}
-      try{initCatsFanDeck();}catch(err){}
-    };
-    try{render();}catch(e){}
-  }
+  if(typeof render==='function'){try{render();}catch(e){}}
   watchSheet();
 }
-var CORE='/app-core.js?v=20261012-09';
+var CORE='/app-core.js?v=20261010-12';
 loadScript(CORE, applyArtAndHero);
 })();
