@@ -30,80 +30,164 @@ function watchSheet(){
   try{ var mo=new MutationObserver(sync); mo.observe(sheet,{attributes:true,attributeFilter:['hidden','style','class']}); if(menu)mo.observe(menu,{attributes:true,attributeFilter:['class']}); }catch(e){}
   document.addEventListener('click',function(){ setTimeout(sync,0); setTimeout(sync,50); setTimeout(sync,200); },true);
 }
-function layoutNotesStack(strip){
+
+/* ---------- Notes: full-page pager (one card = one page) ---------- */
+function layoutNotesPager(strip){
   var cards=Array.prototype.slice.call(strip.querySelectorAll('.card'));
   if(!cards.length)return;
-  var idx=parseInt(strip.dataset.stackIndex||'0',10)||0;
+  var idx=parseInt(strip.dataset.pageIndex||'0',10)||0;
   var n=cards.length;
+  if(idx<0)idx=0; if(idx>=n)idx=n-1;
+  strip.dataset.pageIndex=String(idx);
   cards.forEach(function(card,i){
-    var order=(i-idx+n)%n;
-    card.classList.toggle('stack-front',order===0);
-    card.style.zIndex=String(30-order);
-    card.style.pointerEvents=order===0?'auto':'none';
-    if(order===0){ card.style.transform='translate(-50%, 0) scale(1)'; card.style.opacity='1'; }
-    else if(order===1){ card.style.transform='translate(-50%, 14px) scale(0.94)'; card.style.opacity='0.9'; }
-    else if(order===2){ card.style.transform='translate(-50%, 26px) scale(0.88)'; card.style.opacity='0.72'; }
-    else { card.style.transform='translate(-50%, 34px) scale(0.84)'; card.style.opacity='0'; }
+    card.classList.remove('page-active','page-prev','page-next','page-dragging');
+    card.style.transform='';
+    card.style.opacity='';
+    if(i===idx){
+      card.classList.add('page-active');
+    }else if(i===((idx-1+n)%n)){
+      card.classList.add('page-prev');
+    }else if(i===((idx+1)%n)){
+      card.classList.add('page-next');
+    }else{
+      // hide far pages off to the side of next
+      card.classList.add('page-next');
+    }
   });
-  var ds=strip.querySelectorAll('.stack-dots i');
-  ds.forEach(function(d,i){ d.classList.toggle('on',i===idx); });
+  var dots=strip.querySelectorAll('.pager-dots button');
+  dots.forEach(function(d,i){
+    d.classList.toggle('on',i===idx);
+    d.setAttribute('aria-current',i===idx?'true':'false');
+  });
 }
-function initNotesSwipeStack(){
+
+function initNotesPager(){
   var sec=document.getElementById('notes');
   if(!sec)return;
   var strip=sec.querySelector('.strip');
   if(!strip)return;
   var cards=Array.prototype.slice.call(strip.querySelectorAll('.card'));
-  if(cards.length<2)return;
-  if(!strip.classList.contains('card-stack')){
-    strip.classList.add('card-stack');
-    strip.dataset.stackIndex='0';
-    var dots=document.createElement('div'); dots.className='stack-dots';
-    cards.forEach(function(){ dots.appendChild(document.createElement('i')); });
-    var hint=document.createElement('div'); hint.className='stack-hint';
-    hint.textContent=(document.documentElement.lang==='en')?'Swipe \u00b7 tap to open':'\u0627\u0633\u062d\u0628 \u00b7 \u0627\u0636\u063a\u0637 \u0644\u0644\u0641\u062a\u062d';
-    strip.appendChild(dots); strip.appendChild(hint);
-    var startX=0,startY=0,dx=0,dragging=false,axisLocked=0,frontEl=null,didDrag=false;
-    strip.addEventListener('pointerdown',function(e){
-      var c=e.target.closest('.card');
-      if(!c||!c.classList.contains('stack-front'))return;
-      dragging=true;axisLocked=0;dx=0;didDrag=false;startX=e.clientX;startY=e.clientY;frontEl=c;
-      c.classList.add('stack-dragging');
-      try{strip.setPointerCapture(e.pointerId);}catch(err){}
-    });
-    strip.addEventListener('pointermove',function(e){
-      if(!dragging||!frontEl)return;
-      var mx=e.clientX-startX,my=e.clientY-startY;
-      if(!axisLocked){
-        if(Math.abs(mx)+Math.abs(my)<10)return;
-        axisLocked=Math.abs(mx)>Math.abs(my)?1:-1;
-        if(axisLocked<0){dragging=false;frontEl.classList.remove('stack-dragging');frontEl.style.transform='';frontEl=null;return;}
-      }
-      didDrag=true;dx=mx;
-      frontEl.style.transform='translate(calc(-50% + '+dx+'px), 0) rotate('+(dx*0.045)+'deg)';
-      frontEl.style.opacity=String(Math.max(0.4,1-Math.abs(dx)/260));
-    });
-    function endDrag(){
-      if(!frontEl)return;
-      var el=frontEl;
-      el.classList.remove('stack-dragging');
-      if(Math.abs(dx)>70){
-        var n=cards.length;
-        var idx=parseInt(strip.dataset.stackIndex||'0',10)||0;
-        idx=dx<0?(idx+1)%n:(idx-1+n)%n;
-        strip.dataset.stackIndex=String(idx);
-      }
-      el.style.transform=''; el.style.opacity='';
-      layoutNotesStack(strip);
-      dragging=false;axisLocked=0;frontEl=null;
-      setTimeout(function(){didDrag=false;},30);
-    }
-    strip.addEventListener('pointerup',endDrag);
-    strip.addEventListener('pointercancel',endDrag);
-    strip.addEventListener('click',function(e){ if(didDrag){e.preventDefault();e.stopPropagation();} },true);
+  if(cards.length<1)return;
+
+  // already initialized
+  if(strip.classList.contains('card-pager')){
+    layoutNotesPager(strip);
+    return;
   }
-  layoutNotesStack(strip);
+
+  strip.classList.add('card-pager');
+  strip.classList.remove('card-stack');
+  strip.dataset.pageIndex='0';
+
+  // structure: viewport wraps cards
+  var track=document.createElement('div');
+  track.className='pager-track';
+  var viewport=document.createElement('div');
+  viewport.className='pager-viewport';
+  cards.forEach(function(c){ viewport.appendChild(c); });
+  track.appendChild(viewport);
+  strip.insertBefore(track, strip.firstChild);
+
+  // dots
+  var dots=document.createElement('div');
+  dots.className='pager-dots';
+  dots.setAttribute('role','tablist');
+  dots.setAttribute('aria-label', document.documentElement.lang==='en' ? 'Pages' : 'الصفحات');
+  cards.forEach(function(_,i){
+    var b=document.createElement('button');
+    b.type='button';
+    b.setAttribute('aria-label', (document.documentElement.lang==='en'?'Page ':'صفحة ')+(i+1));
+    b.addEventListener('click',function(e){
+      e.preventDefault();
+      e.stopPropagation();
+      strip.dataset.pageIndex=String(i);
+      layoutNotesPager(strip);
+    });
+    dots.appendChild(b);
+  });
+  strip.appendChild(dots);
+
+  // hint
+  var hint=document.createElement('div');
+  hint.className='pager-hint';
+  hint.textContent=document.documentElement.lang==='en' ? 'Swipe · tap to open' : 'اسحب · اضغط للفتح';
+  strip.appendChild(hint);
+
+  // swipe
+  var startX=0,startY=0,dx=0,dragging=false,axisLocked=0,activeEl=null,didDrag=false;
+
+  function currentCard(){
+    var idx=parseInt(strip.dataset.pageIndex||'0',10)||0;
+    return cards[idx]||null;
+  }
+
+  function go(delta){
+    var n=cards.length;
+    if(n<2)return;
+    var idx=parseInt(strip.dataset.pageIndex||'0',10)||0;
+    idx=(idx+delta+n)%n;
+    strip.dataset.pageIndex=String(idx);
+    layoutNotesPager(strip);
+  }
+
+  strip.addEventListener('pointerdown',function(e){
+    var c=e.target.closest('.card');
+    if(!c||!c.classList.contains('page-active'))return;
+    if(e.target.closest('.pager-dots'))return;
+    dragging=true; axisLocked=0; dx=0; didDrag=false;
+    startX=e.clientX; startY=e.clientY; activeEl=c;
+    c.classList.add('page-dragging');
+    try{ strip.setPointerCapture(e.pointerId); }catch(err){}
+  });
+
+  strip.addEventListener('pointermove',function(e){
+    if(!dragging||!activeEl)return;
+    var mx=e.clientX-startX, my=e.clientY-startY;
+    if(!axisLocked){
+      if(Math.abs(mx)+Math.abs(my)<10)return;
+      axisLocked=Math.abs(mx)>Math.abs(my)?1:-1;
+      if(axisLocked<0){
+        dragging=false;
+        activeEl.classList.remove('page-dragging');
+        activeEl.style.transform='';
+        activeEl=null;
+        return;
+      }
+    }
+    didDrag=true;
+    dx=mx;
+    // follow finger horizontally
+    activeEl.style.transform='translateX('+dx+'px)';
+    activeEl.style.opacity=String(Math.max(0.35, 1-Math.abs(dx)/320));
+  });
+
+  function endDrag(){
+    if(!activeEl)return;
+    var el=activeEl;
+    el.classList.remove('page-dragging');
+    el.style.transform='';
+    el.style.opacity='';
+    if(Math.abs(dx)>60){
+      // RTL: swipe left (negative dx in LTR coords when finger moves left) → next page in reading order
+      // In RTL UI, finger swipe toward the left edge often means "go to next"
+      var dir = dx < 0 ? 1 : -1;
+      go(dir);
+    }else{
+      layoutNotesPager(strip);
+    }
+    dragging=false; axisLocked=0; activeEl=null;
+    setTimeout(function(){ didDrag=false; }, 40);
+  }
+
+  strip.addEventListener('pointerup', endDrag);
+  strip.addEventListener('pointercancel', endDrag);
+  strip.addEventListener('click', function(e){
+    if(didDrag){ e.preventDefault(); e.stopPropagation(); }
+  }, true);
+
+  layoutNotesPager(strip);
 }
+
 function applyArtAndHero(){
   window.playHeroVideo=function(){
     var v=document.getElementById('heroVideo');
@@ -152,11 +236,11 @@ function applyArtAndHero(){
   });
   if(typeof render==='function'){
     var _elanRender=render;
-    render=function(){ _elanRender.apply(this,arguments); try{initNotesSwipeStack();}catch(err){} };
+    render=function(){ _elanRender.apply(this,arguments); try{initNotesPager();}catch(err){} };
     try{render();}catch(e){}
   }
   watchSheet();
 }
-var CORE='/app-core.js?v=20261012-02';
+var CORE='/app-core.js?v=20261012-03';
 loadScript(CORE, applyArtAndHero);
 })();
