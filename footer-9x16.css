@@ -4,12 +4,12 @@ footer {
   width: 100% !important;
   max-width: 540px !important;
   margin: 0 auto !important;
-  /* Slightly shorter so content sits higher */
-  aspect-ratio: 940 / 1380 !important;
+  /* Taller artwork; elements sit higher and leave an empty strip at the very bottom */
+  aspect-ratio: 940 / 1560 !important;
   height: auto !important;
   min-height: 0 !important;
   max-height: none !important;
-  padding: clamp(16px, 3vw, 28px) clamp(14px, 3.5vw, 24px) clamp(8px, 1.5vw, 14px) !important;
+  padding: clamp(8px, 1.5vw, 14px) clamp(14px, 3.5vw, 24px) 13% !important;
   overflow: hidden !important;
   display: flex !important;
   flex-direction: column !important;
@@ -17,6 +17,7 @@ footer {
   justify-content: flex-start !important;
   gap: 0 !important;
   box-sizing: border-box !important;
+  /* Same tone as artwork; never shows as a separate strip */
   background: transparent !important;
   color: #fff1cf !important;
   text-align: center !important;
@@ -24,6 +25,7 @@ footer {
   isolation: isolate !important;
 }
 
+/* Background image = entire footer surface */
 footer .footer-background {
   position: absolute !important;
   left: 0 !important;
@@ -70,7 +72,7 @@ footer .fcols {
   justify-items: center !important;
   width: 100% !important;
   max-width: 100% !important;
-  margin: clamp(16px, 3vh, 32px) auto 10px !important;
+  margin: clamp(6px, 1.2vh, 14px) auto 10px !important;
   padding: 0 !important;
   gap: 12px 16px !important;
   text-align: center !important;
@@ -115,6 +117,7 @@ footer .fph {
   align-items: center !important;
   gap: 8px !important;
   width: 100% !important;
+  /* push below the emblem so nothing overlaps the logo */
   margin: auto auto 6px !important;
   padding: 0 !important;
   font-size: 13px !important;
@@ -203,7 +206,7 @@ footer #fcr small {
 @media (max-width: 400px) {
   footer {
     max-width: 100% !important;
-    padding: 14px 12px 8px !important;
+    padding: 8px 12px 13% !important;
   }
   footer .fcols a,
   footer .fcols span {

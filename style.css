@@ -3,8 +3,8 @@
    Imports base theme then applies current desired overrides.
    Frontend display only. Do not add backend/DB rules here.
    ============================================================ */
-@import url('/style-3.css?v=20261010-12');
-@import url('/footer-9x16.css?v=20261010-12');
+@import url('/style-3.css?v=20261012-02');
+@import url('/footer-9x16.css?v=20261012-02');
 
 /* ---------- Menu: slightly narrower panel + slightly larger items ---------- */
 #menu {
@@ -214,86 +214,6 @@ header .logo small {
   object-position: center center !important;
 }
 
-/* ---------- Footer credit + growthmark ---------- */
-#fcr,
-.fcred {
-  display: flex !important;
-  flex-direction: column !important;
-  align-items: center !important;
-  justify-content: center !important;
-  gap: 8px !important;
-  margin-top: 18px !important;
-  padding: 0 16px 12px !important;
-  text-align: center !important;
-}
-#fcr span,
-.fcred span {
-  font-size: 11px !important;
-  opacity: 0.7 !important;
-  order: 1;
-}
-#fcr .growthmark-img,
-.fcred .growthmark-img,
-img.growthmark-img {
-  display: block !important;
-  width: 110px !important;
-  max-width: 40vw !important;
-  height: auto !important;
-  margin: 6px auto !important;
-  object-fit: contain !important;
-  order: 2;
-}
-#fcr small,
-.fcred small {
-  font-size: 10px !important;
-  opacity: 0.55 !important;
-  order: 3;
-}
-
-/* ---------- Footer ---------- */
-footer {
-  background: #858585 !important;
-  background: linear-gradient(180deg, #8a8a8a 0%, #858585 50%, #7a7a7a 100%) !important;
-  color: #f5e6c0 !important;
-  border-top: 1px solid #9a9a9a !important;
-  padding: 36px 18px 100px !important;
-  text-align: center !important;
-}
-footer .footer-logo {
-  display: block !important;
-  width: 140px !important;
-  max-width: 40vw !important;
-  height: 140px !important;
-  margin: 0 auto 16px !important;
-  object-fit: contain !important;
-}
-footer .fdiv {
-  background: linear-gradient(90deg, transparent, #d4c4a0, transparent) !important;
-}
-footer a {
-  color: #f0e0b8 !important;
-}
-footer .fcols h5 {
-  background: linear-gradient(135deg, #f3c94f, #c8962a 50%, #8a5e0c) !important;
-  -webkit-background-clip: text !important;
-  background-clip: text !important;
-  color: transparent !important;
-}
-footer .fcols a,
-footer .fcols span {
-  color: #e8dcc0 !important;
-}
-footer .fph {
-  color: #f3c94f !important;
-}
-footer .fbar {
-  border-top-color: #6a6a6a !important;
-  color: #d9cfb8 !important;
-}
-footer .fcred {
-  color: #c8b898 !important;
-}
-
 /* ---------- Sheet (cart / fav / notif) ---------- */
 body.sheet-open {
   overflow: hidden !important;
@@ -414,16 +334,6 @@ body.sheet-open {
     min-height: 0 !important;
     aspect-ratio: 4 / 3 !important;
   }
-
-  img.growthmark-img {
-    width: 90px !important;
-    max-width: 35vw !important;
-  }
-  footer .footer-logo {
-    width: 130px !important;
-    max-width: 38vw !important;
-    height: 130px !important;
-  }
 }
 
 @media (max-width: 480px) {
@@ -531,21 +441,6 @@ body.sheet-open {
     padding-left: 12px !important;
     padding-right: 12px !important;
   }
-  footer {
-    padding-left: 12px !important;
-    padding-right: 12px !important;
-  }
-  .fcols { gap: 14px !important; }
-
-  img.growthmark-img {
-    width: 80px !important;
-    max-width: 30vw !important;
-  }
-  footer .footer-logo {
-    width: 110px !important;
-    max-width: 36vw !important;
-    height: 110px !important;
-  }
 
   #sheet .sheet-close,
   .sheet-close {
@@ -612,17 +507,9 @@ button,a,input,select,textarea{-webkit-tap-highlight-color:transparent}
 .orders-list{display:grid;gap:8px}.order-card{display:grid;grid-template-columns:1fr auto;gap:3px 10px;padding:12px;border:1px solid #e6d9b6;border-radius:12px;background:#fffdf8}.order-card div{display:grid;gap:2px}.order-card small{color:var(--gray);font-size:11px}.order-status{color:var(--gold3);font-size:11px;font-weight:600;align-self:center}
 @media(max-width:680px){.grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.grid .card{min-width:0}}
 
-/* Keep hero playback control present in every browser; the poster remains visible if autoplay is blocked. */
-#heroPlay{position:absolute;z-index:3;right:18px;bottom:calc(18px + env(safe-area-inset-bottom,0px));width:42px;height:42px;border:1px solid rgba(255,255,255,.72);border-radius:50%;background:rgba(20,12,4,.48);color:#fff;font:700 16px/1 Arial,sans-serif;display:grid;place-items:center;cursor:pointer;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
-#heroPlay:focus-visible{outline:2px solid #fff;outline-offset:3px}
 
-/* Hero play button hides itself once playback starts (the [hidden] attribute must beat display:grid above). */
-#heroPlay[hidden]{display:none!important}
-
-/* Cross-browser normalisation: identical text sizing, font smoothing and positioning in every engine. */
 html{-webkit-text-size-adjust:100%;-moz-text-size-adjust:100%;text-size-adjust:100%}
 body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility}
-/* Physical fallbacks for logical/inset properties (older Safari, Samsung Internet and Android WebView ignore them). */
 #bar,header{left:0;right:0}
 #mov,#sheet,#hero video,#heroVideo,#hero .hero-overlay,#hero .slot,.card .artbg,.card.art:after{top:0;right:0;bottom:0;left:0}
 [dir=rtl] #menu{right:0;left:auto}
@@ -632,37 +519,42 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-r
 [dir=rtl] #bar div{padding-right:100%}
 [dir=ltr] #bar div{padding-left:100%}
 
-/* ---------- Élan Scents footer identity ---------- */
-footer {
-  background: linear-gradient(180deg, #686868 0%, #777777 52%, #626262 100%) !important;
-  color: #fff1cf !important;
-  border-top: 1px solid #f1d58e !important;
-}
-footer .footer-logo {
-  width: min(190px, 42vw) !important;
-  max-width: 42vw !important;
-  height: auto !important;
-  aspect-ratio: 1 / 1 !important;
-  margin: 0 auto 18px !important;
-  object-fit: contain !important;
-  border-radius: 12px !important;
-  box-shadow: 0 8px 24px rgba(38, 33, 25, .24), 0 0 0 1px rgba(255, 235, 179, .36) !important;
-}
-footer .fdiv {
-  background: linear-gradient(90deg, transparent, #e6c66f 35%, #fff0c7 50%, #e6c66f 65%, transparent) !important;
-}
-footer .fcols a,
-footer .fcols span,
-footer .fch span,
-footer .fbar,
-footer .fcred {
-  color: #fff1cf !important;
-}
-footer .fcols h5,
-footer .fph,
-footer .fch b {
-  color: #ffe4a3 !important;
-}
-footer .fbar {
-  border-top-color: rgba(255, 239, 199, .38) !important;
-}
+/* Footer visuals controlled exclusively by footer-9x16.css */
+
+/* ---------- Header: flat (no 3D) except the logo; larger controls ---------- */
+#bar .gold,#barT{background:none!important;-webkit-background-clip:border-box!important;background-clip:border-box!important;color:#b8821a!important;-webkit-text-fill-color:#b8821a!important;filter:none!important;text-shadow:none!important}
+header .logo small{background:none!important;-webkit-background-clip:border-box!important;background-clip:border-box!important;color:#b8821a!important;-webkit-text-fill-color:#b8821a!important;filter:none!important;text-shadow:none!important}
+header .ic button{color:#b8821a!important;filter:none!important;text-shadow:none!important;padding:3px!important}
+header .ic svg{stroke:#b8821a!important;filter:none!important;width:23px!important;height:23px!important}
+header .ic{gap:6px!important}
+header #lg{font-size:14px!important;color:#b8821a!important}
+
+/* ---------- No sideways wobble ---------- */
+html,body{overflow-x:clip!important;max-width:100%!important}
+
+/* ---------- Menu: same size on every screen, never scrolls the page behind it ---------- */
+#menu{width:min(52vw,190px)!important;max-width:190px!important;padding:64px 14px 24px!important;overscroll-behavior:contain!important;touch-action:pan-y!important;-webkit-overflow-scrolling:touch!important}
+#menu a:not(.mlogo){font-size:13px!important;padding:9px 0!important}
+#mov{touch-action:none!important;overscroll-behavior:contain!important}
+
+/* ---------- Hero: same framing on laptop and phone ---------- */
+#hero{width:100%!important;max-width:540px!important;margin-inline:auto!important;height:calc(var(--app-vh,1vh)*100)!important;min-height:calc(var(--app-vh,1vh)*100)!important;max-height:none!important;padding:0 14px calc(10px + env(safe-area-inset-bottom,0px))!important}
+.magic{padding:10px!important}
+.magic h2{font-size:22px!important}
+.magic p{font-size:12px!important}
+.counters{gap:6px!important}
+.counters b{font-size:22px!important}
+.counters span{font-size:10px!important}
+
+/* ---------- One phone-width column on every screen (laptop looks like the phone) ---------- */
+html{background:#f3eee3!important}
+body{max-width:540px!important;margin-inline:auto!important;background:#fff!important;position:relative}
+#bar,header{max-width:540px!important;margin-inline:auto!important}
+[dir=rtl] #menu{right:max(0px,calc((100vw - 540px)/2))!important;left:auto!important}
+[dir=ltr] #menu{left:max(0px,calc((100vw - 540px)/2))!important;right:auto!important}
+#menu{visibility:hidden!important;transition:transform .4s,visibility 0s linear .4s!important}
+#menu.open{visibility:visible!important;transition:transform .4s,visibility 0s!important}
+header .logo{overflow:visible!important}
+
+/* Body is fixed while the menu/sheet is open: keep it centered in the column */
+body.sheet-open{left:0!important;right:0!important;margin-inline:auto!important;width:100%!important;max-width:540px!important}

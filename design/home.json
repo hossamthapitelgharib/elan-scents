@@ -98,7 +98,7 @@
       },
       "sec:occ:title": {
         "style": {
-          "fontSize": 16
+          "align": "end"
         }
       },
       "sec:notes:title": {
