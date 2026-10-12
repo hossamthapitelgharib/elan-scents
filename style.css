@@ -3,8 +3,8 @@
    Imports base theme then applies current desired overrides.
    Frontend display only. Do not add backend/DB rules here.
    ============================================================ */
-@import url('/style-3.css?v=20261013-01');
-@import url('/footer-9x16.css?v=20261013-01');
+@import url('/style-3.css?v=20261013-02');
+@import url('/footer-9x16.css?v=20261013-02');
 
 /* ---------- Menu: slightly narrower panel + slightly larger items ---------- */
 #menu {
@@ -613,11 +613,7 @@ button,a,input,select,textarea{-webkit-tap-highlight-color:transparent}
 @media(max-width:680px){.grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.grid .card{min-width:0}}
 
 /* Keep hero playback control present in every browser; the poster remains visible if autoplay is blocked. */
-#heroPlay{position:absolute;z-index:3;right:18px;bottom:calc(18px + env(safe-area-inset-bottom,0px));width:42px;height:42px;border:1px solid rgba(255,255,255,.72);border-radius:50%;background:rgba(20,12,4,.48);color:#fff;font:700 16px/1 Arial,sans-serif;display:grid;place-items:center;cursor:pointer;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
-#heroPlay:focus-visible{outline:2px solid #fff;outline-offset:3px}
 
-/* Hero play button hides itself once playback starts (the [hidden] attribute must beat display:grid above). */
-#heroPlay[hidden]{display:none!important}
 
 /* Cross-browser normalisation: identical text sizing, font smoothing and positioning in every engine. */
 html{-webkit-text-size-adjust:100%;-moz-text-size-adjust:100%;text-size-adjust:100%}
@@ -682,3 +678,20 @@ header .logo small{background:none!important;-webkit-background-clip:border-box!
 [dir=rtl] #menu{right:max(0px,calc((100vw - 540px)/2))!important;left:auto!important}
 [dir=ltr] #menu{left:max(0px,calc((100vw - 540px)/2))!important;right:auto!important}
 body.scroll-locked{position:fixed!important;left:0!important;right:0!important;margin-inline:auto!important;width:100%!important;max-width:540px!important;overflow:hidden!important}
+
+
+/* ---------- October 12 UI refinements: larger controls and full-height hero ---------- */
+header .ic button{color:#b8821a!important;filter:none!important;text-shadow:none!important;padding:3px!important}
+header .ic svg{stroke:#b8821a!important;filter:none!important;width:23px!important;height:23px!important}
+header .ic{gap:6px!important}
+header #lg{font-size:14px!important;color:#b8821a!important}
+#hero{width:100%!important;max-width:540px!important;margin-inline:auto!important;height:calc(var(--app-vh,1vh)*100)!important;min-height:calc(var(--app-vh,1vh)*100)!important;max-height:none!important;padding:0 14px calc(10px + env(safe-area-inset-bottom,0px))!important}
+.magic{padding:10px!important}
+.magic h2{font-size:22px!important}
+.magic p{font-size:12px!important}
+.counters{gap:6px!important}
+.counters b{font-size:22px!important}
+.counters span{font-size:10px!important}
+#menu{visibility:hidden!important;transition:transform .4s,visibility 0s linear .4s!important}
+#menu.open{visibility:visible!important;transition:transform .4s,visibility 0s!important}
+header .logo{overflow:visible!important}

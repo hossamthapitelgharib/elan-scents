@@ -19,13 +19,11 @@ test('hero video retries after browser-initiated pauses and unlocks on a real ge
   assert.match(index, /v\.defaultMuted=true/);
 });
 
-test('hero autoplays and keeps an accessible fallback button only when playback fails', () => {
+test('hero autoplays and there is no play/pause button', () => {
   assert.match(index, /v\.addEventListener\('playing'/);
   assert.match(index, /showButton\(false\)/);
   assert.match(index, /showButton\(true\)/);
-  assert.match(index, /id="heroPlay"[^>]*aria-label=/);
-  assert.match(style, /#heroPlay\{/);
-  assert.match(style, /#heroPlay\[hidden\]\{display:none!important\}/);
+  assert.doesNotMatch(style, /#heroPlay/);
 });
 
 test('Railway serves the hero video and poster with immutable cache headers', async () => {
@@ -62,4 +60,5 @@ test('storefront is one phone-width column, header text is flat and the menu loc
   assert.match(app, /function syncBodyScroll/);
   assert.match(app, /menu\.classList\.contains\('open'\)/);
   assert.match(app, /body\.classList\.add\('scroll-locked'\)/);
+  assert.doesNotMatch(read('index.html'), /id="heroPlay"/);
 });
