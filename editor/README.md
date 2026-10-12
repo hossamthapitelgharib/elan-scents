@@ -1,48 +1,44 @@
-# Editor package (production)
+# Editor package (production) — all on `main`
 
-All editor code lives under `editor/` on `main`.
+Entry points and admin UI live under `editor/`.
 
-## Admin UI (not public static files)
+## Admin UI (private — only via `railway/editor-host.js`)
 
 | Path | Role |
 |------|------|
-| `editor/login.html` | Login at `/editor` when there is no session |
+| `editor/login.html` | Login at `/editor` |
 | `editor/editor-login.js` | Login form → `/api/editor-login` |
 | `editor/editor-login.css` | Login styles |
-| `editor/elan-editor.html` | Editor UI (only after admin session) |
-| `editor/editor-guard.js` | Logout + session check inside the editor page |
+| `editor/elan-editor.html` | Editor UI after admin session |
+| `editor/editor-guard.js` | Logout + session check |
 
-Served only by `railway/editor-host.js`.
+## Site-side tools (public under `/editor/*` only)
 
-## Site-side edit tools (public, iframe only)
+Railway serves **only** these filenames as static files from `editor/`:
 
 | Path | URL | Role |
 |------|-----|------|
-| `editor/edit-boot.js` | `/editor/edit-boot.js` | Loads tools only when `?elan_editor=1` and framed |
-| `editor/edit-mode.js` | `/editor/edit-mode.js` | Visual edit mode inside the framed site |
-| `editor/edit-model.js` | `/editor/edit-model.js` | Pure draft model (undo/redo); tests / logic |
-| `editor/elan-host-bridge.js` | `/editor/elan-host-bridge.js` | postMessage bridge parent ↔ iframe |
+| `editor/edit-boot.js` | `/editor/edit-boot.js` | Loads tools when `?elan_editor=1` + framed |
+| `editor/edit-mode.js` | `/editor/edit-mode.js` | Entry; loads implementation from `/edit-mode.js` |
+| `editor/elan-host-bridge.js` | `/editor/elan-host-bridge.js` | postMessage bridge |
 
-Railway allows **only** these four files under `/editor/*` as static assets. HTML/login/guard stay private.
+## Still at repo root (implementation body)
 
-## Shared with the storefront (root)
+| File | Why |
+|------|-----|
+| `edit-mode.js` | Full visual edit-mode body (~30KB); entry is under `editor/` |
+| `edit-model.js` | Draft model for Node tests / logic |
+| `design-schema.js` / `design-layer.js` / `design/` | Shared with the storefront |
 
-| File | Role |
-|------|------|
-| `design-schema.js` | Shared schema (browser + Node) |
-| `design-layer.js` | Applies `/design/home.json` after `render()` |
-| `design/home.json` | Published design data |
-
-## Server pieces
+## Server
 
 | File | Role |
 |------|------|
 | `railway/editor-host.js` | Gates `/editor`, login assets, CSP |
 | `railway/editor-session.js` | In-memory admin sessions |
-| `railway/editor.js` | `/api/editor` — reads/writes `design/home.json` |
-| `api/editor.js` | Same API surface for Vercel-compatible path |
+| `railway/editor.js` | `/api/editor` writes `design/home.json` |
+| `api/editor.js` | Same API surface |
 
-## Removed (do not reintroduce at repo root)
+## Do not reintroduce at root
 
-- Root `edit-boot.js`, `edit-mode.js`, `edit-model.js`, `elan-host-bridge.js` — moved here
-- `editor.html`, root `editor-login.js`, `edit-host.js` — deleted earlier
+- `edit-boot.js`, `elan-host-bridge.js` — live under `editor/` only
