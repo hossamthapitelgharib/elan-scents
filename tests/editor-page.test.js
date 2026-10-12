@@ -25,6 +25,7 @@ test('edit mode loads only for the editor iframe and never for customers', () =>
   const index = read('index.html');
   assert.match(boot, /elan_editor/);
   assert.match(boot, /window\.parent === window/);
+  assert.match(boot, /element-registry\.js/);
   assert.match(boot, /edit-mode\.js/);
   assert.match(index, /edit-boot\.js\?v=/);
   assert.doesNotMatch(index, /edit-mode\.js|elan-host-bridge\.js|edit-model\.js/);
@@ -46,7 +47,7 @@ test('vercel.json no longer routes /editor to the deleted prototype', () => {
   const src = (cfg.headers || []).map((h) => h.source).join(' ');
   assert.doesNotMatch(src, /editor\.html/);
   assert.doesNotMatch(src, /edit-host\.js/);
-  for (const f of ['edit-boot.js', 'edit-mode.js', 'edit-model.js', 'elan-host-bridge.js']) {
+  for (const f of ['edit-boot.js', 'edit-mode.js', 'edit-model.js', 'elan-host-bridge.js', 'element-registry.js']) {
     assert.ok(src.includes('editor/' + f), f + ' should stay in no-store headers under editor/');
   }
   assert.doesNotMatch(src, /\|edit-mode\.js\||\|edit-model\.js\|/);
@@ -71,6 +72,10 @@ test('Railway serves the consolidated editor implementation only under /editor/'
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   try {
     const base = 'http://127.0.0.1:' + server.address().port;
+    const registry = await fetch(base + '/editor/element-registry.js');
+    assert.equal(registry.status, 200);
+    assert.match(registry.headers.get('cache-control'), /no-store/);
+    assert.equal((await fetch(base + '/element-registry.js')).status, 404);
     const moved = await fetch(base + '/editor/edit-mode.js');
     assert.equal(moved.status, 200);
     assert.match(moved.headers.get('cache-control'), /no-store/);

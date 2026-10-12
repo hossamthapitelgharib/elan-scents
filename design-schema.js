@@ -11,6 +11,8 @@
   var BUILTIN = ['brands', 'offers', 'new', 'cats', 'master', 'occ', 'notes', 'soon', 'stores'];
   var TEXT_KEYS = ['magic', 'view', 'explore', 'contactT', 'send'];
   var TYPES = ['text', 'banner', 'image', 'smart'];
+  /* Optional specialisation of a block (Shopify element definitions). */
+  var KINDS = ['brand', 'store', 'perfume', 'occasion', 'note', 'text_block', 'banner', 'section', 'card', 'video'];
   var SIZES = ['sm', 'md', 'lg', 'xl'];
   var ALIGNS = ['start', 'center', 'end'];
   var LIMITS = { bytes: 200000, blocks: 60, order: 100, text: 600, title: 160, url: 500 };
@@ -30,6 +32,8 @@
   var DEVICES = ['all', 'desktop', 'tablet', 'mobile'];
   var EDIT_ID_RE = /^[a-z0-9:_-]{1,60}$/;
   var WEIGHTS = [400, 500, 600, 700];
+  var FONTS = ['Tahoma', 'Arial', 'Georgia', 'Times New Roman', 'Verdana'];
+  var EFFECTS = ['none', 'soft', 'gold', 'deep'];
   var EDIT_LIMITS = { ids: 400, offset: 4000, size: 4000, minSize: 16, font: [8, 120], radius: 80 };
   var BREAKPOINTS = { mobile: 640, tablet: 1024 };
 
@@ -83,6 +87,8 @@
       if (COLOR_RE.test(rs.background)) style.background = rs.background; else errors.push(where + ': invalid background');
     }
     b.style = style;
+    if (typeof raw.kind === 'string' && KINDS.indexOf(raw.kind) !== -1) b.kind = raw.kind;
+    else if (raw.kind !== undefined && raw.kind !== null && raw.kind !== '') errors.push(where + ': invalid kind');
     if (type === 'text') {
       b.text = loc(raw.text, LIMITS.text);
       if (!b.text.ar && !b.text.en) { errors.push(where + ': empty text'); return null; }
@@ -154,7 +160,11 @@
           } else if (sk === 'weight') {
             if (WEIGHTS.indexOf(sv) !== -1) st.weight = sv; else errors.push(where + '.style.weight: invalid');
           } else if (sk === 'align') {
-            if (ALIGNS.indexOf(sv) !== -1) st.align = sv; else errors.push(where + '.style.align: invalid');
+            if (ALIGNS.indexOf(sv) !== -1 || sv === 'left' || sv === 'right') st.align = sv; else errors.push(where + '.style.align: invalid');
+          } else if (sk === 'fontFamily') {
+            if (FONTS.indexOf(sv) !== -1) st.fontFamily = sv; else errors.push(where + '.style.fontFamily: invalid');
+          } else if (sk === 'effect') {
+            if (EFFECTS.indexOf(sv) !== -1) st.effect = sv; else errors.push(where + '.style.effect: invalid');
           } else if (sk === 'opacity') {
             if (typeof sv === 'number' && sv >= 0.1 && sv <= 1) st.opacity = Math.round(sv * 100) / 100; else errors.push(where + '.style.opacity: invalid');
           } else errors.push(where + '.style.' + sk + ': not editable');
@@ -184,12 +194,10 @@
     return out;
   }
 
-  /* Which bucket matches a screen width. */
   function deviceOf(width) {
     return width < BREAKPOINTS.mobile ? 'mobile' : width < BREAKPOINTS.tablet ? 'tablet' : 'desktop';
   }
 
-  /* Merged edit for one element on one screen size: "all" first, then the size-specific bucket on top. */
   function editFor(design, device, id) {
     var ed = design && design.edits;
     if (!ed) return null;
@@ -206,9 +214,6 @@
     return out;
   }
 
-  /* normalize(input, {strict}) -> {ok, design, errors}
-     Strict mode (server): any problem makes ok=false so nothing invalid is ever committed.
-     Lenient mode (storefront): invalid parts are skipped so the page never breaks. */
   function normalize(input, opts) {
     var strict = !!(opts && opts.strict);
     var errors = [];
@@ -301,7 +306,6 @@
       !Object.keys(design.edits || {}).length);
   }
 
-  /* Canonical text that gets committed. Throws if it would be unsafe to commit. */
   function serialize(design) {
     var n = normalize(design, { strict: true });
     if (!n.ok) throw new Error('invalid design: ' + n.errors.slice(0, 3).join('; '));
@@ -310,7 +314,6 @@
     return text;
   }
 
-  /* plan(): pure description of what the storefront layer must do. */
   function plan(design, presentIds, lang) {
     var l = lang === 'en' ? 'en' : 'ar';
     var out = { hide: [], titles: {}, blocks: [], order: [] };
@@ -345,8 +348,8 @@
   }
 
   return {
-    VERSION: VERSION, BUILTIN: BUILTIN, TEXT_KEYS: TEXT_KEYS, LIMITS: LIMITS,
-    DEVICES: DEVICES, BREAKPOINTS: BREAKPOINTS, EDIT_ID_RE: EDIT_ID_RE,
+    VERSION: VERSION, BUILTIN: BUILTIN, TEXT_KEYS: TEXT_KEYS, TYPES: TYPES, KINDS: KINDS, LIMITS: LIMITS,
+    DEVICES: DEVICES, FONTS: FONTS, EFFECTS: EFFECTS, BREAKPOINTS: BREAKPOINTS, EDIT_ID_RE: EDIT_ID_RE,
     normalize: normalize, isEmpty: isEmpty, serialize: serialize, plan: plan, applyTexts: applyTexts,
     deviceOf: deviceOf, editFor: editFor,
     isRef: function (r) { return typeof r === 'string' && REF_RE.test(r); },

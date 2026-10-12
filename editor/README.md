@@ -22,8 +22,9 @@ The editor host (`railway/editor-host.js`) gates the UI and protects its source.
 | `editor/edit-mode.js` | `/editor/edit-mode.js` | Full visual edit-mode implementation |
 | `editor/edit-model.js` | `/editor/edit-model.js` | Draft model; also imported by Node tests |
 | `editor/elan-host-bridge.js` | `/editor/elan-host-bridge.js` | Same-origin postMessage bridge |
+| `editor/element-registry.js` | `/editor/element-registry.js` | Validated element kinds and creation defaults |
 
-The Railway allowlist in `railway/server.js` controls the public editor-tool filenames. Keep these files in sync with that allowlist and Railway's no-store headers. The normal storefront only loads `editor/edit-boot.js`; customers do not load the editor implementation.
+The Railway allowlist in `railway/server.js` controls the public editor-tool filenames, including the editor-only element registry. Keep these files in sync with that allowlist and Railway's no-store headers. The normal storefront only loads `editor/edit-boot.js`; customers do not load the editor implementation.
 
 ## Integration files (kept in framework/shared locations)
 

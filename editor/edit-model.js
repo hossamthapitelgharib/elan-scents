@@ -1,13 +1,15 @@
 /* Élan editor — draft model. Pure logic: every edit happens on a local copy of the design,
    with undo/redo, and nothing touches the network until the owner saves. */
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory(require('../design-schema.js'));
-  else root.ElanEditModel = factory(root.ElanDesign);
-})(typeof self !== 'undefined' ? self : this, function (ED) {
+  if (typeof module === 'object' && module.exports) {
+    module.exports = factory(require('../design-schema.js'), require('./element-registry.js'));
+  } else root.ElanEditModel = factory(root.ElanDesign, root.ElanElements);
+})(typeof self !== 'undefined' ? self : this, function (ED, REG) {
   'use strict';
   var SIZES = ['sm', 'md', 'lg', 'xl'];
   var ALIGNS = ['start', 'center', 'end'];
   var LIMIT = 100;
+  REG = REG || null;
 
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
   function same(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
@@ -137,13 +139,13 @@
       },
       createText: function (afterId, text) {
         var id = newId();
-        commit(function () { addBlock({ id: id, type: 'text', style: { align: 'center', size: 'md' }, text: { ar: text || '\u0646\u0635 \u062c\u062f\u064a\u062f' } }, afterId); });
+        commit(function () { addBlock({ id: id, type: 'text', kind: 'text_block', style: { align: 'center', size: 'md' }, text: { ar: text || '\u0646\u0635 \u062c\u062f\u064a\u062f' } }, afterId); });
         return id;
       },
       createBanner: function (afterId, f) {
         f = f || {}; var id = newId();
         commit(function () {
-          var b = { id: id, type: 'banner', style: { align: 'center', size: 'lg' }, title: { ar: f.title || '\u0628\u0627\u0646\u0631 \u062c\u062f\u064a\u062f' } };
+          var b = { id: id, type: 'banner', kind: 'banner', style: { align: 'center', size: 'lg' }, title: { ar: f.title || '\u0628\u0627\u0646\u0631 \u062c\u062f\u064a\u062f' } };
           if (f.image) b.image = f.image;
           addBlock(b, afterId);
         });
@@ -187,6 +189,50 @@
         commit(function () { addBlock({ id: id, type: 'smart', style: { align: 'center', size: 'md' }, ref: ref }, afterId); });
         return id;
       },
+      createFromKind: function (kind, afterId, opts) {
+        opts = opts || {};
+        var id = newId();
+        if (REG && REG.isKind(kind)) {
+          var built = REG.buildBlock(kind, Object.assign({}, opts, { id: id }));
+          var block = { id: id, type: built.type, style: built.style || { align: 'center', size: 'md' } };
+          if (built.kind) block.kind = built.kind;
+          if (built.type === 'text') block.text = built.text || { ar: 'نص جديد' };
+          else if (built.type === 'banner') {
+            block.title = built.title || { ar: 'عنوان جديد' };
+            if (built.subtitle) block.subtitle = built.subtitle;
+            if (built.image) block.image = built.image;
+            if (built.href) block.href = built.href;
+          } else if (built.type === 'image') {
+            block.src = built.src;
+            block.alt = built.alt || {};
+            if (built.href) block.href = built.href;
+          } else if (built.type === 'smart') {
+            block.ref = built.ref;
+          }
+          commit(function () { addBlock(block, afterId); });
+          return id;
+        }
+        if (kind === 'text' || kind === 'text_block') return this.createText(afterId, opts.text);
+        if (kind === 'banner') return this.createBanner(afterId, opts);
+        if (kind === 'image' || kind === 'video') return this.createImage(afterId, opts.src || '/assets/cards/masterpieces.webp');
+        if (kind === 'section') {
+          var ref = opts.ref || ('sec_' + String(Date.now()).slice(-6));
+          return this.createSmart(afterId, ref);
+        }
+        var id2 = newId();
+        var titleMap = { brand: 'اسم البراند', store: 'اسم المتجر', perfume: 'اسم العطر', occasion: 'اسم المناسبة', note: 'اسم النوتة العطرية', card: 'كارت جديد' };
+        commit(function () {
+          addBlock({
+            id: id2,
+            type: 'banner',
+            kind: kind,
+            style: { align: 'center', size: 'md' },
+            title: { ar: opts.title || titleMap[kind] || 'عنوان جديد' }
+          }, afterId);
+        });
+        return id2;
+      },
+      registry: function () { return REG; },
       archive: function (id) {
         return commit(function () {
           if (isBuiltin(id)) { section(id).hidden = true; archived.push({ id: id, kind: 'section' }); return; }

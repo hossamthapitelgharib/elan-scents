@@ -125,10 +125,26 @@
     var inside = r.top < 30; // keep the labels reachable when the element touches the top of the window
     tag.style.top = mv.style.top = inside ? '2px' : '-24px';
   }
+  function info(e) {
+    if (!e) return null;
+    var node = layer.textTarget(e) || e.el, cs = getComputedStyle(node), st = cur(e.id).style || {};
+    var blk = (work.blocks || []).filter(function (b) { return b.id === e.id; })[0];
+    var type = blk ? ({ text: 'text_block', banner: 'banner', image: 'image' })[blk.type] : (e.kind === 'section' ? 'section' : e.kind === 'card' ? 'card' : 'text');
+    return {
+      id: e.id, name: e.name, kind: e.kind, type: type, canText: !!layer.textTarget(e), isBlock: !!blk,
+      style: {
+        fontFamily: st.fontFamily || (cs.fontFamily || '').split(',')[0].replace(/["']/g, '').trim(),
+        fontSize: st.fontSize || Math.round(parseFloat(cs.fontSize) || 16),
+        color: st.color || rgbToHex(cs.color), background: st.background || rgbToHex(getComputedStyle(e.el).backgroundColor),
+        align: st.align || ({ start: 'right', end: 'left', center: 'center', left: 'left', right: 'right' })[cs.textAlign] || 'right',
+        effect: st.effect || 'none'
+      }
+    };
+  }
   function reselect() {
     if (selectedId && !entryById(selectedId)) selectedId = null;
     placeBox(); buildBar();
-    if (hostApi) { var e = selectedId && entryById(selectedId); hostApi.selection(e ? { id: e.id, name: e.name, kind: e.kind } : null); }
+    if (hostApi) { var e = selectedId && entryById(selectedId); hostApi.selection(info(e)); }
   }
   function select(id) { selectedId = id; reselect(); }
 
@@ -254,6 +270,16 @@
       if (g.w) e.w = g.w;
       if (g.h) e.h = g.h;
     });
+  }, true);
+
+  /* Right-click: the editor shows the original context menu; this side only reports what is under the pointer. */
+  window.addEventListener('contextmenu', function (ev) {
+    if (inUi(ev.target)) return;
+    ev.preventDefault(); ev.stopPropagation();
+    if (editing) commitText();
+    var e = pick(ev.clientX, ev.clientY);
+    select(e ? e.id : null);
+    if (hostApi) hostApi.context({ x: ev.clientX, y: ev.clientY, element: info(e) });
   }, true);
 
   // Nothing on the page may act while editing: no links, no cart, no forms.
@@ -400,6 +426,7 @@
       case 'element.move': { var e1 = need(p.elementId || selectedId); mutate(function () { var t = edit(device(), e1.id); t.dx = Math.round(+p.dx || 0); t.dy = Math.round(+p.dy || 0); }); return null; }
       case 'element.resize': { var e2 = need(p.elementId || selectedId); mutate(function () { var t = edit(device(), e2.id); if (p.w) t.w = Math.round(p.w); if (p.h) t.h = Math.round(p.h); }); return null; }
       case 'element.format': { var e3 = need(p.elementId || selectedId); Object.keys(p.style || {}).forEach(function (k) { setStyle(e3.id, k, p.style[k]); }); return null; }
+      case 'element.edit': { var e9 = need(p.elementId || selectedId); startText(e9.id); return null; }
       case 'element.setText': { var e4 = need(p.elementId || selectedId); mutate(function () { var t = edit('all', e4.id); t.text = t.text || {}; t.text[lang()] = String(p.text || '').slice(0, 600); }); return null; }
       case 'element.setMedia': { var e5 = need(p.elementId || selectedId); setMedia(e5.id, p.src || await mediaPrompt(e5.id)); return null; }
       case 'element.create': return createBlock(p.kind, p);
