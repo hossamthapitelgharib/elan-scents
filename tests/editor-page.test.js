@@ -30,12 +30,12 @@ test('edit mode loads only for the editor iframe and never for customers', () =>
   assert.doesNotMatch(index, /edit-mode\.js|elan-host-bridge\.js|edit-model\.js/);
 });
 
-test('edit-mode uses same-origin bridge and confirms server-side saves', () => {
+test('edit-mode uses same-origin bridge and defers saves to the parent editor', () => {
   const mode = read('edit-mode.js');
   assert.match(mode, /allowedEditorOrigins:\s*\[location\.origin\]/);
   assert.doesNotMatch(mode, /allowedEditorOrigins:\s*\[\s*'\*'/);
-  assert.match(mode, /expectedRevision/);
   assert.match(mode, /page\.save/);
+  assert.match(mode, /page\.getState/);
   assert.doesNotMatch(mode, /localStorage|sessionStorage|document\.cookie|eval\(|new Function/);
 });
 
