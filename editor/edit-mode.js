@@ -1,16 +1,10 @@
-/* Élan Scents — editor package entry for edit-mode.
-   Loads the implementation. Prefer keeping the single source under editor/ once the full file is moved. */
+/* Editor package entry: loads the visual edit-mode implementation.
+   Full body currently at /edit-mode.js (to be fully inlined under editor/ in a follow-up). */
 (function () {
   'use strict';
   var v = (document.currentScript && document.currentScript.src.split('?v=')[1]) || '1';
   var s = document.createElement('script');
-  s.src = '/edit-mode.impl.js?v=' + v;
-  s.onerror = function () {
-    // Fallback while root edit-mode.js still holds the implementation body.
-    var f = document.createElement('script');
-    f.src = '/edit-mode.js?v=' + v;
-    f.onerror = function () { console.error('edit-mode failed to load'); };
-    document.head.appendChild(f);
-  };
+  s.src = '/edit-mode.js?v=' + v;
+  s.onerror = function () { console.error('edit-mode failed to load'); };
   document.head.appendChild(s);
 })();
