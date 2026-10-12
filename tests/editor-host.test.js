@@ -82,14 +82,16 @@ test('cross-site login attempts are refused', async () => {
 });
 
 test('edit mode only loads inside the editor window and never talks to customers', () => {
-  const layer = fs.readFileSync(path.join(root, 'design-layer.js'), 'utf8');
-  assert.match(layer, /window\.parent !== window/);
-  assert.match(layer, /elan_editor=1/);
+  const boot = fs.readFileSync(path.join(root, 'edit-boot.js'), 'utf8');
+  assert.match(boot, /window\.parent === window/);
+  assert.match(boot, /elan_editor/);
+  assert.match(boot, /edit-mode\.js/);
   const edit = fs.readFileSync(path.join(root, 'edit-mode.js'), 'utf8');
   assert.match(edit, /allowedEditorOrigins: \[location\.origin\]/);
   assert.doesNotMatch(edit, /localStorage|sessionStorage|document\.cookie|eval\(|new Function/);
   const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
   assert.doesNotMatch(html, /edit-mode|elan-host-bridge/);
+  assert.match(html, /edit-boot\.js/);
 });
 
 test('free-form edits are validated and resolved per screen size', () => {
@@ -108,4 +110,21 @@ test('free-form edits are validated and resolved per screen size', () => {
   bad.forEach((e) => assert.equal(ED.normalize({ version: 1, edits: e }, { strict: true }).ok, false, JSON.stringify(e)));
   assert.equal(ED.isEmpty(ED.normalize({ version: 1, edits: { all: { hero: { hidden: true } } } }).design), false);
   assert.ok(Buffer.byteLength(ED.serialize(ok.design)) < ED.LIMITS.bytes);
+});
+
+test('the original editor look options (fonts, 3D effects, left/right) are accepted and nothing else is', () => {
+  const ED = require('../design-schema.js');
+  const ok = ED.normalize({ version: 1, edits: { all: { 'sec:brands:title': { style: { fontFamily: 'Georgia', effect: 'gold', align: 'left', fontSize: 40 } } } } }, { strict: true });
+  assert.equal(ok.ok, true);
+  for (const style of [{ fontFamily: 'Comic Sans' }, { effect: 'neon' }, { fontFamily: 'x;}body{display:none' }]) {
+    assert.equal(ED.normalize({ version: 1, edits: { all: { hero: { style } } } }, { strict: true }).ok, false, JSON.stringify(style));
+  }
+});
+
+test('the editor page wires the original context menu, format dialog and header to the platform', () => {
+  const html = fs.readFileSync(path.join(root, 'editor', 'elan-editor.html'), 'utf8');
+  for (const label of ['إنشاء سيكشن', 'إنشاء كارت براند', 'إنشاء كارت عطر', 'نسخ العنصر', 'حذف العنصر إلى الأرشيف', 'تنسيق النص: الخط • اللون • الحجم • 3D']) assert.ok(html.includes(label), label);
+  assert.match(html, /showLiveMenu/);
+  const edit = fs.readFileSync(path.join(root, 'edit-mode.js'), 'utf8');
+  assert.match(edit, /hostApi\.context/);
 });

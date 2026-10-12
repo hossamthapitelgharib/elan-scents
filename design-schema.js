@@ -10,7 +10,7 @@
   var VERSION = 1;
   var BUILTIN = ['brands', 'offers', 'new', 'cats', 'master', 'occ', 'notes', 'soon', 'stores'];
   var TEXT_KEYS = ['magic', 'view', 'explore', 'contactT', 'send'];
-  var TYPES = ['text', 'banner', 'image'];
+  var TYPES = ['text', 'banner', 'image', 'smart'];
   var SIZES = ['sm', 'md', 'lg', 'xl'];
   var ALIGNS = ['start', 'center', 'end'];
   var LIMITS = { bytes: 200000, blocks: 60, order: 100, text: 600, title: 160, url: 500 };
@@ -18,6 +18,9 @@
     '/assets/',
     'https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/'
   ];
+  var PAGE_KEY_RE = /^(?:sec:(?:brands|stores|cats|occ|notes|all|offers|new|master|soon)|col:(?:cats|occ|notes):\d{1,3}|brand:[^|"'<>\\\u0000-\u001F]{1,80}|store:[^|"'<>\\\u0000-\u001F]{1,80})$/;
+  var MAX_PAGES = 40;
+  var REF_RE = /^[a-z0-9][a-z0-9_-]{0,59}$/;
   var BLOCK_ID_RE = /^x-[a-z0-9_-]{1,36}$/;
   var COLOR_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
   var HREF_RE = /^(?:\/(?!\/)|#|https:\/\/)[^\s"'<>\\]*$/;
@@ -27,6 +30,8 @@
   var DEVICES = ['all', 'desktop', 'tablet', 'mobile'];
   var EDIT_ID_RE = /^[a-z0-9:_-]{1,60}$/;
   var WEIGHTS = [400, 500, 600, 700];
+  var FONTS = ['Tahoma', 'Arial', 'Georgia', 'Times New Roman', 'Verdana'];
+  var EFFECTS = ['none', 'soft', 'gold', 'deep'];
   var EDIT_LIMITS = { ids: 400, offset: 4000, size: 4000, minSize: 16, font: [8, 120], radius: 80 };
   var BREAKPOINTS = { mobile: 640, tablet: 1024 };
 
@@ -95,6 +100,9 @@
         if (h) b.href = h; else errors.push(where + ': link not allowed');
       }
       if (!b.title.ar && !b.title.en && !b.image) { errors.push(where + ': banner needs a title or an image'); return null; }
+    } else if (type === 'smart') {
+      if (typeof raw.ref !== 'string' || !REF_RE.test(raw.ref)) { errors.push(where + ': invalid section reference'); return null; }
+      b.ref = raw.ref;
     } else {
       var src = mediaUrl(raw.src);
       if (!src) { errors.push(where + ': image src not allowed'); return null; }
@@ -148,7 +156,11 @@
           } else if (sk === 'weight') {
             if (WEIGHTS.indexOf(sv) !== -1) st.weight = sv; else errors.push(where + '.style.weight: invalid');
           } else if (sk === 'align') {
-            if (ALIGNS.indexOf(sv) !== -1) st.align = sv; else errors.push(where + '.style.align: invalid');
+            if (ALIGNS.indexOf(sv) !== -1 || sv === 'left' || sv === 'right') st.align = sv; else errors.push(where + '.style.align: invalid');
+          } else if (sk === 'fontFamily') {
+            if (FONTS.indexOf(sv) !== -1) st.fontFamily = sv; else errors.push(where + '.style.fontFamily: invalid');
+          } else if (sk === 'effect') {
+            if (EFFECTS.indexOf(sv) !== -1) st.effect = sv; else errors.push(where + '.style.effect: invalid');
           } else if (sk === 'opacity') {
             if (typeof sv === 'number' && sv >= 0.1 && sv <= 1) st.opacity = Math.round(sv * 100) / 100; else errors.push(where + '.style.opacity: invalid');
           } else errors.push(where + '.style.' + sk + ': not editable');
@@ -235,6 +247,27 @@
       });
     } else if (input.blocks !== undefined) errors.push('blocks must be an array');
 
+    if (isObj(input.pages)) {
+      var keys = Object.keys(input.pages);
+      if (keys.length > MAX_PAGES) errors.push('too many pages');
+      keys.slice(0, MAX_PAGES).forEach(function (key) {
+        if (!PAGE_KEY_RE.test(key)) { errors.push('pages.' + key + ': unknown page'); return; }
+        var pg = input.pages[key];
+        if (!isObj(pg) || !Array.isArray(pg.blocks)) { errors.push('pages.' + key + ': blocks must be an array'); return; }
+        var list = [];
+        pg.blocks.forEach(function (raw, i) {
+          var b = blockOf(raw, errors, 'pages.' + key + '[' + i + ']');
+          if (!b) return;
+          if (seen[b.id]) { errors.push('pages.' + key + '[' + i + ']: duplicate id'); return; }
+          seen[b.id] = true; b.slot = isObj(raw) && raw.slot === 'bottom' ? 'bottom' : 'top';
+          list.push(b);
+        });
+        if (list.length) { design.pages = design.pages || {}; design.pages[key] = { blocks: list }; }
+      });
+      var total = design.blocks.length + Object.keys(design.pages || {}).reduce(function (n, k) { return n + design.pages[k].blocks.length; }, 0);
+      if (total > LIMITS.blocks) errors.push('too many blocks');
+    } else if (input.pages !== undefined) errors.push('pages must be an object');
+
     if (Array.isArray(input.order)) {
       if (input.order.length > LIMITS.order) errors.push('order too long');
       var inOrder = {};
@@ -270,7 +303,7 @@
 
   function isEmpty(design) {
     return !design || (!Object.keys(design.sections || {}).length && !(design.blocks || []).length &&
-      !(design.order || []).length && !Object.keys(design.texts || {}).length &&
+      !(design.order || []).length && !Object.keys(design.texts || {}).length && !Object.keys(design.pages || {}).length &&
       !Object.keys(design.edits || {}).length);
   }
 
@@ -319,8 +352,10 @@
 
   return {
     VERSION: VERSION, BUILTIN: BUILTIN, TEXT_KEYS: TEXT_KEYS, LIMITS: LIMITS,
-    DEVICES: DEVICES, BREAKPOINTS: BREAKPOINTS, EDIT_ID_RE: EDIT_ID_RE,
+    DEVICES: DEVICES, FONTS: FONTS, EFFECTS: EFFECTS, BREAKPOINTS: BREAKPOINTS, EDIT_ID_RE: EDIT_ID_RE,
     normalize: normalize, isEmpty: isEmpty, serialize: serialize, plan: plan, applyTexts: applyTexts,
-    deviceOf: deviceOf, editFor: editFor
+    deviceOf: deviceOf, editFor: editFor,
+    isRef: function (r) { return typeof r === 'string' && REF_RE.test(r); },
+    isPageKey: function (k) { return typeof k === 'string' && PAGE_KEY_RE.test(k); }
   };
 });
