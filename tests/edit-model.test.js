@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const ED = require('../design-schema.js');
-const EM = require('../edit-model.js');
+const EM = require('../editor/edit-model.js');
 
 test('draft starts clean and every edit stays valid for the server schema', () => {
   const m = EM.create({});
