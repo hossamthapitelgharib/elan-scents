@@ -253,16 +253,20 @@
       keys.slice(0, MAX_PAGES).forEach(function (key) {
         if (!PAGE_KEY_RE.test(key)) { errors.push('pages.' + key + ': unknown page'); return; }
         var pg = input.pages[key];
-        if (!isObj(pg) || !Array.isArray(pg.blocks)) { errors.push('pages.' + key + ': blocks must be an array'); return; }
+        if (!isObj(pg) || (pg.blocks !== undefined && !Array.isArray(pg.blocks))) { errors.push('pages.' + key + ': blocks must be an array'); return; }
         var list = [];
-        pg.blocks.forEach(function (raw, i) {
+        (pg.blocks || []).forEach(function (raw, i) {
           var b = blockOf(raw, errors, 'pages.' + key + '[' + i + ']');
           if (!b) return;
           if (seen[b.id]) { errors.push('pages.' + key + '[' + i + ']: duplicate id'); return; }
           seen[b.id] = true; b.slot = isObj(raw) && raw.slot === 'bottom' ? 'bottom' : 'top';
           list.push(b);
         });
-        if (list.length) { design.pages = design.pages || {}; design.pages[key] = { blocks: list }; }
+        var pageEdits = pg.edits !== undefined ? editsOf(pg.edits, errors) : {};
+        if (list.length || Object.keys(pageEdits).length) {
+          design.pages = design.pages || {}; design.pages[key] = { blocks: list };
+          if (Object.keys(pageEdits).length) design.pages[key].edits = pageEdits;
+        }
       });
       var total = design.blocks.length + Object.keys(design.pages || {}).reduce(function (n, k) { return n + design.pages[k].blocks.length; }, 0);
       if (total > LIMITS.blocks) errors.push('too many blocks');

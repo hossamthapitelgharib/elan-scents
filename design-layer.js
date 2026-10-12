@@ -139,7 +139,29 @@
   function hash(str) { var h = 5381, i; for (i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) >>> 0; return h.toString(36); }
 
   /* Every element the editor can touch, with a stable id that does not change between renders. */
+  function pageElements() {
+    var out = [], seen = {}, V = document.getElementById('view');
+    function add(id, el, kind, name) { if (!el || seen[id]) return; seen[id] = 1; out.push({ id: id, el: el, kind: kind, name: name }); }
+    if (!V) return out;
+    var key = pageKey() || 'page';
+    add('pg:bc', V.querySelector('nav.bc'), 'pg-bc', 'مسار الصفحة');
+    add('pg:title', V.querySelector('h3'), 'title', 'عنوان الصفحة');
+    add('pg:filters', V.querySelector('details.filter-panel'), 'section', 'فلاتر الصفحة');
+    add('pg:grid', V.querySelector('#res, .grid'), 'section', 'شبكة العناصر');
+    Array.prototype.slice.call(V.children).forEach(function (c) { if (c.hasAttribute('data-elan-custom')) add(c.getAttribute('data-elan-id'), c, 'block', 'بلوك إضافي'); });
+    var n = 0;
+    Array.prototype.slice.call(V.querySelectorAll('#res > *, .grid > *')).forEach(function (card, i) {
+      if (card.classList.contains('empty')) return;
+      var base = 'card:' + hash(key + '|' + (card.getAttribute('data-go') || 'i' + i)), id = base;
+      while (seen[id]) id = base + '-' + (++n);
+      var h4 = card.querySelector('h4');
+      add(id, card, 'card', 'كارت ' + ((h4 && h4.textContent.trim().slice(0, 24)) || (i + 1)));
+    });
+    return out;
+  }
+
   function elements() {
+    if (document.body.classList.contains('inner')) return pageElements();
     var out = [], seen = {};
     function add(id, el, kind, name) { if (!el || seen[id]) return; seen[id] = 1; out.push({ id: id, el: el, kind: kind, name: name }); }
     var hero = document.getElementById('hero');
@@ -218,10 +240,11 @@
   function applyEdits() {
     touched.forEach(unpaint);
     touched = [];
-    if (!design || !design.edits) return;
+    var key = pageKey(), src = !design ? null : (key === 'home' ? design : (design.pages && key && design.pages[key]) || null);
+    if (!src || !src.edits) return;
     var dev = ED.deviceOf(window.innerWidth);
     elements().forEach(function (entry) {
-      var ed = ED.editFor(design, dev, entry.id);
+      var ed = ED.editFor(src, dev, entry.id);
       if (!ed) return;
       paint(entry, ed);
       touched.push(entry.el);
@@ -279,7 +302,7 @@
     if (!V || !design) return;
     Array.prototype.slice.call(V.querySelectorAll('[data-elan-custom]')).forEach(function (n) { n.remove(); });
     var key = pageKey(), pg = design.pages && key && design.pages[key];
-    if (!pg) return;
+    if (!pg) { applyEdits(); return; }
     var top = pg.blocks.filter(function (b) { return b.slot !== 'bottom'; });
     var bottom = pg.blocks.filter(function (b) { return b.slot === 'bottom'; });
     var h = V.querySelector('h3'), ref = h || null;
@@ -288,6 +311,7 @@
       if (ref) { ref.parentNode.insertBefore(n, ref.nextSibling); ref = n; } else { V.insertBefore(n, V.firstChild); ref = n; }
     });
     bottom.forEach(function (b) { V.appendChild(buildBlock(b)); });
+    applyEdits();
   }
 
   function wrapView() {
@@ -352,7 +376,7 @@
 
   // A different screen size means a different set of free-form edits.
   window.addEventListener('resize', function () {
-    if (!design || !design.edits) return;
+    if (!design) return;
     var d = ED.deviceOf(window.innerWidth);
     if (d !== lastDevice) { lastDevice = d; try { applyEdits(); } catch (e) { /* keep the page usable */ } }
   });

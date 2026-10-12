@@ -21,19 +21,37 @@
   function checkDirty() { setDirty(JSON.stringify(work) !== baseJson); }
   function entries() { return layer.elements(); }
   function entryById(id) { var l = entries(); for (var i = 0; i < l.length; i++) if (l[i].id === id) return l[i]; return null; }
-  function bucket(dev) { work.edits = work.edits || {}; return (work.edits[dev] = work.edits[dev] || {}); }
+  /* The home page keeps its edits and blocks at the top of the design; every inner page keeps its own under pages[key]. */
+  function pageKeyNow() { try { return layer.pageKey() || 'home'; } catch (_) { return 'home'; } }
+  function onHome() { return pageKeyNow() === 'home'; }
+  function holder(create) {
+    var key = pageKeyNow();
+    if (key === 'home') return work;
+    if (!work.pages) { if (!create) return null; work.pages = {}; }
+    if (!work.pages[key]) { if (!create) return null; work.pages[key] = { blocks: [] }; }
+    return work.pages[key];
+  }
+  function blocksHere() { var h = holder(false); return (h && h.blocks) || []; }
+  function bucket(dev) { var h = holder(true); h.edits = h.edits || {}; return (h.edits[dev] = h.edits[dev] || {}); }
   function edit(dev, id) { var b = bucket(dev); return (b[id] = b[id] || {}); }
-  function tidy() {
-    if (!work.edits) return;
-    Object.keys(work.edits).forEach(function (dev) {
-      Object.keys(work.edits[dev]).forEach(function (id) {
-        var e = work.edits[dev][id];
+  function tidyEdits(h) {
+    if (!h || !h.edits) return;
+    Object.keys(h.edits).forEach(function (dev) {
+      Object.keys(h.edits[dev]).forEach(function (id) {
+        var e = h.edits[dev][id];
         if (e.style && !Object.keys(e.style).length) delete e.style;
-        if (!Object.keys(e).length) delete work.edits[dev][id];
+        if (!Object.keys(e).length) delete h.edits[dev][id];
       });
-      if (!Object.keys(work.edits[dev]).length) delete work.edits[dev];
+      if (!Object.keys(h.edits[dev]).length) delete h.edits[dev];
     });
-    if (!Object.keys(work.edits).length) delete work.edits;
+    if (!Object.keys(h.edits).length) delete h.edits;
+  }
+  function tidy() {
+    tidyEdits(work);
+    if (work.pages) {
+      Object.keys(work.pages).forEach(function (k) { tidyEdits(work.pages[k]); if (!(work.pages[k].blocks || []).length && !work.pages[k].edits) delete work.pages[k]; });
+      if (!Object.keys(work.pages).length) delete work.pages;
+    }
   }
 
   function mutate(fn) {
@@ -111,13 +129,13 @@
     if (!m) return '#000000';
     return '#' + [m[1], m[2], m[3]].map(function (n) { return ('0' + (+n).toString(16)).slice(-2); }).join('');
   }
-  function cur(id) { return ED.editFor(work, device(), id) || {}; }
+  function cur(id) { var h = holder(false); return (h && ED.editFor(h, device(), id)) || {}; }
   /* What the editor needs to know about an element: the original editor's type names plus its current look. */
   var TYPE_OF = { section: 'section', title: 'text', 'hero-text': 'text', hero: 'section', 'hero-counters': 'text', card: 'card', block: 'block' };
   function info(e) {
     if (!e) return null;
     var node = layer.textTarget(e) || e.el, cs = getComputedStyle(node), st = cur(e.id).style || {};
-    var blk = work.blocks.filter(function (b) { return b.id === e.id; })[0];
+    var blk = blocksHere().filter(function (b) { return b.id === e.id; })[0];
     var type = blk ? ({ text: 'text_block', banner: 'banner', image: 'image' })[blk.type] : (TYPE_OF[e.kind] || 'text');
     return {
       id: e.id, name: e.name, kind: e.kind, type: type, canText: !!layer.textTarget(e), isBlock: !!blk,
@@ -148,7 +166,7 @@
     if (i < 0 || j < 0 || j >= seq.length) return;
     mutate(function (d) { seq.splice(i, 1); seq.splice(j, 0, key); d.order = seq; });
   }
-  function resetElement(id) { mutate(function (d) { if (d.edits) Object.keys(d.edits).forEach(function (dev) { delete d.edits[dev][id]; }); }); }
+  function resetElement(id) { mutate(function () { var h = holder(false); if (h && h.edits) Object.keys(h.edits).forEach(function (dev) { delete h.edits[dev][id]; }); }); }
   function archive(id) { mutate(function () { edit('all', id).archived = true; }); selectedId = null; reselect(); say('اتحط في الأرشيف. تقدر ترجّعه من الأرشيف.'); }
 
 
@@ -233,8 +251,21 @@
   }, true);
 
   // Nothing on the page may act while editing: no links, no cart, no forms.
+  var homeClick = false;
+  var ENTER_RE = /^(brand|store|col|sec)\|/;
+  function allowClick(t) {
+    if (!t || !t.closest) return false;
+    var c = t.closest('[data-go]');
+    if (c && ENTER_RE.test(c.getAttribute('data-go') || '')) return true; // a plain click on a brand / store / category / occasion / note card opens its page
+    return !!t.closest('nav.bc a');                                          // and the breadcrumb takes you back
+  }
   ['click', 'auxclick', 'submit', 'dragstart'].forEach(function (t) {
-    window.addEventListener(t, function (ev) { if (inUi(ev.target)) return; if (editing && editing.node.contains(ev.target)) return; ev.preventDefault(); ev.stopPropagation(); }, true);
+    window.addEventListener(t, function (ev) {
+      if (inUi(ev.target)) return;
+      if (editing && editing.node.contains(ev.target)) return;
+      if (ev.type === 'click' && (homeClick || (ev.button === 0 && !moveArmed && allowClick(ev.target)))) return;
+      ev.preventDefault(); ev.stopPropagation();
+    }, true);
   });
 
 
@@ -289,7 +320,30 @@
   }, true);
   window.addEventListener('scroll', placeBox, true);
   window.addEventListener('resize', function () { placeBox(); });
-  try { new MutationObserver(function () { requestAnimationFrame(reselect); }).observe(document.getElementById('main'), { childList: true }); } catch (_) { /* optional */ }
+  var PAGE_NAMES = { cats: 'فئة', occ: 'مناسبة', notes: 'نوتة' }, SEC_LABEL = { brands: 'الماركات', stores: 'المتاجر', cats: 'الأقسام', occ: 'المناسبات', notes: 'النوتات', all: 'كل العطور', offers: 'العروض', new: 'وصل حديثًا', master: 'الأعلى مبيعًا', soon: 'قريبًا' };
+  function pageLabel() {
+    var k = pageKeyNow(), m;
+    if (k === 'home') return 'الصفحة الرئيسية';
+    if ((m = /^brand:(.+)$/.exec(k))) return 'صفحة براند ' + m[1];
+    if ((m = /^store:(.+)$/.exec(k))) return 'صفحة متجر ' + m[1];
+    if ((m = /^sec:(.+)$/.exec(k))) return 'صفحة ' + (SEC_LABEL[m[1]] || m[1]);
+    if ((m = /^col:([a-z]+):/.exec(k))) { var h = document.querySelector('#view h3'); return 'صفحة ' + (PAGE_NAMES[m[1]] || 'تجميعة') + (h ? ' ' + h.textContent.trim().slice(0, 30) : ''); }
+    return 'صفحة داخلية';
+  }
+  var lastPage = null;
+  function announcePage() {
+    var k = pageKeyNow();
+    if (k === lastPage) return;
+    lastPage = k; selectedId = null; placeBox();
+    if (hostApi) { hostApi.selection(null); hostApi.page({ key: k, label: pageLabel() }); }
+  }
+  function onDomChange() { requestAnimationFrame(function () { announcePage(); reselect(); }); }
+  try {
+    var mo = new MutationObserver(onDomChange);
+    mo.observe(document.getElementById('main'), { childList: true });
+    var vw = document.getElementById('view'); if (vw) mo.observe(vw, { childList: true });
+    mo.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+  } catch (_) { /* optional */ }
 
   /* ---------- creating blocks ---------- */
   /* Put an element so its top-left corner sits at a point of the window, for the current screen size. */
@@ -317,8 +371,13 @@
     else throw new Error('نوع غير مدعوم هنا');
     if (opts.image) b.image = opts.image;
     if (!validBlock(b)) throw new Error('بيانات البلوك غير صالحة (راجعي رابط الصورة).');
-    var order = insertAfterSelected(id);
-    mutate(function (d) { d.blocks.push(b); d.order = order; });
+    if (onHome()) {
+      var order = insertAfterSelected(id);
+      mutate(function (d) { d.blocks.push(b); d.order = order; });
+    } else {
+      b.slot = 'top';
+      mutate(function () { holder(true).blocks.push(b); });
+    }
     select(id);
     if (opts.at) placeAt(id, opts.at);
     return { elementId: id };
@@ -332,11 +391,11 @@
   }
 
   function setMedia(id, src) {
-    var b = work.blocks.filter(function (x) { return x.id === id; })[0];
+    var b = blocksHere().filter(function (x) { return x.id === id; })[0];
     if (!b || (b.type !== 'image' && b.type !== 'banner')) throw new Error('الصور بتتغيّر في بلوك صورة أو بانر بس.');
     var probe = clone(b); if (b.type === 'image') probe.src = src; else probe.image = src;
     if (!validBlock(probe)) throw new Error('رابط الصورة مش مسموح.');
-    mutate(function (d) { var t = d.blocks.filter(function (x) { return x.id === id; })[0]; if (t.type === 'image') t.src = src; else t.image = src; });
+    mutate(function () { var t = blocksHere().filter(function (x) { return x.id === id; })[0]; if (t.type === 'image') t.src = src; else t.image = src; });
   }
 
 
@@ -367,17 +426,22 @@
 
   /* ---------- commands from the editor ---------- */
   function archiveList() {
-    var out = [], e = (work.edits && work.edits.all) || {};
+    var out = [], h0 = holder(false), e = (h0 && h0.edits && h0.edits.all) || {};
     Object.keys(e).forEach(function (id) { if (e[id].archived) out.push({ id: id, name: (entryById(id) || { name: id }).name }); });
     return out;
   }
-  function snapshot() { return { revision: baseRevision, design: clone(work), device: device(), dirty: dirty, archive: archiveList(), selected: info(selectedId && entryById(selectedId)) }; }
+  function snapshot() { return { revision: baseRevision, design: clone(work), device: device(), dirty: dirty, archive: archiveList(), page: { key: pageKeyNow(), label: pageLabel() }, selected: info(selectedId && entryById(selectedId)) }; }
   function need(id) { var e = id && entryById(id); if (!e) throw new Error('اختاري عنصر الأول.'); return e; }
 
   async function execute(action, p, meta) {
     p = p || {};
     switch (action) {
       case 'page.getState': return snapshot();
+      case 'page.home': {
+        var bc = document.querySelector('#view nav.bc a');
+        if (bc) { homeClick = true; bc.click(); homeClick = false; } else location.reload();
+        return null;
+      }
       case 'page.markSaved': baseRevision = p.revision; undoStack = []; redoStack = []; baseJson = JSON.stringify(work); dirty = true; setDirty(false); if (hostApi) hostApi.revision(baseRevision); return snapshot();
       case 'element.select': select(need(p.elementId).id); return { selected: selectedId };
       case 'element.move': { var e1 = need(p.elementId || selectedId); mutate(function () { var t = edit(device(), e1.id); t.dx = Math.round(+p.dx || 0); t.dy = Math.round(+p.dy || 0); }); return null; }
@@ -387,11 +451,16 @@
       case 'element.setMedia': { var e5 = need(p.elementId || selectedId); setMedia(e5.id, p.src || await mediaPrompt(e5.id)); return null; }
       case 'element.create': return createBlock(p.kind, p);
       case 'element.duplicate': {
-        var e6 = need(p.elementId || selectedId), src = work.blocks.filter(function (b) { return b.id === e6.id; })[0];
+        var e6 = need(p.elementId || selectedId), src = blocksHere().filter(function (b) { return b.id === e6.id; })[0];
         if (!src) throw new Error('التكرار متاح للبلوكات الإضافية بس.');
-        var copy = clone(src); copy.id = 'x-' + rid(); var order = fullOrder(), b0 = base(src.id); order.splice(order.indexOf(src.id) + 1, 0, copy.id);
+        var copy = clone(src); copy.id = 'x-' + rid();
         var r0 = e6.el.getBoundingClientRect();
-        mutate(function (d) { d.blocks.push(copy); d.order = order; var from = d.edits && ((d.edits.all || {})[src.id]); if (from) d.edits.all[copy.id] = JSON.parse(JSON.stringify(from)); });
+        if (onHome()) {
+          var order = fullOrder(); order.splice(order.indexOf(src.id) + 1, 0, copy.id);
+          mutate(function (d) { d.blocks.push(copy); d.order = order; var from = d.edits && ((d.edits.all || {})[src.id]); if (from) d.edits.all[copy.id] = JSON.parse(JSON.stringify(from)); });
+        } else {
+          mutate(function () { var h = holder(true); h.blocks.push(copy); var from = h.edits && ((h.edits.all || {})[src.id]); if (from) h.edits.all[copy.id] = JSON.parse(JSON.stringify(from)); });
+        }
         select(copy.id); placeAt(copy.id, { x: r0.left + 20, y: r0.top + 20 }); return { elementId: copy.id };
       }
       case 'tool.run': {
@@ -410,7 +479,7 @@
       }
       case 'element.edit': { var e9 = need(p.elementId || selectedId); startText(e9.id); return null; }
       case 'element.archive': archive(need(p.elementId || selectedId).id); return null;
-      case 'archive.restore': mutate(function (d) { if (d.edits) Object.keys(d.edits).forEach(function (dev) { if (d.edits[dev][p.elementId]) delete d.edits[dev][p.elementId].archived; }); }); return snapshot();
+      case 'archive.restore': mutate(function () { var h = holder(false); if (h && h.edits) Object.keys(h.edits).forEach(function (dev) { if (h.edits[dev][p.elementId]) delete h.edits[dev][p.elementId].archived; }); }); return snapshot();
       case 'history.undo': return { ok: undo() };
       case 'history.redo': return { ok: redo() };
       case 'ui.openFormatPanel': if (p.elementId) select(need(p.elementId).id); if (!selectedId) throw new Error('اضغطي على عنصر في الصفحة الأول.'); return null;
@@ -432,7 +501,7 @@
     baseRevision = j.revision === null || j.revision === undefined ? 'initial' : j.revision;
     work = ED.normalize(j.design || { version: ED.VERSION }, { strict: false }).design;
     undoStack = []; redoStack = []; dirty = false; baseJson = JSON.stringify(work);
-    repaint();
+    repaint(); lastPage = null; setTimeout(announcePage, 0);
     return { revision: baseRevision, design: clone(work) };
   }
 
