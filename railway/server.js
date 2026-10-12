@@ -1,5 +1,6 @@
 /* Élan Scents — Railway host.
-   Serves static files and /api/* handlers with routing and cache policy defined here.
+   Serves the same static files and the same /api/* handlers that Vercel serves,
+   and reads headers/rewrites from vercel.json so both hosts stay identical.
    No dependencies. Start: node railway/server.js */
 const http = require('http');
 const fs = require('fs');
@@ -9,6 +10,7 @@ const editorHost = require('./editor-host.js');
 const ROOT = path.resolve(__dirname, '..');
 const PORT = Number(process.env.PORT) || 3000;
 const MAX_BODY = 1000000;
+const CONFIG = (() => { try { return JSON.parse(fs.readFileSync(path.join(ROOT, 'vercel.json'), 'utf8')); } catch (e) { return {}; } })();
 
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
@@ -19,25 +21,22 @@ const MIME = {
 };
 
 // Never serve server-side or repo-internal files.
-const BLOCKED_TOP = new Set(['api', 'lib', 'reports', 'scripts', 'tests', 'supabase', 'railway', 'editor', 'node_modules', 'src', '.github', '.git']);
-const BLOCKED_FILES = new Set(['package.json', 'package-lock.json', 'claude.md', 'readme.md']);
-const REWRITES = new Map([
-  ['/api/store-order-completed', '/api/store-order-status'],
-  ['/api/store-order-status-check', '/api/store-order-status']
-]);
+const BLOCKED_TOP = new Set(['api', 'tests', 'supabase', 'railway', 'editor', 'node_modules', 'src', '.github', '.git']);
+const BLOCKED_FILES = new Set(['package.json', 'package-lock.json', 'vercel.json', 'claude.md', 'readme.md']);
+
+function compile(rules, key) {
+  return (rules || []).map((r) => {
+    let re = null;
+    try { re = new RegExp('^' + r.source + '$'); } catch (e) { re = null; }
+    return re ? { re, rule: r } : null;
+  }).filter(Boolean);
+}
+const HEADER_RULES = compile(CONFIG.headers);
+const REWRITES = new Map((CONFIG.rewrites || []).map((r) => [r.source, r.destination]));
 
 function applyHeaders(pathname, res) {
-  if (pathname === '/' || /\.(?:html|js|css)$/i.test(pathname) || pathname.startsWith('/design/')) {
-    res.setHeader('Cache-Control', 'no-store, max-age=0, must-revalidate');
-  }
-  if (pathname.startsWith('/assets/')) res.setHeader('Cache-Control', 'no-store, max-age=0, must-revalidate');
-  if (pathname === '/assets/hero.mp4') {
-    res.setHeader('Content-Type', 'video/mp4');
-    res.setHeader('Accept-Ranges', 'bytes');
-    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-  }
-  if (pathname === '/assets/hero-poster.jpg') {
-    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+  for (const { re, rule } of HEADER_RULES) {
+    if (re.test(pathname)) for (const h of rule.headers || []) res.setHeader(h.key, h.value);
   }
 }
 
@@ -116,7 +115,7 @@ function resolveStatic(pathname) {
   if (rel === '/' || rel === '') rel = '/index.html';
   const parts = rel.split('/').filter(Boolean);
   if (!parts.length || parts.some((p) => p.startsWith('.') || p === '..')) return null;
-  if (BLOCKED_TOP.has(parts[0].toLowerCase()) || /^elan-editor/i.test(parts[0]) || (parts.length === 1 && BLOCKED_FILES.has(parts[0].toLowerCase()))) return null;
+  if (BLOCKED_TOP.has(parts[0].toLowerCase()) || (parts.length === 1 && BLOCKED_FILES.has(parts[0].toLowerCase()))) return null;
   const file = path.join(ROOT, ...parts);
   if (!file.startsWith(ROOT + path.sep)) return null;
   try { if (!fs.statSync(file).isFile()) return null; } catch (e) { return null; }

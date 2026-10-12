@@ -7,10 +7,12 @@
   if (!ED) return;
 
   var design = null;
-  var editing = false;
   var touched = [];
   var lastDevice = null;
   var SEC_NAMES = { brands: 'الماركات', offers: 'العروض', new: 'وصل حديثًا', cats: 'الأقسام', master: 'الأعلى مبيعًا', occ: 'المناسبات', notes: 'النوتات العطرية', soon: 'قريبًا', stores: 'المتاجر' };
+  function inEditor() {
+    try { return window.parent !== window && /(?:^|[?&])elan_editor=1(?:&|$)/.test(location.search); } catch (e) { return false; }
+  }
   var STYLE_ID = 'elan-design-style';
   var CSS = [
     '.elan-block{max-width:900px;margin:18px auto;padding:0 16px;box-sizing:border-box}',
@@ -22,8 +24,7 @@
     '.elan-banner:before{content:"";position:absolute;inset:0;background:rgba(20,12,4,.35)}',
     '.elan-banner>*{position:relative}.elan-banner h3,.elan-banner p{margin:6px 0;color:#fff}',
     '.elan-image img{max-width:100%;height:auto;display:block;margin:0 auto;border-radius:12px}',
-    '.elan-block a{color:inherit;text-decoration:none;display:block}',
-    '.elan-smart{max-width:1200px}.elan-smart h3{margin:0 0 12px;text-align:start}'
+    '.elan-block a{color:inherit;text-decoration:none;display:block}'
   ].join('\n');
 
   function lang() { return document.documentElement.lang === 'en' ? 'en' : 'ar'; }
@@ -43,62 +44,6 @@
     return e;
   }
 
-
-  // ----- smart sections: definition + items live in Supabase (public read; RLS hides archived/expired ones) -----
-  var smartCache = {};
-  window.ElanPendingSections = window.ElanPendingSections || {};   // edit mode only: drafts not saved yet
-  function perfumeBy(id) { try { return PERFUMES.filter(function (x) { return String(x.id) === String(id); })[0] || null; } catch (e) { return null; } }
-  function autoList(f) {
-    f = f || {};
-    var l = [];
-    try { l = PERFUMES.map(function (p) { return { p: p, b: best(p) }; }).filter(function (x) { return x.b; }); } catch (e) { return []; }
-    l = l.filter(function (x) {
-      var p = x.p;
-      if (f.brand && p.brand !== f.brand) return false;
-      if (f.cat && !(p.cats || []).some(function (i) { return nmOf('cats', i) === f.cat; })) return false;
-      if (f.occ && !(p.occs || []).some(function (i) { return nmOf('occ', i) === f.occ; })) return false;
-      if (f.note && !(p.notes || []).some(function (i) { return nmOf('notes', i) === f.note; })) return false;
-      if (f.store && !p.offers.some(function (o) { return o.store === f.store; })) return false;
-      if (f.flag && !p.offers.some(function (o) { return (o.flags || []).indexOf(f.flag) > -1; })) return false;
-      if (f.min !== undefined && f.min !== '' && x.b.price < +f.min) return false;
-      if (f.max !== undefined && f.max !== '' && x.b.price > +f.max) return false;
-      return true;
-    });
-    if (f.sort === 'price_asc') l.sort(function (a, b) { return a.b.price - b.b.price; });
-    else if (f.sort === 'price_desc') l.sort(function (a, b) { return b.b.price - a.b.price; });
-    else l.sort(function (a, b) { return (b.p.rel || 0) - (a.p.rel || 0); });
-    return l.slice(0, Math.max(1, Math.min(24, +f.limit || 12)));
-  }
-  function manualList(ids) {
-    return ids.map(perfumeBy).filter(Boolean).map(function (p) { return { p: p, b: best(p) }; });
-  }
-  function paint(root, name, list) {
-    root.textContent = '';
-    if (name) { var h = el('h3'); h.textContent = name; root.appendChild(h); }
-    var g = el('div', 'grid section-perfume-grid');
-    g.innerHTML = list.map(function (x) { return pc(x); }).join('');   // pc() output is built from the storefront's own escaped data
-    root.appendChild(g);
-  }
-  function fillSmart(root, ref) {
-    var pend = window.ElanPendingSections[ref];
-    if (pend) { paint(root, pend.name, pend.mode === 'auto' ? autoList(pend.filters) : manualList(pend.items || [])); return; }
-    if (typeof SB === 'undefined' || !SB || !SB.url) { root.remove(); return; }
-    var hit = smartCache[ref];
-    if (hit && Date.now() - hit.t < 60000) { if (hit.def) paint(root, hit.def.name, hit.list()); else root.remove(); return; }
-    var H = { apikey: SB.key, Authorization: 'Bearer ' + SB.key };
-    fetch(SB.url + '/rest/v1/editor_sections?element_id=eq.' + encodeURIComponent(ref) + '&select=id,name,selection_mode,filters&limit=1', { headers: H })
-      .then(function (r) { return r.ok ? r.json() : []; })
-      .then(function (rows) {
-        if (!rows.length) { smartCache[ref] = { t: Date.now(), def: null }; root.remove(); return null; }
-        var def = rows[0];
-        if (def.selection_mode === 'auto') { smartCache[ref] = { t: Date.now(), def: def, list: function () { return autoList(def.filters); } }; paint(root, def.name, autoList(def.filters)); return null; }
-        return fetch(SB.url + '/rest/v1/editor_section_items?section_id=eq.' + def.id + '&select=product_size_id&order=sort_order', { headers: H })
-          .then(function (r) { return r.ok ? r.json() : []; })
-          .then(function (items) { var ids = items.map(function (i) { return i.product_size_id; }); smartCache[ref] = { t: Date.now(), def: def, list: function () { return manualList(ids); } }; paint(root, def.name, manualList(ids)); });
-      })
-      .catch(function () { root.remove(); });
-  }
-
   function buildBlock(b) {
     var st = b.style || {};
     var root = el('div', 'elan-block elan-' + b.type + ' elan-size-' + (st.size || 'md') + ' elan-align-' + (st.align || 'center'));
@@ -107,16 +52,13 @@
     if (st.color) root.style.color = st.color;
     if (st.background) root.style.backgroundColor = st.background;
     var inner = root;
-    if (b.href && b.type !== 'smart') {
+    if (b.href) {
       var a = el('a');
       a.setAttribute('href', b.href);
       root.appendChild(a);
       inner = a;
     }
-    if (b.type === 'smart') {
-      root.classList.add('elan-smart');
-      fillSmart(root, b.ref);
-    } else if (b.type === 'text') {
+    if (b.type === 'text') {
       var p = el('p');
       p.textContent = pick(b.text);
       inner.appendChild(p);
@@ -135,6 +77,7 @@
     }
     return root;
   }
+
 
   function hash(str) { var h = 5381, i; for (i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) >>> 0; return h.toString(36); }
 
@@ -226,8 +169,7 @@
 
   function apply() {
     var main = document.getElementById('main');
-    if (!main || !design) return;
-    if (ED.isEmpty(design)) { applyEdits(); return; }
+    if (!main || !design || ED.isEmpty(design)) { if (design) applyEdits(); return; }
 
     // Idempotent: drop what we added before, then re-apply on the freshly rendered page.
     Array.prototype.slice.call(main.querySelectorAll('[data-elan-custom]')).forEach(function (n) { n.remove(); });
@@ -241,8 +183,8 @@
     var plan = ED.plan(design, present, lang());
 
     plan.hide.forEach(function (id) {
+      nodes[id].style.display = 'none';
       nodes[id].setAttribute('data-elan-hidden', '1');
-      if (editing) nodes[id].style.opacity = '.4'; else nodes[id].style.display = 'none';
     });
     Object.keys(plan.titles).forEach(function (id) {
       var h = nodes[id].querySelector('h3');
@@ -252,50 +194,7 @@
 
     // Only touch the order when the design asks for it or adds blocks.
     plan.order.forEach(function (id) { if (nodes[id]) main.appendChild(nodes[id]); });
-    applyEdits(); // free-form edits from the visual editor, for the current screen size
-  }
-
-
-  // Inner pages (brands, stores, categories, occasions, notes, collections): blocks go at the top or bottom of #view.
-  function pageKey() {
-    if (!document.body.classList.contains('inner')) return 'home';
-    try {
-      var x = P[P.length - 1];
-      if (!x) return null;
-      if (x.k === 'sec') return 'sec:' + x.id;
-      if (x.k === 'col') return 'col:' + x.id + ':' + x.i;
-      if (x.k === 'brand') return 'brand:' + x.n;
-      if (x.k === 'store') return 'store:' + x.n;
-    } catch (e) { /* no page stack yet */ }
-    return null;
-  }
-
-  function applyPage() {
-    var V = document.getElementById('view');
-    if (!V || !design) return;
-    Array.prototype.slice.call(V.querySelectorAll('[data-elan-custom]')).forEach(function (n) { n.remove(); });
-    var key = pageKey(), pg = design.pages && key && design.pages[key];
-    if (!pg) return;
-    var top = pg.blocks.filter(function (b) { return b.slot !== 'bottom'; });
-    var bottom = pg.blocks.filter(function (b) { return b.slot === 'bottom'; });
-    var h = V.querySelector('h3'), ref = h || null;
-    top.forEach(function (b) {
-      var n = buildBlock(b);
-      if (ref) { ref.parentNode.insertBefore(n, ref.nextSibling); ref = n; } else { V.insertBefore(n, V.firstChild); ref = n; }
-    });
-    bottom.forEach(function (b) { V.appendChild(buildBlock(b)); });
-  }
-
-  function wrapView() {
-    var orig = window.view;
-    if (typeof orig !== 'function' || orig.__elanDesign) return;
-    var wrapped = function () {
-      var r = orig.apply(this, arguments);
-      try { applyPage(); } catch (e) { console.error('design layer', e); }
-      return r;
-    };
-    wrapped.__elanDesign = true;
-    window.view = wrapped;
+    applyEdits();
   }
 
   function waitFor(test, cb, timeoutMs) {
@@ -321,45 +220,52 @@
 
   function start(json) {
     var n = ED.normalize(json, { strict: false });
-    if (!n.ok || ED.isEmpty(n.design)) return; // nothing to do: page stays untouched
+    var editing = inEditor();
+    if (!n.ok && !editing) return;
+    if (!n.ok) n = { ok: true, design: ED.normalize({ version: ED.VERSION }).design };
+    if (ED.isEmpty(n.design) && !editing) return; // nothing to do: page stays untouched
     design = n.design;
     ensureStyle();
     if (typeof D === 'object' && D) ED.applyTexts(D, design);
-    wrapRender(); wrapView();
+    wrapRender();
     if (typeof window.render === 'function') window.render();
-    if (document.body.classList.contains('inner') && typeof window.view === 'function') window.view();
+    if (editing) loadEditMode();
+    window.addEventListener('resize', function () {
+      var d = ED.deviceOf(window.innerWidth);
+      if (d !== lastDevice) { lastDevice = d; try { applyEdits(); } catch (e) { /* keep page usable */ } }
+    });
+    lastDevice = ED.deviceOf(window.innerWidth);
   }
 
-  // Used only by the editor's edit mode: swap in a draft design and redraw. Customers never call this.
-  function set(json, opts) {
-    var n = ED.normalize(json, { strict: false });
-    if (!n.ok) return false;
-    editing = !!(opts && opts.editing);
+  function loadEditMode() {
+    var b = document.createElement('script');
+    b.src = '/elan-host-bridge.js?v=20261010-02';
+    b.onload = function () {
+      var m = document.createElement('script');
+      m.src = '/edit-mode.js?v=20261010-02';
+      document.head.appendChild(m);
+    };
+    document.head.appendChild(b);
+  }
+
+  /* Editor only: replace the working design and repaint. */
+  function setDesign(next) {
+    var n = ED.normalize(next, { strict: false });
     design = n.design;
     ensureStyle();
-    if (typeof D === 'object' && D) ED.applyTexts(D, design);
-    wrapRender(); wrapView();
+    wrapRender();
     if (typeof window.render === 'function') window.render();
-    if (document.body.classList.contains('inner') && typeof window.view === 'function') window.view();
-    return true;
   }
 
-  window.ElanDesignLayer = { apply: apply, set: set, pageKey: pageKey, current: function () { return design; }, applyEdits: applyEdits, elements: elements, textTarget: textTarget };
-
-  // A different screen size means a different set of free-form edits.
-  window.addEventListener('resize', function () {
-    if (!design || !design.edits) return;
-    var d = ED.deviceOf(window.innerWidth);
-    if (d !== lastDevice) { lastDevice = d; try { applyEdits(); } catch (e) { /* keep the page usable */ } }
-  });
-  lastDevice = ED.deviceOf(window.innerWidth);
+  window.ElanDesignLayer = { apply: apply, applyEdits: applyEdits, elements: elements, textTarget: textTarget, setDesign: setDesign, current: function () { return design; } };
 
   fetch('/design/home.json', { cache: 'no-store' })
     .then(function (r) { return r.ok ? r.json() : null; })
     .then(function (json) {
+      if (!json && inEditor()) json = { version: ED.VERSION };
       if (!json) return;
       waitFor(function () { return typeof window.render === 'function' && document.getElementById('main'); },
         function () { start(json); }, 15000);
     })
-    .catch(function () { /* design is optional */ });
+    .catch(function () { if (inEditor()) waitFor(function () { return typeof window.render === 'function' && document.getElementById('main'); }, function () { start({ version: ED.VERSION }); }, 15000); /* otherwise the design is optional */ });
 })();
