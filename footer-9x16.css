@@ -4,12 +4,12 @@ footer {
   width: 100% !important;
   max-width: 540px !important;
   margin: 0 auto !important;
-  /* Taller artwork; elements sit higher and leave an empty strip at the very bottom */
-  aspect-ratio: 940 / 1560 !important;
+  /* Match footer-background.png (940×1672) so the image is the full canvas */
+  aspect-ratio: 940 / 1672 !important;
   height: auto !important;
   min-height: 0 !important;
   max-height: none !important;
-  padding: clamp(8px, 1.5vw, 14px) clamp(14px, 3.5vw, 24px) 13% !important;
+  padding: clamp(20px, 4vw, 36px) clamp(14px, 3.5vw, 24px) clamp(16px, 3vw, 28px) !important;
   overflow: hidden !important;
   display: flex !important;
   flex-direction: column !important;
@@ -39,7 +39,7 @@ footer .footer-background {
   max-width: none !important;
   max-height: none !important;
   object-fit: cover !important;
-  object-position: center 52% !important;
+  object-position: center top !important;
   margin: 0 !important;
   border: 0 !important;
   border-radius: 0 !important;
@@ -60,7 +60,7 @@ footer > *:not(.footer-background) {
 footer .fdiv {
   width: 64px !important;
   height: 1px !important;
-  margin: 0 auto 14px !important;
+  margin: 0 auto 18px !important;
   background: linear-gradient(90deg, transparent, #f5d993 35%, #fff1cf 50%, #f5d993 65%, transparent) !important;
   flex-shrink: 0 !important;
 }
@@ -72,7 +72,7 @@ footer .fcols {
   justify-items: center !important;
   width: 100% !important;
   max-width: 100% !important;
-  margin: clamp(6px, 1.2vh, 14px) auto 10px !important;
+  margin: 0 auto 14px !important;
   padding: 0 !important;
   gap: 12px 16px !important;
   text-align: center !important;
@@ -115,10 +115,9 @@ footer .fph {
   display: flex !important;
   flex-direction: column !important;
   align-items: center !important;
-  gap: 8px !important;
+  gap: 10px !important;
   width: 100% !important;
-  /* push below the emblem so nothing overlaps the logo */
-  margin: auto auto 6px !important;
+  margin: 0 auto 12px !important;
   padding: 0 !important;
   font-size: 13px !important;
   color: #ffe4a3 !important;
@@ -151,8 +150,8 @@ footer .fbar {
   justify-content: center !important;
   gap: 8px 12px !important;
   width: 100% !important;
-  margin: 0 auto 6px !important;
-  padding: 10px 6px 0 !important;
+  margin: 0 auto 10px !important;
+  padding: 12px 6px 0 !important;
   border-top: 1px solid rgba(255, 239, 199, .28) !important;
   font-size: 11px !important;
   color: #f0e6c8 !important;
@@ -165,10 +164,10 @@ footer #fcr {
   flex-direction: column !important;
   align-items: center !important;
   justify-content: center !important;
-  gap: 4px !important;
+  gap: 5px !important;
   width: 100% !important;
   margin: 0 auto !important;
-  padding: 0 6px !important;
+  padding: 2px 6px 0 !important;
   color: #fff1cf !important;
   text-align: center !important;
   text-shadow: 0 1px 3px rgba(20, 18, 18, .65) !important;
@@ -206,7 +205,7 @@ footer #fcr small {
 @media (max-width: 400px) {
   footer {
     max-width: 100% !important;
-    padding: 8px 12px 13% !important;
+    padding: 18px 12px 14px !important;
   }
   footer .fcols a,
   footer .fcols span {
