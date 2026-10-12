@@ -134,7 +134,7 @@
   }
 }
 
-/* ---------- Categories: Cover Flow 3D ---------- */
+/* ---------- Categories: Cover Flow 3D (larger cards) ---------- */
 #cats.cover-flow-sec {
   position: relative;
   overflow: visible;
@@ -142,10 +142,10 @@
 #cats .cf-stage {
   position: relative;
   width: 100%;
-  max-width: 480px;
-  height: 280px;
-  margin: 12px auto 28px;
-  perspective: 1000px;
+  max-width: 560px;
+  height: 360px;
+  margin: 16px auto 32px;
+  perspective: 1100px;
   perspective-origin: 50% 45%;
   touch-action: pan-y;
   user-select: none;
@@ -155,7 +155,7 @@
   position: absolute !important;
   left: 50%;
   top: 50%;
-  width: min(210px, 58vw) !important;
+  width: min(280px, 72vw) !important;
   margin: 0 !important;
   padding: 0 !important;
   transform-style: preserve-3d;
@@ -164,12 +164,12 @@
 }
 #cats .cf-stage .cb .card {
   width: 100% !important;
-  height: 250px !important;
+  height: 320px !important;
   min-height: 0 !important;
   margin: 0 !important;
-  border-radius: 18px !important;
+  border-radius: 22px !important;
   overflow: hidden;
-  box-shadow: 0 12px 32px rgba(0,0,0,0.2);
+  box-shadow: 0 14px 40px rgba(0,0,0,0.22);
   cursor: pointer;
   background: #1a1410;
 }
@@ -192,11 +192,15 @@
   color: #f5ead4;
   text-shadow: 0 2px 10px rgba(0,0,0,0.5);
 }
+#cats .cf-stage .cb .card h4 {
+  font-size: 26px !important;
+  padding: 0 18px;
+}
 #cats .cf-stage .cb .card::after {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(to top, rgba(10,6,2,0.75) 0%, transparent 55%);
+  background: linear-gradient(to top, rgba(10,6,2,0.78) 0%, transparent 55%);
   z-index: 1;
   pointer-events: none;
 }
@@ -204,7 +208,7 @@
   z-index: 10;
 }
 #cats .cf-stage .cb.cf-center .card {
-  box-shadow: 0 18px 48px rgba(0,0,0,0.3), 0 0 0 2px #c8962a55;
+  box-shadow: 0 22px 56px rgba(0,0,0,0.32), 0 0 0 2px #c8962a55;
 }
 #cats .cf-stage .cb.cf-side {
   z-index: 5;
@@ -219,13 +223,13 @@
   font-size: 11px;
   letter-spacing: 0.04em;
   color: #8a7350;
-  margin: -12px 0 20px;
+  margin: -8px 0 20px;
 }
 #cats .cf-dots {
   display: flex;
   justify-content: center;
   gap: 8px;
-  margin: -8px 0 24px;
+  margin: -4px 0 24px;
 }
 #cats .cf-dots button {
   width: 8px; height: 8px; padding: 0; margin: 0; border: 0; border-radius: 50%;
@@ -237,14 +241,17 @@
 }
 @media (max-width: 480px) {
   #cats .cf-stage {
-    height: 250px;
-    max-width: 96vw;
+    height: 320px;
+    max-width: 98vw;
   }
   #cats .cf-stage .cb {
-    width: min(180px, 55vw) !important;
+    width: min(250px, 78vw) !important;
   }
   #cats .cf-stage .cb .card {
-    height: 220px !important;
-    border-radius: 14px !important;
+    height: 290px !important;
+    border-radius: 18px !important;
+  }
+  #cats .cf-stage .cb .card h4 {
+    font-size: 22px !important;
   }
 }
