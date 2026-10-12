@@ -19,7 +19,8 @@ Railway serves **only** these filenames as static files from `editor/`:
 | Path | URL | Role |
 |------|-----|------|
 | `editor/edit-boot.js` | `/editor/edit-boot.js` | Loads tools when `?elan_editor=1` + framed |
-| `editor/edit-mode.js` | `/editor/edit-mode.js` | Entry; loads implementation from `/edit-mode.js` |
+| `editor/edit-mode.js` | `/editor/edit-mode.js` | Entry; loads full body from `/edit-mode.js` |
+| `editor/edit-model.js` | `/editor/edit-model.js` | Node re-export of root `edit-model.js` |
 | `editor/elan-host-bridge.js` | `/editor/elan-host-bridge.js` | postMessage bridge |
 
 ## Still at repo root (implementation body)
