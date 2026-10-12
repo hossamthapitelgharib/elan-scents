@@ -45,8 +45,8 @@ test('main menu routes to the customer dashboard and footer artwork is configure
   assert.match(storefront, /class="footer-background"/);
   assert.ok(fs.existsSync(path.join(root, 'assets/footer-background.png')));
   const footerCss = fs.readFileSync(path.join(root, 'footer-9x16.css'), 'utf8');
-  // The artwork ratio is tunable; keep the denominator flexible across visual revisions.
-  assert.match(footerCss, /aspect-ratio:\s*940\s*\/\s*\d+/);
+  // Keep the footer surface at the source artwork's exact 940x1672 ratio.
+  assert.match(footerCss, /aspect-ratio:\s*940\s*\/\s*1672\b/);
   assert.match(footerCss, /object-fit:\s*cover/);
   assert.doesNotMatch(styles, /url\('\/assets\/footer-emblem\.png'\)/);
   assert.doesNotMatch(storefront, /elan-scents-logo\.png/);

@@ -4,8 +4,8 @@ footer {
   width: 100% !important;
   max-width: 540px !important;
   margin: 0 auto !important;
-  /* Taller artwork; elements sit higher and leave an empty strip at the very bottom */
-  aspect-ratio: 940 / 1560 !important;
+  /* Match assets/footer-background.png exactly to prevent cropping. */
+  aspect-ratio: 940 / 1672 !important;
   height: auto !important;
   min-height: 0 !important;
   max-height: none !important;

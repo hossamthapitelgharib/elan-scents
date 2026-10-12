@@ -85,28 +85,34 @@ function renderRankTable(rows) {
   return `<div class="activity-table-wrap"><table class="activity-table rank-table"><thead><tr><th>العطر وبياناته</th><th>مرات العملية</th><th>عدد العملاء</th></tr></thead><tbody>${rows.map(row => `<tr><td class="activity-product-cell">${productSummary(row.product)}</td><td>${numberP(row.operations)}</td><td>${numberP(row.people)}</td></tr>`).join('')}</tbody></table></div>`;
 }
 function renderAnalytics(actor, data) {
-  const prefix = actor === 'guest' ? 'guest' : 'registered', peopleLabel = actor === 'guest' ? 'زوار لديهم نشاط' : 'عملاء مسجلون لديهم نشاط';
-  document.querySelector(`#${prefix}AnalyticsRange`).textContent = `${periodsP[data.period] || periodsP.today} · ${data.startDate || '—'} – ${data.endDate || '—'}`;
-  const stats = [[peopleLabel, data.people], ['جلسات نشطة الآن', data.activeSessions], ['عدد الزيارات', data.visitCount], ['الوقت النشط', durationP(data.activeSeconds)], ['مشاهدات المنتجات', data.productViews], ['نتائج بحث المنتجات', data.productSearches], ['إضافات للسلة', data.cartAdds], ['حذف/تقليل من السلة', data.cartRemoves]];
-  document.querySelector(`#${prefix}AnalyticsStats`).innerHTML = stats.map((item, index) => `<div class="stat ${index === 0 ? 'gold' : ''}"><small>${item[0]}</small><b>${typeof item[1] === 'string' ? escP(item[1]) : numberP(item[1])}</b></div>`).join('');
-  const ids = actor === 'guest' ? ['guestTopViewed','guestTopSearched','guestTopAdded','guestTopRemoved'] : ['registeredTopViewed','registeredTopSearched','registeredTopAdded','registeredTopRemoved'];
-  [data.topViewed,data.topSearched,data.topCartAdded,data.topCartRemoved].forEach((rows,index) => { document.querySelector(`#${ids[index]}`).innerHTML = renderRankTable(rows); });
+  if (actor !== 'guest') return;
+  document.querySelector('#guestAnalyticsRange').textContent = `${periodsP[data.period] || periodsP.today} · ${data.startDate || '—'} – ${data.endDate || '—'}`;
+  const stats = [['زوار لديهم نشاط', data.people], ['جلسات نشطة الآن', data.activeSessions], ['عدد الزيارات', data.visitCount], ['الوقت النشط', durationP(data.activeSeconds)], ['مشاهدات المنتجات', data.productViews], ['نتائج بحث المنتجات', data.productSearches], ['إضافات للسلة', data.cartAdds], ['حذف/تقليل من السلة', data.cartRemoves]];
+  document.querySelector('#guestAnalyticsStats').innerHTML = stats.map((item, index) => `<div class="stat ${index === 0 ? 'gold' : ''}"><small>${item[0]}</small><b>${typeof item[1] === 'string' ? escP(item[1]) : numberP(item[1])}</b></div>`).join('');
+  document.querySelector('#guestTopProducts').innerHTML = `<h5>الأكثر مشاهدة</h5>${renderRankTable(data.topViewed)}<h5>الأكثر ظهورًا في نتائج البحث</h5>${renderRankTable(data.topSearched)}`;
+  document.querySelector('#guestBasketProducts').innerHTML = `<h5>الأكثر إضافةً إلى السلة</h5>${renderRankTable(data.topCartAdded)}<h5>الأكثر حذفًا أو تقليلًا من السلة</h5>${renderRankTable(data.topCartRemoved)}`;
 }
 async function loadAnalytics(actor) {
-  if (!Portal.session()) return;
-  const prefix = actor === 'guest' ? 'guest' : 'registered', period = document.querySelector(`#${prefix}AnalyticsPeriod`).value || 'today';
-  const response = await fetch(`/api/guest-analytics?period=${encodeURIComponent(period)}&actor=${encodeURIComponent(actor)}`, { headers: Portal.auth() }), result = await response.json();
+  if (actor !== 'guest' || !Portal.session()) return;
+  const period = document.querySelector('#guestAnalyticsPeriod').value || 'today';
+  const response = await fetch(`/api/guest-analytics?period=${encodeURIComponent(period)}&actor=guest`, { headers: Portal.auth() }), result = await response.json();
   if (!response.ok) throw Error(result.error || 'تعذر تحميل التحليلات');
-  document.querySelector(`#${prefix}AnalyticsError`).hidden = true;
-  renderAnalytics(actor, result.analytics);
+  document.querySelector('#guestAnalyticsError').hidden = true;
+  renderAnalytics('guest', result.analytics);
 }
-function showAnalyticsError(actor, error) {
-  const box = document.querySelector(`#${actor === 'guest' ? 'guest' : 'registered'}AnalyticsError`);
+function showAnalyticsError(_actor, error) {
+  const box = document.querySelector('#guestAnalyticsError');
+  if (!box) return;
   box.textContent = error && error.message ? error.message : 'تعذر تحميل التحليلات'; box.hidden = false;
 }
 function filterQuery() {
-  const form = document.querySelector('#platformFilters'); if (!form) return '';
-  const params = new URLSearchParams(); for (const [key, value] of new FormData(form)) if (value) params.set(key, value);
+  const root = document.querySelector('#platformFilters'); if (!root) return '';
+  const params = new URLSearchParams();
+  for (const field of root.querySelectorAll('input[name], select[name]')) {
+    if (field.disabled || (field.type === 'checkbox' && !field.checked)) continue;
+    const value = String(field.value || '').trim();
+    if (value) params.set(field.name, value);
+  }
   const query = params.toString(); return query ? `?${query}` : '';
 }
 function badgeP(status) { return `<span class="badge ${status === 'completed' || status === 'matched' || status === 'delivered' ? 'green' : status === 'mismatched' || status === 'store_cancelled' || status === 'store_rejected' ? 'red' : 'blue'}">${escP(labelP[status] || status || '—')}</span>`; }
@@ -124,8 +130,8 @@ function activateCustomerTabs() {
     const guests = button.dataset.customerTab === 'visitors';
     document.querySelector('#registeredTab').setAttribute('aria-selected', String(!guests));
     document.querySelector('#visitorsTab').setAttribute('aria-selected', String(guests));
-    document.querySelector('#registeredPanel').hidden = guests;
-    document.querySelector('#guestPanel').hidden = !guests;
+    document.querySelector('#registeredCustomers').hidden = guests;
+    document.querySelector('#guestCustomers').hidden = !guests;
   });
 }
 async function loadPlatform() {
@@ -139,14 +145,12 @@ async function loadPlatform() {
   document.querySelector('#stats').innerHTML = [['طلبات المتاجر', orders.length], ['عملاء مسجلون', customersData.counts.registered], ['زوار نشطون', customersData.counts.visitors], ['مكتملة', orders.filter(order => ['completed','delivered'].includes(order.status)).length]].map(item => `<div class="stat"><small>${item[0]}</small><b>${numberP(item[1])}</b></div>`).join('');
   document.querySelector('#platformError').hidden = true; renderCustomers(customersData); renderOrders(orders);
   loadAnalytics('guest').catch(error => showAnalyticsError('guest', error));
-  loadAnalytics('customer').catch(error => showAnalyticsError('customer', error));
 }
 
 activateCustomerTabs();
 document.querySelector('#platformFilters').addEventListener('submit', event => { event.preventDefault(); loadPlatform().catch(reportError); });
 document.querySelector('#refreshCustomers').addEventListener('click', () => loadPlatform().catch(reportError));
 document.querySelector('#guestAnalyticsPeriod').addEventListener('change', () => loadAnalytics('guest').catch(error => showAnalyticsError('guest', error)));
-document.querySelector('#registeredAnalyticsPeriod').addEventListener('change', () => loadAnalytics('customer').catch(error => showAnalyticsError('customer', error)));
 document.addEventListener('click', event => {
   const more = event.target.closest('[data-more-activity]');
   if (more) {

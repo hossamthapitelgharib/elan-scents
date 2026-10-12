@@ -53,7 +53,7 @@
 
 ## الاستضافة
 - **Railway هو مضيف المشروع الوحيد**؛ خدمة الموقع تبدأ بـ `npm start` (`node railway/server.js`) وتنشر فرع `main`.
-- `railway/server.js` يملك قواعد المسارات البديلة ورؤوس الكاش وتقديم الملفات وواجهات `/api/*` مباشرة، بلا ملف إعداد استضافة خارجي.
+- `railway/server.js` يقدّم الملفات وواجهات `/api/*`، ويقرأ حاليًا `vercel.json` كمصدر مشترك لقواعد المسارات البديلة ورؤوس الكاش؛ لا تحذف الملف أو تنقل القواعد منه دون تحديث الخادم والاختبارات.
 - متغيرات البيئة المطلوبة على خدمة الموقع: `SUPABASE_URL` و`SUPABASE_ANON_KEY` و`SUPABASE_SERVICE_ROLE_KEY` و`STORE_ORDER_WEBHOOK_SECRET` (وإلا ترد webhooks بـ 503) و`DASHBOARD_TOKEN` (وإلا ترد لوحات الإدارة بـ 503).
 - محرر الموقع يحتاج `GITHUB_TOKEN` و`EDITOR_TARGET_BRANCH=main` و`EDITOR_SITE_ORIGIN` الذي يشير إلى النطاق العام لخدمة الموقع. يحدد `RAILWAY_ENVIRONMENT_NAME=production` بيئة الإنتاج.
 - حد الطلبات في `lib/rate-limit.js` يعمل داخل ذاكرة العملية، ومع نسخة Railway الواحدة يكون فعّالاً.
