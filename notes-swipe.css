@@ -1,4 +1,4 @@
-/* ---------- Notes: Full-page pager (one card = one page) ---------- */
+/* ---------- Notes: Full-page pager ---------- */
 #notes .strip.card-pager {
   position: relative;
   display: block;
@@ -10,24 +10,19 @@
   touch-action: pan-y;
   user-select: none;
   -webkit-user-select: none;
-  height: auto;
-  aspect-ratio: auto;
 }
-
 #notes .strip.card-pager .pager-track {
   position: relative;
   width: 100%;
   overflow: hidden;
   border-radius: 20px;
 }
-
 #notes .strip.card-pager .pager-viewport {
   position: relative;
   width: 100%;
   aspect-ratio: 4 / 3;
   overflow: hidden;
 }
-
 #notes .strip.card-pager .card {
   position: absolute;
   inset: 0;
@@ -47,9 +42,7 @@
   will-change: transform;
   cursor: grab;
 }
-
 #notes .strip.card-pager .card:active { cursor: grabbing; }
-
 #notes .strip.card-pager .card.page-active {
   transform: translateX(0);
   opacity: 1;
@@ -57,316 +50,201 @@
   z-index: 3;
   box-shadow: 0 12px 32px rgba(0,0,0,0.16), 0 0 0 2px #c8962a44;
 }
-
-#notes .strip.card-pager .card.page-prev {
-  transform: translateX(-100%);
-  opacity: 0;
-  z-index: 1;
-}
-
-#notes .strip.card-pager .card.page-next {
-  transform: translateX(100%);
-  opacity: 0;
-  z-index: 1;
-}
-
-#notes .strip.card-pager .card.page-dragging {
-  transition: none !important;
-}
-
+#notes .strip.card-pager .card.page-prev { transform: translateX(-100%); opacity: 0; z-index: 1; }
+#notes .strip.card-pager .card.page-next { transform: translateX(100%); opacity: 0; z-index: 1; }
+#notes .strip.card-pager .card.page-dragging { transition: none !important; }
 #notes .strip.card-pager .pager-dots {
-  position: absolute;
-  left: 0; right: 0; bottom: 8px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 8px;
-  z-index: 6;
-  pointer-events: auto;
+  position: absolute; left: 0; right: 0; bottom: 8px;
+  display: flex; justify-content: center; align-items: center; gap: 8px; z-index: 6;
 }
-
 #notes .strip.card-pager .pager-dots button {
-  width: 8px; height: 8px;
-  padding: 0; margin: 0; border: 0;
-  border-radius: 50%;
-  background: #c8b89a;
-  opacity: 0.45;
-  cursor: pointer;
+  width: 8px; height: 8px; padding: 0; margin: 0; border: 0; border-radius: 50%;
+  background: #c8b89a; opacity: 0.45; cursor: pointer;
   transition: transform 0.2s ease, opacity 0.2s ease, background 0.2s ease;
 }
-
 #notes .strip.card-pager .pager-dots button.on {
-  opacity: 1;
-  background: #c8962a;
-  transform: scale(1.25);
+  opacity: 1; background: #c8962a; transform: scale(1.25);
 }
-
-#notes .strip.card-pager .pager-dots button:focus-visible {
-  outline: 2px solid #c8962a;
-  outline-offset: 2px;
-}
-
 #notes .strip.card-pager .pager-hint {
-  position: absolute;
-  left: 0; right: 0; bottom: 22px;
-  text-align: center;
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  color: #8a7350;
-  pointer-events: none;
-  opacity: 0.85;
+  position: absolute; left: 0; right: 0; bottom: 22px;
+  text-align: center; font-size: 11px; letter-spacing: 0.04em; color: #8a7350;
+  pointer-events: none; opacity: 0.85;
 }
-
 @media (max-width: 480px) {
-  #notes .strip.card-pager {
-    max-width: 92vw;
-    padding-bottom: 34px;
-  }
-  #notes .strip.card-pager .card {
-    border-radius: 16px !important;
-  }
-  #notes .strip.card-pager .pager-track {
-    border-radius: 16px;
-  }
+  #notes .strip.card-pager { max-width: 92vw; padding-bottom: 34px; }
+  #notes .strip.card-pager .card { border-radius: 16px !important; }
+  #notes .strip.card-pager .pager-track { border-radius: 16px; }
 }
 
 /* ---------- Occasion: Fan / Deck Spread ---------- */
 #occ .strip.fan-deck {
-  position: relative;
-  display: block;
-  width: 100%;
-  max-width: 440px;
-  height: 320px;
-  margin: 16px auto 36px;
-  padding: 0;
-  overflow: visible;
-  touch-action: pan-y;
-  user-select: none;
-  -webkit-user-select: none;
+  position: relative; display: block; width: 100%; max-width: 440px;
+  height: 320px; margin: 16px auto 36px; padding: 0; overflow: visible;
+  touch-action: pan-y; user-select: none; -webkit-user-select: none;
 }
-
 #occ .strip.fan-deck .fan-stage {
-  position: relative;
-  width: 100%;
-  height: 280px;
-  perspective: 900px;
-  transform-style: preserve-3d;
+  position: relative; width: 100%; height: 280px;
+  perspective: 900px; transform-style: preserve-3d;
 }
-
 #occ .strip.fan-deck .card {
-  position: absolute !important;
-  left: 50%;
-  top: 50%;
-  width: min(200px, 52vw) !important;
-  max-width: 200px !important;
-  height: 240px !important;
-  min-height: 0 !important;
-  margin: 0 !important;
-  flex: none !important;
-  border-radius: 18px !important;
-  overflow: hidden;
+  position: absolute !important; left: 50%; top: 50%;
+  width: min(200px, 52vw) !important; max-width: 200px !important;
+  height: 240px !important; min-height: 0 !important; margin: 0 !important; flex: none !important;
+  border-radius: 18px !important; overflow: hidden;
   transform-origin: center bottom;
   transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.35s ease, opacity 0.35s ease;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.16);
-  cursor: pointer;
-  will-change: transform;
-  background: #1a1410;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.16); cursor: pointer; will-change: transform; background: #1a1410;
 }
-
-#occ .strip.fan-deck .card .artbg {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-}
-
+#occ .strip.fan-deck .card .artbg { position: absolute; inset: 0; z-index: 0; }
 #occ .strip.fan-deck .card .artbg img,
-#occ .strip.fan-deck .card .artbg svg {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
+#occ .strip.fan-deck .card .artbg svg { width: 100%; height: 100%; object-fit: cover; display: block; }
 #occ .strip.fan-deck .card .fan-fg {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
+  position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column; justify-content: flex-end;
   padding: 14px 14px 16px;
   background: linear-gradient(to top, rgba(10,6,2,0.88) 0%, rgba(10,6,2,0.25) 50%, transparent 72%);
   pointer-events: none;
 }
-
 #occ .strip.fan-deck .card h4 {
-  margin: 0 0 2px;
-  font-size: 15px !important;
-  color: #f5ead4;
-  text-shadow: 0 1px 8px rgba(0,0,0,0.5);
+  margin: 0 0 2px; font-size: 15px !important; color: #f5ead4; text-shadow: 0 1px 8px rgba(0,0,0,0.5);
 }
-
-#occ .strip.fan-deck .card .st {
-  color: #c8962a;
-  font-size: 11px;
-  letter-spacing: 0.04em;
-}
-
+#occ .strip.fan-deck .card .st { color: #c8962a; font-size: 11px; letter-spacing: 0.04em; }
 #occ .strip.fan-deck .card.fan-focus {
-  box-shadow: 0 18px 42px rgba(0,0,0,0.28), 0 0 0 2px #c8962a66;
-  z-index: 20 !important;
+  box-shadow: 0 18px 42px rgba(0,0,0,0.28), 0 0 0 2px #c8962a66; z-index: 20 !important;
 }
-
-#occ .strip.fan-deck .card.fan-focus h4 {
-  font-size: 17px !important;
-}
-
+#occ .strip.fan-deck .card.fan-focus h4 { font-size: 17px !important; }
 #occ .strip.fan-deck .fan-hint {
-  position: absolute;
-  left: 0; right: 0; bottom: 0;
-  text-align: center;
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  color: #8a7350;
-  pointer-events: none;
+  position: absolute; left: 0; right: 0; bottom: 0; text-align: center;
+  font-size: 11px; letter-spacing: 0.04em; color: #8a7350; pointer-events: none;
 }
-
 #occ .strip.fan-deck .fan-open-btn {
-  position: absolute;
-  left: 50%;
-  bottom: 22px;
-  transform: translateX(-50%);
-  z-index: 30;
-  padding: 8px 18px;
-  border: 0;
-  border-radius: 999px;
-  background: linear-gradient(135deg, #f0c04a, #c8962a);
-  color: #1a1208;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
+  position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 30;
+  padding: 8px 18px; border: 0; border-radius: 999px;
+  background: linear-gradient(135deg, #f0c04a, #c8962a); color: #1a1208;
+  font-size: 12px; font-weight: 600; cursor: pointer;
   box-shadow: 0 6px 16px rgba(200,150,42,0.35);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.25s ease, transform 0.25s ease;
+  opacity: 0; pointer-events: none; transition: opacity 0.25s ease;
 }
-
-#occ .strip.fan-deck.has-focus .fan-open-btn {
-  opacity: 1;
-  pointer-events: auto;
-}
-
+#occ .strip.fan-deck.has-focus .fan-open-btn { opacity: 1; pointer-events: auto; }
 @media (max-width: 480px) {
-  #occ .strip.fan-deck {
-    max-width: 96vw;
-    height: 300px;
-  }
-  #occ .strip.fan-deck .fan-stage {
-    height: 260px;
-  }
+  #occ .strip.fan-deck { max-width: 96vw; height: 300px; }
+  #occ .strip.fan-deck .fan-stage { height: 260px; }
   #occ .strip.fan-deck .card {
-    width: min(170px, 48vw) !important;
-    max-width: 170px !important;
-    height: 210px !important;
-    border-radius: 14px !important;
+    width: min(170px, 48vw) !important; max-width: 170px !important;
+    height: 210px !important; border-radius: 14px !important;
   }
 }
 
-/* ---------- Categories: Morph / Shared Element ---------- */
-#cats .cb .card.morph-source {
-  opacity: 0 !important;
-  pointer-events: none;
+/* ---------- Categories: Cover Flow 3D ---------- */
+#cats.cover-flow-sec {
+  position: relative;
+  overflow: visible;
 }
-
-.elan-morph-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 9000;
-  background: rgba(12, 8, 4, 0);
-  transition: background 0.42s ease;
-  pointer-events: auto;
+#cats .cf-stage {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+  height: 280px;
+  margin: 12px auto 28px;
+  perspective: 1000px;
+  perspective-origin: 50% 45%;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
 }
-
-.elan-morph-backdrop.on {
-  background: rgba(12, 8, 4, 0.55);
+#cats .cf-stage .cb {
+  position: absolute !important;
+  left: 50%;
+  top: 50%;
+  width: min(210px, 58vw) !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  transform-style: preserve-3d;
+  transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.4s ease;
+  will-change: transform, opacity;
 }
-
-.elan-morph-clone {
-  position: fixed;
-  z-index: 9001;
-  margin: 0;
+#cats .cf-stage .cb .card {
+  width: 100% !important;
+  height: 250px !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  border-radius: 18px !important;
   overflow: hidden;
-  border-radius: 18px;
-  box-shadow: 0 20px 50px rgba(0,0,0,0.35);
-  transform-origin: top left;
-  transition:
-    top 0.48s cubic-bezier(0.22, 1, 0.36, 1),
-    left 0.48s cubic-bezier(0.22, 1, 0.36, 1),
-    width 0.48s cubic-bezier(0.22, 1, 0.36, 1),
-    height 0.48s cubic-bezier(0.22, 1, 0.36, 1),
-    border-radius 0.48s ease,
-    box-shadow 0.4s ease;
-  will-change: top, left, width, height;
-  pointer-events: none;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.2);
+  cursor: pointer;
   background: #1a1410;
 }
-
-.elan-morph-clone .artbg {
+#cats .cf-stage .cb .card .artbg {
   position: absolute;
   inset: 0;
 }
-
-.elan-morph-clone .artbg img,
-.elan-morph-clone .artbg svg {
+#cats .cf-stage .cb .card .artbg img,
+#cats .cf-stage .cb .card .artbg svg {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
 }
-
-.elan-morph-clone h4,
-.elan-morph-clone small,
-.elan-morph-clone .st {
+#cats .cf-stage .cb .card h4,
+#cats .cf-stage .cb .card small,
+#cats .cf-stage .cb .card .st {
   position: relative;
   z-index: 2;
   color: #f5ead4;
   text-shadow: 0 2px 10px rgba(0,0,0,0.5);
-  transition: font-size 0.4s ease, padding 0.4s ease;
 }
-
-.elan-morph-clone.expanded {
-  border-radius: 24px;
-  box-shadow: 0 28px 70px rgba(0,0,0,0.45);
-}
-
-.elan-morph-clone.expanded h4 {
-  font-size: 28px !important;
-  padding: 0 24px;
-}
-
-.elan-morph-clone .morph-veil {
+#cats .cf-stage .cb .card::after {
+  content: '';
   position: absolute;
   inset: 0;
   background: linear-gradient(to top, rgba(10,6,2,0.75) 0%, transparent 55%);
   z-index: 1;
-  opacity: 0.85;
-  transition: opacity 0.4s ease;
+  pointer-events: none;
 }
-
-.elan-morph-clone .morph-label {
-  position: absolute;
-  left: 0; right: 0; bottom: 28px;
-  z-index: 3;
+#cats .cf-stage .cb.cf-center {
+  z-index: 10;
+}
+#cats .cf-stage .cb.cf-center .card {
+  box-shadow: 0 18px 48px rgba(0,0,0,0.3), 0 0 0 2px #c8962a55;
+}
+#cats .cf-stage .cb.cf-side {
+  z-index: 5;
+}
+#cats .cf-stage .cb.cf-far {
+  z-index: 2;
+  opacity: 0.35;
+  pointer-events: none;
+}
+#cats .cf-hint {
   text-align: center;
-  color: #c8962a;
-  font-size: 13px;
-  letter-spacing: 0.08em;
-  opacity: 0;
-  transform: translateY(8px);
-  transition: opacity 0.35s ease 0.15s, transform 0.35s ease 0.15s;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: #8a7350;
+  margin: -12px 0 20px;
 }
-
-.elan-morph-clone.expanded .morph-label {
-  opacity: 1;
-  transform: translateY(0);
+#cats .cf-dots {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin: -8px 0 24px;
+}
+#cats .cf-dots button {
+  width: 8px; height: 8px; padding: 0; margin: 0; border: 0; border-radius: 50%;
+  background: #c8b89a; opacity: 0.45; cursor: pointer;
+  transition: transform 0.2s ease, opacity 0.2s ease, background 0.2s ease;
+}
+#cats .cf-dots button.on {
+  opacity: 1; background: #c8962a; transform: scale(1.25);
+}
+@media (max-width: 480px) {
+  #cats .cf-stage {
+    height: 250px;
+    max-width: 96vw;
+  }
+  #cats .cf-stage .cb {
+    width: min(180px, 55vw) !important;
+  }
+  #cats .cf-stage .cb .card {
+    height: 220px !important;
+    border-radius: 14px !important;
+  }
 }

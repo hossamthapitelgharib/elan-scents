@@ -30,6 +30,11 @@ function watchSheet(){
   try{ var mo=new MutationObserver(sync); mo.observe(sheet,{attributes:true,attributeFilter:['hidden','style','class']}); if(menu)mo.observe(menu,{attributes:true,attributeFilter:['class']}); }catch(e){}
   document.addEventListener('click',function(){ setTimeout(sync,0); setTimeout(sync,50); setTimeout(sync,200); },true);
 }
+function navGo(target){
+  if(!target)return;
+  if(typeof window.go==='function') window.go(target);
+  else if(typeof go==='function') go(target);
+}
 
 /* ---------- Notes: full-page pager ---------- */
 function layoutNotesPager(strip){
@@ -41,8 +46,7 @@ function layoutNotesPager(strip){
   strip.dataset.pageIndex=String(idx);
   cards.forEach(function(card,i){
     card.classList.remove('page-active','page-prev','page-next','page-dragging');
-    card.style.transform='';
-    card.style.opacity='';
+    card.style.transform=''; card.style.opacity='';
     if(i===idx) card.classList.add('page-active');
     else if(i===((idx-1+n)%n)) card.classList.add('page-prev');
     else card.classList.add('page-next');
@@ -53,7 +57,6 @@ function layoutNotesPager(strip){
     d.setAttribute('aria-current',i===idx?'true':'false');
   });
 }
-
 function initNotesPager(){
   var sec=document.getElementById('notes');
   if(!sec)return;
@@ -61,103 +64,63 @@ function initNotesPager(){
   if(!strip)return;
   var cards=Array.prototype.slice.call(strip.querySelectorAll('.card'));
   if(cards.length<1)return;
-
-  if(strip.classList.contains('card-pager')){
-    layoutNotesPager(strip);
-    return;
-  }
-
+  if(strip.classList.contains('card-pager')){ layoutNotesPager(strip); return; }
   strip.classList.add('card-pager');
   strip.classList.remove('card-stack');
   strip.dataset.pageIndex='0';
-
-  var track=document.createElement('div');
-  track.className='pager-track';
-  var viewport=document.createElement('div');
-  viewport.className='pager-viewport';
+  var track=document.createElement('div'); track.className='pager-track';
+  var viewport=document.createElement('div'); viewport.className='pager-viewport';
   cards.forEach(function(c){ viewport.appendChild(c); });
   track.appendChild(viewport);
   strip.insertBefore(track, strip.firstChild);
-
-  var dots=document.createElement('div');
-  dots.className='pager-dots';
+  var dots=document.createElement('div'); dots.className='pager-dots';
   dots.setAttribute('role','tablist');
-  dots.setAttribute('aria-label', document.documentElement.lang==='en' ? 'Pages' : 'الصفحات');
   cards.forEach(function(_,i){
-    var b=document.createElement('button');
-    b.type='button';
-    b.setAttribute('aria-label', (document.documentElement.lang==='en'?'Page ':'صفحة ')+(i+1));
-    b.addEventListener('click',function(e){
-      e.preventDefault(); e.stopPropagation();
-      strip.dataset.pageIndex=String(i);
-      layoutNotesPager(strip);
-    });
+    var b=document.createElement('button'); b.type='button';
+    b.addEventListener('click',function(e){ e.preventDefault(); e.stopPropagation(); strip.dataset.pageIndex=String(i); layoutNotesPager(strip); });
     dots.appendChild(b);
   });
   strip.appendChild(dots);
-
-  var hint=document.createElement('div');
-  hint.className='pager-hint';
-  hint.textContent=document.documentElement.lang==='en' ? 'Swipe · tap to open' : 'اسحب · اضغط للفتح';
+  var hint=document.createElement('div'); hint.className='pager-hint';
+  hint.textContent=document.documentElement.lang==='en'?'Swipe · tap to open':'اسحب · اضغط للفتح';
   strip.appendChild(hint);
-
-  var startX=0,startY=0,dx=0,dragging=false,axisLocked=0,activeEl=null,didDrag=false;
-
-  function go(delta){
-    var n=cards.length;
-    if(n<2)return;
+  var startX=0,dx=0,dragging=false,axisLocked=0,activeEl=null,didDrag=false;
+  function goPage(delta){
+    var n=cards.length; if(n<2)return;
     var idx=parseInt(strip.dataset.pageIndex||'0',10)||0;
-    idx=(idx+delta+n)%n;
-    strip.dataset.pageIndex=String(idx);
+    strip.dataset.pageIndex=String((idx+delta+n)%n);
     layoutNotesPager(strip);
   }
-
   strip.addEventListener('pointerdown',function(e){
     var c=e.target.closest('.card');
     if(!c||!c.classList.contains('page-active'))return;
     if(e.target.closest('.pager-dots'))return;
-    dragging=true; axisLocked=0; dx=0; didDrag=false;
-    startX=e.clientX; startY=e.clientY; activeEl=c;
+    dragging=true; axisLocked=0; dx=0; didDrag=false; startX=e.clientX; activeEl=c;
     c.classList.add('page-dragging');
-    try{ strip.setPointerCapture(e.pointerId); }catch(err){}
+    try{strip.setPointerCapture(e.pointerId);}catch(err){}
   });
-
   strip.addEventListener('pointermove',function(e){
     if(!dragging||!activeEl)return;
-    var mx=e.clientX-startX, my=e.clientY-startY;
+    var mx=e.clientX-startX, my=e.clientY-(e.clientY);
     if(!axisLocked){
-      if(Math.abs(mx)+Math.abs(my)<10)return;
-      axisLocked=Math.abs(mx)>Math.abs(my)?1:-1;
-      if(axisLocked<0){
-        dragging=false;
-        activeEl.classList.remove('page-dragging');
-        activeEl.style.transform='';
-        activeEl=null;
-        return;
-      }
+      if(Math.abs(mx)<10)return;
+      axisLocked=1;
     }
     didDrag=true; dx=mx;
     activeEl.style.transform='translateX('+dx+'px)';
-    activeEl.style.opacity=String(Math.max(0.35, 1-Math.abs(dx)/320));
+    activeEl.style.opacity=String(Math.max(0.35,1-Math.abs(dx)/320));
   });
-
   function endDrag(){
     if(!activeEl)return;
-    var el=activeEl;
-    el.classList.remove('page-dragging');
-    el.style.transform=''; el.style.opacity='';
-    if(Math.abs(dx)>60) go(dx<0?1:-1);
-    else layoutNotesPager(strip);
-    dragging=false; axisLocked=0; activeEl=null;
-    setTimeout(function(){ didDrag=false; }, 40);
+    activeEl.classList.remove('page-dragging');
+    activeEl.style.transform=''; activeEl.style.opacity='';
+    if(Math.abs(dx)>60) goPage(dx<0?1:-1); else layoutNotesPager(strip);
+    dragging=false; activeEl=null;
+    setTimeout(function(){didDrag=false;},40);
   }
-
-  strip.addEventListener('pointerup', endDrag);
-  strip.addEventListener('pointercancel', endDrag);
-  strip.addEventListener('click', function(e){
-    if(didDrag){ e.preventDefault(); e.stopPropagation(); }
-  }, true);
-
+  strip.addEventListener('pointerup',endDrag);
+  strip.addEventListener('pointercancel',endDrag);
+  strip.addEventListener('click',function(e){ if(didDrag){e.preventDefault();e.stopPropagation();} },true);
   layoutNotesPager(strip);
 }
 
@@ -168,38 +131,24 @@ function layoutFanDeck(strip){
   var n=cards.length;
   var focus=parseInt(strip.dataset.fanFocus||'-1',10);
   var mid=(n-1)/2;
-  var maxAngle=Math.min(28, 10 + n*3);
-  var step=n>1 ? (maxAngle*2)/(n-1) : 0;
-
+  var maxAngle=Math.min(28,10+n*3);
+  var step=n>1?(maxAngle*2)/(n-1):0;
   cards.forEach(function(card,i){
     var offset=i-mid;
-    var angle=-maxAngle + i*step;
+    var angle=-maxAngle+i*step;
     if(n===1) angle=0;
-    var x=offset*38;
-    var y=Math.abs(offset)*6;
-    var scale=0.88;
-    var z=10+i;
-
-    if(focus===i){
-      angle=0; x=0; y=-18; scale=1.08; z=40;
-      card.classList.add('fan-focus');
-    }else{
+    var x=offset*38, y=Math.abs(offset)*6, scale=0.88, z=10+i;
+    if(focus===i){ angle=0; x=0; y=-18; scale=1.08; z=40; card.classList.add('fan-focus'); }
+    else {
       card.classList.remove('fan-focus');
-      if(focus>=0){
-        x=offset*48;
-        scale=0.82;
-        y=Math.abs(offset)*10 + 8;
-      }
+      if(focus>=0){ x=offset*48; scale=0.82; y=Math.abs(offset)*10+8; }
     }
-
     card.style.zIndex=String(z);
     card.style.transform='translate(-50%, -50%) translate('+x+'px,'+y+'px) rotate('+angle+'deg) scale('+scale+')';
-    card.style.opacity=focus>=0 && focus!==i ? '0.72' : '1';
+    card.style.opacity=focus>=0&&focus!==i?'0.72':'1';
   });
-
   strip.classList.toggle('has-focus', focus>=0);
 }
-
 function initOccFanDeck(){
   var sec=document.getElementById('occ');
   if(!sec)return;
@@ -207,202 +156,167 @@ function initOccFanDeck(){
   if(!strip)return;
   var cards=Array.prototype.slice.call(strip.querySelectorAll('.card'));
   if(cards.length<1)return;
-
-  if(strip.classList.contains('fan-deck')){
-    layoutFanDeck(strip);
-    return;
-  }
-
-  strip.classList.remove('parallax-slider');
+  if(strip.classList.contains('fan-deck')){ layoutFanDeck(strip); return; }
   strip.classList.add('fan-deck');
   strip.dataset.fanFocus='-1';
-
   cards.forEach(function(card){
     if(card.querySelector('.fan-fg'))return;
-    var fg=document.createElement('div');
-    fg.className='fan-fg';
+    var fg=document.createElement('div'); fg.className='fan-fg';
     Array.prototype.slice.call(card.childNodes).forEach(function(node){
-      if(node.nodeType===1 && node.classList && (node.classList.contains('artbg')||node.classList.contains('px-fg'))){
-        if(node.classList.contains('px-fg')){
-          while(node.firstChild) fg.appendChild(node.firstChild);
-        }
-        return;
-      }
+      if(node.nodeType===1&&node.classList&&node.classList.contains('artbg'))return;
       fg.appendChild(node);
     });
-    var oldPx=card.querySelector('.px-fg');
-    if(oldPx) oldPx.remove();
     card.appendChild(fg);
   });
-
-  var stage=document.createElement('div');
-  stage.className='fan-stage';
+  var stage=document.createElement('div'); stage.className='fan-stage';
   cards.forEach(function(c){ stage.appendChild(c); });
-  var oldTrack=strip.querySelector('.px-track');
-  if(oldTrack) oldTrack.remove();
   strip.insertBefore(stage, strip.firstChild);
-
-  var oldDots=strip.querySelector('.px-dots');
-  if(oldDots) oldDots.remove();
-  var oldHint=strip.querySelector('.px-hint');
-  if(oldHint) oldHint.remove();
-
-  var hint=document.createElement('div');
-  hint.className='fan-hint';
-  hint.textContent=document.documentElement.lang==='en'
-    ? 'Tap a card · fan spread'
-    : 'اضغط على كارت · مروحة';
+  var hint=document.createElement('div'); hint.className='fan-hint';
+  hint.textContent=document.documentElement.lang==='en'?'Tap a card · fan spread':'اضغط على كارت · مروحة';
   strip.appendChild(hint);
-
-  var openBtn=document.createElement('button');
-  openBtn.type='button';
-  openBtn.className='fan-open-btn';
-  openBtn.textContent=document.documentElement.lang==='en' ? 'Open' : 'فتح';
+  var openBtn=document.createElement('button'); openBtn.type='button'; openBtn.className='fan-open-btn';
+  openBtn.textContent=document.documentElement.lang==='en'?'Open':'فتح';
   strip.appendChild(openBtn);
-
   openBtn.addEventListener('click',function(e){
-    e.preventDefault();
-    e.stopPropagation();
+    e.preventDefault(); e.stopPropagation();
     var focus=parseInt(strip.dataset.fanFocus||'-1',10);
     if(focus<0||!cards[focus])return;
-    var goAttr=cards[focus].getAttribute('data-go');
-    if(goAttr && typeof window.go==='function') window.go(goAttr);
+    navGo(cards[focus].getAttribute('data-go'));
   });
-
   cards.forEach(function(card,i){
     card.addEventListener('click',function(e){
-      e.preventDefault();
-      e.stopPropagation();
+      e.preventDefault(); e.stopPropagation();
       var cur=parseInt(strip.dataset.fanFocus||'-1',10);
-      if(cur===i){
-        var goAttr=card.getAttribute('data-go');
-        if(goAttr && typeof window.go==='function') window.go(goAttr);
-        return;
-      }
-      strip.dataset.fanFocus=String(i);
-      layoutFanDeck(strip);
-    }, true);
+      if(cur===i){ navGo(card.getAttribute('data-go')); return; }
+      strip.dataset.fanFocus=String(i); layoutFanDeck(strip);
+    },true);
   });
-
   var startX=0,dx=0,dragging=false;
   stage.addEventListener('pointerdown',function(e){
     if(e.target.closest('.fan-open-btn'))return;
     dragging=true; dx=0; startX=e.clientX;
-    try{ stage.setPointerCapture(e.pointerId); }catch(err){}
+    try{stage.setPointerCapture(e.pointerId);}catch(err){}
   });
-  stage.addEventListener('pointermove',function(e){
-    if(!dragging)return;
-    dx=e.clientX-startX;
-  });
+  stage.addEventListener('pointermove',function(e){ if(dragging) dx=e.clientX-startX; });
   function endSwipe(){
-    if(!dragging)return;
-    dragging=false;
+    if(!dragging)return; dragging=false;
     if(Math.abs(dx)<50)return;
-    var n=cards.length;
-    var cur=parseInt(strip.dataset.fanFocus||'-1',10);
+    var n=cards.length, cur=parseInt(strip.dataset.fanFocus||'-1',10);
     if(cur<0) cur=Math.floor(n/2);
-    var next=dx<0 ? Math.min(n-1,cur+1) : Math.max(0,cur-1);
-    strip.dataset.fanFocus=String(next);
-    layoutFanDeck(strip);
+    var next=dx<0?Math.min(n-1,cur+1):Math.max(0,cur-1);
+    strip.dataset.fanFocus=String(next); layoutFanDeck(strip);
   }
-  stage.addEventListener('pointerup', endSwipe);
-  stage.addEventListener('pointercancel', endSwipe);
-
+  stage.addEventListener('pointerup',endSwipe);
+  stage.addEventListener('pointercancel',endSwipe);
   strip.dataset.fanFocus=String(Math.floor(cards.length/2));
   layoutFanDeck(strip);
 }
 
-/* ---------- Categories: Morph / Shared Element ---------- */
-var morphBusy=false;
-
-function runMorphTransition(card, goTarget, done){
-  if(morphBusy)return;
-  morphBusy=true;
-
-  var rect=card.getBoundingClientRect();
-  card.classList.add('morph-source');
-
-  var backdrop=document.createElement('div');
-  backdrop.className='elan-morph-backdrop';
-  document.body.appendChild(backdrop);
-
-  var clone=card.cloneNode(true);
-  clone.classList.add('elan-morph-clone');
-  clone.classList.remove('morph-source');
-  clone.removeAttribute('data-go');
-  clone.style.top=rect.top+'px';
-  clone.style.left=rect.left+'px';
-  clone.style.width=rect.width+'px';
-  clone.style.height=rect.height+'px';
-
-  var veil=document.createElement('div');
-  veil.className='morph-veil';
-  clone.appendChild(veil);
-
-  var label=document.createElement('div');
-  label.className='morph-label';
-  label.textContent=document.documentElement.lang==='en' ? 'Opening…' : 'جاري الفتح…';
-  clone.appendChild(label);
-
-  document.body.appendChild(clone);
-
-  // force reflow then expand
-  void clone.offsetWidth;
-  requestAnimationFrame(function(){
-    backdrop.classList.add('on');
-    clone.classList.add('expanded');
-
-    var vw=window.innerWidth;
-    var vh=window.innerHeight;
-    var targetW=Math.min(vw*0.92, 420);
-    var targetH=Math.min(vh*0.55, 360);
-    var targetLeft=(vw-targetW)/2;
-    var targetTop=Math.max(24, (vh-targetH)/2 - 20);
-
-    clone.style.top=targetTop+'px';
-    clone.style.left=targetLeft+'px';
-    clone.style.width=targetW+'px';
-    clone.style.height=targetH+'px';
-  });
-
-  var finished=false;
-  function finish(){
-    if(finished)return;
-    finished=true;
-    if(typeof window.go==='function' && goTarget) window.go(goTarget);
-    setTimeout(function(){
-      if(clone.parentNode) clone.parentNode.removeChild(clone);
-      if(backdrop.parentNode) backdrop.parentNode.removeChild(backdrop);
-      card.classList.remove('morph-source');
-      morphBusy=false;
-      if(typeof done==='function') done();
-    }, 180);
-  }
-
-  setTimeout(finish, 520);
-  clone.addEventListener('transitionend', function onEnd(e){
-    if(e.propertyName==='width'||e.propertyName==='top'){
-      clone.removeEventListener('transitionend', onEnd);
-      finish();
+/* ---------- Categories: Cover Flow 3D ---------- */
+function layoutCoverFlow(sec){
+  var items=Array.prototype.slice.call(sec.querySelectorAll('.cf-stage .cb'));
+  if(!items.length)return;
+  var idx=parseInt(sec.dataset.cfIndex||'0',10)||0;
+  var n=items.length;
+  if(idx<0)idx=0; if(idx>=n)idx=n-1;
+  sec.dataset.cfIndex=String(idx);
+  items.forEach(function(el,i){
+    var d=i-idx;
+    el.classList.remove('cf-center','cf-side','cf-far');
+    var x, rot, scale, z, opacity;
+    if(d===0){
+      el.classList.add('cf-center');
+      x=0; rot=0; scale=1; z=20; opacity=1;
+    }else if(Math.abs(d)===1){
+      el.classList.add('cf-side');
+      x=d*130; rot=d*-42; scale=0.78; z=10; opacity=0.85;
+    }else{
+      el.classList.add('cf-far');
+      x=d*150; rot=d*-55; scale=0.62; z=2; opacity=0.3;
     }
+    el.style.zIndex=String(z);
+    el.style.opacity=String(opacity);
+    el.style.transform='translate(-50%, -50%) translateX('+x+'px) rotateY('+rot+'deg) scale('+scale+')';
   });
+  var dots=sec.querySelectorAll('.cf-dots button');
+  dots.forEach(function(d,i){ d.classList.toggle('on',i===idx); });
 }
-
-function initCatsMorph(){
+function initCatsCoverFlow(){
   var sec=document.getElementById('cats');
   if(!sec)return;
-  if(sec.dataset.morphInit==='1')return;
-  sec.dataset.morphInit='1';
+  var blocks=Array.prototype.slice.call(sec.querySelectorAll('.cb'));
+  if(blocks.length<1)return;
+  if(sec.classList.contains('cover-flow-sec')){
+    layoutCoverFlow(sec);
+    return;
+  }
+  sec.classList.add('cover-flow-sec');
+  sec.dataset.cfIndex='0';
 
-  sec.addEventListener('click', function(e){
-    var card=e.target.closest('.card[data-go]');
-    if(!card || !sec.contains(card))return;
-    var goTarget=card.getAttribute('data-go');
-    if(!goTarget)return;
-    e.preventDefault();
-    e.stopPropagation();
-    runMorphTransition(card, goTarget);
-  }, true);
+  var stage=document.createElement('div');
+  stage.className='cf-stage';
+  blocks.forEach(function(b){ stage.appendChild(b); });
+  // insert after h3/sub
+  var sub=sec.querySelector('.sub');
+  if(sub&&sub.nextSibling) sec.insertBefore(stage, sub.nextSibling);
+  else sec.appendChild(stage);
+
+  var dots=document.createElement('div');
+  dots.className='cf-dots';
+  blocks.forEach(function(_,i){
+    var b=document.createElement('button'); b.type='button';
+    b.addEventListener('click',function(e){
+      e.preventDefault(); e.stopPropagation();
+      sec.dataset.cfIndex=String(i);
+      layoutCoverFlow(sec);
+    });
+    dots.appendChild(b);
+  });
+  stage.parentNode.insertBefore(dots, stage.nextSibling);
+
+  var hint=document.createElement('div');
+  hint.className='cf-hint';
+  hint.textContent=document.documentElement.lang==='en'?'Swipe · Cover Flow':'اسحب · كفر فلو';
+  dots.parentNode.insertBefore(hint, dots.nextSibling);
+
+  // click center to open, side to focus
+  stage.addEventListener('click',function(e){
+    var cb=e.target.closest('.cb');
+    if(!cb||!stage.contains(cb))return;
+    e.preventDefault(); e.stopPropagation();
+    var items=Array.prototype.slice.call(stage.querySelectorAll('.cb'));
+    var i=items.indexOf(cb);
+    if(i<0)return;
+    var cur=parseInt(sec.dataset.cfIndex||'0',10)||0;
+    if(i===cur){
+      var card=cb.querySelector('.card[data-go]');
+      if(card) navGo(card.getAttribute('data-go'));
+    }else{
+      sec.dataset.cfIndex=String(i);
+      layoutCoverFlow(sec);
+    }
+  },true);
+
+  // swipe
+  var startX=0,dx=0,dragging=false;
+  stage.addEventListener('pointerdown',function(e){
+    dragging=true; dx=0; startX=e.clientX;
+    try{stage.setPointerCapture(e.pointerId);}catch(err){}
+  });
+  stage.addEventListener('pointermove',function(e){ if(dragging) dx=e.clientX-startX; });
+  function endSwipe(){
+    if(!dragging)return; dragging=false;
+    if(Math.abs(dx)<50)return;
+    var n=blocks.length;
+    var cur=parseInt(sec.dataset.cfIndex||'0',10)||0;
+    var next=dx<0?Math.min(n-1,cur+1):Math.max(0,cur-1);
+    sec.dataset.cfIndex=String(next);
+    layoutCoverFlow(sec);
+  }
+  stage.addEventListener('pointerup',endSwipe);
+  stage.addEventListener('pointercancel',endSwipe);
+
+  layoutCoverFlow(sec);
 }
 
 function applyArtAndHero(){
@@ -457,12 +371,12 @@ function applyArtAndHero(){
       _elanRender.apply(this,arguments);
       try{initNotesPager();}catch(err){}
       try{initOccFanDeck();}catch(err){}
-      try{initCatsMorph();}catch(err){}
+      try{initCatsCoverFlow();}catch(err){}
     };
     try{render();}catch(e){}
   }
   watchSheet();
 }
-var CORE='/app-core.js?v=20261012-06';
+var CORE='/app-core.js?v=20261012-07';
 loadScript(CORE, applyArtAndHero);
 })();
