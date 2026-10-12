@@ -117,7 +117,8 @@ footer .fph {
   align-items: center !important;
   gap: 8px !important;
   width: 100% !important;
-  margin: clamp(28px, 6vh, 56px) auto 6px !important;
+  /* push below the emblem so nothing overlaps the logo */
+  margin: auto auto 6px !important;
   padding: 0 !important;
   font-size: 13px !important;
   color: #ffe4a3 !important;
