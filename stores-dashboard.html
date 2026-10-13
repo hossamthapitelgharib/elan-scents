@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>لوحة المتاجر · Élan Scents</title>
-  <link rel="stylesheet" href="/fonts.css?v=20261013-05">
-  <link rel="stylesheet" href="/portal.css?v=20261013-05">
+  <link rel="stylesheet" href="/fonts.css?v=20261013-07">
+  <link rel="stylesheet" href="/portal.css?v=20261013-07">
 </head>
 <body data-dashboard="stores">
   <header>
@@ -19,7 +19,7 @@
   <main>
     <section id="login" class="panel">
       <h2>دخول إدارة المتاجر</h2>
-      <p>هذه اللوحة مخصصة لمدير المنصة. مديرو المتاجر يستخدمون لوحة المتجر الخاصة بهم.</p>
+      <p>هذه اللوحة مخصصة لمدير المنصة، وتعرض بيانات تشغيل المتاجر دون تفاصيل اتصال العملاء.</p>
       <form id="loginForm"><input name="email" type="email" placeholder="البريد الإلكتروني" required><input name="password" type="password" placeholder="كلمة المرور" required><button class="primary">دخول</button></form>
       <p id="message"></p>
     </section>
@@ -29,12 +29,39 @@
       <p id="storeError" class="platform-error" hidden></p>
       <section class="panel store-admin-panel" aria-labelledby="storesTitle">
         <div class="customer-heading"><div><small>Store operations</small><h2 id="storesTitle">المتاجر وبيانات التشغيل</h2></div><button id="refreshStores" class="ghost" type="button">تحديث</button></div>
-        <p class="muted">هذه المؤشرات مجمعة ولا تعرض أسماء العملاء أو أرقامهم أو عناوينهم. التفاصيل الخاصة بالمتجر تبقى في لوحة المتجر المقيدة بصلاحياته.</p>
-        <div class="activity-table-wrap"><table class="activity-table store-admin-table"><thead><tr><th>المتجر</th><th>الحالة</th><th>الحسابات المرتبطة</th><th>المنتجات المتاحة/الكل</th><th>العروض النشطة</th><th>طلبات مفتوحة/الكل</th><th>طلبات تحتاج مراجعة</th><th>سجلات الشحن</th><th>العمولة</th></tr></thead><tbody id="storesBody"></tbody></table></div>
+        <p class="muted">تُعرض بيانات المتجر والكتالوج والعروض والطلبات والشحن والعمولات والمزامنة والمطابقة. لا تظهر بيانات اتصال العملاء أو الحمولات الخام.</p>
+        <form id="storeFilters" class="platform-filters" aria-label="تصفية المتاجر">
+          <input name="search" type="search" placeholder="ابحث باسم المتجر أو رابطه">
+          <select name="status"><option value="">كل الحالات</option><option value="active">نشط</option><option value="inactive">غير نشط</option></select>
+          <button class="ghost" type="submit">تطبيق</button>
+        </form>
+        <div class="activity-table-wrap"><table class="activity-table store-admin-table"><thead><tr><th>المتجر</th><th>الحالة</th><th>الحسابات المرتبطة</th><th>المنتجات المتاحة/الكل</th><th>العروض النشطة</th><th>طلبات مفتوحة/الكل</th><th>طلبات تحتاج مراجعة</th><th>سجلات الشحن</th><th>العمولة</th><th>التفاصيل</th></tr></thead><tbody id="storesBody"></tbody></table></div>
+      </section>
+      <section id="storeDetail" class="panel store-detail-panel" hidden aria-labelledby="storeDetailTitle">
+        <div class="customer-heading"><div><small>Store record</small><h2 id="storeDetailTitle">تفاصيل المتجر</h2></div><button id="closeStoreDetail" class="ghost" type="button">إغلاق التفاصيل</button></div>
+        <p id="storeDetailSummary" class="muted"></p>
+        <nav id="storeDetailTabs" class="store-detail-tabs" role="tablist" aria-label="أقسام بيانات المتجر">
+          <button type="button" role="tab" data-store-section="overview" aria-selected="true">الملخص والحسابات</button>
+          <button type="button" role="tab" data-store-section="catalog" aria-selected="false">الكتالوج والمخزون</button>
+          <button type="button" role="tab" data-store-section="offers" aria-selected="false">العروض</button>
+          <button type="button" role="tab" data-store-section="orders" aria-selected="false">الطلبات</button>
+          <button type="button" role="tab" data-store-section="shipments" aria-selected="false">الشحن</button>
+          <button type="button" role="tab" data-store-section="commissions" aria-selected="false">العمولات</button>
+          <button type="button" role="tab" data-store-section="sync" aria-selected="false">المزامنة</button>
+          <button type="button" role="tab" data-store-section="reconciliation" aria-selected="false">المطابقة والتدقيق</button>
+        </nav>
+        <form id="storeDetailFilters" class="platform-filters" hidden>
+          <label id="storeDetailStatusLabel" for="storeDetailStatus">الحالة</label>
+          <select id="storeDetailStatus" name="status"></select>
+          <button class="ghost" type="submit">تصفية</button>
+        </form>
+        <p id="storeDetailError" class="platform-error" hidden></p>
+        <div id="storeDetailContent" aria-live="polite"></div>
+        <button id="storeDetailMore" class="ghost store-detail-more" type="button" hidden>تحميل المزيد</button>
       </section>
     </section>
   </main>
-  <script src="/portal.js?v=20261013-05"></script>
-  <script src="/stores-dashboard.js?v=20261013-05"></script>
+  <script src="/portal.js?v=20261013-07"></script>
+  <script src="/stores-dashboard.js?v=20261013-07"></script>
 </body>
 </html>

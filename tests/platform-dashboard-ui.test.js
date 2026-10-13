@@ -58,6 +58,8 @@ test('platform dashboard shows links and summaries while the separate customers 
   assert.match(html, /<form id="platformFilters"[^>]*>/);
   assert.match(html, /<button[^>]*type="submit">تطبيق<\/button>/);
   assert.match(html, /customers-dashboard\.html/);
+  assert.match(html, /id="platformStoreStats"/);
+  assert.match(html, /href="\/stores-dashboard\.html"/);
   assert.doesNotMatch(html, /id="registeredCustomers"|id="guestCustomers"|id="guestTopProducts"/);
   assert.match(customerHtml, /id="registeredCustomers"/);
   assert.match(customerHtml, /id="guestCustomers"/);

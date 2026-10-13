@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>لوحة Élan Scents</title>
-  <link rel="stylesheet" href="/fonts.css?v=20261013-05">
-  <link rel="stylesheet" href="/portal.css?v=20261013-05">
+  <link rel="stylesheet" href="/fonts.css?v=20261013-07">
+  <link rel="stylesheet" href="/portal.css?v=20261013-07">
 </head>
 <body>
   <header>
@@ -33,10 +33,15 @@
         <div><small>Customer overview</small><h2 id="customerOverviewTitle">ملخص العملاء</h2><p>هذه الصفحة تعرض أعدادًا إجمالية فقط. تفاصيل الزوار والعملاء المسجلين وسلالهم وأنشطتهم متاحة في لوحة العملاء الإدارية.</p></div>
         <a class="primary" href="/customers-dashboard.html">فتح لوحة العملاء</a>
       </section>
+      <section class="panel platform-store-overview" aria-labelledby="platformStoreTitle">
+        <div class="platform-store-overview-head"><div><small>Store overview</small><h2 id="platformStoreTitle">ملخص المتاجر</h2><p>مؤشرات تشغيلية مجمعة فقط؛ تفاصيل كل متجر متاحة في لوحة المتاجر الإدارية.</p></div><a class="primary" href="/stores-dashboard.html">فتح لوحة المتاجر</a></div>
+        <p id="platformStoreError" class="platform-error" hidden></p>
+        <div id="platformStoreStats" class="stats platform-store-summary-stats"></div>
+      </section>
       <section aria-labelledby="ordersTitle"><h2 id="ordersTitle">طلبات المتاجر</h2><div id="orders" class="stack"></div></section>
     </section>
   </main>
-  <script src="/portal.js?v=20261013-05"></script>
-  <script src="/platform-dashboard.js?v=20261013-05"></script>
+  <script src="/portal.js?v=20261013-07"></script>
+  <script src="/platform-dashboard.js?v=20261013-07"></script>
 </body>
 </html>

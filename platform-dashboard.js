@@ -150,12 +150,27 @@ function activateCustomerTabs() {
 async function loadPlatform() {
   if (!Portal.session()) return;
   document.querySelector('#login').hidden = true; document.querySelector('#app').hidden = false; document.querySelector('#logout').hidden = false;
-  const headers = Portal.auth(), responses = await Promise.all([fetch('/api/dashboard-orders' + filterQuery(), { headers }), fetch('/api/platform-customer-summary', { headers })]);
+  const headers = Portal.auth(), responses = await Promise.all([fetch('/api/dashboard-orders' + filterQuery(), { headers }), fetch('/api/platform-customer-summary', { headers }), fetch('/api/platform-stores', { headers }).catch(() => null)]);
   const ordersData = await responses[0].json(), customersData = await responses[1].json();
   if (!responses[0].ok) throw Error(ordersData.error || 'تعذر تحميل بيانات الطلبات');
   if (!responses[1].ok) throw Error(customersData.error || 'تعذر تحميل ملخص العملاء');
   const orders = ordersData.orders || [];
   document.querySelector('#stats').innerHTML = [['طلبات المتاجر', orders.length], ['عملاء مسجلون', customersData.counts.registered], ['الزوار', customersData.counts.visitors], ['مكتملة', orders.filter(order => ['completed','delivered'].includes(order.status)).length]].map(item => `<div class="stat"><small>${item[0]}</small><b>${numberP(item[1])}</b></div>`).join('');
+  const storeError = document.querySelector('#platformStoreError'), storeStats = document.querySelector('#platformStoreStats');
+  try {
+    if (!responses[2]) throw Error('تعذر الاتصال ببيانات المتاجر');
+    const storesData = await responses[2].json();
+    if (!responses[2].ok) throw Error(storesData.error || 'تعذر تحميل ملخص المتاجر');
+    const stores = Array.isArray(storesData.stores) ? storesData.stores : [];
+    const sum = key => stores.reduce((total, store) => total + Math.max(0, Number(store.summary && store.summary[key]) || 0), 0);
+    const storeCards = [['المتاجر النشطة', stores.filter(store => store.status === 'active').length], ['المنتجات المتاحة', sum('available_product_count')], ['العروض النشطة', sum('active_offer_count')], ['الطلبات المفتوحة', sum('open_order_count')], ['تحتاج مراجعة', sum('review_order_count')]];
+    storeStats.innerHTML = storeCards.map((item, index) => `<div class="stat ${index === 0 ? 'gold' : ''}"><small>${item[0]}</small><b>${numberP(item[1])}</b></div>`).join('');
+    storeError.hidden = true;
+  } catch (error) {
+    storeStats.innerHTML = '';
+    storeError.textContent = error && error.message ? error.message : 'تعذر تحميل ملخص المتاجر';
+    storeError.hidden = false;
+  }
   document.querySelector('#platformError').hidden = true; renderOrders(orders);
 }
 async function loadCustomersDashboard() {
