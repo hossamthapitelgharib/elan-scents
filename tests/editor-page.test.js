@@ -82,3 +82,9 @@ test('save error shows which Railway settings are missing', () => {
   const page = read('editor/elan-editor.html');
   assert.match(page, /الناقص: '\+j\.missing\.join/);
 });
+
+test('right-click menu is not closed by a repeat selection message for the same element', () => {
+  const page = read('editor/elan-editor.html');
+  assert.match(page, /liveMenuFor=el\?\.id\|\|null/);
+  assert.match(page, /\(m\.element\?\.id\|\|null\)===liveMenuFor/);
+});
