@@ -39,3 +39,28 @@ test('platform stores API returns store-only aggregates without customer order d
   assert.ok(requests.some(request => request.url.endsWith('/rest/v1/rpc/platform_store_summary')));
   assert.ok(!requests.some(request => /customer_name|customer_phone|customer_address/.test(request.url)));
 });
+
+test('platform stores API reads every page beyond 500 stores', async () => {
+  process.env.SUPABASE_URL = 'https://test.supabase.co'; process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-key';
+  const allStores = Array.from({ length: 501 }, (_, index) => ({ id: `store-${index}`, name: `Store ${String(index).padStart(3, '0')}`, status: 'active' }));
+  const summaries = allStores.map(store => ({ store_id: store.id, linked_accounts: 1, product_count: 2, available_product_count: 1, active_offer_count: 0, order_request_count: 0, open_order_count: 0, review_order_count: 0, shipment_count: 0 }));
+  const requests = [];
+  global.fetch = async (input, options = {}) => {
+    const url = new URL(String(input)); requests.push({ url, options });
+    if (url.pathname === '/auth/v1/user') return response({ id: adminId });
+    if (url.pathname === '/rest/v1/profiles') return response([{ id: adminId, role: 'platform_admin' }]);
+    if (url.pathname === '/rest/v1/stores') {
+      const offset = Number(url.searchParams.get('offset')) || 0;
+      const limit = Number(url.searchParams.get('limit')) || 500;
+      return response(allStores.slice(offset, offset + limit));
+    }
+    if (url.pathname === '/rest/v1/rpc/platform_store_summary') return response(summaries);
+    throw new Error(`unexpected ${url.pathname}`);
+  };
+  const res = recorder();
+  await handler({ method: 'GET', headers: { authorization: 'Bearer admin-token' } }, res);
+  assert.equal(res.out.status, 200);
+  assert.equal(res.out.body.count, 501);
+  assert.equal(res.out.body.stores[500].id, 'store-500');
+  assert.deepEqual(requests.filter(item => item.url.pathname === '/rest/v1/stores').map(item => item.url.searchParams.get('offset')), ['0', '500']);
+});

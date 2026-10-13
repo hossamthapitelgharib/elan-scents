@@ -15,7 +15,7 @@ const sectionLabels = {
   overview: 'الملخص والحسابات', catalog: 'الكتالوج والمخزون', offers: 'العروض', orders: 'الطلبات',
   shipments: 'الشحن', commissions: 'العمولات', sync: 'المزامنة', reconciliation: 'المطابقة والتدقيق'
 };
-const stateStore = { stores: [], selected: null, section: 'overview', offset: 0, limit: 50, hasMore: false, busy: false };
+const stateStore = { stores: [], selected: null, section: 'overview', offset: 0, limit: 50, hasMore: false, busy: false, unlinked: { notifications: { offset: 0, hasMore: false, busy: false }, events: { offset: 0, hasMore: false, busy: false } } };
 function labelValue(value) { return escStore(labelsStore[value] || value || '—'); }
 function safeLink(value, label) {
   try {
@@ -67,6 +67,41 @@ function showDetailError(error) {
   box.textContent = error && error.message ? error.message : 'تعذر تحميل تفاصيل المتجر';
   box.hidden = false;
 }
+function renderUnlinkedRows(type, records) {
+  if (type === 'notifications') return records.map(row => `<tr><td dir="ltr">${escStore(row.tracking_number || '—')}</td><td>${labelValue(row.event_type)}</td><td>${labelValue(row.store_status)}</td><td>${labelValue(row.match_status)}</td><td>${Array.isArray(row.mismatch_fields) && row.mismatch_fields.length ? row.mismatch_fields.map(escStore).join('، ') : '—'}</td><td>${escStore(dateStore(row.received_at))}</td></tr>`).join('');
+  return records.map(row => `<tr><td><code>${escStore(row.checkout_session_id || '—')}</code></td><td>${labelValue(row.event_type)}</td><td>${labelValue(row.source)}</td><td>${labelValue(row.actor_role)}</td><td>${escStore(dateStore(row.created_at))}</td></tr>`).join('');
+}
+async function loadUnlinked(type, append = false) {
+  const state = stateStore.unlinked[type];
+  if (!state || state.busy) return;
+  state.busy = true;
+  const body = document.querySelector(type === 'notifications' ? '#unlinkedNotificationsBody' : '#unlinkedEventsBody');
+  const more = document.querySelector(type === 'notifications' ? '#unlinkedNotificationsMore' : '#unlinkedEventsMore');
+  const offset = append ? state.offset : 0;
+  more.disabled = true;
+  if (!append) body.innerHTML = `<tr><td colspan="${type === 'notifications' ? 6 : 5}" class="muted">جارٍ التحميل…</td></tr>`;
+  try {
+    const params = new URLSearchParams({ type, limit: '50', offset: String(offset) });
+    const response = await fetch(`/api/platform-store-unlinked?${params}`, { headers: Portal.auth() });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'تعذر تحميل سجلات التشغيل غير المرتبطة');
+    const records = Array.isArray(data.records) ? data.records : [];
+    const html = renderUnlinkedRows(type, records);
+    if (append) { if (html) body.insertAdjacentHTML('beforeend', html); }
+    else body.innerHTML = html || `<tr><td colspan="${type === 'notifications' ? 6 : 5}" class="empty">لا توجد سجلات</td></tr>`;
+    state.offset = offset + records.length;
+    state.hasMore = Boolean(data.hasMore);
+    more.hidden = !state.hasMore;
+  } catch (error) {
+    const box = document.querySelector('#unlinkedStoreError');
+    box.textContent = error && error.message ? error.message : 'تعذر تحميل سجلات التشغيل غير المرتبطة';
+    box.hidden = false;
+    if (!append) body.innerHTML = '';
+  } finally {
+    more.disabled = false;
+    state.busy = false;
+  }
+}
 async function loadStores() {
   if (!Portal.session()) return;
   document.querySelector('#login').hidden = true;
@@ -77,8 +112,11 @@ async function loadStores() {
   if (!response.ok) throw new Error(data.error || 'تعذر تحميل بيانات المتاجر');
   stateStore.stores = Array.isArray(data.stores) ? data.stores : [];
   document.querySelector('#storeError').hidden = true;
+  document.querySelector('#unlinkedStoreError').hidden = true;
   renderStoreStats(stateStore.stores);
   renderStoreList();
+  loadUnlinked('notifications');
+  loadUnlinked('events');
 }
 function detailFilterParams() {
   const form = document.querySelector('#storeDetailFilters');
@@ -273,6 +311,8 @@ document.addEventListener('click', event => {
   const tab = event.target.closest('[data-store-section]');
   if (tab) return loadStoreSection(tab.dataset.storeSection);
   if (event.target.closest('#storeDetailMore')) return loadStoreSection(stateStore.section, true);
+  if (event.target.closest('#unlinkedNotificationsMore')) return loadUnlinked('notifications', true);
+  if (event.target.closest('#unlinkedEventsMore')) return loadUnlinked('events', true);
   if (event.target.closest('#closeStoreDetail')) document.querySelector('#storeDetail').hidden = true;
 });
 document.querySelector('#storeDetailFilters').addEventListener('submit', event => {

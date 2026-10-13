@@ -69,6 +69,20 @@ test('overview returns store profile, safe account links and the existing operat
   assert.equal(res.headers['Cache-Control'], 'no-store');
 });
 
+test('overview loads linked accounts beyond the former 100-row ceiling', async () => {
+  const accounts = Array.from({ length: 101 }, (_, index) => ({ id: `account-${index}`, user_id: adminId, role: 'store_admin', created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-02T00:00:00Z' }));
+  const { res, requests } = await run({ storeId, section: 'overview' }, 'platform_admin', async url => {
+    if (url.pathname.endsWith('/stores')) return response([store]);
+    if (url.pathname.endsWith('/store_accounts')) return response(accounts.slice(Number(url.searchParams.get('offset')) || 0, (Number(url.searchParams.get('offset')) || 0) + (Number(url.searchParams.get('limit')) || 500)));
+    if (url.pathname.endsWith('/rpc/platform_store_summary')) return response([{ store_id: storeId, linked_accounts: 101 }]);
+    throw new Error(`unexpected ${url.pathname}`);
+  });
+  assert.equal(res.status, 200);
+  assert.equal(res.body.accounts.length, 101);
+  const accountQuery = requests.find(item => item.url.pathname.endsWith('/store_accounts')).url;
+  assert.equal(accountQuery.searchParams.get('limit'), '500');
+});
+
 test('catalog products are joined to their product size, fragrance and brand', async () => {
   const { res } = await run({ storeId, section: 'catalog', limit: '25' }, 'platform_admin', async url => {
     if (url.pathname.endsWith('/stores')) return response([store]);
@@ -110,6 +124,27 @@ test('order details never return customer contact fields or raw notification and
   const orderQuery = requests.find(item => item.url.pathname.endsWith('/store_order_requests'));
   assert.equal(orderQuery.url.searchParams.get('select').includes('customer_'), false);
   assert.equal(orderQuery.url.searchParams.get('select').includes('payload'), false);
+});
+
+test('order detail loads every page of items and reconciliation checks beyond 500 rows', async () => {
+  const items = Array.from({ length: 501 }, (_, index) => ({ request_id: requestId, product_name: `منتج ${index}`, quantity: 1, unit_price: 10, line_total: 10, currency: 'EGP', created_at: '2026-01-01T00:00:00Z' }));
+  const checks = Array.from({ length: 501 }, (_, index) => ({ id: `check-${index}`, request_id: requestId, tracking_number: 'TRK-1', event_type: 'store_update', match_status: 'matched', mismatch_fields: [], checked_at: '2026-01-02T00:00:00Z', initial_payload: { secret: true } }));
+  const { res, requests } = await run({ storeId, section: 'orders', limit: '10' }, 'platform_admin', async url => {
+    if (url.pathname.endsWith('/stores')) return response([store]);
+    if (url.pathname.endsWith('/store_order_requests')) return response([{ id: requestId, store_id: storeId, tracking_number: 'TRK-1', status: 'processing', subtotal: 100, currency: 'EGP' }]);
+    if (url.pathname.endsWith('/store_order_request_items')) { const offset = Number(url.searchParams.get('offset')) || 0; return response(items.slice(offset, offset + Number(url.searchParams.get('limit')))); }
+    if (url.pathname.endsWith('/order_reconciliation_checks')) { const offset = Number(url.searchParams.get('offset')) || 0; return response(checks.slice(offset, offset + Number(url.searchParams.get('limit')))); }
+    if (url.pathname.endsWith('/store_shipments') || url.pathname.endsWith('/store_order_notifications') || url.pathname.endsWith('/order_operation_events')) return response([]);
+    throw new Error(`unexpected ${url.pathname}`);
+  });
+  assert.equal(res.status, 200);
+  assert.equal(res.body.records[0].items.length, 501);
+  assert.equal(res.body.records[0].checks.length, 501);
+  assert.equal(JSON.stringify(res.body).includes('initial_payload'), false);
+  const itemOffsets = requests.filter(item => item.url.pathname.endsWith('/store_order_request_items')).map(item => item.url.searchParams.get('offset'));
+  assert.deepEqual(itemOffsets, ['0', '500']);
+  const checkOffsets = requests.filter(item => item.url.pathname.endsWith('/order_reconciliation_checks')).map(item => item.url.searchParams.get('offset'));
+  assert.deepEqual(checkOffsets, ['0', '500']);
 });
 
 test('reconciliation pagination follows request rows and strips raw check payloads', async () => {
@@ -169,6 +204,8 @@ test('store admin UI exposes read-only operational sections and routes detail re
   const js = fs.readFileSync(path.join(root, 'stores-dashboard.js'), 'utf8');
   for (const section of ['overview', 'catalog', 'offers', 'orders', 'shipments', 'commissions', 'sync', 'reconciliation']) assert.match(html, new RegExp(`data-store-section="${section}"`));
   assert.match(js, /\/api\/platform-store-detail/);
+  assert.match(html, /id="unlinkedOperations"/);
+  assert.match(js, /\/api\/platform-store-unlinked/);
   assert.match(html, /id="storeFilters"/);
   assert.match(html, /لا تظهر بيانات اتصال العملاء أو الحمولات الخام/);
 });

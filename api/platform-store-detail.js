@@ -49,6 +49,20 @@ async function readRows(context, table, params) {
   if (!response.ok || !Array.isArray(data)) throw new Error('store_detail_read_failed');
   return data;
 }
+async function readAllRows(context, table, params, pageSize = 500) {
+  const query = new URLSearchParams(params);
+  query.set('limit', String(pageSize));
+  const rows = [];
+  let offset = 0;
+  while (rows.length < 100000) {
+    query.set('offset', String(offset));
+    const page = await readRows(context, table, query);
+    rows.push(...page);
+    if (page.length < pageSize) return rows;
+    offset += page.length;
+  }
+  throw new Error('store_detail_read_failed');
+}
 async function readRpc(context, name) {
   const response = await fetch(`${context.supabaseUrl}/rest/v1/rpc/${name}`, {
     method: 'POST',
@@ -61,10 +75,10 @@ async function readRpc(context, name) {
   return data;
 }
 function storeParams(storeId, select, limit, offset) {
-  return new URLSearchParams({ select, store_id: `eq.${storeId}`, order: 'created_at.desc', limit: String(limit), offset: String(offset) });
+  return new URLSearchParams({ select, store_id: `eq.${storeId}`, order: 'created_at.desc,id.asc', limit: String(limit), offset: String(offset) });
 }
 function pageParams(storeId, select, limit, offset) {
-  return new URLSearchParams({ select, store_id: `eq.${storeId}`, order: 'updated_at.desc', limit: String(limit), offset: String(offset) });
+  return new URLSearchParams({ select, store_id: `eq.${storeId}`, order: 'updated_at.desc,id.asc', limit: String(limit), offset: String(offset) });
 }
 
 async function productContexts(context, productSizeIds) {
@@ -100,16 +114,16 @@ async function getRequestChildren(context, requests) {
   const ids = requests.map(row => row.id).filter(id => UUID.test(String(id || '')));
   if (!ids.length) return { items: new Map(), shipments: new Map(), notifications: new Map(), checks: new Map(), audit: new Map() };
   const requestFilter = inFilter(ids);
-  const childParams = (select, limit = 500) => new URLSearchParams({ select, request_id: requestFilter, order: 'created_at.desc', limit: String(limit) });
-  const notificationParams = new URLSearchParams({ select: 'request_id,tracking_number,event_type,store_status,match_status,mismatch_fields,received_at', request_id: requestFilter, order: 'received_at.desc', limit: '500' });
-  const checkParams = new URLSearchParams({ select: 'request_id,tracking_number,event_type,match_status,mismatch_fields,checked_at', request_id: requestFilter, order: 'checked_at.desc', limit: '500' });
-  const auditParams = new URLSearchParams({ select: 'request_id,actor_role,event_type,source,created_at', request_id: requestFilter, order: 'created_at.desc', limit: '500' });
+  const childParams = select => new URLSearchParams({ select, request_id: requestFilter, order: 'created_at.desc,id.asc' });
+  const notificationParams = new URLSearchParams({ select: 'request_id,tracking_number,event_type,store_status,match_status,mismatch_fields,received_at', request_id: requestFilter, order: 'received_at.desc,id.asc' });
+  const checkParams = new URLSearchParams({ select: 'request_id,tracking_number,event_type,match_status,mismatch_fields,checked_at', request_id: requestFilter, order: 'checked_at.desc,id.asc' });
+  const auditParams = new URLSearchParams({ select: 'request_id,actor_role,event_type,source,created_at', request_id: requestFilter, order: 'created_at.desc,id.asc' });
   const [itemRows, shipmentRows, notificationRows, checkRows, auditRows] = await Promise.all([
-    readRows(context, 'store_order_request_items', childParams(ORDER_ITEM_SELECT)),
-    readRows(context, 'store_shipments', new URLSearchParams({ select: SHIPMENT_SELECT, store_id: `eq.${requests[0].store_id}`, request_id: requestFilter, order: 'created_at.desc', limit: '500' })),
-    readRows(context, 'store_order_notifications', notificationParams),
-    readRows(context, 'order_reconciliation_checks', checkParams),
-    readRows(context, 'order_operation_events', auditParams)
+    readAllRows(context, 'store_order_request_items', childParams(ORDER_ITEM_SELECT)),
+    readAllRows(context, 'store_shipments', new URLSearchParams({ select: SHIPMENT_SELECT, store_id: `eq.${requests[0].store_id}`, request_id: requestFilter, order: 'created_at.desc,id.asc' })),
+    readAllRows(context, 'store_order_notifications', notificationParams),
+    readAllRows(context, 'order_reconciliation_checks', checkParams),
+    readAllRows(context, 'order_operation_events', auditParams)
   ]);
   return {
     items: groupBy(itemRows, 'request_id'),
@@ -153,8 +167,8 @@ module.exports = async function platformStoreDetail(req, res) {
     let hasMore = false;
 
     if (section === 'overview') {
-      const accountParams = new URLSearchParams({ select: 'id,user_id,role,created_at,updated_at', store_id: `eq.${storeId}`, order: 'created_at.desc', limit: '100' });
-      const [accountRows, summaryRows] = await Promise.all([readRows(context, 'store_accounts', accountParams), readRpc(context, 'platform_store_summary')]);
+      const accountParams = new URLSearchParams({ select: 'id,user_id,role,created_at,updated_at', store_id: `eq.${storeId}`, order: 'created_at.desc,id.asc' });
+      const [accountRows, summaryRows] = await Promise.all([readAllRows(context, 'store_accounts', accountParams), readRpc(context, 'platform_store_summary')]);
       accounts = accountRows.map(row => pick(row, ['id', 'user_id', 'role', 'created_at', 'updated_at']));
       summary = summaryRows.find(row => row.store_id === storeId) || null;
       hasMore = false;
@@ -165,7 +179,7 @@ module.exports = async function platformStoreDetail(req, res) {
       records = attachProductContext(rows, contexts);
       hasMore = rows.length === limit;
     } else if (section === 'offers') {
-      const params = new URLSearchParams({ select: 'id,store_id,product_size_id,title,description,discount_type,discount_value,start_date,end_date,is_active,created_at,updated_at', store_id: `eq.${storeId}`, order: 'created_at.desc', limit: String(limit), offset: String(offset) });
+      const params = new URLSearchParams({ select: 'id,store_id,product_size_id,title,description,discount_type,discount_value,start_date,end_date,is_active,created_at,updated_at', store_id: `eq.${storeId}`, order: 'created_at.desc,id.asc', limit: String(limit), offset: String(offset) });
       const rows = await readRows(context, 'offers', params);
       const contexts = await productContexts(context, rows.map(row => row.product_size_id).filter(Boolean));
       records = attachProductContext(rows, contexts);
@@ -185,7 +199,7 @@ module.exports = async function platformStoreDetail(req, res) {
       records = orderRecords(rows, children);
       hasMore = rows.length === limit;
     } else if (section === 'shipments') {
-      const params = new URLSearchParams({ select: SHIPMENT_SELECT, store_id: `eq.${storeId}`, order: 'created_at.desc', limit: String(limit), offset: String(offset) });
+      const params = new URLSearchParams({ select: SHIPMENT_SELECT, store_id: `eq.${storeId}`, order: 'created_at.desc,id.asc', limit: String(limit), offset: String(offset) });
       const rows = await readRows(context, 'store_shipments', params);
       const requestIds = rows.map(row => row.request_id).filter(id => UUID.test(String(id || '')));
       let requests = [];
@@ -197,7 +211,7 @@ module.exports = async function platformStoreDetail(req, res) {
       records = rows.map(row => ({ ...pick(row, SHIPMENT_SELECT.split(',')), order: pick(requestById.get(row.request_id), ['id', 'tracking_number', 'status', 'reconciliation_status']) }));
       hasMore = rows.length === limit;
     } else if (section === 'commissions') {
-      const params = new URLSearchParams({ select: 'id,store_id,order_item_id,rate,amount,status,created_at,updated_at', store_id: `eq.${storeId}`, order: 'created_at.desc', limit: String(limit), offset: String(offset) });
+      const params = new URLSearchParams({ select: 'id,store_id,order_item_id,rate,amount,status,created_at,updated_at', store_id: `eq.${storeId}`, order: 'created_at.desc,id.asc', limit: String(limit), offset: String(offset) });
       const status = String(query.status || '');
       if (status && !COMMISSION_STATUSES.has(status)) return reply(res, 400, { ok: false, error: 'invalid_commission_status' });
       if (status) params.set('status', `eq.${status}`);
@@ -240,8 +254,8 @@ module.exports = async function platformStoreDetail(req, res) {
       const requestIds = requests.map(row => row.id).filter(id => UUID.test(String(id || '')));
       let checks = [];
       if (requestIds.length) {
-        const checkParams = new URLSearchParams({ select: 'id,request_id,notification_id,tracking_number,event_type,mismatch_fields,match_status,checked_at', request_id: inFilter(requestIds), order: 'checked_at.desc', limit: String(Math.min(500, Math.max(limit, requests.length * 10))) });
-        checks = await readRows(context, 'order_reconciliation_checks', checkParams);
+        const checkParams = new URLSearchParams({ select: 'id,request_id,notification_id,tracking_number,event_type,mismatch_fields,match_status,checked_at', request_id: inFilter(requestIds), order: 'checked_at.desc,id.asc' });
+        checks = await readAllRows(context, 'order_reconciliation_checks', checkParams);
       }
       const checksByRequest = groupBy(checks, 'request_id');
       records = requests.map(row => ({ ...pick(row, ['id', 'tracking_number', 'status', 'reconciliation_status', 'created_at', 'updated_at']), checks: (checksByRequest.get(row.id) || []).map(check => pick(check, ['id', 'request_id', 'notification_id', 'tracking_number', 'event_type', 'mismatch_fields', 'match_status', 'checked_at'])) }));

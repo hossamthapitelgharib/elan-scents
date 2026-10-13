@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>لوحة المتاجر · Élan Scents</title>
-  <link rel="stylesheet" href="/fonts.css?v=20261013-08">
-  <link rel="stylesheet" href="/portal.css?v=20261013-08">
+  <link rel="stylesheet" href="/fonts.css?v=20261013-09">
+  <link rel="stylesheet" href="/portal.css?v=20261013-09">
 </head>
 <body data-dashboard="stores">
   <header>
@@ -27,6 +27,15 @@
       <div class="dashboard-nav-links"><a href="/platform-dashboard.html">لوحة إدارة المنصة</a><a href="/customers-dashboard.html">لوحة العملاء</a></div>
       <div id="storeStats" class="stats"></div>
       <p id="storeError" class="platform-error" hidden></p>
+      <section class="panel store-admin-panel" id="unlinkedOperations" aria-labelledby="unlinkedOperationsTitle">
+        <div class="customer-heading"><div><small>Unlinked operations</small><h2 id="unlinkedOperationsTitle">سجلات التشغيل غير المرتبطة بطلب متجر</h2></div></div>
+        <p class="muted">إشعارات بلا طلب مرتبط وأحداث تشغيل من جلسات الدفع أو غيرها لم تُربط بطلب. تُعرض الحقول التشغيلية فقط دون بيانات العملاء أو الحمولات الخام.</p>
+        <p id="unlinkedStoreError" class="platform-error" hidden></p>
+        <div class="unlinked-operations-grid">
+          <section class="store-detail-block"><h3>إشعارات بلا طلب مرتبط</h3><div class="activity-table-wrap"><table class="activity-table store-detail-table"><thead><tr><th>رقم التتبع</th><th>الحدث</th><th>حالة المتجر</th><th>المطابقة</th><th>الحقول المختلفة</th><th>وقت الاستلام</th></tr></thead><tbody id="unlinkedNotificationsBody"></tbody></table></div><button id="unlinkedNotificationsMore" class="ghost" type="button" hidden>تحميل المزيد</button></section>
+          <section class="store-detail-block"><h3>أحداث تشغيل بلا طلب مرتبط</h3><div class="activity-table-wrap"><table class="activity-table store-detail-table"><thead><tr><th>جلسة الدفع</th><th>الحدث</th><th>المصدر</th><th>الدور</th><th>الوقت</th></tr></thead><tbody id="unlinkedEventsBody"></tbody></table></div><button id="unlinkedEventsMore" class="ghost" type="button" hidden>تحميل المزيد</button></section>
+        </div>
+      </section>
       <section class="panel store-admin-panel" aria-labelledby="storesTitle">
         <div class="customer-heading"><div><small>Store operations</small><h2 id="storesTitle">المتاجر وبيانات التشغيل</h2></div><button id="refreshStores" class="ghost" type="button">تحديث</button></div>
         <p class="muted">تُعرض بيانات المتجر والكتالوج والعروض والطلبات والشحن والعمولات والمزامنة والمطابقة. لا تظهر بيانات اتصال العملاء أو الحمولات الخام.</p>
@@ -61,7 +70,7 @@
       </section>
     </section>
   </main>
-  <script src="/portal.js?v=20261013-08"></script>
-  <script src="/stores-dashboard.js?v=20261013-08"></script>
+  <script src="/portal.js?v=20261013-09"></script>
+  <script src="/stores-dashboard.js?v=20261013-09"></script>
 </body>
 </html>
