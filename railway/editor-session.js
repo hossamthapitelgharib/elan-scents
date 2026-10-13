@@ -1,5 +1,5 @@
-/* Server-side admin sessions. Memory only: a restart logs everyone out, and there is no "remember me".
-   The browser only ever holds an opaque random id in a session cookie (no Max-Age). */
+/* Server-side admin sessions. The browser holds an encrypted, browser-session cookie so a Railway
+   restart does not strand an already-open editor iframe with a dead in-memory session. */
 const crypto = require('node:crypto');
 const { getContext, requireRoles } = require('../api/_auth.js');
 
@@ -7,6 +7,7 @@ const IDLE_MS = 2 * 60 * 60 * 1000;      // 2 hours without activity
 const ABSOLUTE_MS = 10 * 60 * 60 * 1000; // 10 hours total
 const sessions = new Map();
 const attempts = new Map();
+const revoked = new Set();
 
 function env() { return { url: process.env.SUPABASE_URL, anon: process.env.SUPABASE_ANON_KEY }; }
 
@@ -17,6 +18,24 @@ function tooManyAttempts(ip) {
   return list.length >= 10;
 }
 function noteAttempt(ip) { const l = attempts.get(ip) || []; l.push(Date.now()); attempts.set(ip, l); }
+
+function secret() { return process.env.EDITOR_SESSION_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || ''; }
+function key() { const value = secret(); return value ? crypto.createHash('sha256').update(value).digest() : null; }
+function seal(value) {
+  const k = key(); if (!k) return null;
+  const iv = crypto.randomBytes(12), cipher = crypto.createCipheriv('aes-256-gcm', k, iv);
+  const body = Buffer.concat([cipher.update(JSON.stringify(value), 'utf8'), cipher.final()]);
+  return 'v1.' + Buffer.concat([iv, cipher.getAuthTag(), body]).toString('base64url');
+}
+function unseal(value) {
+  if (!value || !value.startsWith('v1.')) return null;
+  try {
+    const raw = Buffer.from(value.slice(3), 'base64url');
+    const decipher = crypto.createDecipheriv('aes-256-gcm', key(), raw.subarray(0, 12));
+    decipher.setAuthTag(raw.subarray(12, 28));
+    return JSON.parse(Buffer.concat([decipher.update(raw.subarray(28)), decipher.final()]).toString('utf8'));
+  } catch (_) { return null; }
+}
 
 async function login(email, password, ip) {
   const { url, anon } = env();
@@ -47,14 +66,17 @@ async function login(email, password, ip) {
   const id = crypto.randomBytes(32).toString('hex');
   const now = Date.now();
   sessions.set(id, { token: j.access_token, refresh: j.refresh_token, expiresAt: now + (Number(j.expires_in) || 3600) * 1000, created: now, last: now, email: ctx.user.email || '' });
-  return { status: 200, id };
+  const persistent = seal({ token: j.access_token, refresh: j.refresh_token, expiresAt: now + (Number(j.expires_in) || 3600) * 1000, created: now, email: ctx.user.email || '' });
+  return { status: 200, id: persistent || id };
 }
 
 async function get(id) {
-  const s = id && sessions.get(id);
+  if (id && revoked.has(id)) return null;
+  const s = id && (sessions.get(id) || unseal(id));
   if (!s) return null;
   const now = Date.now();
-  if (now - s.last > IDLE_MS || now - s.created > ABSOLUTE_MS) { sessions.delete(id); return null; }
+  const last = s.last || s.created;
+  if (now - last > IDLE_MS || now - s.created > ABSOLUTE_MS) { sessions.delete(id); return null; }
   if (s.expiresAt - now < 60000 && s.refresh) {
     const { url, anon } = env();
     try {
@@ -68,9 +90,9 @@ async function get(id) {
   return s;
 }
 
-function destroy(id) { sessions.delete(id); }
+function destroy(id) { if (id) revoked.add(id); sessions.delete(id); }
 function parseCookie(header, name) {
-  const m = new RegExp('(?:^|;\\s*)' + name + '=([a-f0-9]{64})(?:;|$)').exec(header || '');
+  const m = new RegExp('(?:^|;\\s*)' + name + '=([A-Za-z0-9._~-]+)(?:;|$)').exec(header || '');
   return m ? m[1] : '';
 }
 function size() { return sessions.size; }
