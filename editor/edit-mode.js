@@ -443,7 +443,7 @@
       case 'ui.openFormatPanel': if (p.elementId) select(need(p.elementId).id); if (!selectedId) throw new Error('اضغطي على عنصر في الصفحة الأول.'); buildBar(); return null;
       case 'ui.openMediaPanel': { var id7 = p.elementId || selectedId; if (!id7) throw new Error('اختاري بانر أو صورة الأول.'); setMedia(id7, await mediaPrompt(id7)); return null; }
       case 'ui.openCreatePanel':
-        if (p.kind === 'banner' || p.kind === 'text_block') return createBlock(p.kind, {});
+        if (p.kind === 'banner' || p.kind === 'text_block' || p.kind === 'text') return createBlock(p.kind, {});
         if (p.kind === 'image') { var src8 = await mediaPrompt(); return createBlock('image', { src: src8 }); }
         throw new Error('إنشاء ' + p.kind + ' بيتربط بسابابيس في المرحلة الجاية. المتاح دلوقتي: بانر ونص وصورة.');
       case 'library.open': throw new Error('المكتبة بتتربط بسابابيس في المرحلة الجاية.');

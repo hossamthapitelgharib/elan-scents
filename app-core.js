@@ -26,7 +26,7 @@ var cat=(p.cats||[]).slice(0,1).map(function(i){return nmOf('cats',i)}).join('')
 var rating=ratingHTML(p.rating);
 var occ=(p.occs||[]).slice(0,2).map(function(i){return '<span class="tg">'+nmOf('occ',i)+'</span>'}).join('');
 return '<div class="card pf" data-go="prod|'+p.id+'"><div class="pim">'+img+'</div><h4>'+(p.pn||p.name)+(p.sz?' <small>\u00b7 '+p.sz+'</small>':'')+'</h4><small>'+p.brand+(cat?' \u00b7 '+cat:'')+'</small>'+rating+(p.sd?'<p class="sd">'+p.sd+'</p>':'')+(occ?'<div class="tgs">'+occ+'</div>':'')+(b?'<div class="pr"><span class="price">'+b.price+' '+(b.cur||'')+'</span><small>'+b.store+'</small></div>':'<span class="st">'+t.soon+'</span>')+'<div class="act"><span class="vd">'+l.det+'</span>'+(b?'<button class="cartb" data-add="'+p.id+'" aria-label="cart">'+CARTSVG+'</button>':'')+'</div></div>'}
-var SP_BY_ID={};var CART=[];try{CART=JSON.parse(localStorage.getItem('elan_cart')||'[]')}catch(e){}var CART_SYNCING=false,CART_PULLING=false,CART_FIRST_SYNC_DONE=false,CART_LOCAL_DIRTY=false,CART_PUSH_QUEUED=false,CART_REV=0,GUEST_CART_SYNCING=false,GUEST_SAVE_QUEUED=false;
+var SP_BY_ID={};var CART=[];if(!window.ELAN_EDITOR_PREVIEW)try{CART=JSON.parse(localStorage.getItem('elan_cart')||'[]')}catch(e){}var CART_SYNCING=false,CART_PULLING=false,CART_FIRST_SYNC_DONE=false,CART_LOCAL_DIRTY=false,CART_PUSH_QUEUED=false,CART_REV=0,GUEST_CART_SYNCING=false,GUEST_SAVE_QUEUED=false;
 var GUEST_SEARCH_TIMER=0,LAST_GUEST_SEARCH_KEY='';
 function trackGuestProduct(eventType,productId,productSizeId,storeProductId,quantity){if(!window.GuestIdentity||!GuestIdentity.track||!productId)return;GuestIdentity.track(eventType,String(productId),productSizeId,storeProductId,quantity).catch(function(){});}
 function uniqueGuestProducts(rows){var seen={},items=[];(rows||[]).forEach(function(x){var p=x&&x.p||x,id=p&&(p.pid||p.id),offer=x&&x.b||best(p);if(id&&!seen[id]){seen[id]=1;items.push({id:String(id),sizeId:p.id||'',storeProductId:offer&&offer.storeProductId||''})}});return items.slice(0,10)}
@@ -118,7 +118,7 @@ V.innerHTML=h;if(document.getElementById('res'))results()}
 document.addEventListener('click',function(e){var reset=e.target.closest('[data-filter-reset]');if(reset){openP();return}var ad=e.target.closest('[data-add]');if(ad){e.preventDefault();var qi=ad.dataset.q?document.getElementById(ad.dataset.q):null;addToCart(ad.dataset.add,qi?+qi.value||1:1);return}var cq=e.target.closest('[data-cq]');if(cq){cartQty(cq.dataset.cq);return}var cr=e.target.closest('[data-cr]');if(cr){cartDel(cr.dataset.cr);return}var g=e.target.closest('[data-go]');if(g){go(g.dataset.go);return}var b=e.target.closest('[data-bc]');if(b){var i=+b.dataset.bc;if(!i){document.body.classList.remove('inner');scrollTo(0,0)}else{P=P.slice(0,i+1);openP()}}});
 document.addEventListener('input',function(e){var k=e.target.dataset&&e.target.dataset.k;if(k){F[k]=k=='sort'?+e.target.value:e.target.value;results()}});document.addEventListener('change',function(e){var k=e.target.dataset&&e.target.dataset.k;if(k){F[k]=k=='sort'?+e.target.value:e.target.value;results()}});
 var BR=['AMOUAGE','ARMAF','AFNAN','ASSAF','RASASI','FRENCH AVENUE','ARABIYAT PRESTIGE','LATTAFA','Maison Alhambra'];
-var ST=[['Afnan Egypt',''],['Emarati Scents','']];var BR0=BR.slice();var SB={url:'',key:''},DSIG='',AUTH=null,PENDING_STORE='';try{AUTH=JSON.parse(localStorage.getItem('elan_auth_session')||'null')}catch(e){AUTH=null}
+var ST=[['Afnan Egypt',''],['Emarati Scents','']];var BR0=BR.slice();var SB={url:'',key:''},DSIG='',AUTH=null,PENDING_STORE='';if(!window.ELAN_EDITOR_PREVIEW)try{AUTH=JSON.parse(localStorage.getItem('elan_auth_session')||'null')}catch(e){AUTH=null}
 function authSubmit(form){if(!SB.url||!SB.key)return toast('تعذر الاتصال بخدمة الحساب');var mode=form.dataset.authMode,email=form.elements.email.value.trim(),password=form.elements.password.value,name=form.elements.name?form.elements.name.value.trim():'';var url=SB.url+'/auth/v1/'+(mode=='login'?'token?grant_type=password':'signup');fetch(url,{method:'POST',headers:{apikey:SB.key,'Content-Type':'application/json'},body:JSON.stringify(mode=='login'?{email:email,password:password}:{email:email,password:password,data:{full_name:name}})}).then(function(r){return r.json()}).then(async function(d){if(!d.access_token){toast(d.msg||'تعذر تسجيل الدخول');return}AUTH=d;try{localStorage.setItem('elan_auth_session',JSON.stringify(d))}catch(e){}if(window.GuestIdentity)await GuestIdentity.claim(d.access_token);await syncCartFromCloud(!CART_FIRST_SYNC_DONE);if(PENDING_STORE){var st=PENDING_STORE;PENDING_STORE='';openStoreOrder(st)}else sheet('cart')}).catch(function(){toast('تعذر الاتصال بخدمة الحساب')})}
 async function loadData(){
 try{
@@ -198,6 +198,16 @@ document.getElementById('mb').onclick=function(){document.getElementById('menu')
 // 3D shadow on proximity of pointer/finger
 function prox(e){var p=e.touches?e.touches[0]:e;document.querySelectorAll('.card').forEach(function(c){var r=c.getBoundingClientRect(),dx=Math.max(r.left-p.clientX,0,p.clientX-r.right),dy=Math.max(r.top-p.clientY,0,p.clientY-r.bottom);c.classList.toggle('near',Math.hypot(dx,dy)<60)})}
 addEventListener('mousemove',prox);addEventListener('touchmove',prox,{passive:true});
+if(window.ELAN_EDITOR_PREVIEW){
+  CART=[];AUTH=null;
+  pushCartToCloud=async function(){};syncCartFromCloud=async function(){};
+  saveGuestCartToCloud=async function(){};syncGuestCartFromCloud=async function(){};
+  saveCart=function(){cartBadge();};
+  readOrders=function(){return[];};saveOrders=function(){};
+  restoreCancelledStoreItemsFromToken=function(){};
+  persistOrderToSupabase=function(){};sendStoreOrder=function(){};authSubmit=function(){};
+  sendMsg=function(event){if(event)event.preventDefault();return false;};
+}
 hero();setInterval(function(){hi++;hero()},8000);render();cartBadge();loadData();setInterval(function(){if(AUTH&&!document.hidden){if(CART_LOCAL_DIRTY)pushCartToCloud();else syncCartFromCloud(!CART_FIRST_SYNC_DONE)}},5000);setTimeout(restoreCancelledStoreItemsFromToken,1200);setInterval(loadData,60000);
 
 /* Follow Us text links removed; social icons kept */

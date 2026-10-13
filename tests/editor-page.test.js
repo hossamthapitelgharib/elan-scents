@@ -33,11 +33,27 @@ test('edit mode loads only for the editor iframe and never for customers', () =>
 
 test('edit-mode uses same-origin bridge and defers saves to the parent editor', () => {
   const mode = read('editor/edit-mode.js');
+  const bridge = read('editor/elan-host-bridge.js');
   assert.match(mode, /allowedEditorOrigins:\s*\[location\.origin\]/);
   assert.doesNotMatch(mode, /allowedEditorOrigins:\s*\[\s*'\*'/);
   assert.match(mode, /page\.save/);
   assert.match(mode, /page\.getState/);
+  assert.match(bridge, /'page\.getState'.*'element\.select'.*'element\.edit'/);
   assert.doesNotMatch(mode, /localStorage|sessionStorage|document\.cookie|eval\(|new Function/);
+});
+
+test('live editor keeps creation and editing actions in the right-click menu and gates save/refresh on bridge readiness', () => {
+  const page = read('editor/elan-editor.html');
+  assert.match(page, /function showLiveMenu\(info\)/);
+  assert.match(page, /إنشاء كارت عطر/);
+  assert.match(page, /element\.edit/);
+  assert.match(page, /if\(liveMode\)originalHeaderButtons\.forEach\(b=>b\.disabled=!bridgeReady\)/);
+  assert.match(page, /if\(b===refreshBtn\)b\.disabled=!bridgeReady/);
+  assert.match(page, /رفع التعديل إلى GitHub/);
+  assert.match(page, /النشر على Railway/);
+  const mode = read('editor/edit-mode.js');
+  assert.match(mode, /p\.kind === 'banner'.*p\.kind === 'text_block'.*p\.kind === 'text'/);
+  assert.match(page, /c!==deviceBox&&c!==refreshBtn/);
 });
 
 test('vercel.json no longer routes /editor to the deleted prototype', () => {

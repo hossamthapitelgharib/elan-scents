@@ -1,6 +1,30 @@
 (function () {
   'use strict';
 
+  var IS_EDITOR_PREVIEW = false;
+  try {
+    IS_EDITOR_PREVIEW = !!window.parent && window.parent !== window &&
+      new URLSearchParams(window.location.search).get('elan_editor') === '1';
+  } catch (_) {}
+  window.ELAN_EDITOR_PREVIEW = IS_EDITOR_PREVIEW;
+  if (IS_EDITOR_PREVIEW) {
+    var noWrite = function () { return Promise.resolve({ ok: true, preview: true, tracked: false, cart: [] }); };
+    window.GuestIdentity = {
+      enabled: function () { return false; },
+      resolve: noWrite, save: noWrite, claim: noWrite, track: noWrite,
+      sessionId: function () { return null; }, startSession: noWrite
+    };
+    ['click', 'auxclick', 'submit', 'contextmenu', 'dragstart'].forEach(function (type) {
+      document.addEventListener(type, function (event) {
+        var target = event.target && (event.target.nodeType === 1 ? event.target : event.target.parentElement);
+        if (target && target.closest && target.closest('#elan-eo-root')) return;
+        event.preventDefault();
+        event.stopPropagation();
+      }, true);
+    });
+    return;
+  }
+
   var STORAGE_KEY = 'elan_guest_browser_key_v2';
   var SESSION_KEY = 'elan_customer_activity_session_v1';
   var UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
