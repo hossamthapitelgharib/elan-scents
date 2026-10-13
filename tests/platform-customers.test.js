@@ -25,7 +25,7 @@ test('platform customer dashboard separates registered accounts from active gues
     if (value.includes('/profiles?select=id,full_name,phone,role&id=')) return response([{ id: adminId, role: 'platform_admin' }]);
     if (value.includes('/profiles?select=id%2Cfull_name%2Cphone%2Crole')) return response([{ id: adminId, role: 'platform_admin' }]);
     if (value.includes('/profiles?select=id%2Cfull_name%2Cphone%2Ccreated_at')) return response([{ id: adminId, full_name: 'عميل مسجل', phone: '0100', created_at: '2026-01-01T00:00:00Z' }]);
-    if (value.includes('/guest_visitors?')) return response([{ id: guestId, fingerprint_hash: 'a'.repeat(64), status: 'guest', cart_snapshot: [{ sid: guestId, q: 2 }], captured_at: '2026-01-02T00:00:00Z', first_seen_at: '2026-01-02T00:00:00Z', last_seen_at: '2026-01-03T00:00:00Z' }]);
+    if (value.includes('/guest_visitors?')) return response([{ id: guestId, fingerprint_hash: 'a'.repeat(64), status: 'guest', cart_snapshot: [{ sid: guestId, q: 2, productSnapshot: { name: 'private snapshot' } }], captured_at: '2026-01-02T00:00:00Z', first_seen_at: '2026-01-02T00:00:00Z', last_seen_at: '2026-01-03T00:00:00Z' }]);
     if (value.includes('/cart_items?')) return response([{ user_id: adminId, quantity: 3 }, { user_id: adminId, quantity: 1 }]);
     throw new Error(`unexpected ${value}`);
   };
@@ -33,6 +33,7 @@ test('platform customer dashboard separates registered accounts from active gues
   assert.equal(res.out.status, 200); assert.equal(res.out.body.registeredCustomers.length, 1);
   assert.equal(res.out.body.registeredCustomers[0].cartItems, 2); assert.equal(res.out.body.registeredCustomers[0].cartUnits, 4);
   assert.equal(res.out.body.guestVisitors.length, 1); assert.equal(res.out.body.guestVisitors[0].cart_units, 2);
+  assert.equal(Object.hasOwn(res.out.body.guestVisitors[0], 'cart_snapshot'), false);
   assert.equal(res.out.body.counts.registered, 1); assert.equal(res.out.body.counts.visitors, 1);
   assert.ok(requests.some(url => /identity_version=eq\.2/.test(url)));
 });

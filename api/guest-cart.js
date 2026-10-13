@@ -68,13 +68,13 @@ module.exports = async (req, res) => {
       const response = await admin(`rpc/${rpc}`, payload);
       if (!response.ok) return json(res, 502, { error: 'guest_profile_unavailable' });
       const profile = await response.json();
-      return json(res, 200, { ok: true, visitorId: profile.visitorId, status: profile.status, cart: profile.cart || [] });
+      return json(res, 200, { ok: true, visitorId: profile.visitorId, status: profile.status, cart: cleanCart(profile.cart || []) });
     }
 
     if (action === 'track') {
       const eventType = String(body.eventType || '');
       const productId = String(body.productId || '');
-      if (!['view', 'search', 'cart_add'].includes(eventType) || !UUID.test(productId)) {
+      if (!['view', 'search', 'cart_add', 'cart_remove'].includes(eventType) || !UUID.test(productId)) {
         return json(res, 400, { error: 'invalid_product_activity' });
       }
       const response = await admin('rpc/record_guest_product_activity', {

@@ -9,6 +9,9 @@ test('customer activity migration preserves RLS, full product joins, four rankin
   const migration = fs.readFileSync(path.join(root, 'supabase/migrations/20261011001908_customer_activity_details.sql'), 'utf8');
   const dashboard = fs.readFileSync(path.join(root, 'platform-dashboard.js'), 'utf8');
   const identity = fs.readFileSync(path.join(root, 'guest-identity.js'), 'utf8');
+  const snapshotName = '20261013101123_product_activity_snapshots.sql';
+  const appliedSnapshot = path.join(root, 'supabase/migrations', snapshotName);
+  const snapshotMigration = fs.readFileSync(fs.existsSync(appliedSnapshot) ? appliedSnapshot : path.join(root, 'supabase/pending', snapshotName), 'utf8');
   const core = loadCoreSource();
   assert.match(migration, /create table if not exists public\.customer_sessions/i);
   assert.match(migration, /create table if not exists public\.customer_product_events/i);
@@ -23,4 +26,10 @@ test('customer activity migration preserves RLS, full product joins, four rankin
   assert.match(dashboard, /registeredAnalyticsPeriod/);
   assert.match(identity, /customer-activity/); assert.match(identity, /heartbeat/);
   assert.match(core, /trackGuestProduct\('cart_remove'/); assert.match(core, /trackGuestProduct\('search'/);
+  assert.match(snapshotMigration, /capture_product_snapshot/i);
+  assert.match(snapshotMigration, /product_images/i); assert.match(snapshotMigration, /aromaticNotes/i);
+  assert.match(snapshotMigration, /storeOffers/i); assert.match(snapshotMigration, /cart_items_product_snapshot/i);
+  assert.match(snapshotMigration, /drop constraint if exists customer_product_events_product_id_fkey/i);
+  assert.match(snapshotMigration, /drop constraint if exists guest_product_analytics_product_id_fkey/i);
+  assert.match(snapshotMigration, /product_snapshot jsonb not null/i);
 });

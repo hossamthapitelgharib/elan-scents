@@ -20,14 +20,26 @@ test('resolve stores only server HMACs and returns this browser basket', async (
   const calls = [];
   global.fetch = async (url, options = {}) => {
     calls.push({ url: String(url), options });
-    return response({ visitorId: productId, status: 'guest', cart: [{ sid: productId, storeProductId: productId, q: 2 }] });
+    return response({ visitorId: productId, status: 'guest', cart: [{ sid: productId, storeProductId: productId, q: 2, productSnapshot: { name: 'private snapshot' } }] });
   };
   const res = recorder();
   await handler({ method: 'POST', headers: {}, body: { action: 'resolve', visitorKey } }, res);
   assert.equal(res.out.status, 200); assert.equal(res.out.body.visitorId, productId); assert.equal(res.out.body.cart[0].q, 2);
+  assert.equal(Object.hasOwn(res.out.body.cart[0], 'productSnapshot'), false);
   assert.match(calls[0].url, /rpc\/resolve_guest_browser$/);
   const payload = JSON.parse(calls[0].options.body);
   assert.match(payload.p_fingerprint_hash, /^[a-f0-9]{64}$/); assert.match(payload.p_analytics_hash, /^[a-f0-9]{64}$/);
+});
+
+test('legacy guest activity route accepts cart removal and writes to the unified detailed ledger', async () => {
+  process.env.SUPABASE_URL = 'https://test.supabase.co'; process.env.SUPABASE_SERVICE_ROLE_KEY = 'unit-test-server-secret';
+  const calls = [];
+  global.fetch = async (url, options = {}) => { calls.push({ url: String(url), options }); return response(true); };
+  const res = recorder();
+  await handler({ method: 'POST', headers: {}, body: { action: 'track', visitorKey, eventType: 'cart_remove', productId } }, res);
+  assert.equal(res.out.status, 200); assert.equal(res.out.body.tracked, true);
+  assert.match(calls[0].url, /rpc\/record_guest_product_activity$/);
+  assert.equal(JSON.parse(calls[0].options.body).p_event_type, 'cart_remove');
 });
 
 test('guest capture is automatic, browser-local, and its migration keeps only isolated analytics after claim', () => {
