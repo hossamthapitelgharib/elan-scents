@@ -140,6 +140,12 @@
     tools.push({ id: 'format', label: 'تنسيق العنصر', ui: 'format' });
     if (blk) tools.push({ id: 'duplicate', label: 'تكرار العنصر' });
     if (blk && (blk.type === 'image' || blk.type === 'banner')) tools.push({ id: 'media', label: 'تغيير الصورة', ui: 'media' });
+    if (/^(sec:[a-z]+|x-.+)$/.test(e.id)) {
+      tools.push({ id: 'move_up', label: 'تقديم الطبقة' });
+      tools.push({ id: 'move_down', label: 'تأخير الطبقة' });
+    }
+    tools.push({ id: 'hide', label: 'إخفاء على هذا الجهاز' });
+    tools.push({ id: 'reset', label: 'إعادة ضبط العنصر' });
     tools.push({ id: 'archive', label: 'نقل إلى الأرشيف' });
     return {
       id: e.id, name: e.name, kind: e.kind, type: type, canText: !!layer.textTarget(e), isBlock: !!blk, tools: tools,
@@ -433,8 +439,10 @@
     p = p || {};
     switch (action) {
       case 'tool.run': {
-        var toolAction = { edit_text: 'element.edit', duplicate: 'element.duplicate', archive: 'element.archive' }[p.id];
+        var toolAction = { edit_text: 'element.edit', duplicate: 'element.duplicate', move_up: 'element.reorder', move_down: 'element.reorder', hide: 'element.hide', reset: 'element.reset', archive: 'element.archive' }[p.id];
         if (!toolAction) throw new Error('الأداة غير مدعومة.');
+        if (p.id === 'move_up') p.delta = -1;
+        if (p.id === 'move_down') p.delta = 1;
         return execute(toolAction, p, meta);
       }
       case 'page.getState': return snapshot();
@@ -454,6 +462,9 @@
         mutate(function (d) { d.blocks.push(copy); d.order = order; }); select(copy.id); return { elementId: copy.id };
       }
       case 'element.archive': archive(need(p.elementId || selectedId).id); return null;
+      case 'element.hide': { var eh = need(p.elementId || selectedId); mutate(function () { edit(device(), eh.id).hidden = true; }); selectedId = null; reselect(); return null; }
+      case 'element.reset': resetElement(need(p.elementId || selectedId).id); return null;
+      case 'element.reorder': reorder(need(p.elementId || selectedId).id, Math.max(-1, Math.min(1, Number(p.delta) || 0))); return null;
       case 'archive.restore': mutate(function (d) { if (d.edits) Object.keys(d.edits).forEach(function (dev) { if (d.edits[dev][p.elementId]) delete d.edits[dev][p.elementId].archived; }); }); return snapshot();
       case 'history.undo': return { ok: undo() };
       case 'history.redo': return { ok: redo() };
