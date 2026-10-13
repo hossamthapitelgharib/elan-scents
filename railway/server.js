@@ -25,7 +25,7 @@ const MIME = {
 // Full editor UI stays private (served only via editor-host). These scripts are loaded by the
 // storefront iframe when ?elan_editor=1 — they must be publicly readable.
 const BLOCKED_TOP = new Set(['api', 'tests', 'supabase', 'railway', 'node_modules', 'src', 'lib', 'scripts', 'reports', '.github', '.git']);
-const EDITOR_PUBLIC_FILES = new Set(['edit-boot.js', 'edit-mode.js', 'edit-model.js', 'elan-host-bridge.js', 'element-registry.js']);
+const EDITOR_PUBLIC_FILES = new Set(['edit-boot.js', 'edit-mode.js', 'edit-model.js', 'elan-host-bridge.js']);
 const BLOCKED_FILES = new Set(['package.json', 'package-lock.json', 'vercel.json', 'claude.md', 'readme.md']);
 
 function compile(rules, key) {

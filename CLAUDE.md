@@ -59,7 +59,7 @@
 - حد الطلبات في `lib/rate-limit.js` يعمل داخل ذاكرة العملية، ومع نسخة Railway الواحدة يكون فعّالاً.
 
 ## المحرر (مصدر واحد فقط)
-- المحرر المعتمد هو الموجود في هذا المستودع: `editor/elan-editor.html` مع `editor/edit-mode.js` و`editor/edit-model.js` و`editor/edit-boot.js` و`editor/elan-host-bridge.js` و`editor/element-registry.js`. ويستخدم ملفات التصميم المشتركة في الجذر `design-layer.js` و`design-schema.js`. يقدّمه `railway/editor-host.js` على `/editor` بتسجيل دخول المالك. لا نسخة أخرى معتمدة.
+- المحرر المعتمد هو الموجود في هذا المستودع: `editor/elan-editor.html` مع `editor/edit-mode.js` و`editor/edit-model.js` و`editor/edit-boot.js` و`editor/elan-host-bridge.js`. ويستخدم ملفات التصميم المشتركة في الجذر `design-layer.js` و`design-schema.js`. يقدّمه `railway/editor-host.js` على `/editor` بتسجيل دخول المالك. لا نسخة أخرى معتمدة.
 - لا تُنشأ نسخ موازية للمحرر (مجلدات مثل `elan-editor-look-v3` أو مستودع منفصل). أي تطوير يُدمج في الملفات أعلاه مباشرة، وتبقى الاختبارات في `tests/editor-host.test.js`.
 - أي مجلد أو ملف يبدأ اسمه بـ `elan-editor` لا يُقدَّم للعامة أبداً (محجوب في `railway/server.js`).
 - لا ترفع ملفات يدوياً من المتصفح ("Add files via upload") فوق ملفات يعمل عليها الوكلاء؛ اطلب من Claude الدمج حتى لا تُستبدل تعديلات الآخرين.
