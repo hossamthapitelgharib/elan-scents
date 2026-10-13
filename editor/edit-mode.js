@@ -131,8 +131,14 @@
     var node = layer.textTarget(e) || e.el, cs = getComputedStyle(node), st = cur(e.id).style || {};
     var blk = (work.blocks || []).filter(function (b) { return b.id === e.id; })[0];
     var type = blk ? ({ text: 'text_block', banner: 'banner', image: 'image' })[blk.type] : (e.kind === 'section' ? 'section' : e.kind === 'card' ? 'card' : 'text');
+    var tools = [];
+    if (layer.textTarget(e)) tools.push({ id: 'edit_text', label: 'تعديل النص' });
+    tools.push({ id: 'format', label: 'تنسيق العنصر', ui: 'format' });
+    if (blk) tools.push({ id: 'duplicate', label: 'تكرار العنصر' });
+    if (blk && (blk.type === 'image' || blk.type === 'banner')) tools.push({ id: 'media', label: 'تغيير الصورة', ui: 'media' });
+    tools.push({ id: 'archive', label: 'نقل إلى الأرشيف' });
     return {
-      id: e.id, name: e.name, kind: e.kind, type: type, canText: !!layer.textTarget(e), isBlock: !!blk,
+      id: e.id, name: e.name, kind: e.kind, type: type, canText: !!layer.textTarget(e), isBlock: !!blk, tools: tools,
       style: {
         fontFamily: st.fontFamily || (cs.fontFamily || '').split(',')[0].replace(/["']/g, '').trim(),
         fontSize: st.fontSize || Math.round(parseFloat(cs.fontSize) || 16),
@@ -422,6 +428,11 @@
   async function execute(action, p, meta) {
     p = p || {};
     switch (action) {
+      case 'tool.run': {
+        var toolAction = { edit_text: 'element.edit', duplicate: 'element.duplicate', archive: 'element.archive' }[p.id];
+        if (!toolAction) throw new Error('الأداة غير مدعومة.');
+        return execute(toolAction, p, meta);
+      }
       case 'page.getState': return snapshot();
       case 'page.markSaved': baseRevision = p.revision; undoStack = []; redoStack = []; baseJson = JSON.stringify(work); dirty = true; setDirty(false); if (hostApi) hostApi.revision(baseRevision); return snapshot();
       case 'element.select': select(need(p.elementId).id); return { selected: selectedId };
@@ -448,7 +459,7 @@
         if (p.kind === 'banner' || p.kind === 'text_block' || p.kind === 'text') return createBlock(p.kind, {});
         if (p.kind === 'image') { var src8 = await mediaPrompt(); return createBlock('image', { src: src8 }); }
         if (['section', 'perfume', 'brand', 'store', 'occasion', 'note'].indexOf(p.kind) !== -1) {
-          var name8 = String(p.name || '').trim();
+          var name8 = String(p.name || prompt('اسم القسم الجديد') || '').trim();
           if (!name8) throw new Error('اكتبي اسم العنصر قبل الإنشاء.');
           var sr = await fetch('/api/editor-data', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'section.create', section: { name: name8, purpose: p.kind, selection_mode: 'manual', filters: {} } }) });
           var sj = await sr.json().catch(function () { return {}; });
