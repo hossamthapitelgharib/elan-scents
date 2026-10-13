@@ -5,26 +5,18 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const sessions = require('./editor-session.js');
+const records = require('./editor-records.js');
 
 const ROOT = path.resolve(__dirname, '..');
 const COOKIE = 'elan_sess';
-const LOGIN_FILES = { '/editor-login.js': 'text/javascript; charset=utf-8', '/editor-login.css': 'text/css; charset=utf-8', '/editor-guard.js': 'text/javascript; charset=utf-8', '/editor-data-bridge.js': 'text/javascript; charset=utf-8' };
+const LOGIN_FILES = { '/editor-login.js': 'text/javascript; charset=utf-8', '/editor-login.css': 'text/css; charset=utf-8', '/editor-guard.js': 'text/javascript; charset=utf-8' };
 
 function sha(s) { return "'sha256-" + crypto.createHash('sha256').update(s, 'utf8').digest('base64') + "'"; }
 
 let PAGE = null;
 function buildPage() {
   let html = fs.readFileSync(path.join(ROOT, 'editor', 'elan-editor.html'), 'utf8');
-  let siteOrigin = '';
-  try {
-    const candidate = String(process.env.EDITOR_SITE_ORIGIN || '').trim();
-    if (candidate) {
-      const parsed = new URL(candidate);
-      if (parsed.protocol === 'https:' || parsed.protocol === 'http:') siteOrigin = parsed.origin + '/';
-    }
-  } catch (_) { siteOrigin = ''; }
-  html = html.replace('__ELAN_PLATFORM_URL__', siteOrigin.replace(/\\/g, '\\\\').replace(/'/g, "\\'"));
-  html = html.replace('</body>', '<script src="/editor-data-bridge.js"></script><script src="/editor-guard.js"></script></body>');
+  html = html.replace('</body>', '<script src="/editor-guard.js"></script></body>');
   const hashes = [];
   html.replace(/<script>([\s\S]*?)<\/script>/g, (_, code) => { hashes.push(sha(code)); return ''; });
   const handlers = [];
@@ -102,6 +94,15 @@ async function handle(req, res, pathname) {
   if (pathname === '/api/editor-session') {
     const s = await sessions.get(sid);
     return (s ? json(res, 200, { ok: true }) : json(res, 401, { ok: false, error: 'unauthorized' })), true;
+  }
+
+  if (pathname === '/api/editor-records') {
+    if (req.method !== 'POST' || !sameOrigin(req)) return json(res, 403, { ok: false, error: 'forbidden' }), true;
+    const s = await sessions.get(sid);
+    if (!s) return json(res, 401, { ok: false, error: 'unauthorized' }), true;
+    const body = await readJson(req);
+    const out = await records.handle(process.env, s.token, body);
+    return json(res, out.status, out.body), true;
   }
 
   if (pathname === '/editor' || pathname === '/editor/') {

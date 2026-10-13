@@ -11,8 +11,6 @@
   var BUILTIN = ['brands', 'offers', 'new', 'cats', 'master', 'occ', 'notes', 'soon', 'stores'];
   var TEXT_KEYS = ['magic', 'view', 'explore', 'contactT', 'send'];
   var TYPES = ['text', 'banner', 'image', 'smart'];
-  /* Optional specialisation of a block (Shopify element definitions). */
-  var KINDS = ['brand', 'store', 'perfume', 'occasion', 'note', 'text_block', 'banner', 'section', 'card', 'video'];
   var SIZES = ['sm', 'md', 'lg', 'xl'];
   var ALIGNS = ['start', 'center', 'end'];
   var LIMITS = { bytes: 200000, blocks: 60, order: 100, text: 600, title: 160, url: 500 };
@@ -87,8 +85,6 @@
       if (COLOR_RE.test(rs.background)) style.background = rs.background; else errors.push(where + ': invalid background');
     }
     b.style = style;
-    if (typeof raw.kind === 'string' && KINDS.indexOf(raw.kind) !== -1) b.kind = raw.kind;
-    else if (raw.kind !== undefined && raw.kind !== null && raw.kind !== '') errors.push(where + ': invalid kind');
     if (type === 'text') {
       b.text = loc(raw.text, LIMITS.text);
       if (!b.text.ar && !b.text.en) { errors.push(where + ': empty text'); return null; }
@@ -194,10 +190,12 @@
     return out;
   }
 
+  /* Which bucket matches a screen width. */
   function deviceOf(width) {
     return width < BREAKPOINTS.mobile ? 'mobile' : width < BREAKPOINTS.tablet ? 'tablet' : 'desktop';
   }
 
+  /* Merged edit for one element on one screen size: "all" first, then the size-specific bucket on top. */
   function editFor(design, device, id) {
     var ed = design && design.edits;
     if (!ed) return null;
@@ -214,6 +212,9 @@
     return out;
   }
 
+  /* normalize(input, {strict}) -> {ok, design, errors}
+     Strict mode (server): any problem makes ok=false so nothing invalid is ever committed.
+     Lenient mode (storefront): invalid parts are skipped so the page never breaks. */
   function normalize(input, opts) {
     var strict = !!(opts && opts.strict);
     var errors = [];
@@ -252,16 +253,20 @@
       keys.slice(0, MAX_PAGES).forEach(function (key) {
         if (!PAGE_KEY_RE.test(key)) { errors.push('pages.' + key + ': unknown page'); return; }
         var pg = input.pages[key];
-        if (!isObj(pg) || !Array.isArray(pg.blocks)) { errors.push('pages.' + key + ': blocks must be an array'); return; }
+        if (!isObj(pg) || (pg.blocks !== undefined && !Array.isArray(pg.blocks))) { errors.push('pages.' + key + ': blocks must be an array'); return; }
         var list = [];
-        pg.blocks.forEach(function (raw, i) {
+        (pg.blocks || []).forEach(function (raw, i) {
           var b = blockOf(raw, errors, 'pages.' + key + '[' + i + ']');
           if (!b) return;
           if (seen[b.id]) { errors.push('pages.' + key + '[' + i + ']: duplicate id'); return; }
           seen[b.id] = true; b.slot = isObj(raw) && raw.slot === 'bottom' ? 'bottom' : 'top';
           list.push(b);
         });
-        if (list.length) { design.pages = design.pages || {}; design.pages[key] = { blocks: list }; }
+        var pageEdits = pg.edits !== undefined ? editsOf(pg.edits, errors) : {};
+        if (list.length || Object.keys(pageEdits).length) {
+          design.pages = design.pages || {}; design.pages[key] = { blocks: list };
+          if (Object.keys(pageEdits).length) design.pages[key].edits = pageEdits;
+        }
       });
       var total = design.blocks.length + Object.keys(design.pages || {}).reduce(function (n, k) { return n + design.pages[k].blocks.length; }, 0);
       if (total > LIMITS.blocks) errors.push('too many blocks');
@@ -306,6 +311,7 @@
       !Object.keys(design.edits || {}).length);
   }
 
+  /* Canonical text that gets committed. Throws if it would be unsafe to commit. */
   function serialize(design) {
     var n = normalize(design, { strict: true });
     if (!n.ok) throw new Error('invalid design: ' + n.errors.slice(0, 3).join('; '));
@@ -314,6 +320,7 @@
     return text;
   }
 
+  /* plan(): pure description of what the storefront layer must do. */
   function plan(design, presentIds, lang) {
     var l = lang === 'en' ? 'en' : 'ar';
     var out = { hide: [], titles: {}, blocks: [], order: [] };
@@ -348,7 +355,7 @@
   }
 
   return {
-    VERSION: VERSION, BUILTIN: BUILTIN, TEXT_KEYS: TEXT_KEYS, TYPES: TYPES, KINDS: KINDS, LIMITS: LIMITS,
+    VERSION: VERSION, BUILTIN: BUILTIN, TEXT_KEYS: TEXT_KEYS, LIMITS: LIMITS,
     DEVICES: DEVICES, FONTS: FONTS, EFFECTS: EFFECTS, BREAKPOINTS: BREAKPOINTS, EDIT_ID_RE: EDIT_ID_RE,
     normalize: normalize, isEmpty: isEmpty, serialize: serialize, plan: plan, applyTexts: applyTexts,
     deviceOf: deviceOf, editFor: editFor,
