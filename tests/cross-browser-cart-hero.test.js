@@ -19,11 +19,12 @@ test('hero video retries after browser-initiated pauses and unlocks on a real ge
   assert.match(index, /v\.defaultMuted=true/);
 });
 
-test('hero autoplays and there is no play/pause button', () => {
+test('hero autoplays and keeps its fallback play button hidden until needed', () => {
   assert.match(index, /v\.addEventListener\('playing'/);
   assert.match(index, /showButton\(false\)/);
   assert.match(index, /showButton\(true\)/);
-  assert.doesNotMatch(style, /#heroPlay/);
+  assert.match(index, /id="heroPlay"[^>]*hidden/);
+  assert.match(style, /#heroPlay\[hidden\]\{display:none!important\}/);
 });
 
 test('Railway serves the hero video and poster with immutable cache headers', async () => {
@@ -51,14 +52,15 @@ test('cart helpers exist in resolved app-core source', () => {
   assert.match(core, /function cartBadge/);
 });
 
-test('storefront is full width, header text is flat and the menu locks page scroll', () => {
+test('storefront is full width, prevents horizontal overflow, and locks scroll for overlays and menu', () => {
   const style = fs.readFileSync(path.join(root, 'style.css'), 'utf8');
   const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
   assert.doesNotMatch(style, /body\{max-width:540px/);
-  assert.match(style, /#bar \.gold,#barT\{background:none!important/);
-  assert.match(style, /html,body\{overflow-x:clip!important/);
+  assert.match(style, /#bar,header\{left:0;right:0\}/);
+  assert.match(style, /html,body\{overflow-x:clip!important\}/);
   assert.match(app, /function syncBodyScroll/);
-  assert.match(app, /menu\.classList\.contains\('open'\)/);
-  assert.match(app, /body\.classList\.add\('scroll-locked'\)/);
-  assert.doesNotMatch(read('index.html'), /id="heroPlay"/);
+  assert.match(app, /menu&&menu\.classList\.contains\('open'\)/);
+  assert.match(app, /body\.classList\.add\('sheet-open'\)/);
+  assert.match(core, /classList\.toggle\('open'\)/);
+  assert.match(read('index.html'), /id="heroPlay"[^>]*hidden/);
 });

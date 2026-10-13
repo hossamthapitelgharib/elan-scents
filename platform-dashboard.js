@@ -85,23 +85,32 @@ function renderRankTable(rows) {
   return `<div class="activity-table-wrap"><table class="activity-table rank-table"><thead><tr><th>العطر وبياناته</th><th>مرات العملية</th><th>عدد العملاء</th></tr></thead><tbody>${rows.map(row => `<tr><td class="activity-product-cell">${productSummary(row.product)}</td><td>${numberP(row.operations)}</td><td>${numberP(row.people)}</td></tr>`).join('')}</tbody></table></div>`;
 }
 function renderAnalytics(actor, data) {
-  if (actor !== 'guest') return;
-  document.querySelector('#guestAnalyticsRange').textContent = `${periodsP[data.period] || periodsP.today} · ${data.startDate || '—'} – ${data.endDate || '—'}`;
-  const stats = [['زوار لديهم نشاط', data.people], ['جلسات نشطة الآن', data.activeSessions], ['عدد الزيارات', data.visitCount], ['الوقت النشط', durationP(data.activeSeconds)], ['مشاهدات المنتجات', data.productViews], ['نتائج بحث المنتجات', data.productSearches], ['إضافات للسلة', data.cartAdds], ['حذف/تقليل من السلة', data.cartRemoves]];
-  document.querySelector('#guestAnalyticsStats').innerHTML = stats.map((item, index) => `<div class="stat ${index === 0 ? 'gold' : ''}"><small>${item[0]}</small><b>${typeof item[1] === 'string' ? escP(item[1]) : numberP(item[1])}</b></div>`).join('');
-  document.querySelector('#guestTopProducts').innerHTML = `<h5>الأكثر مشاهدة</h5>${renderRankTable(data.topViewed)}<h5>الأكثر ظهورًا في نتائج البحث</h5>${renderRankTable(data.topSearched)}`;
-  document.querySelector('#guestBasketProducts').innerHTML = `<h5>الأكثر إضافةً إلى السلة</h5>${renderRankTable(data.topCartAdded)}<h5>الأكثر حذفًا أو تقليلًا من السلة</h5>${renderRankTable(data.topCartRemoved)}`;
+  if (!['guest', 'customer'].includes(actor)) return;
+  const prefix = actor === 'guest' ? 'guest' : 'registered';
+  const personLabel = actor === 'guest' ? 'زوار لديهم نشاط' : 'عملاء مسجلون لديهم نشاط';
+  const range = document.querySelector(`#${prefix}AnalyticsRange`);
+  const statsBox = document.querySelector(`#${prefix}AnalyticsStats`);
+  const topProducts = document.querySelector(`#${prefix}TopProducts`);
+  const basketProducts = document.querySelector(`#${prefix}BasketProducts`);
+  if (!range || !statsBox || !topProducts || !basketProducts) return;
+  range.textContent = `${periodsP[data.period] || periodsP.today} · ${data.startDate || '—'} – ${data.endDate || '—'}`;
+  const stats = [[personLabel, data.people], ['جلسات نشطة الآن', data.activeSessions], ['عدد الزيارات', data.visitCount], ['الوقت النشط', durationP(data.activeSeconds)], ['مشاهدات المنتجات', data.productViews], ['نتائج بحث المنتجات', data.productSearches], ['إضافات للسلة', data.cartAdds], ['حذف/تقليل من السلة', data.cartRemoves]];
+  statsBox.innerHTML = stats.map((item, index) => `<div class="stat ${index === 0 ? 'gold' : ''}"><small>${item[0]}</small><b>${typeof item[1] === 'string' ? escP(item[1]) : numberP(item[1])}</b></div>`).join('');
+  topProducts.innerHTML = `<h5>الأكثر مشاهدة</h5>${renderRankTable(data.topViewed)}<h5>الأكثر ظهورًا في نتائج البحث</h5>${renderRankTable(data.topSearched)}`;
+  basketProducts.innerHTML = `<h5>الأكثر إضافةً إلى السلة</h5>${renderRankTable(data.topCartAdded)}<h5>الأكثر حذفًا أو تقليلًا من السلة</h5>${renderRankTable(data.topCartRemoved)}`;
 }
 async function loadAnalytics(actor) {
-  if (actor !== 'guest' || !Portal.session()) return;
-  const period = document.querySelector('#guestAnalyticsPeriod').value || 'today';
-  const response = await fetch(`/api/guest-analytics?period=${encodeURIComponent(period)}&actor=guest`, { headers: Portal.auth() }), result = await response.json();
+  if (!['guest', 'customer'].includes(actor) || !Portal.session()) return;
+  const prefix = actor === 'guest' ? 'guest' : 'registered';
+  const period = document.querySelector(`#${prefix}AnalyticsPeriod`).value || 'today';
+  const response = await fetch(`/api/guest-analytics?period=${encodeURIComponent(period)}&actor=${encodeURIComponent(actor)}`, { headers: Portal.auth() }), result = await response.json();
   if (!response.ok) throw Error(result.error || 'تعذر تحميل التحليلات');
-  document.querySelector('#guestAnalyticsError').hidden = true;
-  renderAnalytics('guest', result.analytics);
+  document.querySelector(`#${prefix}AnalyticsError`).hidden = true;
+  renderAnalytics(actor, result.analytics);
 }
-function showAnalyticsError(_actor, error) {
-  const box = document.querySelector('#guestAnalyticsError');
+function showAnalyticsError(actor, error) {
+  const prefix = actor === 'guest' ? 'guest' : 'registered';
+  const box = document.querySelector(`#${prefix}AnalyticsError`);
   if (!box) return;
   box.textContent = error && error.message ? error.message : 'تعذر تحميل التحليلات'; box.hidden = false;
 }
@@ -125,6 +134,8 @@ function renderOrders(orders) {
 
 function activateCustomerTabs() {
   const tabs = document.querySelector('#customerTabs'); if (!tabs) return;
+  document.querySelector('#registeredAnalytics').hidden = false;
+  document.querySelector('#guestAnalytics').hidden = true;
   tabs.addEventListener('click', event => {
     const button = event.target.closest('[data-customer-tab]'); if (!button) return;
     const guests = button.dataset.customerTab === 'visitors';
@@ -132,25 +143,45 @@ function activateCustomerTabs() {
     document.querySelector('#visitorsTab').setAttribute('aria-selected', String(guests));
     document.querySelector('#registeredCustomers').hidden = guests;
     document.querySelector('#guestCustomers').hidden = !guests;
+    document.querySelector('#registeredAnalytics').hidden = guests;
+    document.querySelector('#guestAnalytics').hidden = !guests;
   });
 }
 async function loadPlatform() {
   if (!Portal.session()) return;
   document.querySelector('#login').hidden = true; document.querySelector('#app').hidden = false; document.querySelector('#logout').hidden = false;
-  const headers = Portal.auth(), responses = await Promise.all([fetch('/api/dashboard-orders' + filterQuery(), { headers }), fetch('/api/platform-customers', { headers })]);
+  const headers = Portal.auth(), responses = await Promise.all([fetch('/api/dashboard-orders' + filterQuery(), { headers }), fetch('/api/platform-customer-summary', { headers })]);
   const ordersData = await responses[0].json(), customersData = await responses[1].json();
   if (!responses[0].ok) throw Error(ordersData.error || 'تعذر تحميل بيانات الطلبات');
-  if (!responses[1].ok) throw Error(customersData.error || 'تعذر تحميل بيانات العملاء');
+  if (!responses[1].ok) throw Error(customersData.error || 'تعذر تحميل ملخص العملاء');
   const orders = ordersData.orders || [];
-  document.querySelector('#stats').innerHTML = [['طلبات المتاجر', orders.length], ['عملاء مسجلون', customersData.counts.registered], ['زوار نشطون', customersData.counts.visitors], ['مكتملة', orders.filter(order => ['completed','delivered'].includes(order.status)).length]].map(item => `<div class="stat"><small>${item[0]}</small><b>${numberP(item[1])}</b></div>`).join('');
-  document.querySelector('#platformError').hidden = true; renderCustomers(customersData); renderOrders(orders);
+  document.querySelector('#stats').innerHTML = [['طلبات المتاجر', orders.length], ['عملاء مسجلون', customersData.counts.registered], ['الزوار', customersData.counts.visitors], ['مكتملة', orders.filter(order => ['completed','delivered'].includes(order.status)).length]].map(item => `<div class="stat"><small>${item[0]}</small><b>${numberP(item[1])}</b></div>`).join('');
+  document.querySelector('#platformError').hidden = true; renderOrders(orders);
+}
+async function loadCustomersDashboard() {
+  if (!Portal.session()) return;
+  document.querySelector('#login').hidden = true; document.querySelector('#app').hidden = false; document.querySelector('#logout').hidden = false;
+  const response = await fetch('/api/platform-customers', { headers: Portal.auth() }), data = await response.json();
+  if (!response.ok) throw Error(data.error || 'تعذر تحميل بيانات العملاء');
+  document.querySelector('#platformError').hidden = true;
+  document.querySelector('#stats').innerHTML = [['العملاء المسجلون', data.counts.registered], ['العملاء الزوار', data.counts.visitors]].map(item => `<div class="stat"><small>${item[0]}</small><b>${numberP(item[1])}</b></div>`).join('');
+  renderCustomers(data);
   loadAnalytics('guest').catch(error => showAnalyticsError('guest', error));
+  loadAnalytics('customer').catch(error => showAnalyticsError('customer', error));
+}
+function loadCurrentDashboard() {
+  return document.body.dataset.dashboard === 'customers' ? loadCustomersDashboard() : loadPlatform();
 }
 
 activateCustomerTabs();
-document.querySelector('#platformFilters').addEventListener('submit', event => { event.preventDefault(); loadPlatform().catch(reportError); });
-document.querySelector('#refreshCustomers').addEventListener('click', () => loadPlatform().catch(reportError));
-document.querySelector('#guestAnalyticsPeriod').addEventListener('change', () => loadAnalytics('guest').catch(error => showAnalyticsError('guest', error)));
+const platformFilters = document.querySelector('#platformFilters');
+if (platformFilters) platformFilters.addEventListener('submit', event => { event.preventDefault(); loadPlatform().catch(reportError); });
+const refreshCustomers = document.querySelector('#refreshCustomers');
+if (refreshCustomers) refreshCustomers.addEventListener('click', () => loadCurrentDashboard().catch(reportError));
+const guestAnalyticsPeriod = document.querySelector('#guestAnalyticsPeriod');
+if (guestAnalyticsPeriod) guestAnalyticsPeriod.addEventListener('change', () => loadAnalytics('guest').catch(error => showAnalyticsError('guest', error)));
+const registeredAnalyticsPeriod = document.querySelector('#registeredAnalyticsPeriod');
+if (registeredAnalyticsPeriod) registeredAnalyticsPeriod.addEventListener('change', () => loadAnalytics('customer').catch(error => showAnalyticsError('customer', error)));
 document.addEventListener('click', event => {
   const more = event.target.closest('[data-more-activity]');
   if (more) {
@@ -165,6 +196,6 @@ document.addEventListener('click', event => {
   fetchCustomerDetail(panel, 0, false).then(() => { panel.dataset.loaded = 'true'; }).catch(error => { panel.innerHTML = `<p class="platform-error">${escP(error.message || 'تعذر تحميل سجل العميل')}</p>`; }).finally(() => { button.disabled = false; });
 });
 document.querySelector('#loginForm').addEventListener('submit', async event => {
-  event.preventDefault(); try { await Portal.login(event.target); await loadPlatform(); } catch (error) { reportError(error); }
+  event.preventDefault(); try { await Portal.login(event.target); await loadCurrentDashboard(); } catch (error) { reportError(error); }
 });
-if (Portal.session()) loadPlatform().catch(reportError);
+if (Portal.session()) loadCurrentDashboard().catch(reportError);

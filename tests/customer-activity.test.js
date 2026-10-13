@@ -16,10 +16,11 @@ test('customer activity migration preserves RLS, full product joins, four rankin
   assert.match(migration, /to_jsonb\(p\)/i);
   assert.match(migration, /update public\.customer_product_events set guest_id=null,user_id=p_user_id/i);
   assert.match(migration, /cart_remove/);
-  assert.match(dashboard, /guestTopProducts/); assert.match(dashboard, /guestBasketProducts/);
+  assert.match(dashboard, /const prefix = actor === 'guest' \? 'guest' : 'registered'/);
+  assert.match(dashboard, /\$\{prefix\}TopProducts/); assert.match(dashboard, /\$\{prefix\}BasketProducts/);
   assert.match(dashboard, /data\.topViewed/); assert.match(dashboard, /data\.topSearched/);
   assert.match(dashboard, /data\.topCartAdded/); assert.match(dashboard, /data\.topCartRemoved/);
-  assert.doesNotMatch(dashboard, /registeredAnalyticsPeriod/);
+  assert.match(dashboard, /registeredAnalyticsPeriod/);
   assert.match(identity, /customer-activity/); assert.match(identity, /heartbeat/);
   assert.match(core, /trackGuestProduct\('cart_remove'/); assert.match(core, /trackGuestProduct\('search'/);
 });

@@ -7,6 +7,7 @@ const vm = require('node:vm');
 const root = path.join(__dirname, '..');
 const source = fs.readFileSync(path.join(root, 'platform-dashboard.js'), 'utf8');
 const html = fs.readFileSync(path.join(root, 'platform-dashboard.html'), 'utf8');
+const customerHtml = fs.readFileSync(path.join(root, 'customers-dashboard.html'), 'utf8');
 
 function makeNode() {
   return {
@@ -26,11 +27,13 @@ function makeNode() {
 
 function loadDashboard() {
   const selectors = [
-    '#customerTabs', '#platformFilters', '#refreshCustomers', '#guestAnalyticsPeriod',
+    '#customerTabs', '#platformFilters', '#refreshCustomers', '#guestAnalyticsPeriod', '#registeredAnalyticsPeriod',
     '#loginForm', '#login', '#app', '#logout', '#stats', '#platformError',
     '#registeredTab', '#visitorsTab', '#registeredCustomers', '#guestCustomers',
+    '#registeredAnalytics',
     '#guestAnalyticsRange', '#guestAnalyticsStats', '#guestTopProducts',
-    '#guestBasketProducts', '#guestAnalyticsError', '#orders', '#message',
+    '#guestBasketProducts', '#guestAnalyticsError', '#registeredAnalyticsRange', '#registeredAnalyticsStats',
+    '#registeredTopProducts', '#registeredBasketProducts', '#registeredAnalyticsError', '#guestAnalytics', '#orders', '#message',
   ];
   const nodes = new Map(selectors.map(selector => [selector, makeNode()]));
   nodes.get('#guestCustomers').hidden = true;
@@ -51,15 +54,18 @@ function loadDashboard() {
   return { context, nodes, documentListeners };
 }
 
-test('platform dashboard markup provides its current form, customer-tab, and guest-analytics targets', () => {
+test('platform dashboard shows links and summaries while the separate customers page owns customer records', () => {
   assert.match(html, /<form id="platformFilters"[^>]*>/);
   assert.match(html, /<button[^>]*type="submit">تطبيق<\/button>/);
-  assert.match(html, /id="registeredCustomers"/);
-  assert.match(html, /id="guestCustomers"/);
-  assert.match(html, /id="guestTopProducts"/);
-  assert.match(html, /id="guestBasketProducts"/);
-  assert.doesNotMatch(html, /id="registeredAnalyticsPeriod"|id="registeredPanel"|id="guestPanel"/);
-  assert.doesNotMatch(source, /registeredAnalyticsPeriod|registeredPanel|guestPanel/);
+  assert.match(html, /customers-dashboard\.html/);
+  assert.doesNotMatch(html, /id="registeredCustomers"|id="guestCustomers"|id="guestTopProducts"/);
+  assert.match(customerHtml, /id="registeredCustomers"/);
+  assert.match(customerHtml, /id="guestCustomers"/);
+  assert.match(customerHtml, /id="guestTopProducts"/);
+  assert.match(customerHtml, /id="guestBasketProducts"/);
+  assert.match(customerHtml, /id="registeredAnalyticsPeriod"/);
+  assert.match(customerHtml, /id="registeredTopProducts"/);
+  assert.match(customerHtml, /id="registeredBasketProducts"/);
 });
 
 test('platform filters serialize named values and omit empty or unchecked fields', () => {
@@ -75,7 +81,7 @@ test('platform filters serialize named values and omit empty or unchecked fields
   assert.equal(vm.runInContext('filterQuery()', context), '?tracking=TRK-45&status=processing&attention=1');
 });
 
-test('customer tabs toggle the list elements that exist in the current HTML', () => {
+test('customer tabs toggle visitor and registered-customer lists', () => {
   const { context, nodes } = loadDashboard();
   const tabHandler = nodes.get('#customerTabs').listeners.click;
   const visitorButton = { dataset: { customerTab: 'visitors' } };
@@ -91,6 +97,8 @@ test('customer tabs toggle the list elements that exist in the current HTML', ()
   assert.equal(nodes.get('#guestCustomers').hidden, true);
   assert.equal(nodes.get('#registeredTab').attributes['aria-selected'], 'true');
   assert.equal(nodes.get('#visitorsTab').attributes['aria-selected'], 'false');
+  assert.equal(nodes.get('#registeredAnalytics').hidden, false);
+  assert.equal(nodes.get('#guestAnalytics').hidden, true);
   assert.ok(context);
 });
 
@@ -116,4 +124,24 @@ test('guest analytics render the four available rankings into the current two-pa
   assert.match(nodes.get('#guestBasketProducts').innerHTML, /الأكثر حذفًا أو تقليلًا من السلة/);
   assert.match(nodes.get('#guestBasketProducts').innerHTML, /Amber/);
   assert.match(nodes.get('#guestBasketProducts').innerHTML, /Cedar/);
+});
+
+test('registered customer analytics render all four product rankings safely', () => {
+  const { context, nodes } = loadDashboard();
+  context.analyticsFixture = {
+    period: 'month', startDate: '2026-09-14', endDate: '2026-10-13', people: 12,
+    activeSessions: 2, visitCount: 20, activeSeconds: 950, productViews: 31,
+    productSearches: 8, cartAdds: 5, cartRemoves: 3,
+    topViewed: [{ product: { name: 'Rose' }, operations: 10, people: 6 }],
+    topSearched: [{ product: { name: 'Musk' }, operations: 4, people: 3 }],
+    topCartAdded: [{ product: { name: 'Amber' }, operations: 5, people: 4 }],
+    topCartRemoved: [{ product: { name: 'Cedar' }, operations: 3, people: 2 }],
+  };
+  vm.runInContext("renderAnalytics('customer', analyticsFixture)", context);
+  assert.match(nodes.get('#registeredAnalyticsRange').textContent, /آخر 30 يومًا/);
+  assert.match(nodes.get('#registeredAnalyticsStats').innerHTML, /عملاء مسجلون لديهم نشاط/);
+  assert.match(nodes.get('#registeredTopProducts').innerHTML, /Rose/);
+  assert.match(nodes.get('#registeredTopProducts').innerHTML, /Musk/);
+  assert.match(nodes.get('#registeredBasketProducts').innerHTML, /Amber/);
+  assert.match(nodes.get('#registeredBasketProducts').innerHTML, /Cedar/);
 });

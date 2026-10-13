@@ -9,7 +9,10 @@ async function getContext(req) {
   if (!userResponse.ok) return { error: 'unauthorized', status: 401 };
   const user = await userResponse.json();
   const profileResponse = await fetch(`${supabaseUrl}/rest/v1/profiles?select=id,full_name,phone,role&id=eq.${encodeURIComponent(user.id)}&limit=1`, { headers: { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}` } });
-  const profiles = profileResponse.ok ? await profileResponse.json() : [];
+  if (!profileResponse.ok) return { error: 'role_check_failed', status: 502 };
+  let profiles;
+  try { profiles = await profileResponse.json(); } catch (_) { return { error: 'role_check_failed', status: 502 }; }
+  if (!Array.isArray(profiles)) return { error: 'role_check_failed', status: 502 };
   return { supabaseUrl, serviceRoleKey, token, user, profile: profiles[0] || { id: user.id, role: 'customer' } };
 }
 

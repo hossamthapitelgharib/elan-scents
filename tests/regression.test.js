@@ -49,7 +49,7 @@ test('main menu routes to the customer dashboard and footer artwork is configure
   assert.match(footerCss, /aspect-ratio:\s*940\s*\/\s*1672\b/);
   assert.match(footerCss, /object-fit:\s*cover/);
   assert.doesNotMatch(styles, /url\('\/assets\/footer-emblem\.png'\)/);
-  assert.doesNotMatch(storefront, /elan-scents-logo\.png/);
+  assert.match(storefront, /class="footer-logo" src="\/assets\/elan-scents-logo\.png"/);
   assert.match(styles, /@import url\('\/footer-9x16\.css\?v=[0-9A-Za-z-]+'\)/);
   assert.ok(fs.existsSync(path.join(root, 'footer-9x16.css')));
   assert.match(core, /fcr.*growthmark-img/);

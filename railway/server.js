@@ -129,7 +129,7 @@ function resolveStatic(pathname) {
   if (top === 'editor') {
     // Allow only the site-side edit tools; never the HTML/login/guard.
     if (parts.length !== 2 || !EDITOR_PUBLIC_FILES.has(parts[1])) return null;
-  } else if (BLOCKED_TOP.has(top) || (parts.length === 1 && BLOCKED_FILES.has(parts[0].toLowerCase()))) {
+  } else if (BLOCKED_TOP.has(top) || top.startsWith('elan-editor') || top.startsWith('elan-scents') || (parts.length === 1 && BLOCKED_FILES.has(parts[0].toLowerCase()))) {
     return null;
   }
   const file = path.join(ROOT, ...parts);

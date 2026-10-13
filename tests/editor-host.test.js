@@ -133,9 +133,11 @@ test('the menu is built from a tool registry so new capabilities are one registe
   const edit = fs.readFileSync(path.join(root, 'edit-mode.js'), 'utf8');
   assert.match(edit, /window\.ElanEditTools = \{ register: registerTool/);
   for (const label of ['تحريك العنصر', 'تنسيق النص: الخط • اللون • الحجم • 3D', 'إنشاء نص', 'نسخ العنصر']) assert.ok(edit.includes(label), label);
+  assert.match(edit, /function registerTool\(t\)/);
+  assert.match(edit, /case 'tool\.run'/);
   const html = fs.readFileSync(path.join(root, 'editor', 'elan-editor.html'), 'utf8');
-  assert.match(html, /info\.tools/);
-  for (const label of ['رفع على GitHub', 'نشر على Railway', 'تحميل النسخة الجديدة', 'خروج']) assert.ok(html.includes(label), label);
+  assert.match(html, /el\?\.tools\|\|info\?\.tools/);
+  assert.match(html, /runLive\('tool\.run'/);
   const bridge = fs.readFileSync(path.join(root, 'elan-host-bridge.js'), 'utf8');
   for (const action of ['tool.run', 'element.nudge', 'page.markSaved']) assert.ok(bridge.includes(action), action);
 });
@@ -143,8 +145,9 @@ test('the menu is built from a tool registry so new capabilities are one registe
 test('moving is a one-shot tool chosen from the menu: no drag without it, no arrow keys, it ends on release', () => {
   const edit = fs.readFileSync(path.join(root, 'edit-mode.js'), 'utf8');
   assert.match(edit, /function armMove/);
-  assert.match(edit, /function disarmMove/);
-  assert.match(edit, /if \(g\.mode === 'move'\) disarmMove\(\)/);
+  assert.match(edit, /function disarm\(\)/);
+  assert.match(edit, /if \(g\.mode === 'move'\) \{ disarm\(\)/);
+  assert.match(edit, /window\.addEventListener\('pointerup'/);
   assert.doesNotMatch(edit, /Arrow(Left|Right|Up|Down)/);
   const html = fs.readFileSync(path.join(root, 'editor', 'elan-editor.html'), 'utf8');
   assert.doesNotMatch(html, /openMovePad|movePad/);
@@ -164,21 +167,18 @@ test('inner pages keep their own edits, separate from the home page', () => {
 
 test('edit mode lets a plain click enter a dynamic page and tracks which page is being edited', () => {
   const edit = fs.readFileSync(path.join(root, 'edit-mode.js'), 'utf8');
-  assert.match(edit, /ENTER_RE = \/\^\(brand\|store\|col\|sec\)/);
-  assert.match(edit, /function holder\(/);
-  assert.match(edit, /hostApi\.page\(/);
-  const html = fs.readFileSync(path.join(root, 'editor', 'elan-editor.html'), 'utf8');
-  assert.match(html, /رجوع للرئيسية/);
+  assert.match(edit, /function dynamicTarget\(e\)/);
+  assert.match(edit, /function enterPage\(e\)/);
+  assert.match(edit, /window\.go\(g\)/);
+  assert.match(edit, /id: 'go_back'/);
+  assert.match(edit, /id: 'go_home'/);
 });
 
-test('editor-records requires an admin session and refuses cross-site posts', async () => {
+test('editor data requires authentication and the retired records endpoint stays unavailable', async () => {
   env(); const s = await start(); const restore = fakeSupabase('platform_admin');
   try {
-    assert.equal((await post(s, '/api/editor-records', { action: 'search', kind: 'brand', q: 'a' })).status, 401);
-    assert.equal((await fetch(url(s, '/api/editor-records'))).status, 403);
-    const ok = await post(s, '/api/editor-login', { email: 'owner@example.test', password: 'right' });
-    const cookie = cookieOf(ok);
-    assert.equal((await post(s, '/api/editor-records', { action: 'search', kind: 'brand', q: 'a' }, { cookie, Origin: 'https://evil.example' })).status, 403);
-    assert.equal((await post(s, '/api/editor-records', { action: 'drop', kind: 'brand' }, { cookie })).status, 400);
+    assert.equal((await fetch(url(s, '/api/editor-data'))).status, 401);
+    assert.equal((await post(s, '/api/editor-data', { action: 'library.get' })).status, 401);
+    assert.equal((await fetch(url(s, '/api/editor-records'))).status, 404);
   } finally { restore(); s.close(); }
 });

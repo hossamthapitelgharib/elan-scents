@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>لوحة المتاجر · Élan Scents</title>
+  <link rel="stylesheet" href="/fonts.css?v=20261013-05">
+  <link rel="stylesheet" href="/portal.css?v=20261013-05">
+</head>
+<body data-dashboard="stores">
+  <header>
+    <div><small>Élan Scents · Stores</small><h1>لوحة المتاجر</h1></div>
+    <nav class="dashboard-nav" aria-label="لوحات الإدارة">
+      <a href="/platform-dashboard.html">إدارة المنصة</a>
+      <a href="/customers-dashboard.html">إدارة العملاء</a>
+    </nav>
+    <button id="logout" class="ghost" hidden>تسجيل الخروج</button>
+  </header>
+  <main>
+    <section id="login" class="panel">
+      <h2>دخول إدارة المتاجر</h2>
+      <p>هذه اللوحة مخصصة لمدير المنصة. مديرو المتاجر يستخدمون لوحة المتجر الخاصة بهم.</p>
+      <form id="loginForm"><input name="email" type="email" placeholder="البريد الإلكتروني" required><input name="password" type="password" placeholder="كلمة المرور" required><button class="primary">دخول</button></form>
+      <p id="message"></p>
+    </section>
+    <section id="app" hidden>
+      <div class="dashboard-nav-links"><a href="/platform-dashboard.html">لوحة إدارة المنصة</a><a href="/customers-dashboard.html">لوحة العملاء</a></div>
+      <div id="storeStats" class="stats"></div>
+      <p id="storeError" class="platform-error" hidden></p>
+      <section class="panel store-admin-panel" aria-labelledby="storesTitle">
+        <div class="customer-heading"><div><small>Store operations</small><h2 id="storesTitle">المتاجر وبيانات التشغيل</h2></div><button id="refreshStores" class="ghost" type="button">تحديث</button></div>
+        <p class="muted">هذه المؤشرات مجمعة ولا تعرض أسماء العملاء أو أرقامهم أو عناوينهم. التفاصيل الخاصة بالمتجر تبقى في لوحة المتجر المقيدة بصلاحياته.</p>
+        <div class="activity-table-wrap"><table class="activity-table store-admin-table"><thead><tr><th>المتجر</th><th>الحالة</th><th>الحسابات المرتبطة</th><th>المنتجات المتاحة/الكل</th><th>العروض النشطة</th><th>طلبات مفتوحة/الكل</th><th>طلبات تحتاج مراجعة</th><th>سجلات الشحن</th><th>العمولة</th></tr></thead><tbody id="storesBody"></tbody></table></div>
+      </section>
+    </section>
+  </main>
+  <script src="/portal.js?v=20261013-05"></script>
+  <script src="/stores-dashboard.js?v=20261013-05"></script>
+</body>
+</html>
