@@ -10,6 +10,8 @@ test('production editor lives under editor/ and is gated by login', () => {
   const login = read('editor/editor-login.js');
   const loginHtml = read('editor/login.html');
   const guard = read('editor/editor-guard.js');
+  const dataBridge = read('editor/editor-data-bridge.js');
+  const host = read('railway/editor-host.js');
 
   assert.match(page, /elan-editor-bridge\/v1/);
   assert.match(page, /noindex/);
@@ -18,6 +20,9 @@ test('production editor lives under editor/ and is gated by login', () => {
   assert.doesNotMatch(login, /localStorage|sessionStorage|document\.cookie/);
   assert.match(guard, /editor-logout/);
   assert.match(guard, /editor-session/);
+  assert.match(dataBridge, /elanSectionDataProvider/);
+  assert.match(dataBridge, /elanLibraryDataProvider/);
+  assert.match(host, /editor-data-bridge\.js/);
 });
 
 test('edit mode loads only for the editor iframe and never for customers', () => {

@@ -8,7 +8,7 @@ const sessions = require('./editor-session.js');
 
 const ROOT = path.resolve(__dirname, '..');
 const COOKIE = 'elan_sess';
-const LOGIN_FILES = { '/editor-login.js': 'text/javascript; charset=utf-8', '/editor-login.css': 'text/css; charset=utf-8', '/editor-guard.js': 'text/javascript; charset=utf-8' };
+const LOGIN_FILES = { '/editor-login.js': 'text/javascript; charset=utf-8', '/editor-login.css': 'text/css; charset=utf-8', '/editor-guard.js': 'text/javascript; charset=utf-8', '/editor-data-bridge.js': 'text/javascript; charset=utf-8' };
 
 function sha(s) { return "'sha256-" + crypto.createHash('sha256').update(s, 'utf8').digest('base64') + "'"; }
 
@@ -24,7 +24,7 @@ function buildPage() {
     }
   } catch (_) { siteOrigin = ''; }
   html = html.replace('__ELAN_PLATFORM_URL__', siteOrigin.replace(/\\/g, '\\\\').replace(/'/g, "\\'"));
-  html = html.replace('</body>', '<script src="/editor-guard.js"></script></body>');
+  html = html.replace('</body>', '<script src="/editor-data-bridge.js"></script><script src="/editor-guard.js"></script></body>');
   const hashes = [];
   html.replace(/<script>([\s\S]*?)<\/script>/g, (_, code) => { hashes.push(sha(code)); return ''; });
   const handlers = [];
