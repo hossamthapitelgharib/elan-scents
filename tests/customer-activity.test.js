@@ -17,6 +17,7 @@ test('customer activity migration preserves RLS, full product joins, four rankin
   assert.match(migration, /create table if not exists public\.customer_product_events/i);
   assert.match(migration, /enable row level security/i);
   assert.match(migration, /to_jsonb\(p\)/i);
+  assert.match(migration, /update public\.customer_sessions set guest_id=null,user_id=p_user_id where guest_id=v_guest\.id/i);
   assert.match(migration, /update public\.customer_product_events set guest_id=null,user_id=p_user_id/i);
   assert.match(migration, /cart_remove/);
   assert.match(dashboard, /const prefix = actor === 'guest' \? 'guest' : 'registered'/);
@@ -25,6 +26,7 @@ test('customer activity migration preserves RLS, full product joins, four rankin
   assert.match(dashboard, /data\.topCartAdded/); assert.match(dashboard, /data\.topCartRemoved/);
   assert.match(dashboard, /registeredAnalyticsPeriod/);
   assert.match(identity, /customer-activity/); assert.match(identity, /heartbeat/);
+  assert.match(identity, /prepareLogout/);
   assert.match(core, /trackGuestProduct\('cart_remove'/); assert.match(core, /trackGuestProduct\('search'/);
   assert.match(snapshotMigration, /capture_product_snapshot/i);
   assert.match(snapshotMigration, /product_images/i); assert.match(snapshotMigration, /aromaticNotes/i);

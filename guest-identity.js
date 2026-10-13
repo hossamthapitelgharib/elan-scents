@@ -147,6 +147,22 @@
     return startingSession;
   }
 
+  function prepareLogout() {
+    var token = accessToken();
+    var ending = Promise.resolve({ ok: true });
+    if (sessionStarted) {
+      try { ending = sendActivity('session', { sessionAction: 'end' }, token || null, true); }
+      catch (_) { ending = Promise.resolve({ ok: false }); }
+    }
+    // Rotate immediately, so a slow end request cannot make the next guest reuse
+    // a session_id that the database already bound to the authenticated user.
+    sessionStarted = false;
+    startingSession = null;
+    cachedSessionId = null;
+    try { sessionStorage.removeItem(SESSION_KEY); } catch (_) {}
+    return Promise.resolve(ending).catch(function () { return { ok: false }; });
+  }
+
   function clearKey() {
     try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
     cachedKey = null;
@@ -181,7 +197,8 @@
     claim: claim,
     track: track,
     sessionId: sessionId,
-    startSession: startSession
+    startSession: startSession,
+    prepareLogout: prepareLogout
   };
 
   var session = savedSession();
