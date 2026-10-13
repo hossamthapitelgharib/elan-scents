@@ -5,7 +5,11 @@
   'use strict';
   var layer = window.ElanDesignLayer, ED = window.ElanDesign, Bridge = window.ElanHostBridge;
   if (!layer || !ED || !Bridge || window.parent === window) return;
-  var editorOrigin = (new URLSearchParams(location.search).get('elan_editor_origin') || location.origin);
+  var editorOrigin = new URLSearchParams(location.search).get('elan_editor_origin');
+  if (!editorOrigin && document.referrer) {
+    try { editorOrigin = new URL(document.referrer).origin; } catch (_) { /* invalid referrer */ }
+  }
+  editorOrigin = editorOrigin || location.origin;
 
   var work = null, baseJson = '', baseRevision = null, hostApi = null, selectedId = null, dirty = false;
   var undoStack = [], redoStack = [], editing = null, gesture = null, pendingMedia = null;
