@@ -39,7 +39,8 @@ test('edit mode loads only for the editor iframe and never for customers', () =>
 test('edit-mode uses same-origin bridge and defers saves to the parent editor', () => {
   const mode = read('editor/edit-mode.js');
   const bridge = read('editor/elan-host-bridge.js');
-  assert.match(mode, /allowedEditorOrigins:\s*\[location\.origin\]/);
+  assert.match(mode, /elan_editor_origin/);
+  assert.match(mode, /allowedEditorOrigins:\s*\[editorOrigin\]/);
   assert.doesNotMatch(mode, /allowedEditorOrigins:\s*\[\s*'\*'/);
   assert.match(mode, /page\.save/);
   assert.match(mode, /page\.getState/);
@@ -113,7 +114,7 @@ test('Railway serves the consolidated editor implementation only under /editor/'
     const moved = await fetch(base + '/editor/edit-mode.js');
     assert.equal(moved.status, 200);
     assert.match(moved.headers.get('cache-control'), /no-store/);
-    assert.match(await moved.text(), /allowedEditorOrigins:\s*\[location\.origin\]/);
+    assert.match(await moved.text(), /elan_editor_origin/);
     assert.equal((await fetch(base + '/edit-mode.js')).status, 404);
     assert.equal((await fetch(base + '/edit-model.js')).status, 404);
   } finally {

@@ -87,7 +87,8 @@ test('edit mode only loads inside the editor window and never talks to customers
   assert.match(boot, /elan_editor/);
   assert.match(boot, /edit-mode\.js/);
   const edit = fs.readFileSync(path.join(root, 'editor', 'edit-mode.js'), 'utf8');
-  assert.match(edit, /allowedEditorOrigins: \[location\.origin\]/);
+  assert.match(edit, /elan_editor_origin/);
+  assert.match(edit, /allowedEditorOrigins: \[editorOrigin\]/);
   assert.doesNotMatch(edit, /localStorage|sessionStorage|document\.cookie|eval\(|new Function/);
   const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
   assert.doesNotMatch(html, /edit-mode|elan-host-bridge/);

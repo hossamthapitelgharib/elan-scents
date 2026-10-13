@@ -5,6 +5,7 @@
   'use strict';
   var layer = window.ElanDesignLayer, ED = window.ElanDesign, Bridge = window.ElanHostBridge;
   if (!layer || !ED || !Bridge || window.parent === window) return;
+  var editorOrigin = (new URLSearchParams(location.search).get('elan_editor_origin') || location.origin);
 
   var work = null, baseJson = '', baseRevision = null, hostApi = null, selectedId = null, dirty = false;
   var undoStack = [], redoStack = [], editing = null, gesture = null, pendingMedia = null;
@@ -473,7 +474,7 @@
   }
 
   hostApi = Bridge.install({
-    allowedEditorOrigins: [location.origin],
+    allowedEditorOrigins: [editorOrigin],
     authorize: async function () {
       try { var r = await fetch('/api/editor-session', { credentials: 'same-origin', cache: 'no-store' }); return r.ok; } catch (_) { return false; }
     },
