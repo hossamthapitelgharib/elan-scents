@@ -64,6 +64,9 @@ test('platform dashboard links to detailed admin tools and contains only aggrega
   assert.match(customerHtml, /id="registeredAnalyticsPeriod"/);
   assert.match(customerHtml, /id="registeredTopProducts"/);
   assert.match(customerHtml, /id="registeredBasketProducts"/);
+  assert.match(customerHtml, /الأكثر إضافةً أو حذفًا من سلال الزوار/);
+  assert.match(customerHtml, /حذفها\/تقليلها/);
+  assert.doesNotMatch(customerHtml, /المنتجات الموجودة في سلال الزوار الآن/);
 });
 
 test('platform dashboard requests aggregate-only counts and does not render customer order details', async () => {
@@ -109,6 +112,44 @@ test('customer tabs toggle visitor and registered-customer lists', () => {
   assert.equal(nodes.get('#registeredAnalytics').hidden, false);
   assert.equal(nodes.get('#guestAnalytics').hidden, true);
   assert.ok(context);
+});
+
+test('customer dashboard loads insights lazily for the active tab and reuses the cached tab results', async () => {
+  const { context, nodes } = loadDashboard();
+  context.Portal.session = () => true;
+  const requests = [];
+  context.fetch = async input => {
+    const url = new URL(String(input), 'https://elan.test');
+    requests.push(url);
+    if (url.pathname === '/api/platform-customers') return { ok: true, json: async () => ({
+      registeredCustomers: [], guestVisitors: [], counts: { registered: 0, visitors: 0 },
+      pagination: { registered: { offset: 0, limit: 50, total: 0 }, visitors: { offset: 0, limit: 50, total: 0 } }
+    }) };
+    if (url.pathname === '/api/guest-analytics') return { ok: true, json: async () => ({ analytics: {
+      period: url.searchParams.get('period'), startDate: '2026-10-13', endDate: '2026-10-13', people: 0,
+      activeSessions: 0, visitCount: 0, activeSeconds: 0, productViews: 0, productSearches: 0, cartAdds: 0, cartRemoves: 0,
+      topViewed: [], topSearched: [], topCartAdded: [], topCartRemoved: []
+    } }) };
+    if (url.pathname === '/api/customer-product-rankings') return { ok: true, json: async () => ({ records: [], total: 0, hasMore: false }) };
+    throw new Error(`unexpected request: ${url}`);
+  };
+  const flush = () => new Promise(resolve => setImmediate(resolve));
+  await context.loadCustomersDashboard();
+  await flush();
+  assert.equal(requests.filter(url => url.pathname === '/api/guest-analytics').length, 1);
+  assert.equal(requests.find(url => url.pathname === '/api/guest-analytics').searchParams.get('actor'), 'customer');
+  assert.equal(requests.filter(url => url.pathname === '/api/customer-product-rankings').length, 4);
+
+  const tabHandler = nodes.get('#customerTabs').listeners.click;
+  tabHandler({ target: { closest: () => ({ dataset: { customerTab: 'visitors' } }) } });
+  await flush();
+  assert.equal(requests.filter(url => url.pathname === '/api/guest-analytics').length, 2);
+  assert.equal(requests.filter(url => url.pathname === '/api/customer-product-rankings').length, 8);
+  assert.equal(requests.filter(url => url.pathname === '/api/guest-analytics' && url.searchParams.get('actor') === 'guest').length, 1);
+
+  tabHandler({ target: { closest: () => ({ dataset: { customerTab: 'registered' } }) } });
+  await flush();
+  assert.equal(requests.filter(url => url.pathname === '/api/guest-analytics').length, 2);
 });
 
 test('customer list paging renders exact totals and enables only valid previous/next controls', () => {

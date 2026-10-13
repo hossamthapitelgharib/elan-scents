@@ -1,5 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
 const path = require('node:path');
 const handler = require(path.join(__dirname, '..', 'api', 'customer-product-rankings'));
 const adminId = '45a6e52c-46c6-42e9-a730-9e5bec3dd201';
@@ -44,4 +45,11 @@ test('ranking API rejects non-admins and malformed scope or paging without runni
     assert.equal(res.status, 400);
     assert.equal(calls.some(call => call.url.endsWith('/rpc/customer_product_ranking')), false);
   }
+});
+
+test('database ranking pages sort operations descending with deterministic tie-breakers', () => {
+  const migration = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'migrations', '20261013112836_customer_product_rankings.sql'), 'utf8');
+  assert.match(migration, /order by sum\(a\.event_count\) desc,\s*count\(distinct a\.visitor_hash\) desc,\s*a\.product_id asc/i);
+  assert.match(migration, /order by count\(\*\) desc,\s*count\(distinct e\.user_id\) desc,\s*e\.product_id asc/i);
+  assert.equal((migration.match(/limit p_limit offset p_offset/gi) || []).length, 2);
 });

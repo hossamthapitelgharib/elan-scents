@@ -102,6 +102,8 @@ const periodsP = { today: 'اليوم', week: 'آخر 7 أيام', month: 'آخ�
 const rankingKeysP = { topViewed: 'view', topSearched: 'search', topCartAdded: 'cart_add', topCartRemoved: 'cart_remove' };
 const analyticsStateP = { guest: null, customer: null };
 const analyticsRequestP = { guest: 0, customer: 0 };
+const analyticsInflightP = { guest: null, customer: null };
+let activeCustomerTabP = 'registered';
 function renderRankTable(rows, actor, key, page) {
   const peopleLabel = actor === 'guest' ? 'عدد الزوار' : 'عدد العملاء';
   const table = Array.isArray(rows) && rows.length
@@ -153,6 +155,19 @@ async function loadAnalytics(actor) {
   analyticsStateP[actor] = analytics;
   renderAnalytics(actor, analytics);
 }
+function ensureAnalytics(actor, force = false) {
+  if (!['guest', 'customer'].includes(actor) || !Portal.session()) return Promise.resolve();
+  const prefix = actor === 'guest' ? 'guest' : 'registered';
+  const period = document.querySelector(`#${prefix}AnalyticsPeriod`).value || 'today';
+  if (!force && analyticsStateP[actor] && analyticsStateP[actor].period === period) return Promise.resolve(analyticsStateP[actor]);
+  const inFlight = analyticsInflightP[actor];
+  if (!force && inFlight && inFlight.period === period) return inFlight.promise;
+  const promise = loadAnalytics(actor).finally(() => {
+    if (analyticsInflightP[actor] && analyticsInflightP[actor].promise === promise) analyticsInflightP[actor] = null;
+  });
+  analyticsInflightP[actor] = { period, promise };
+  return promise;
+}
 async function loadMoreProductRanking(button) {
   const actor = button.dataset.rankActor, key = button.dataset.rankKey;
   if (!['guest', 'customer'].includes(actor) || !Object.prototype.hasOwnProperty.call(rankingKeysP, key)) return;
@@ -186,6 +201,7 @@ function activateCustomerTabs() {
   tabs.addEventListener('click', event => {
     const button = event.target.closest('[data-customer-tab]'); if (!button) return;
     const guests = button.dataset.customerTab === 'visitors';
+    activeCustomerTabP = guests ? 'visitors' : 'registered';
     document.querySelector('#registeredTab').setAttribute('aria-selected', String(!guests));
     document.querySelector('#visitorsTab').setAttribute('aria-selected', String(guests));
     document.querySelector('#registeredCustomers').hidden = guests;
@@ -194,6 +210,7 @@ function activateCustomerTabs() {
     document.querySelector('#visitorPagination').hidden = !guests;
     document.querySelector('#registeredAnalytics').hidden = guests;
     document.querySelector('#guestAnalytics').hidden = !guests;
+    ensureAnalytics(guests ? 'guest' : 'customer').catch(error => showAnalyticsError(guests ? 'guest' : 'customer', error));
   });
 }
 async function loadPlatform() {
@@ -232,8 +249,8 @@ async function loadCustomersDashboard(loadInsights = true) {
   document.querySelector('#stats').innerHTML = [['العملاء المسجلون', data.counts.registered], ['العملاء الزوار', data.counts.visitors]].map(item => `<div class="stat"><small>${item[0]}</small><b>${numberP(item[1])}</b></div>`).join('');
   renderCustomers(data);
   if (loadInsights) {
-    loadAnalytics('guest').catch(error => showAnalyticsError('guest', error));
-    loadAnalytics('customer').catch(error => showAnalyticsError('customer', error));
+    const actor = activeCustomerTabP === 'visitors' ? 'guest' : 'customer';
+    ensureAnalytics(actor, true).catch(error => showAnalyticsError(actor, error));
   }
 }
 function loadCurrentDashboard() {
