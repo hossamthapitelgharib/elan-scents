@@ -137,6 +137,10 @@
         if (v === true) out.hidden = true; else if (v !== false) errors.push(where + '.hidden: invalid');
       } else if (k === 'archived') {
         if (v === true) out.archived = true; else if (v !== false) errors.push(where + '.archived: invalid');
+      } else if (k === 'media') {
+        var mu = isObj(v) ? mediaUrl(v.src) : '';
+        if (mu) out.media = { src: mu, kind: v.kind === 'video' && /\.(mp4|webm)(\?|$)/i.test(mu) ? 'video' : 'image' };
+        else errors.push(where + '.media: invalid url');
       } else if (k === 'text') {
         var t = loc(v, LIMITS.text);
         if (t.ar || t.en) out.text = t;

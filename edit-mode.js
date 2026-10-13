@@ -353,7 +353,17 @@
 
   function setMedia(id, src) {
     var b = work.blocks.filter(function (x) { return x.id === id; })[0];
-    if (!b || (b.type !== 'image' && b.type !== 'banner')) throw new Error('الصور بتتغيّر في بلوك صورة أو بانر بس.');
+    if (!b) {
+      var en = entryById(id);
+      if (!en || (en.kind !== 'hero' && en.kind !== 'card' && en.kind !== 'section')) throw new Error('الصور بتتغيّر في الواجهة أو الكروت أو السيكشنز أو بلوك صورة/بانر.');
+      var kind = /\.(mp4|webm)(\?|$)/i.test(src) ? 'video' : 'image';
+      if (kind === 'video' && en.kind === 'card') throw new Error('الكارت بيقبل صورة بس.');
+      var probe2 = { version: ED.VERSION, edits: { all: {} } }; probe2.edits.all[id] = { media: { src: src, kind: kind } };
+      if (!ED.normalize(probe2, { strict: true }).ok) throw new Error('رابط الميديا مش مسموح.');
+      mutate(function () { edit('all', id).media = { src: src, kind: kind }; });
+      return;
+    }
+    if (b.type !== 'image' && b.type !== 'banner') throw new Error('الصور بتتغيّر في بلوك صورة أو بانر بس.');
     var probe = clone(b); if (b.type === 'image') probe.src = src; else probe.image = src;
     if (!validBlock(probe)) throw new Error('رابط الصورة مش مسموح.');
     mutate(function (d) { var t = d.blocks.filter(function (x) { return x.id === id; })[0]; if (t.type === 'image') t.src = src; else t.image = src; });

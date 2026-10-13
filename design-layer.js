@@ -191,8 +191,57 @@
       if (el.__elanBase) el.setAttribute('style', el.__elanBase); else el.removeAttribute('style');
       delete el.__elanBase; el.removeAttribute('data-elan-edited');
     }
+    if (el.__elanMedia) { el.__elanMedia.forEach(function (u) { try { u(); } catch (_) { /* keep going */ } }); delete el.__elanMedia; }
     if (el.__elanText) { el.__elanText.node.textContent = el.__elanText.value; delete el.__elanText; }
     if (el.__elanStrip) { var st = el.__elanStrip; if (st.base) st.node.setAttribute('style', st.base); else st.node.removeAttribute('style'); delete el.__elanStrip; }
+  }
+
+  /* Replace the picture or video of an element: the hero video, a card picture, or a section background. Reversible. */
+  function paintMedia(entry, m) {
+    var el = entry.el, undo = el.__elanMedia = el.__elanMedia || [];
+    var video = entry.kind === 'hero' ? el.querySelector('#heroVideo, video') : null;
+    if (video) {
+      var prev = { src: video.getAttribute('src'), poster: video.getAttribute('poster'), display: video.style.display, srcs: Array.prototype.map.call(video.querySelectorAll('source'), function (n) { return [n, n.getAttribute('src')]; }) };
+      undo.push(function () {
+        video.style.display = prev.display;
+        if (prev.poster !== null) video.setAttribute('poster', prev.poster);
+        prev.srcs.forEach(function (p) { p[0].setAttribute('src', p[1]); });
+        if (prev.src === null) video.removeAttribute('src'); else video.setAttribute('src', prev.src);
+        try { video.load(); var pl = video.play(); if (pl && pl.catch) pl.catch(function () {}); } catch (_) { /* optional */ }
+      });
+      if (m.kind === 'video') {
+        prev.srcs.forEach(function (p) { p[0].setAttribute('src', m.src); });
+        video.setAttribute('src', m.src); video.removeAttribute('poster');
+        try { video.load(); var p2 = video.play(); if (p2 && p2.catch) p2.catch(function () {}); } catch (_) { /* optional */ }
+      } else {
+        try { video.pause(); } catch (_) { /* optional */ }
+        video.style.display = 'none';
+        var base = el.getAttribute('style') || '';
+        undo.push(function () { /* hero style is restored by unpaint */ });
+        el.style.backgroundImage = 'url("' + m.src + '")'; el.style.backgroundSize = 'cover'; el.style.backgroundPosition = 'center';
+      }
+      return;
+    }
+    var img = el.querySelector('.artbg img, img');
+    if (img && m.kind !== 'video') {
+      var old = { src: img.getAttribute('src'), srcset: img.getAttribute('srcset') };
+      undo.push(function () { img.setAttribute('src', old.src); if (old.srcset === null) img.removeAttribute('srcset'); else img.setAttribute('srcset', old.srcset); });
+      img.removeAttribute('srcset'); img.setAttribute('src', m.src);
+      return;
+    }
+    if (m.kind === 'video') {
+      var v = document.createElement('video');
+      v.src = m.src; v.muted = true; v.loop = true; v.autoplay = true; v.setAttribute('playsinline', '');
+      v.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;pointer-events:none';
+      if (!el.style.position) el.style.position = 'relative';
+      el.insertBefore(v, el.firstChild);
+      undo.push(function () { v.remove(); });
+      try { var p3 = v.play(); if (p3 && p3.catch) p3.catch(function () {}); } catch (_) { /* optional */ }
+      return;
+    }
+    el.style.setProperty('background-image', 'url("' + m.src + '")', 'important');
+    el.style.setProperty('background-size', 'cover', 'important');
+    el.style.setProperty('background-position', 'center', 'important');
   }
 
   function paint(entry, ed) {
@@ -220,6 +269,7 @@
     if (st.effect === 'gold') { el.style.color = st.color || '#ae852e'; el.style.textShadow = '0 1px 0 #fceab1,0 2px 0 #77541e,0 4px 6px rgba(80,52,0,.3)'; el.style.boxShadow = '0 2px 0 #d6bc79,0 9px 22px rgba(101,72,18,.22)'; }
     if (st.effect === 'deep') { el.style.textShadow = '1px 1px 0 rgba(255,255,255,.6),2px 3px 3px rgba(0,0,0,.3)'; el.style.boxShadow = '0 4px 0 rgba(0,0,0,.13),0 14px 26px rgba(0,0,0,.2)'; }
     if (st.opacity !== undefined) el.style.opacity = String(st.opacity);
+    if (ed.media && ed.media.src) paintMedia(entry, ed.media);
     if (ed.text) {
       var node = textTarget(entry), t = ed.text[lang()] || ed.text.ar || ed.text.en;
       if (node && t) { el.__elanText = { node: node, value: node.textContent }; node.textContent = t; }
