@@ -61,3 +61,19 @@ test('new capabilities are added by registering a tool, not by editing the edito
   assert.match(mode, /window\.ElanEditTools = \{ register: registerTool, list:/);
   assert.match(read('editor/README.md'), /Adding a new tool/);
 });
+
+test('when the editor cannot start, it says why instead of showing no tools', () => {
+  const editor = read('editor/elan-editor.html');
+  const mode = read('edit-mode.js');
+  const api = read('railway/editor.js');
+  assert.match(editor, /أدوات التحرير لسه مش شغالة/);
+  assert.match(mode, /e\.userMessage = why/);
+  assert.match(api, /missing\.push\('GITHUB_TOKEN'\)/);
+  const { config } = require('../railway/editor.js').internals;
+  const none = config({});
+  assert.equal(none.error, 'editor_not_configured');
+  assert.ok(none.missing.includes('GITHUB_TOKEN') && none.missing.includes('EDITOR_SITE_ORIGIN'));
+  assert.ok(!JSON.stringify(none).includes('ghp_'));
+  const ok = config({ GITHUB_TOKEN: 't', EDITOR_TARGET_BRANCH: 'main', EDITOR_SITE_ORIGIN: 'https://example.com', RAILWAY_ENVIRONMENT_NAME: 'production' });
+  assert.equal(ok.error, undefined);
+});

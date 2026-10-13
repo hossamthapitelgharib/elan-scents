@@ -377,9 +377,10 @@
   registerTool({ id: 'go_home', label: 'رجوع للصفحة الرئيسية', when: inner, run: function () { goHome(); return null; } });
   [['create_section', 'إنشاء سيكشن'], ['create_brand', 'إنشاء كارت براند'], ['create_store', 'إنشاء كارت متجر'], ['create_perfume', 'إنشاء كارت عطر'], ['create_occasion', 'إنشاء مناسبة'], ['create_note', 'إنشاء نوتة عطر']].forEach(function (x) { registerTool({ id: x[0], label: x[1], run: later(x[1]) }); });
   registerTool({ id: 'create_text_block', label: 'إنشاء كتلة نصية', run: function (c) { return createBlock('text_block', { at: c.at }); } });
-  registerTool({ id: 'create_banner', label: 'إنشاء بانر صورة أو فيديو', run: function (c) { return createBlock('banner', { at: c.at }); } });
+  registerTool({ id: 'create_banner', label: 'إنشاء بانر صورة أو فيديو', ui: 'media_new', run: function (c) { return createBlock('banner', { at: c.at, image: c.src }); } });
+  registerTool({ id: 'create_image', label: 'إنشاء صورة', ui: 'media_new', run: function (c) { if (!c.src) throw new Error('اختاري صورة الأول.'); return createBlock('image', { at: c.at, src: c.src }); } });
   registerTool({ id: 'create_text', label: 'إنشاء نص', run: function (c) { return createBlock('text_block', { at: c.at }); } });
-  registerTool({ id: 'media', label: 'رفع صورة أو فيديو داخل العناصر أو الهيرو', when: function (i) { return !!i && ['card', 'banner', 'image', 'section'].indexOf(i.type) !== -1; }, run: function (c) { return mediaPrompt().then(function (src) { setMedia(c.id, src); return null; }); } });
+  registerTool({ id: 'media', label: 'رفع صورة أو فيديو داخل العناصر أو الهيرو', ui: 'media', when: function (i) { return !!i && ['card', 'banner', 'image', 'section'].indexOf(i.type) !== -1; }, run: function (c) { return mediaPrompt().then(function (src) { setMedia(c.id, src); return null; }); } });
   registerTool({ id: 'media_delete', label: 'حذف ميديا الكارت أو الهيرو إلى الأرشيف', when: function () { return false; }, run: later('حذف الميديا') });
   registerTool({ id: 'edit_text', label: 'تعديل النص بالكيبورد', when: hasText, run: function (c) { startText(c.id); return null; } });
   registerTool({ id: 'copy', label: 'نسخ العنصر', when: has, run: function (c) { return execute('element.duplicate', { elementId: c.id }, {}); } });
@@ -422,7 +423,7 @@
         if (!tool) throw new Error('أداة غير معروفة');
         var ei = p.elementId ? entryById(p.elementId) : null, inf = info(ei);
         if (tool.when && !tool.when(inf)) throw new Error('الأداة دي مش متاحة للعنصر ده.');
-        var out = await tool.run({ id: p.elementId || null, info: inf, at: p.at || null });
+        var out = await tool.run({ id: p.elementId || null, info: inf, at: p.at || null, src: typeof p.src === 'string' ? p.src : null });
         return out === undefined ? null : out;
       }
       case 'element.nudge': {
@@ -451,7 +452,12 @@
   async function loadBase() {
     var r = await fetch('/api/editor?action=state', { credentials: 'same-origin', cache: 'no-store' });
     var j = await r.json().catch(function () { return {}; });
-    if (!r.ok || !j.ok) throw new Error('state');
+    if (!r.ok || !j.ok) {
+      var why = r.status === 503 ? 'إعدادات الإديتور ناقصة على السيرفر' + (j.missing && j.missing.length ? ': ' + j.missing.join('، ') : '') + '.'
+        : r.status === 401 || r.status === 403 ? 'الحساب ده مش مصرح له (محتاج أدمن المنصة). سجلي الدخول تاني.'
+        : 'تعذر قراءة آخر إصدار منشور (' + r.status + ').';
+      var e = new Error('state'); e.userMessage = why; throw e;
+    }
     baseRevision = j.revision === null || j.revision === undefined ? 'initial' : j.revision;
     work = ED.normalize(j.design || { version: ED.VERSION }, { strict: false }).design;
     undoStack = []; redoStack = []; dirty = false; baseJson = JSON.stringify(work);

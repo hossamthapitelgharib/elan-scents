@@ -5,18 +5,18 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const sessions = require('./editor-session.js');
-const records = require('./editor-records.js');
+const media = require('./editor-media.js');
 
 const ROOT = path.resolve(__dirname, '..');
 const COOKIE = 'elan_sess';
-const LOGIN_FILES = { '/editor-login.js': 'text/javascript; charset=utf-8', '/editor-login.css': 'text/css; charset=utf-8', '/editor-guard.js': 'text/javascript; charset=utf-8' };
+const LOGIN_FILES = { '/editor-login.js': 'text/javascript; charset=utf-8', '/editor-login.css': 'text/css; charset=utf-8', '/editor-guard.js': 'text/javascript; charset=utf-8', '/editor-media.js': 'text/javascript; charset=utf-8' };
 
 function sha(s) { return "'sha256-" + crypto.createHash('sha256').update(s, 'utf8').digest('base64') + "'"; }
 
 let PAGE = null;
 function buildPage() {
   let html = fs.readFileSync(path.join(ROOT, 'editor', 'elan-editor.html'), 'utf8');
-  html = html.replace('</body>', '<script src="/editor-guard.js"></script></body>');
+  html = html.replace('</body>', '<script src="/editor-guard.js"></script><script src="/editor-media.js"></script></body>');
   const hashes = [];
   html.replace(/<script>([\s\S]*?)<\/script>/g, (_, code) => { hashes.push(sha(code)); return ''; });
   const handlers = [];
@@ -66,6 +66,15 @@ function readJson(req) {
   });
 }
 
+function readRaw(req, limit) {
+  return new Promise((resolve) => {
+    let size = 0; const chunks = []; let done = false;
+    req.on('data', (c) => { if (done) return; size += c.length; if (size > limit) { done = true; resolve(null); } else chunks.push(c); });
+    req.on('end', () => { if (!done) resolve(Buffer.concat(chunks)); });
+    req.on('error', () => { if (!done) resolve(null); });
+  });
+}
+
 /* Lets the existing /api/editor handler see the admin as signed in when the browser holds a valid session. */
 async function attachSession(req) {
   const s = await sessions.get(sessions.parseCookie(req.headers.cookie, COOKIE));
@@ -91,18 +100,27 @@ async function handle(req, res, pathname) {
     sessions.destroy(sid); setCookie(req, res, '', true);
     return json(res, 200, { ok: true }), true;
   }
+  if (pathname === '/api/editor-media') {
+    const s = await sessions.get(sid);
+    if (!s) return json(res, 401, { ok: false, error: 'unauthorized' }), true;
+    if (req.method !== 'GET') return json(res, 405, { ok: false, error: 'method_not_allowed' }), true;
+    const r = await media.list(s, new URL(req.url, 'http://x').searchParams.get('offset'));
+    return (r.error ? json(res, r.status, { ok: false, error: r.error }) : json(res, 200, { ok: true, items: r.items })), true;
+  }
+  if (pathname === '/api/editor-upload') {
+    const s = await sessions.get(sid);
+    if (!s) return json(res, 401, { ok: false, error: 'unauthorized' }), true;
+    if (req.method !== 'POST' || !sameOrigin(req)) return json(res, 403, { ok: false, error: 'forbidden' }), true;
+    const type = String(req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
+    const buf = await readRaw(req, media.MAX_BYTES + 1);
+    if (!buf) return json(res, 413, { ok: false, error: 'file_too_large' }), true;
+    let name = ''; try { name = decodeURIComponent(String(req.headers['x-file-name'] || '')); } catch (_) { name = ''; }
+    const r = await media.upload(s, buf, type, name);
+    return (r.error ? json(res, r.status, { ok: false, error: r.error }) : json(res, 200, { ok: true, url: r.url })), true;
+  }
   if (pathname === '/api/editor-session') {
     const s = await sessions.get(sid);
     return (s ? json(res, 200, { ok: true }) : json(res, 401, { ok: false, error: 'unauthorized' })), true;
-  }
-
-  if (pathname === '/api/editor-records') {
-    if (req.method !== 'POST' || !sameOrigin(req)) return json(res, 403, { ok: false, error: 'forbidden' }), true;
-    const s = await sessions.get(sid);
-    if (!s) return json(res, 401, { ok: false, error: 'unauthorized' }), true;
-    const body = await readJson(req);
-    const out = await records.handle(process.env, s.token, body);
-    return json(res, out.status, out.body), true;
   }
 
   if (pathname === '/editor' || pathname === '/editor/') {

@@ -30,11 +30,15 @@ function config(env) {
   const branch = env.EDITOR_TARGET_BRANCH || (isProd ? 'main' : env.EDITOR_BRANCH);
   const host = env.RAILWAY_PUBLIC_DOMAIN;
   const origin = env.EDITOR_SITE_ORIGIN || (host ? 'https://' + host : '');
-  if (!token || !branch || !origin) return { error: 'editor_not_configured' };
-  if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) return { error: 'editor_not_configured' };
-  if (!/^[\w./-]{1,100}$/.test(branch) || branch.indexOf('..') !== -1) return { error: 'editor_not_configured' };
-  if (!/^https:\/\/[\w.-]+(:\d+)?$/.test(origin.replace(/\/+$/, ''))) return { error: 'editor_not_configured' };
-  if (branch === 'main' && !isProd && env.EDITOR_ALLOW_MAIN_FROM_NONPROD !== '1') return { error: 'main_branch_requires_production' };
+  const missing = [];
+  if (!token) missing.push('GITHUB_TOKEN');
+  if (!branch) missing.push('EDITOR_TARGET_BRANCH');
+  else if (!/^[\w./-]{1,100}$/.test(branch) || branch.indexOf('..') !== -1) missing.push('EDITOR_TARGET_BRANCH (قيمة غير صالحة)');
+  if (!origin) missing.push('EDITOR_SITE_ORIGIN');
+  else if (!/^https:\/\/[\w.-]+(:\d+)?$/.test(origin.replace(/\/+$/, ''))) missing.push('EDITOR_SITE_ORIGIN (لازم يبدأ بـ https:// من غير مسار)');
+  if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) missing.push('GITHUB_REPO (قيمة غير صالحة)');
+  if (missing.length) return { error: 'editor_not_configured', missing };
+  if (branch === 'main' && !isProd && env.EDITOR_ALLOW_MAIN_FROM_NONPROD !== '1') return { error: 'main_branch_requires_production', missing: ['EDITOR_ENV=production'] };
   return { token, repo, branch, origin: origin.replace(/\/+$/, ''), isProd };
 }
 
@@ -151,9 +155,9 @@ module.exports = async function editor(req, res) {
   if (req.method !== 'GET' && req.method !== 'POST') return reply(res, 405, { ok: false, error: 'method_not_allowed' });
   try {
     const context = requireRoles(await getContext(req), ['platform_admin']);
-    if (context.error) return reply(res, context.status, { ok: false, error: context.error });
+    if (context.error) return reply(res, context.status, { ok: false, error: context.error, missing: context.missing || [] });
     const cfg = config();
-    if (cfg.error) return reply(res, 503, { ok: false, error: cfg.error });
+    if (cfg.error) return reply(res, 503, { ok: false, error: cfg.error, missing: cfg.missing || [] });
 
     let body = {};
     if (req.method === 'POST') {
