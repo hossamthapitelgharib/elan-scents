@@ -1,8 +1,21 @@
 # Supabase migrations
 
-`migrations/` mirrors the migration history of the live Supabase project (`supabase_migrations.schema_migrations`):
-the numeric prefix of every file is **exactly the version recorded by the live database**, in the same order (30 files).
-`tests/migrations-consistency.test.js` enforces the naming rules below.
+`migrations/` keeps the SQL source files tracked for the live Supabase project (`supabase_migrations.schema_migrations`).
+It currently contains 36 files. Numeric prefixes match the live versions for tracked migrations and remain in ascending order.
+`tests/migrations-consistency.test.js` enforces the local naming and ordering rules.
+
+## Live-history gaps
+
+The live migration ledger currently contains 38 records. Two earlier records have no source file in this repository:
+
+- `20261009230647_harden_order_user_binding` (the same migration name is recorded later as `20261010014304`)
+- `20261010001456_guest_browser_identity_analytics` (the same migration name is recorded later as `20261010014327`)
+
+Do not reconstruct the missing historical files from the later files based only on their names.
+
+The migrations applied on 2026-10-13 were moved unchanged from `pending/` using the versions recorded by Supabase:
+`20261013014000_harden_anon_grants_rls_initplan_and_order_pricing` and
+`20261013014023_guest_analytics_explicit_deny`. Their opening `PENDING` comments are historical and intentionally preserved because applied migration contents are immutable; the live migration ledger is authoritative.
 
 ## Rules
 
@@ -10,7 +23,7 @@ the numeric prefix of every file is **exactly the version recorded by the live d
 - A new migration is written to `pending/` first. After the project owner approves it and it is applied to the live
   database, move it to `migrations/` and rename it with the version the database recorded
   (`select version, name from supabase_migrations.schema_migrations order by version desc limit 1`).
-- One migration, one file. The same migration name must never appear twice with two different versions.
+- Within this repository, one migration name must never appear twice under different versions.
 - Real-database tests live in `tests/*.sql` and run inside `BEGIN ... ROLLBACK`.
 
 ## Known divergences (history, not errors)

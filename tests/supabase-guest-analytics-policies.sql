@@ -1,4 +1,4 @@
--- Real-database test for supabase/pending/20261010031000_guest_analytics_explicit_deny.sql
+-- Real-database test for supabase/migrations/20261013014023_guest_analytics_explicit_deny.sql
 -- Run AFTER the migration inside one transaction. Everything is rolled back; no data is created.
 begin;
 
