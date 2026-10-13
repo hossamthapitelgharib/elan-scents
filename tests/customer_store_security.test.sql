@@ -20,6 +20,59 @@ begin
      or has_table_privilege('anon', 'public.cart_items', 'SELECT') then
     raise exception 'anonymous users must not directly read customer profiles or carts';
   end if;
+  if has_table_privilege('anon', 'public.analytics_events', 'SELECT')
+     or has_table_privilege('anon', 'public.checkout_sessions', 'SELECT')
+     or has_table_privilege('anon', 'public.contact_messages', 'SELECT')
+     or has_table_privilege('anon', 'public.favorites', 'SELECT')
+     or has_table_privilege('anon', 'public.notifications', 'SELECT')
+     or has_table_privilege('anon', 'public.orders', 'SELECT')
+     or has_table_privilege('anon', 'public.order_items', 'SELECT') then
+    raise exception 'anonymous users must not directly read private customer or order tables';
+  end if;
+  if has_table_privilege('anon', 'public.commissions', 'SELECT')
+     or has_table_privilege('anon', 'public.order_operation_events', 'SELECT')
+     or has_table_privilege('anon', 'public.order_reconciliation_checks', 'SELECT')
+     or has_table_privilege('anon', 'public.store_accounts', 'SELECT')
+     or has_table_privilege('anon', 'public.store_order_cart_restorations', 'SELECT')
+     or has_table_privilege('anon', 'public.store_order_notifications', 'SELECT')
+     or has_table_privilege('anon', 'public.store_order_request_items', 'SELECT')
+     or has_table_privilege('anon', 'public.store_order_requests', 'SELECT')
+     or has_table_privilege('anon', 'public.store_shipments', 'SELECT')
+     or has_table_privilege('anon', 'public.sync_logs', 'SELECT') then
+    raise exception 'anonymous users must not directly read store-operation tables';
+  end if;
+  if not has_table_privilege('anon', 'public.public_stores', 'SELECT')
+     or not has_table_privilege('anon', 'public.public_products', 'SELECT')
+     or not has_table_privilege('anon', 'public.cheapest_offers', 'SELECT') then
+    raise exception 'public catalog views must remain readable';
+  end if;
+  if not has_column_privilege('anon', 'public.stores', 'name', 'SELECT')
+     or has_column_privilege('anon', 'public.stores', 'website_url', 'SELECT')
+     or has_column_privilege('anon', 'public.stores', 'commission_rate', 'SELECT')
+     or has_column_privilege('anon', 'public.stores', 'priority_rank', 'SELECT')
+     or has_column_privilege('anon', 'public.stores', 'created_at', 'SELECT') then
+    raise exception 'anonymous store reads must be limited to public profile fields';
+  end if;
+  if not has_column_privilege('anon', 'public.store_products', 'product_size_id', 'SELECT')
+     or not has_column_privilege('anon', 'public.store_products', 'is_new_arrival', 'SELECT')
+     or not has_column_privilege('anon', 'public.store_products', 'sync_status', 'SELECT')
+     or not has_column_privilege('anon', 'public.store_products', 'is_catalog_bestseller', 'SELECT')
+     or has_column_privilege('anon', 'public.store_products', 'data_source', 'SELECT')
+     or has_column_privilege('anon', 'public.store_products', 'original_price', 'SELECT')
+     or has_column_privilege('anon', 'public.store_products', 'discount_percentage', 'SELECT')
+     or has_column_privilege('anon', 'public.store_products', 'product_url', 'SELECT') then
+    raise exception 'anonymous product reads must be limited to storefront-required fields';
+  end if;
+  if not has_column_privilege('anon', 'public.offers', 'product_size_id', 'SELECT')
+     or has_column_privilege('anon', 'public.offers', 'discount_value', 'SELECT')
+     or has_column_privilege('anon', 'public.offers', 'description', 'SELECT') then
+    raise exception 'anonymous offer reads must be limited to product-size identifiers';
+  end if;
+  if not has_table_privilege('service_role', 'public.store_order_requests', 'SELECT')
+     or not has_table_privilege('service_role', 'public.store_products', 'SELECT')
+     or not has_table_privilege('service_role', 'public.commissions', 'SELECT') then
+    raise exception 'admin APIs must retain service-role reads';
+  end if;
   if has_table_privilege('authenticated', 'public.cart_items', 'SELECT') then
     raise exception 'customer clients must use the limited cart column grants';
   end if;
@@ -38,16 +91,16 @@ begin
      or not has_table_privilege('authenticated', 'public.cart_items', 'DELETE') then
     raise exception 'customer cart synchronization lost required write privileges';
   end if;
-  if not exists (select 1 from information_schema.columns where table_schema='public' and table_name='customer_product_events' and column_name='product_snapshot' and data_type='jsonb')
-     or not exists (select 1 from information_schema.columns where table_schema='public' and table_name='guest_product_analytics' and column_name='product_snapshot' and data_type='jsonb')
-     or not exists (select 1 from information_schema.columns where table_schema='public' and table_name='cart_items' and column_name='product_snapshot' and data_type='jsonb') then
+  if not exists (select 1 from information_schema.columns where table_schema='public' and table_name='customer_product_events' and column_name='product_snapshot' and data_type='jsonb' limit 1)
+     or not exists (select 1 from information_schema.columns where table_schema='public' and table_name='guest_product_analytics' and column_name='product_snapshot' and data_type='jsonb' limit 1)
+     or not exists (select 1 from information_schema.columns where table_schema='public' and table_name='cart_items' and column_name='product_snapshot' and data_type='jsonb' limit 1) then
     raise exception 'product snapshots are missing from customer activity or cart storage';
   end if;
-  if exists (select 1 from pg_constraint where conrelid='public.customer_product_events'::regclass and conname='customer_product_events_product_id_fkey')
-     or exists (select 1 from pg_constraint where conrelid='public.guest_product_analytics'::regclass and conname='guest_product_analytics_product_id_fkey') then
+  if exists (select 1 from pg_constraint where conrelid='public.customer_product_events'::regclass and conname='customer_product_events_product_id_fkey' limit 1)
+     or exists (select 1 from pg_constraint where conrelid='public.guest_product_analytics'::regclass and conname='guest_product_analytics_product_id_fkey' limit 1) then
     raise exception 'catalog deletion must not cascade into historical activity';
   end if;
-  if not exists (select 1 from pg_trigger where tgrelid='public.cart_items'::regclass and tgname='cart_items_product_snapshot' and not tgisinternal) then
+  if not exists (select 1 from pg_trigger where tgrelid='public.cart_items'::regclass and tgname='cart_items_product_snapshot' and not tgisinternal limit 1) then
     raise exception 'registered basket product snapshots must be maintained by a database trigger';
   end if;
   if has_function_privilege('anon', 'public.platform_store_summary()', 'EXECUTE')
