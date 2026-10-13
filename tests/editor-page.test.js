@@ -42,6 +42,13 @@ test('edit-mode uses same-origin bridge and defers saves to the parent editor', 
   assert.doesNotMatch(mode, /localStorage|sessionStorage|document\.cookie|eval\(|new Function/);
 });
 
+test('design layer survives edit-mode starting before app-core defines render', () => {
+  const layer = read('design-layer.js');
+  assert.match(layer, /if \(typeof window\.render\s*===\s*'function'\) redraw\(\);/);
+  assert.match(layer, /typeof window\.render\s*===\s*'function' && document\.getElementById\('main'\)/);
+  assert.match(layer, /waitFor\(function \(\) \{[\s\S]*?\}, redraw, 15000\)/);
+});
+
 test('live editor keeps creation and editing actions in the right-click menu and gates save/refresh on bridge readiness', () => {
   const page = read('editor/elan-editor.html');
   assert.match(page, /function showLiveMenu\(info\)/);

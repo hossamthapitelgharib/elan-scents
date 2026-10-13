@@ -342,9 +342,20 @@
     design = n.design;
     ensureStyle();
     if (typeof D === 'object' && D) ED.applyTexts(D, design);
-    wrapRender(); wrapView();
-    if (typeof window.render === 'function') window.render();
-    if (document.body.classList.contains('inner') && typeof window.view === 'function') window.view();
+    // edit-mode may receive the draft before app-core's dynamically loaded
+    // render() exists.  In that race the old code returned successfully but
+    // never wrapped the later render(), leaving the preview on a partial
+    // pre-design page.  Wait for the host renderer, then install the hooks
+    // and repaint the complete design once it is available.
+    function redraw() {
+      wrapRender(); wrapView();
+      if (typeof window.render === 'function') window.render();
+      if (document.body.classList.contains('inner') && typeof window.view === 'function') window.view();
+    }
+    if (typeof window.render === 'function') redraw();
+    else waitFor(function () {
+      return typeof window.render === 'function' && document.getElementById('main');
+    }, redraw, 15000);
     return true;
   }
 
