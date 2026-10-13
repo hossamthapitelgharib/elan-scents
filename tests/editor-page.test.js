@@ -51,6 +51,9 @@ test('design layer survives edit-mode starting before app-core defines render', 
 
 test('live editor keeps creation and editing actions in the right-click menu and gates save/refresh on bridge readiness', () => {
   const page = read('editor/elan-editor.html');
+  const host = read('railway/editor-host.js');
+  assert.match(page, /platformUrl='__ELAN_PLATFORM_URL__'\|\|location\.origin\+'\/'/);
+  assert.match(host, /EDITOR_SITE_ORIGIN/);
   assert.match(page, /function showLiveMenu\(info\)/);
   assert.match(page, /إنشاء كارت عطر/);
   assert.match(page, /element\.edit/);

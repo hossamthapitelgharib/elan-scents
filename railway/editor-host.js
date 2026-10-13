@@ -15,6 +15,15 @@ function sha(s) { return "'sha256-" + crypto.createHash('sha256').update(s, 'utf
 let PAGE = null;
 function buildPage() {
   let html = fs.readFileSync(path.join(ROOT, 'editor', 'elan-editor.html'), 'utf8');
+  let siteOrigin = '';
+  try {
+    const candidate = String(process.env.EDITOR_SITE_ORIGIN || '').trim();
+    if (candidate) {
+      const parsed = new URL(candidate);
+      if (parsed.protocol === 'https:' || parsed.protocol === 'http:') siteOrigin = parsed.origin + '/';
+    }
+  } catch (_) { siteOrigin = ''; }
+  html = html.replace('__ELAN_PLATFORM_URL__', siteOrigin.replace(/\\/g, '\\\\').replace(/'/g, "\\'"));
   html = html.replace('</body>', '<script src="/editor-guard.js"></script></body>');
   const hashes = [];
   html.replace(/<script>([\s\S]*?)<\/script>/g, (_, code) => { hashes.push(sha(code)); return ''; });
