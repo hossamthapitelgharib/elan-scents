@@ -3,8 +3,13 @@
    Imports base theme then applies current desired overrides.
    Frontend display only. Do not add backend/DB rules here.
    ============================================================ */
+<<<<<<< Updated upstream
 @import url('/style-3.css?v=20261013-06');
 @import url('/footer-9x16.css?v=20261013-06');
+=======
+@import url('/style-3.css?v=20261012-03');
+@import url('/footer-9x16.css?v=20261012-03');
+>>>>>>> Stashed changes
 
 /* ---------- Menu: slightly narrower panel + slightly larger items ---------- */
 #menu {
@@ -685,13 +690,32 @@ header .ic button{color:#b8821a!important;filter:none!important;text-shadow:none
 header .ic svg{stroke:#b8821a!important;filter:none!important;width:23px!important;height:23px!important}
 header .ic{gap:6px!important}
 header #lg{font-size:14px!important;color:#b8821a!important}
+<<<<<<< Updated upstream
 #hero{width:100%!important;max-width:540px!important;margin-inline:auto!important;height:calc(var(--app-vh,1vh)*100)!important;min-height:calc(var(--app-vh,1vh)*100)!important;max-height:none!important;padding:0 14px calc(10px + env(safe-area-inset-bottom,0px))!important}
+=======
+
+/* ---------- No sideways wobble ---------- */
+html,body{overflow-x:clip!important;max-width:100%!important}
+
+/* ---------- Menu: same size on every screen, never scrolls the page behind it ---------- */
+#menu{width:min(52vw,190px)!important;max-width:190px!important;padding:64px 14px 24px!important;overscroll-behavior:contain!important;touch-action:pan-y!important;-webkit-overflow-scrolling:touch!important}
+#menu a:not(.mlogo){font-size:13px!important;padding:9px 0!important}
+#mov{touch-action:none!important;overscroll-behavior:contain!important}
+
+/* ---------- Hero: same framing on laptop and phone ---------- */
+#hero{width:100%!important;max-width:none!important;height:calc(var(--app-vh,1vh)*100)!important;min-height:calc(var(--app-vh,1vh)*100)!important;max-height:none!important;padding:0 14px calc(10px + env(safe-area-inset-bottom,0px))!important}
+>>>>>>> Stashed changes
 .magic{padding:10px!important}
 .magic h2{font-size:22px!important}
 .magic p{font-size:12px!important}
 .counters{gap:6px!important}
 .counters b{font-size:22px!important}
 .counters span{font-size:10px!important}
+<<<<<<< Updated upstream
+=======
+
+/* ---------- Full width on laptop; menu never visible while closed ---------- */
+>>>>>>> Stashed changes
 #menu{visibility:hidden!important;transition:transform .4s,visibility 0s linear .4s!important}
 #menu.open{visibility:visible!important;transition:transform .4s,visibility 0s!important}
 header .logo{overflow:visible!important}

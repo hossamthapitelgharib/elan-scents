@@ -51,10 +51,15 @@ test('cart helpers exist in resolved app-core source', () => {
   assert.match(core, /function cartBadge/);
 });
 
-test('storefront is one phone-width column, header text is flat and the menu locks page scroll', () => {
+test('storefront is full width, header text is flat and the menu locks page scroll', () => {
   const style = fs.readFileSync(path.join(root, 'style.css'), 'utf8');
+<<<<<<< Updated upstream
   const app = read('app.js');
   assert.match(style, /body\{max-width:540px!important/);
+=======
+  const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+  assert.doesNotMatch(style, /body\{max-width:540px/);
+>>>>>>> Stashed changes
   assert.match(style, /#bar \.gold,#barT\{background:none!important/);
   assert.match(style, /html,body\{overflow-x:clip!important/);
   assert.match(app, /function syncBodyScroll/);
