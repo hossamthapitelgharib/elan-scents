@@ -172,3 +172,39 @@ test('registered customer analytics render all four product rankings safely', ()
   assert.match(nodes.get('#registeredBasketProducts').innerHTML, /Amber/);
   assert.match(nodes.get('#registeredBasketProducts').innerHTML, /Cedar/);
 });
+
+test('customer analytics fetch and append additional pages for each ranked product list', async () => {
+  const { context, nodes } = loadDashboard();
+  context.Portal.session = () => true;
+  nodes.get('#guestAnalyticsPeriod').value = 'week';
+  const requests = [];
+  context.fetch = async url => {
+    requests.push(String(url));
+    const parsed = new URL(String(url), 'https://test.local');
+    if (parsed.pathname === '/api/guest-analytics') return { ok: true, json: async () => ({ analytics: {
+      period: 'week', startDate: '2026-10-06', endDate: '2026-10-12', people: 2, activeSessions: 0, visitCount: 2, activeSeconds: 90,
+      productViews: 3, productSearches: 1, cartAdds: 0, cartRemoves: 0,
+      topViewed: [], topSearched: [], topCartAdded: [], topCartRemoved: [],
+    } }) };
+    if (parsed.pathname === '/api/customer-product-rankings') {
+      const eventType = parsed.searchParams.get('eventType'), offset = Number(parsed.searchParams.get('offset'));
+      const rows = eventType === 'view' ? (offset === 0
+        ? [{ product: { id: 'p1', name: 'Rose' }, operations: 2, people: 2 }]
+        : [{ product: { id: 'p2', name: 'Musk' }, operations: 1, people: 1 }]) : [];
+      return { ok: true, json: async () => ({ records: rows, total: eventType === 'view' ? 2 : 0, hasMore: eventType === 'view' && offset === 0 }) };
+    }
+    throw new Error(`unexpected request: ${url}`);
+  };
+  await context.loadAnalytics('guest');
+  assert.equal(requests.filter(url => url.includes('/api/customer-product-rankings')).length, 4);
+  assert.match(nodes.get('#guestTopProducts').innerHTML, /Rose/);
+  assert.match(nodes.get('#guestTopProducts').innerHTML, /عرض ١ من ٢/);
+  assert.match(nodes.get('#guestTopProducts').innerHTML, /data-rank-key="topViewed"/);
+
+  const button = { dataset: { rankActor: 'guest', rankKey: 'topViewed' }, disabled: false };
+  await context.loadMoreProductRanking(button);
+  assert.match(nodes.get('#guestTopProducts').innerHTML, /Rose/);
+  assert.match(nodes.get('#guestTopProducts').innerHTML, /Musk/);
+  assert.match(nodes.get('#guestTopProducts').innerHTML, /عرض ٢ من ٢/);
+  assert.doesNotMatch(nodes.get('#guestTopProducts').innerHTML, /data-rank-more/);
+});

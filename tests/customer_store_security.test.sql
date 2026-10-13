@@ -107,13 +107,23 @@ begin
      or has_function_privilege('authenticated', 'public.platform_store_summary()', 'EXECUTE') then
     raise exception 'store summary RPC must not be directly executable by clients';
   end if;
+  if has_function_privilege('anon', 'public.customer_activity_summary(text,text)', 'EXECUTE')
+     or has_function_privilege('authenticated', 'public.customer_activity_summary(text,text)', 'EXECUTE') then
+    raise exception 'customer activity summary RPC must remain server-only';
+  end if;
   if has_function_privilege('anon', 'public.capture_product_snapshot(uuid,uuid,uuid,text)', 'EXECUTE')
      or has_function_privilege('authenticated', 'public.capture_product_snapshot(uuid,uuid,uuid,text)', 'EXECUTE') then
     raise exception 'product snapshot function must remain server-only';
   end if;
+  if has_function_privilege('anon', 'public.customer_product_ranking(text,text,text,integer,integer)', 'EXECUTE')
+     or has_function_privilege('authenticated', 'public.customer_product_ranking(text,text,text,integer,integer)', 'EXECUTE') then
+    raise exception 'customer product ranking RPC must remain server-only';
+  end if;
   if not has_function_privilege('service_role', 'public.platform_store_summary()', 'EXECUTE')
-     or not has_function_privilege('service_role', 'public.capture_product_snapshot(uuid,uuid,uuid,text)', 'EXECUTE') then
-    raise exception 'server APIs must retain access to administrative summary and snapshot functions';
+     or not has_function_privilege('service_role', 'public.customer_activity_summary(text,text)', 'EXECUTE')
+     or not has_function_privilege('service_role', 'public.capture_product_snapshot(uuid,uuid,uuid,text)', 'EXECUTE')
+     or not has_function_privilege('service_role', 'public.customer_product_ranking(text,text,text,integer,integer)', 'EXECUTE') then
+    raise exception 'server APIs must retain access to administrative summary, ranking and snapshot functions';
   end if;
 end;
 $$;

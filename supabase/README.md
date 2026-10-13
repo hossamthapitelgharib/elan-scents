@@ -1,12 +1,12 @@
 # Supabase migrations
 
 `migrations/` keeps the SQL source files tracked for the live Supabase project (`supabase_migrations.schema_migrations`).
-It currently contains 40 files. Numeric prefixes match the live versions for tracked migrations and remain in ascending order.
+It currently contains 42 files. Numeric prefixes match the live versions for tracked migrations and remain in ascending order.
 `tests/migrations-consistency.test.js` enforces the local naming and ordering rules.
 
 ## Live-history gaps
 
-The live migration ledger currently contains 42 records. Two earlier records have no source file in this repository:
+The live migration ledger currently contains 44 records. Two earlier records have no source file in this repository:
 
 - `20261009230647_harden_order_user_binding` (the same migration name is recorded later as `20261010014304`)
 - `20261010001456_guest_browser_identity_analytics` (the same migration name is recorded later as `20261010014327`)
@@ -16,7 +16,7 @@ Do not reconstruct the missing historical files from the later files based only 
 The migrations applied on 2026-10-13 were moved unchanged from `pending/` using the versions recorded by Supabase:
 `20261013014000_harden_anon_grants_rls_initplan_and_order_pricing` and
 `20261013014023_guest_analytics_explicit_deny`. The customer/store dashboard migration was also applied as
-`20261013091458_platform_store_summary_and_customer_rls`, followed by `20261013101123_product_activity_snapshots` for full product snapshots and deletion-safe activity history, then `20261013101601_restrict_cart_snapshot_access` to keep the snapshot column private from customer clients, and `20261013104621_store_customer_read_least_privilege` to remove anonymous reads from private customer/store-operation tables and limit public catalog access to required columns. Historical `PENDING` comments in earlier files are intentionally preserved because applied migration contents are immutable; the live migration ledger is authoritative.
+`20261013091458_platform_store_summary_and_customer_rls`, followed by `20261013101123_product_activity_snapshots` for full product snapshots and deletion-safe activity history, then `20261013101601_restrict_cart_snapshot_access` to keep the snapshot column private from customer clients, `20261013104621_store_customer_read_least_privilege` to remove anonymous reads from private customer/store-operation tables and limit public catalog access to required columns, `20261013112836_customer_product_rankings` for server-only, paginated product rankings across customer activity periods and event types, and `20261013113053_customer_activity_summary_stats_only` to avoid calculating those rankings twice. Historical `PENDING` comments in earlier files are intentionally preserved because applied migration contents are immutable; the live migration ledger is authoritative.
 
 ## Rules
 

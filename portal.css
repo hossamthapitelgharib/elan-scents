@@ -38,3 +38,5 @@
 .customer-pagination[hidden]{display:none!important}
 
 .unlinked-operations-grid{display:grid;grid-template-columns:1fr;gap:16px;margin-top:16px}.unlinked-operations-grid>.store-detail-block{min-width:0}.unlinked-operations-grid .activity-table-wrap{max-height:440px;overflow:auto}@media(min-width:1280px){.unlinked-operations-grid{grid-template-columns:1fr 1fr}}
+
+.rank-pagination{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:7px 0 14px;color:var(--muted);font-size:10px}.rank-pagination .ghost{min-height:34px;padding:6px 12px;font-size:11px}.rank-table{min-width:560px}@media(max-width:600px){.rank-pagination{align-items:flex-start;flex-direction:column}}

@@ -99,9 +99,17 @@ function renderCustomerPagination(type, page) {
 }
 
 const periodsP = { today: 'اليوم', week: 'آخر 7 أيام', month: 'آخر 30 يومًا', year: 'آخر 365 يومًا' };
-function renderRankTable(rows) {
-  if (!Array.isArray(rows) || !rows.length) return '<div class="empty">لا توجد بيانات في هذه الفترة</div>';
-  return `<div class="activity-table-wrap"><table class="activity-table rank-table"><thead><tr><th>العطر وبياناته</th><th>مرات العملية</th><th>عدد العملاء</th></tr></thead><tbody>${rows.map(row => `<tr><td class="activity-product-cell">${productSummary(row.product)}</td><td>${numberP(row.operations)}</td><td>${numberP(row.people)}</td></tr>`).join('')}</tbody></table></div>`;
+const rankingKeysP = { topViewed: 'view', topSearched: 'search', topCartAdded: 'cart_add', topCartRemoved: 'cart_remove' };
+const analyticsStateP = { guest: null, customer: null };
+const analyticsRequestP = { guest: 0, customer: 0 };
+function renderRankTable(rows, actor, key, page) {
+  const peopleLabel = actor === 'guest' ? 'عدد الزوار' : 'عدد العملاء';
+  const table = Array.isArray(rows) && rows.length
+    ? `<div class="activity-table-wrap"><table class="activity-table rank-table"><thead><tr><th>العطر وبياناته</th><th>مرات العملية</th><th>${peopleLabel}</th></tr></thead><tbody>${rows.map(row => `<tr><td class="activity-product-cell">${productSummary(row.product)}</td><td>${numberP(row.operations)}</td><td>${numberP(row.people)}</td></tr>`).join('')}</tbody></table></div>`
+    : '<div class="empty">لا توجد بيانات في هذه الفترة</div>';
+  if (!page) return table;
+  const more = page.hasMore ? `<button class="ghost" type="button" data-rank-more data-rank-actor="${actor}" data-rank-key="${key}">تحميل المزيد</button>` : '';
+  return `${table}<div class="rank-pagination"><span>عرض ${numberP((rows || []).length)} من ${numberP(page.total)}</span>${more}</div>`;
 }
 function renderAnalytics(actor, data) {
   if (!['guest', 'customer'].includes(actor)) return;
@@ -115,17 +123,55 @@ function renderAnalytics(actor, data) {
   range.textContent = `${periodsP[data.period] || periodsP.today} · ${data.startDate || '—'} – ${data.endDate || '—'}`;
   const stats = [[personLabel, data.people], ['جلسات نشطة الآن', data.activeSessions], ['عدد الزيارات', data.visitCount], ['الوقت النشط', durationP(data.activeSeconds)], ['مشاهدات المنتجات', data.productViews], ['نتائج بحث المنتجات', data.productSearches], ['إضافات للسلة', data.cartAdds], ['حذف/تقليل من السلة', data.cartRemoves]];
   statsBox.innerHTML = stats.map((item, index) => `<div class="stat ${index === 0 ? 'gold' : ''}"><small>${item[0]}</small><b>${typeof item[1] === 'string' ? escP(item[1]) : numberP(item[1])}</b></div>`).join('');
-  topProducts.innerHTML = `<h5>الأكثر مشاهدة</h5>${renderRankTable(data.topViewed)}<h5>الأكثر ظهورًا في نتائج البحث</h5>${renderRankTable(data.topSearched)}`;
-  basketProducts.innerHTML = `<h5>الأكثر إضافةً إلى السلة</h5>${renderRankTable(data.topCartAdded)}<h5>الأكثر حذفًا أو تقليلًا من السلة</h5>${renderRankTable(data.topCartRemoved)}`;
+  const rankings = data.rankings || {};
+  topProducts.innerHTML = `<h5>الأكثر مشاهدة</h5>${renderRankTable(data.topViewed, actor, 'topViewed', rankings.topViewed)}<h5>الأكثر ظهورًا في نتائج البحث</h5>${renderRankTable(data.topSearched, actor, 'topSearched', rankings.topSearched)}`;
+  basketProducts.innerHTML = `<h5>الأكثر إضافةً إلى السلة</h5>${renderRankTable(data.topCartAdded, actor, 'topCartAdded', rankings.topCartAdded)}<h5>الأكثر حذفًا أو تقليلًا من السلة</h5>${renderRankTable(data.topCartRemoved, actor, 'topCartRemoved', rankings.topCartRemoved)}`;
+}
+async function requestProductRanking(actor, period, eventType, offset) {
+  const query = new URLSearchParams({ actor, period, eventType, limit: '20', offset: String(offset) });
+  const response = await fetch(`/api/customer-product-rankings?${query}`, { headers: Portal.auth() });
+  const result = await response.json();
+  if (!response.ok) throw Error(result.error || 'تعذر تحميل ترتيب المنتجات');
+  return result;
 }
 async function loadAnalytics(actor) {
   if (!['guest', 'customer'].includes(actor) || !Portal.session()) return;
+  const requestId = ++analyticsRequestP[actor];
   const prefix = actor === 'guest' ? 'guest' : 'registered';
   const period = document.querySelector(`#${prefix}AnalyticsPeriod`).value || 'today';
   const response = await fetch(`/api/guest-analytics?period=${encodeURIComponent(period)}&actor=${encodeURIComponent(actor)}`, { headers: Portal.auth() }), result = await response.json();
   if (!response.ok) throw Error(result.error || 'تعذر تحميل التحليلات');
+  const rankingResults = await Promise.all(Object.entries(rankingKeysP).map(async ([key, eventType]) => [key, await requestProductRanking(actor, period, eventType, 0)]));
+  if (requestId !== analyticsRequestP[actor]) return;
   document.querySelector(`#${prefix}AnalyticsError`).hidden = true;
-  renderAnalytics(actor, result.analytics);
+  const analytics = result.analytics;
+  analytics.rankings = {};
+  for (const [key, page] of rankingResults) {
+    analytics[key] = page.records;
+    analytics.rankings[key] = { period, eventType: rankingKeysP[key], records: page.records, total: page.total, hasMore: page.hasMore };
+  }
+  analyticsStateP[actor] = analytics;
+  renderAnalytics(actor, analytics);
+}
+async function loadMoreProductRanking(button) {
+  const actor = button.dataset.rankActor, key = button.dataset.rankKey;
+  if (!['guest', 'customer'].includes(actor) || !Object.prototype.hasOwnProperty.call(rankingKeysP, key)) return;
+  const analytics = analyticsStateP[actor], page = analytics && analytics.rankings && analytics.rankings[key];
+  const prefix = actor === 'guest' ? 'guest' : 'registered';
+  const currentPeriod = document.querySelector(`#${prefix}AnalyticsPeriod`).value || 'today';
+  if (!page || !page.hasMore || page.period !== currentPeriod) return;
+  button.disabled = true;
+  try {
+    const next = await requestProductRanking(actor, page.period, page.eventType, page.records.length);
+    if (analyticsStateP[actor] !== analytics || (document.querySelector(`#${prefix}AnalyticsPeriod`).value || 'today') !== page.period) return;
+    page.records = page.records.concat(next.records);
+    page.total = next.total;
+    page.hasMore = next.hasMore;
+    analytics[key] = page.records;
+    renderAnalytics(actor, analytics);
+  } catch (error) {
+    showAnalyticsError(actor, error);
+  } finally { button.disabled = false; }
 }
 function showAnalyticsError(actor, error) {
   const prefix = actor === 'guest' ? 'guest' : 'registered';
@@ -202,6 +248,8 @@ if (guestAnalyticsPeriod) guestAnalyticsPeriod.addEventListener('change', () => 
 const registeredAnalyticsPeriod = document.querySelector('#registeredAnalyticsPeriod');
 if (registeredAnalyticsPeriod) registeredAnalyticsPeriod.addEventListener('change', () => loadAnalytics('customer').catch(error => showAnalyticsError('customer', error)));
 document.addEventListener('click', event => {
+  const rankMore = event.target.closest('[data-rank-more]');
+  if (rankMore) { loadMoreProductRanking(rankMore); return; }
   const more = event.target.closest('[data-more-activity]');
   if (more) {
     const panel = more.closest('.customer-activity-panel'); if (!panel) return;
