@@ -7,7 +7,7 @@
   if (!layer || !ED || !Bridge || window.parent === window) return;
 
   var work = null, baseJson = '', baseRevision = null, hostApi = null, selectedId = null, dirty = false;
-  var undoStack = [], redoStack = [], editing = null, gesture = null, pendingMedia = null;
+  var undoStack = [], redoStack = [], editing = null, gesture = null, pendingMedia = null, moveArm = null;
   var SECTIONS_NAMES = { section: 1 };
 
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
@@ -18,40 +18,22 @@
   /* ---------- working design ---------- */
   function emptyDesign() { return ED.normalize({ version: ED.VERSION }).design; }
   function setDirty(v) { if (!!v === dirty) return; dirty = !!v; if (hostApi) hostApi.dirty(dirty); }
-  function checkDirty() { setDirty(JSON.stringify(work) !== baseJson || drafts.length > 0); }
+  function checkDirty() { setDirty(JSON.stringify(work) !== baseJson); }
   function entries() { return layer.elements(); }
   function entryById(id) { var l = entries(); for (var i = 0; i < l.length; i++) if (l[i].id === id) return l[i]; return null; }
-  /* The home page keeps its edits and blocks at the top of the design; every inner page keeps its own under pages[key]. */
-  function pageKeyNow() { try { return layer.pageKey() || 'home'; } catch (_) { return 'home'; } }
-  function onHome() { return pageKeyNow() === 'home'; }
-  function holder(create) {
-    var key = pageKeyNow();
-    if (key === 'home') return work;
-    if (!work.pages) { if (!create) return null; work.pages = {}; }
-    if (!work.pages[key]) { if (!create) return null; work.pages[key] = { blocks: [] }; }
-    return work.pages[key];
-  }
-  function blocksHere() { var h = holder(false); return (h && h.blocks) || []; }
-  function bucket(dev) { var h = holder(true); h.edits = h.edits || {}; return (h.edits[dev] = h.edits[dev] || {}); }
+  function bucket(dev) { work.edits = work.edits || {}; return (work.edits[dev] = work.edits[dev] || {}); }
   function edit(dev, id) { var b = bucket(dev); return (b[id] = b[id] || {}); }
-  function tidyEdits(h) {
-    if (!h || !h.edits) return;
-    Object.keys(h.edits).forEach(function (dev) {
-      Object.keys(h.edits[dev]).forEach(function (id) {
-        var e = h.edits[dev][id];
-        if (e.style && !Object.keys(e.style).length) delete e.style;
-        if (!Object.keys(e).length) delete h.edits[dev][id];
-      });
-      if (!Object.keys(h.edits[dev]).length) delete h.edits[dev];
-    });
-    if (!Object.keys(h.edits).length) delete h.edits;
-  }
   function tidy() {
-    tidyEdits(work);
-    if (work.pages) {
-      Object.keys(work.pages).forEach(function (k) { tidyEdits(work.pages[k]); if (!(work.pages[k].blocks || []).length && !work.pages[k].edits) delete work.pages[k]; });
-      if (!Object.keys(work.pages).length) delete work.pages;
-    }
+    if (!work.edits) return;
+    Object.keys(work.edits).forEach(function (dev) {
+      Object.keys(work.edits[dev]).forEach(function (id) {
+        var e = work.edits[dev][id];
+        if (e.style && !Object.keys(e.style).length) delete e.style;
+        if (!Object.keys(e).length) delete work.edits[dev][id];
+      });
+      if (!Object.keys(work.edits[dev]).length) delete work.edits[dev];
+    });
+    if (!Object.keys(work.edits).length) delete work.edits;
   }
 
   function mutate(fn) {
@@ -90,6 +72,7 @@
     '#elan-eo-root *{box-sizing:border-box}' +
     '.eo-box{position:fixed;outline:2px solid #c8962a;background:rgba(200,150,42,.06);display:none}' +
     '.eo-h{position:absolute;width:13px;height:13px;right:-6px;bottom:-6px;background:#c8962a;border-radius:3px;cursor:nwse-resize;pointer-events:auto;touch-action:none}' +
+    'body.eo-armed,body.eo-armed *{cursor:move!important}.eo-armed-box{outline:2px dashed #1f7a3d!important;background:rgba(31,122,61,.08)!important}' +
     '.eo-msg{position:fixed;bottom:12px;left:50%;transform:translateX(-50%);background:#29251c;color:#fff;padding:8px 14px;border-radius:9px;font-size:13px;display:none;max-width:90vw;pointer-events:none}' +
     '.eo-dlg{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.35);pointer-events:auto}' +
     '.eo-dlg>div{background:#fffaf0;border:1px solid #c2a66a;border-radius:12px;padding:16px;width:min(420px,92vw);font-size:13px}' +
@@ -129,16 +112,16 @@
     if (!m) return '#000000';
     return '#' + [m[1], m[2], m[3]].map(function (n) { return ('0' + (+n).toString(16)).slice(-2); }).join('');
   }
-  function cur(id) { var h = holder(false); return (h && ED.editFor(h, device(), id)) || {}; }
+  function cur(id) { return ED.editFor(work, device(), id) || {}; }
   /* What the editor needs to know about an element: the original editor's type names plus its current look. */
   var TYPE_OF = { section: 'section', title: 'text', 'hero-text': 'text', hero: 'section', 'hero-counters': 'text', card: 'card', block: 'block' };
   function info(e) {
     if (!e) return null;
     var node = layer.textTarget(e) || e.el, cs = getComputedStyle(node), st = cur(e.id).style || {};
-    var blk = blocksHere().filter(function (b) { return b.id === e.id; })[0];
+    var blk = work.blocks.filter(function (b) { return b.id === e.id; })[0];
     var type = blk ? ({ text: 'text_block', banner: 'banner', image: 'image' })[blk.type] : (TYPE_OF[e.kind] || 'text');
     return {
-      id: e.id, name: e.name, kind: e.kind, type: type, canText: !!layer.textTarget(e), isBlock: !!blk,
+      id: e.id, name: e.name, kind: e.kind, type: type, canText: !!layer.textTarget(e), isBlock: !!blk, dynamic: !!dynamicTarget(e),
       style: {
         fontFamily: st.fontFamily || (cs.fontFamily || '').split(',')[0].replace(/["']/g, '').trim(),
         fontSize: st.fontSize || Math.round(parseFloat(cs.fontSize) || 16),
@@ -166,18 +149,8 @@
     if (i < 0 || j < 0 || j >= seq.length) return;
     mutate(function (d) { seq.splice(i, 1); seq.splice(j, 0, key); d.order = seq; });
   }
-  function resetElement(id) { mutate(function () { var h = holder(false); if (h && h.edits) Object.keys(h.edits).forEach(function (dev) { delete h.edits[dev][id]; }); }); }
+  function resetElement(id) { mutate(function (d) { if (d.edits) Object.keys(d.edits).forEach(function (dev) { delete d.edits[dev][id]; }); }); }
   function archive(id) { mutate(function () { edit('all', id).archived = true; }); selectedId = null; reselect(); say('اتحط في الأرشيف. تقدر ترجّعه من الأرشيف.'); }
-
-
-  /* One-shot move: chosen from the menu for ONE element; ends the moment the mouse is released. */
-  var moveArmed = null;
-  function armMove(id) {
-    moveArmed = id; select(id);
-    box.style.outlineStyle = 'dashed'; box.style.cursor = 'move';
-    say('اضغطي بالماوس على العنصر واسحبيه، وسيبيه في المكان اللي تحبيه.');
-  }
-  function disarmMove() { moveArmed = null; box.style.outlineStyle = 'solid'; box.style.cursor = ''; }
 
   /* ---------- picking, drag, resize, text ---------- */
   function inUi(t) { return t && t.nodeType === 1 && root.contains(t); }
@@ -190,27 +163,54 @@
 
   function base(id) { var e = cur(id); return { dx: e.dx || 0, dy: e.dy || 0 }; }
 
+  /* Move works in one step: right-click an element, choose "تحريك العنصر", then hold the left button on THAT element and
+     drag it anywhere. When the button is released the move ends; to move another element, repeat from the right-click. */
+  function armMove(id) {
+    var e = entryById(id); if (!e) throw new Error('اختاري عنصر الأول.');
+    moveArm = { id: id }; select(id);
+    document.body.classList.add('eo-armed'); box.classList.add('eo-armed-box');
+    say('اضغطي على العنصر بالشمال واسحبيه. لما تفكي الضغط التحريك بيخلص.');
+  }
+  function disarm() { if (!moveArm) return; moveArm = null; document.body.classList.remove('eo-armed'); box.classList.remove('eo-armed-box'); }
+
+  /* Left click on a dynamic element (it opens another page for visitors) enters that page: the editor treats it as a separate page. */
+  function dynamicTarget(e) { return e && layer.goTargetOf ? layer.goTargetOf(e.el) : null; }
+  function pageName() { var h = document.querySelector('#view h3'); return (h && h.textContent.trim()) || ''; }
+  function inner() { return document.body.classList.contains('inner'); }
+  function goHome() { disarm(); selectedId = null; document.body.classList.remove('inner'); scrollTo(0, 0); reselect(); }
+  function goBack() { disarm(); selectedId = null; try { if (typeof P !== 'undefined' && P.length > 2) { P = P.slice(0, -1); openP(); } else goHome(); } catch (_) { goHome(); } reselect(); }
+  function enterPage(e) {
+    var g = dynamicTarget(e); if (!g || typeof window.go !== 'function') return false;
+    if (editing) commitText();
+    disarm(); selectedId = null;
+    window.go(g);
+    setTimeout(function () { reselect(); say('دخلتي صفحة جديدة' + (pageName() ? ': ' + pageName() : '') + '. كليك يمين فيها للأدوات، ومن القايمة ترجعي.'); }, 60);
+    return true;
+  }
+
   window.addEventListener('pointerdown', function (ev) {
     if (inUi(ev.target) && !ev.target.classList.contains('eo-h')) return;
     if (editing) { if (editing.node.contains(ev.target)) return; commitText(); }
     var handle = ev.target.classList && ev.target.classList.contains('eo-h') ? ev.target.getAttribute('data-h') : null;
     ev.preventDefault(); ev.stopPropagation();
     if (ev.button !== undefined && ev.button !== 0) return;
-    var e;
-    if (handle) e = entryById(selectedId);
+    var e, mode = 'click';
+    if (handle) { e = entryById(selectedId); mode = 'resize'; }
     else {
-      var armedEntry = moveArmed && entryById(moveArmed);
-      if (armedEntry && armedEntry.el.contains(ev.target)) e = armedEntry;
-      else { disarmMove(); e = pick(ev.clientX, ev.clientY); if (e) select(e.id); else { select(null); return; } if (e) return; }
+      e = pick(ev.clientX, ev.clientY);
+      var armed = moveArm && entryById(moveArm.id);
+      if (armed && document.elementsFromPoint(ev.clientX, ev.clientY).indexOf(armed.el) !== -1) { e = armed; mode = 'move'; select(e.id); }
+      else { if (moveArm) disarm(); if (e) select(e.id); else { select(null); return; } }
     }
     if (!e) return;
     var r = e.el.getBoundingClientRect(), b = base(e.id);
-    gesture = { id: e.id, el: e.el, mode: handle ? 'resize' : 'move', handle: handle, sx: ev.clientX, sy: ev.clientY, r: r, b: b, moved: false, dx: b.dx, dy: b.dy, w: null, h: null, startOffset: e.el.style.transform };
+    gesture = { id: e.id, el: e.el, mode: mode, handle: handle, sx: ev.clientX, sy: ev.clientY, r: r, b: b, moved: false, dx: b.dx, dy: b.dy, w: null, h: null, startOffset: e.el.style.transform };
     try { (handle ? ev.target : document.documentElement).setPointerCapture && ev.target.setPointerCapture(ev.pointerId); } catch (_) { /* optional */ }
   }, true);
 
   window.addEventListener('pointermove', function (ev) {
     if (!gesture) return;
+    if (gesture.mode === 'click') { if (Math.abs(ev.clientX - gesture.sx) + Math.abs(ev.clientY - gesture.sy) >= 6) gesture.moved = true; return; }
     var g = gesture, ddx = ev.clientX - g.sx, ddy = ev.clientY - g.sy;
     if (!g.moved && Math.abs(ddx) + Math.abs(ddy) < 3) return;
     g.moved = true; ev.preventDefault();
@@ -238,8 +238,8 @@
   window.addEventListener('pointerup', function (ev) {
     if (!gesture) return;
     var g = gesture; gesture = null;
-    if (g.mode === 'move') disarmMove();
-    if (!g.moved) return;
+    if (g.mode === 'click') { if (!g.moved) enterPage(entryById(g.id)); return; }
+    if (!g.moved) return;                      // pressed without dragging: a move stays armed until the element is dragged
     ev.preventDefault();
     mutate(function () {
       var e = edit(device(), g.id);
@@ -248,25 +248,12 @@
       if (g.w) e.w = g.w;
       if (g.h) e.h = g.h;
     });
+    if (g.mode === 'move') { disarm(); say('خلص التحريك. لتحريك عنصر تاني اضغطي كليك يمين عليه واختاري تحريك العنصر.'); }
   }, true);
 
   // Nothing on the page may act while editing: no links, no cart, no forms.
-  var homeClick = false;
-  var ENTER_RE = /^(brand|store|col|sec)\|/;
-  function allowClick(t) {
-    if (!t || !t.closest) return false;
-    var c = t.closest('[data-go]');
-    if (c && c.hasAttribute('data-elan-draft')) return false;
-    if (c && ENTER_RE.test(c.getAttribute('data-go') || '')) return true; // a plain click on a brand / store / category / occasion / note card opens its page
-    return !!t.closest('nav.bc a');                                          // and the breadcrumb takes you back
-  }
   ['click', 'auxclick', 'submit', 'dragstart'].forEach(function (t) {
-    window.addEventListener(t, function (ev) {
-      if (inUi(ev.target)) return;
-      if (editing && editing.node.contains(ev.target)) return;
-      if (ev.type === 'click' && (homeClick || (ev.button === 0 && !moveArmed && allowClick(ev.target)))) return;
-      ev.preventDefault(); ev.stopPropagation();
-    }, true);
+    window.addEventListener(t, function (ev) { if (inUi(ev.target)) return; if (editing && editing.node.contains(ev.target)) return; ev.preventDefault(); ev.stopPropagation(); }, true);
   });
 
 
@@ -275,6 +262,7 @@
     if (inUi(ev.target)) return;
     ev.preventDefault(); ev.stopPropagation();
     if (editing) commitText();
+    disarm();
     var e = pick(ev.clientX, ev.clientY);
     select(e ? e.id : null);
     if (hostApi) hostApi.context({ x: ev.clientX, y: ev.clientY, element: info(e), tools: toolList(info(e)) });
@@ -317,34 +305,11 @@
     if (mod && !ev.shiftKey && ev.key.toLowerCase() === 'z') { ev.preventDefault(); undo(); }
     else if (mod && (ev.key.toLowerCase() === 'y' || (ev.shiftKey && ev.key.toLowerCase() === 'z'))) { ev.preventDefault(); redo(); }
     else if (selectedId && ev.key === 'Delete') { ev.preventDefault(); archive(selectedId); }
-    else if (ev.key === 'Escape' && moveArmed) { disarmMove(); }
+    else if (ev.key === 'Escape' && moveArm) { disarm(); say('اتلغى التحريك.'); }
   }, true);
   window.addEventListener('scroll', placeBox, true);
   window.addEventListener('resize', function () { placeBox(); });
-  var PAGE_NAMES = { cats: 'فئة', occ: 'مناسبة', notes: 'نوتة' }, SEC_LABEL = { brands: 'الماركات', stores: 'المتاجر', cats: 'الأقسام', occ: 'المناسبات', notes: 'النوتات', all: 'كل العطور', offers: 'العروض', new: 'وصل حديثًا', master: 'الأعلى مبيعًا', soon: 'قريبًا' };
-  function pageLabel() {
-    var k = pageKeyNow(), m;
-    if (k === 'home') return 'الصفحة الرئيسية';
-    if ((m = /^brand:(.+)$/.exec(k))) return 'صفحة براند ' + m[1];
-    if ((m = /^store:(.+)$/.exec(k))) return 'صفحة متجر ' + m[1];
-    if ((m = /^sec:(.+)$/.exec(k))) return 'صفحة ' + (SEC_LABEL[m[1]] || m[1]);
-    if ((m = /^col:([a-z]+):/.exec(k))) { var h = document.querySelector('#view h3'); return 'صفحة ' + (PAGE_NAMES[m[1]] || 'تجميعة') + (h ? ' ' + h.textContent.trim().slice(0, 30) : ''); }
-    return 'صفحة داخلية';
-  }
-  var lastPage = null;
-  function announcePage() {
-    var k = pageKeyNow();
-    if (k === lastPage) return;
-    lastPage = k; selectedId = null; placeBox();
-    if (hostApi) { hostApi.selection(null); hostApi.page({ key: k, label: pageLabel() }); }
-  }
-  function onDomChange() { requestAnimationFrame(function () { injectDrafts(); announcePage(); reselect(); }); }
-  try {
-    var mo = new MutationObserver(onDomChange);
-    mo.observe(document.getElementById('main'), { childList: true });
-    var vw = document.getElementById('view'); if (vw) mo.observe(vw, { childList: true });
-    mo.observe(document.body, { attributes: true, attributeFilter: ['class'] });
-  } catch (_) { /* optional */ }
+  try { new MutationObserver(function () { requestAnimationFrame(reselect); }).observe(document.getElementById('main'), { childList: true }); } catch (_) { /* optional */ }
 
   /* ---------- creating blocks ---------- */
   /* Put an element so its top-left corner sits at a point of the window, for the current screen size. */
@@ -372,13 +337,8 @@
     else throw new Error('نوع غير مدعوم هنا');
     if (opts.image) b.image = opts.image;
     if (!validBlock(b)) throw new Error('بيانات البلوك غير صالحة (راجعي رابط الصورة).');
-    if (onHome()) {
-      var order = insertAfterSelected(id);
-      mutate(function (d) { d.blocks.push(b); d.order = order; });
-    } else {
-      b.slot = 'top';
-      mutate(function () { holder(true).blocks.push(b); });
-    }
+    var order = insertAfterSelected(id);
+    mutate(function (d) { d.blocks.push(b); d.order = order; });
     select(id);
     if (opts.at) placeAt(id, opts.at);
     return { elementId: id };
@@ -392,55 +352,19 @@
   }
 
   function setMedia(id, src) {
-    var b = blocksHere().filter(function (x) { return x.id === id; })[0];
+    var b = work.blocks.filter(function (x) { return x.id === id; })[0];
     if (!b || (b.type !== 'image' && b.type !== 'banner')) throw new Error('الصور بتتغيّر في بلوك صورة أو بانر بس.');
     var probe = clone(b); if (b.type === 'image') probe.src = src; else probe.image = src;
     if (!validBlock(probe)) throw new Error('رابط الصورة مش مسموح.');
-    mutate(function () { var t = blocksHere().filter(function (x) { return x.id === id; })[0]; if (t.type === 'image') t.src = src; else t.image = src; });
+    mutate(function (d) { var t = d.blocks.filter(function (x) { return x.id === id; })[0]; if (t.type === 'image') t.src = src; else t.image = src; });
   }
 
-
-
-  /* ---------- new real records (brand / store) are drafts until the owner saves ---------- */
-  var drafts = [];
-  function esc(t) { return String(t).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
-  function draftHtml(d) {
-    var t = typeof window.T === 'function' ? window.T() : {};
-    if (typeof window.card !== 'function') return null;
-    return d.kind === 'brand'
-      ? window.card('', '<span class="gold" style="font-weight:700">' + esc(d.name) + '</span>', '', t.wait || '', 'brand|' + d.name)
-      : window.card('wide', '<div class="ph"></div><b>' + esc(d.name) + '</b>', t.sdesc || '', t.status || '', 'store|' + d.name);
-  }
-  function injectDrafts() {
-    if (!onHome()) return;
-    drafts.forEach(function (d) {
-      var strip = document.querySelector('#' + (d.kind === 'brand' ? 'brands' : 'stores') + ' .strip');
-      if (!strip || strip.querySelector('[data-elan-draft="' + d.kind + '|' + d.name.replace(/"/g, '') + '"]')) return;
-      var html = draftHtml(d); if (!html) return;
-      strip.insertAdjacentHTML('afterbegin', html);
-      var card = strip.firstElementChild;
-      card.setAttribute('data-elan-draft', d.kind + '|' + d.name.replace(/"/g, ''));
-      card.style.outline = '2px dashed #c8962a';
-      card.title = 'مسودة: هتتسجل في قاعدة البيانات لما تدوسي حفظ';
-    });
-  }
-  function addDraft(kind, record) {
-    var name = String((record && record.name) || '').replace(/\s+/g, ' ').trim();
-    if (name.length < 2 || name.length > 80 || /[<>\u0000-\u001f]/.test(name)) throw new Error('الاسم لازم يبقى من حرفين لـ 80 حرف من غير رموز.');
-    var n = name.toLowerCase();
-    if (drafts.some(function (d) { return d.kind === kind && d.name.toLowerCase() === n; })) throw new Error('المسودة دي موجودة بالفعل.');
-    var d = { kind: kind, name: name }; if (record.image) d.image = String(record.image);
-    drafts.push(d); injectDrafts(); setDirty(true);
-    var ids = entries().filter(function (e) { var el = e.el; return el.getAttribute && el.getAttribute('data-elan-draft') === kind + '|' + name; });
-    if (ids[0]) { select(ids[0].id); try { ids[0].el.scrollIntoView({ block: 'center' }); } catch (_) { /* optional */ } }
-    return { draft: d };
-  }
 
   /* ---------- tools: the editor's menu is built from this list, so a new capability = one new register() call ---------- */
   var TOOLS = [];
   function registerTool(t) { TOOLS = TOOLS.filter(function (x) { return x.id !== t.id; }).concat([t]); }
   function toolList(i) {
-    return TOOLS.map(function (t) { return { id: t.id, label: t.label, ui: t.ui || null, record: t.record || null, enabled: t.when ? !!t.when(i) : true }; });
+    return TOOLS.map(function (t) { return { id: t.id, label: t.label, ui: t.ui || null, enabled: t.when ? !!t.when(i) : true }; });
   }
   var NEEDS_DB = 'بيتربط بسابابيس في المرحلة الجاية.';
   function later(label) { return function () { throw new Error(label + ' ' + NEEDS_DB); }; }
@@ -448,10 +372,10 @@
   function hasText(i) { return !!(i && i.canText); }
   registerTool({ id: 'format', label: 'تنسيق النص: الخط • اللون • الحجم • 3D', ui: 'format', when: has });
   registerTool({ id: 'move', label: 'تحريك العنصر', when: has, run: function (c) { armMove(c.id); return null; } });
-  registerTool({ id: 'create_section', label: 'إنشاء سيكشن', run: later('إنشاء سيكشن') });
-  registerTool({ id: 'create_brand', label: 'إنشاء كارت براند', ui: 'record', record: 'brand', run: function (c) { return addDraft('brand', c.record); } });
-  registerTool({ id: 'create_store', label: 'إنشاء كارت متجر', ui: 'record', record: 'store', run: function (c) { return addDraft('store', c.record); } });
-  [['create_perfume', 'إنشاء كارت عطر'], ['create_occasion', 'إنشاء مناسبة'], ['create_note', 'إنشاء نوتة عطر']].forEach(function (x) { registerTool({ id: x[0], label: x[1], run: later(x[1]) }); });
+  registerTool({ id: 'open', label: 'فتح العنصر (الدخول لصفحته)', when: function (i) { return !!(i && i.dynamic); }, run: function (c) { enterPage(entryById(c.id)); return null; } });
+  registerTool({ id: 'go_back', label: 'رجوع للصفحة السابقة', when: inner, run: function () { goBack(); return null; } });
+  registerTool({ id: 'go_home', label: 'رجوع للصفحة الرئيسية', when: inner, run: function () { goHome(); return null; } });
+  [['create_section', 'إنشاء سيكشن'], ['create_brand', 'إنشاء كارت براند'], ['create_store', 'إنشاء كارت متجر'], ['create_perfume', 'إنشاء كارت عطر'], ['create_occasion', 'إنشاء مناسبة'], ['create_note', 'إنشاء نوتة عطر']].forEach(function (x) { registerTool({ id: x[0], label: x[1], run: later(x[1]) }); });
   registerTool({ id: 'create_text_block', label: 'إنشاء كتلة نصية', run: function (c) { return createBlock('text_block', { at: c.at }); } });
   registerTool({ id: 'create_banner', label: 'إنشاء بانر صورة أو فيديو', run: function (c) { return createBlock('banner', { at: c.at }); } });
   registerTool({ id: 'create_text', label: 'إنشاء نص', run: function (c) { return createBlock('text_block', { at: c.at }); } });
@@ -466,28 +390,17 @@
 
   /* ---------- commands from the editor ---------- */
   function archiveList() {
-    var out = [], h0 = holder(false), e = (h0 && h0.edits && h0.edits.all) || {};
+    var out = [], e = (work.edits && work.edits.all) || {};
     Object.keys(e).forEach(function (id) { if (e[id].archived) out.push({ id: id, name: (entryById(id) || { name: id }).name }); });
     return out;
   }
-  function snapshot() { return { revision: baseRevision, design: clone(work), device: device(), dirty: dirty, archive: archiveList(), drafts: clone(drafts), page: { key: pageKeyNow(), label: pageLabel() }, selected: info(selectedId && entryById(selectedId)) }; }
+  function snapshot() { return { revision: baseRevision, design: clone(work), device: device(), dirty: dirty, archive: archiveList(), selected: info(selectedId && entryById(selectedId)) }; }
   function need(id) { var e = id && entryById(id); if (!e) throw new Error('اختاري عنصر الأول.'); return e; }
 
   async function execute(action, p, meta) {
     p = p || {};
     switch (action) {
       case 'page.getState': return snapshot();
-      case 'page.markSynced': {
-        drafts = []; checkDirty();
-        document.querySelectorAll('[data-elan-draft]').forEach(function (n) { n.remove(); });
-        try { if (typeof window.loadData === 'function') await window.loadData(); } catch (_) { /* the page reloads on refresh anyway */ }
-        repaint(); return snapshot();
-      }
-      case 'page.home': {
-        var bc = document.querySelector('#view nav.bc a');
-        if (bc) { homeClick = true; bc.click(); homeClick = false; } else location.reload();
-        return null;
-      }
       case 'page.markSaved': baseRevision = p.revision; undoStack = []; redoStack = []; baseJson = JSON.stringify(work); dirty = true; setDirty(false); if (hostApi) hostApi.revision(baseRevision); return snapshot();
       case 'element.select': select(need(p.elementId).id); return { selected: selectedId };
       case 'element.move': { var e1 = need(p.elementId || selectedId); mutate(function () { var t = edit(device(), e1.id); t.dx = Math.round(+p.dx || 0); t.dy = Math.round(+p.dy || 0); }); return null; }
@@ -497,16 +410,11 @@
       case 'element.setMedia': { var e5 = need(p.elementId || selectedId); setMedia(e5.id, p.src || await mediaPrompt(e5.id)); return null; }
       case 'element.create': return createBlock(p.kind, p);
       case 'element.duplicate': {
-        var e6 = need(p.elementId || selectedId), src = blocksHere().filter(function (b) { return b.id === e6.id; })[0];
+        var e6 = need(p.elementId || selectedId), src = work.blocks.filter(function (b) { return b.id === e6.id; })[0];
         if (!src) throw new Error('التكرار متاح للبلوكات الإضافية بس.');
-        var copy = clone(src); copy.id = 'x-' + rid();
+        var copy = clone(src); copy.id = 'x-' + rid(); var order = fullOrder(), b0 = base(src.id); order.splice(order.indexOf(src.id) + 1, 0, copy.id);
         var r0 = e6.el.getBoundingClientRect();
-        if (onHome()) {
-          var order = fullOrder(); order.splice(order.indexOf(src.id) + 1, 0, copy.id);
-          mutate(function (d) { d.blocks.push(copy); d.order = order; var from = d.edits && ((d.edits.all || {})[src.id]); if (from) d.edits.all[copy.id] = JSON.parse(JSON.stringify(from)); });
-        } else {
-          mutate(function () { var h = holder(true); h.blocks.push(copy); var from = h.edits && ((h.edits.all || {})[src.id]); if (from) h.edits.all[copy.id] = JSON.parse(JSON.stringify(from)); });
-        }
+        mutate(function (d) { d.blocks.push(copy); d.order = order; var from = d.edits && ((d.edits.all || {})[src.id]); if (from) d.edits.all[copy.id] = JSON.parse(JSON.stringify(from)); });
         select(copy.id); placeAt(copy.id, { x: r0.left + 20, y: r0.top + 20 }); return { elementId: copy.id };
       }
       case 'tool.run': {
@@ -514,7 +422,7 @@
         if (!tool) throw new Error('أداة غير معروفة');
         var ei = p.elementId ? entryById(p.elementId) : null, inf = info(ei);
         if (tool.when && !tool.when(inf)) throw new Error('الأداة دي مش متاحة للعنصر ده.');
-        var out = await tool.run({ id: p.elementId || null, info: inf, at: p.at || null, record: p.record || null });
+        var out = await tool.run({ id: p.elementId || null, info: inf, at: p.at || null });
         return out === undefined ? null : out;
       }
       case 'element.nudge': {
@@ -525,7 +433,7 @@
       }
       case 'element.edit': { var e9 = need(p.elementId || selectedId); startText(e9.id); return null; }
       case 'element.archive': archive(need(p.elementId || selectedId).id); return null;
-      case 'archive.restore': mutate(function () { var h = holder(false); if (h && h.edits) Object.keys(h.edits).forEach(function (dev) { if (h.edits[dev][p.elementId]) delete h.edits[dev][p.elementId].archived; }); }); return snapshot();
+      case 'archive.restore': mutate(function (d) { if (d.edits) Object.keys(d.edits).forEach(function (dev) { if (d.edits[dev][p.elementId]) delete d.edits[dev][p.elementId].archived; }); }); return snapshot();
       case 'history.undo': return { ok: undo() };
       case 'history.redo': return { ok: redo() };
       case 'ui.openFormatPanel': if (p.elementId) select(need(p.elementId).id); if (!selectedId) throw new Error('اضغطي على عنصر في الصفحة الأول.'); return null;
@@ -547,7 +455,7 @@
     baseRevision = j.revision === null || j.revision === undefined ? 'initial' : j.revision;
     work = ED.normalize(j.design || { version: ED.VERSION }, { strict: false }).design;
     undoStack = []; redoStack = []; dirty = false; baseJson = JSON.stringify(work);
-    repaint(); lastPage = null; setTimeout(announcePage, 0);
+    repaint();
     return { revision: baseRevision, design: clone(work) };
   }
 

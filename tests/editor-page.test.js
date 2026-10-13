@@ -5,119 +5,59 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
 
-test('production editor lives under editor/ and is gated by login', () => {
-  const page = read('editor/elan-editor.html');
-  const login = read('editor/editor-login.js');
-  const loginHtml = read('editor/login.html');
-  const guard = read('editor/editor-guard.js');
-  const dataBridge = read('editor/editor-data-bridge.js');
-  const host = read('railway/editor-host.js');
-
-  assert.match(page, /elan-editor-bridge\/v1/);
-  assert.match(page, /noindex/);
-  assert.match(loginHtml, /دخول المالكة/);
-  assert.match(loginHtml, /editor-login\.js/);
-  assert.doesNotMatch(login, /localStorage|sessionStorage|document\.cookie/);
-  assert.match(guard, /editor-logout/);
-  assert.match(guard, /editor-session/);
-  assert.match(dataBridge, /elanSectionDataProvider/);
-  assert.match(dataBridge, /elanLibraryDataProvider/);
-  assert.match(host, /editor-data-bridge\.js/);
+test('the editor is served only after login and never remembers the session in the browser', () => {
+  assert.ok(fs.existsSync(path.join(root, 'editor/login.html')));
+  assert.ok(fs.existsSync(path.join(root, 'editor/elan-editor.html')));
+  assert.match(read('editor/elan-editor.html'), /elan-editor-bridge\/v1/);
+  assert.doesNotMatch(read('editor/editor-login.js'), /localStorage|sessionStorage|document\.cookie/);
+  assert.equal(fs.existsSync(path.join(root, 'editor.html')), false, 'the old root editor.html must not come back');
 });
 
-test('edit mode loads only for the editor iframe and never for customers', () => {
-  const boot = read('editor/edit-boot.js');
+test('edit mode loads only inside the editor window and never for customers', () => {
+  const boot = read('edit-boot.js');
   const index = read('index.html');
   assert.match(boot, /elan_editor/);
   assert.match(boot, /window\.parent === window/);
-  assert.doesNotMatch(boot, /element-registry\.js/);
-  assert.match(boot, /edit-mode\.js/);
   assert.match(index, /edit-boot\.js\?v=/);
-  assert.doesNotMatch(index, /edit-mode\.js|elan-host-bridge\.js|edit-model\.js/);
+  assert.doesNotMatch(index, /edit-mode\.js|elan-host-bridge\.js/);
 });
 
-test('edit-mode uses same-origin bridge and defers saves to the parent editor', () => {
-  const mode = read('editor/edit-mode.js');
-  const bridge = read('editor/elan-host-bridge.js');
-  assert.match(mode, /elan_editor_origin/);
-  assert.match(mode, /allowedEditorOrigins:\s*\[editorOrigin\]/);
+test('edit mode talks to its own editor window only', () => {
+  const mode = read('edit-mode.js');
+  assert.match(mode, /allowedEditorOrigins: \[location\.origin\]/);
   assert.doesNotMatch(mode, /allowedEditorOrigins:\s*\[\s*'\*'/);
-  assert.match(mode, /page\.save/);
-  assert.match(mode, /page\.getState/);
-  assert.match(mode, /case 'library\.open': return \{ openLibrary: true \}/);
-  assert.match(mode, /section\.create/);
-  assert.doesNotMatch(mode, /المرحلة الجاية/);
-  assert.match(bridge, /'page\.getState'.*'element\.select'.*'element\.edit'/);
-  assert.doesNotMatch(mode, /localStorage|sessionStorage|document\.cookie|eval\(|new Function/);
+  assert.doesNotMatch(mode, /localStorage|sessionStorage/);
 });
 
-test('design layer survives edit-mode starting before app-core defines render', () => {
-  const layer = read('design-layer.js');
-  assert.match(layer, /if \(typeof window\.render\s*===\s*'function'\) redraw\(\);/);
-  assert.match(layer, /typeof window\.render\s*===\s*'function' && document\.getElementById\('main'\)/);
-  assert.match(layer, /waitFor\(function \(\) \{[\s\S]*?\}, redraw, 15000\)/);
+test('moving an element is one mouse gesture armed from the menu, with no arrow pad or arrow keys', () => {
+  const mode = read('edit-mode.js');
+  const editor = read('editor/elan-editor.html');
+  assert.match(mode, /registerTool\(\{ id: 'move', label: 'تحريك العنصر'/);
+  assert.doesNotMatch(mode, /movepad/);
+  assert.doesNotMatch(mode, /ev\.key\.indexOf\('Arrow'\)/);
+  assert.doesNotMatch(editor, /movepad|movePad|openMovePad/);
+  assert.match(mode, /function armMove/);
+  assert.match(mode, /disarm\(\); say\('خلص التحريك/);          // the move ends when the button is released
 });
 
-test('live editor keeps creation and editing actions in the right-click menu and gates save/refresh on bridge readiness', () => {
-  const page = read('editor/elan-editor.html');
-  const host = read('railway/editor-host.js');
-  assert.match(page, /platformUrl='__ELAN_PLATFORM_URL__'\|\|location\.origin\+'\/'/);
-  assert.match(host, /EDITOR_SITE_ORIGIN/);
-  assert.match(page, /function showLiveMenu\(info\)/);
-  assert.match(page, /إنشاء كارت عطر/);
-  assert.match(page, /element\.edit/);
-  assert.match(page, /if\(liveMode\)originalHeaderButtons\.forEach\(b=>b\.disabled=!bridgeReady\)/);
-  assert.match(page, /const toolsReady=!!\(liveMode&&bridgeReady\)/);
-  assert.match(page, /b\.hidden=!toolsReady;b\.disabled=!toolsReady/);
-  assert.match(page, /رفع التعديل إلى GitHub/);
-  assert.match(page, /النشر على Railway/);
-  const mode = read('editor/edit-mode.js');
-  assert.match(mode, /p\.kind === 'banner'.*p\.kind === 'text_block'.*p\.kind === 'text'/);
-  assert.match(page, /c!==deviceBox&&c!==refreshBtn/);
+test('a dynamic element opens as its own page and the menu can go back', () => {
+  const mode = read('edit-mode.js');
+  assert.match(mode, /function enterPage/);
+  assert.match(mode, /id: 'open'/);
+  assert.match(mode, /id: 'go_back'/);
+  assert.match(mode, /id: 'go_home'/);
+  assert.match(read('design-layer.js'), /'pcard:'/);            // inner-page elements carry the page in their id
 });
 
-test('vercel.json no longer routes /editor to the deleted prototype', () => {
-  const cfg = JSON.parse(read('vercel.json'));
-  const rewrites = (cfg.rewrites || []).map((r) => r.source + '->' + r.destination).join(' ');
-  assert.doesNotMatch(rewrites, /\/editor->\/editor\.html/);
-  const src = (cfg.headers || []).map((h) => h.source).join(' ');
-  assert.doesNotMatch(src, /editor\.html/);
-  assert.doesNotMatch(src, /edit-host\.js/);
-  for (const f of ['edit-boot.js', 'edit-mode.js', 'edit-model.js', 'elan-host-bridge.js']) {
-    assert.ok(src.includes('editor/' + f), f + ' should stay in no-store headers under editor/');
-  }
-  assert.doesNotMatch(src, /element-registry\.js/);
-  assert.doesNotMatch(src, /\|edit-mode\.js\||\|edit-model\.js\|/);
+test('inner-page element ids are accepted by the design schema so their edits can be saved', () => {
+  const ED = require('../design-schema.js');
+  const d = ED.normalize({ version: ED.VERSION, edits: { all: {}, desktop: { 'pcard:u6zmj5bpjeh7': { dx: 80, dy: 44 }, 'pg:1abc2d:title': { dy: -10 } } } }, { strict: true });
+  assert.ok(d.ok, JSON.stringify(d.errors));
+  assert.equal(d.design.edits.desktop['pcard:u6zmj5bpjeh7'].dx, 80);
 });
 
-test('railway host serves the owner login page at /editor', async () => {
-  const server = require('../railway/server.js');
-  await new Promise((r) => server.listen(0, '127.0.0.1', r));
-  try {
-    const res = await fetch('http://127.0.0.1:' + server.address().port + '/editor');
-    assert.equal(res.status, 200);
-    assert.match(res.headers.get('content-type'), /text\/html/);
-    assert.match(res.headers.get('cache-control'), /no-store/);
-    assert.match(await res.text(), /editor-login\.js/);
-  } finally {
-    server.close();
-  }
-});
-
-test('Railway serves the consolidated editor implementation only under /editor/', async () => {
-  const server = require('../railway/server.js');
-  await new Promise((r) => server.listen(0, '127.0.0.1', r));
-  try {
-    const base = 'http://127.0.0.1:' + server.address().port;
-    assert.equal((await fetch(base + '/editor/element-registry.js')).status, 404);
-    assert.equal((await fetch(base + '/element-registry.js')).status, 404);
-    const moved = await fetch(base + '/editor/edit-mode.js');
-    assert.equal(moved.status, 200);
-    assert.match(moved.headers.get('cache-control'), /no-store/);
-    assert.match(await moved.text(), /elan_editor_origin/);
-    assert.equal((await fetch(base + '/edit-mode.js')).status, 404);
-    assert.equal((await fetch(base + '/edit-model.js')).status, 404);
-  } finally {
-    server.close();
-  }
+test('new capabilities are added by registering a tool, not by editing the editor', () => {
+  const mode = read('edit-mode.js');
+  assert.match(mode, /window\.ElanEditTools = \{ register: registerTool, list:/);
+  assert.match(read('editor/README.md'), /Adding a new tool/);
 });

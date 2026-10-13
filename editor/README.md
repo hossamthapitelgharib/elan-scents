@@ -1,44 +1,68 @@
-# Élan Scents Editor — file map
+# Editor layout (production)
 
-The editor's browser UI and editor-only implementation live in `editor/`. This inventory distinguishes editor-owned files from storefront-shared code and runtime adapters that must stay in their framework locations.
+The live editor runs **on the same Railway service as the storefront** (`elan-scents`).
 
-## Admin interface (private)
+## Runtime paths
 
-| Path | Purpose |
-|---|---|
-| `editor/login.html` | Owner login page served at `/editor` |
-| `editor/editor-login.js` | Login form client for `/api/editor-login` |
-| `editor/editor-login.css` | Login page styles |
-| `editor/elan-editor.html` | Authenticated editor UI |
-| `editor/editor-guard.js` | Logout control and session-expiry guard |
+| Path | Role |
+|------|------|
+| `editor/login.html` | Login page served at `/editor` when there is no session |
+| `editor/editor-login.js` | Login form → `/api/editor-login` |
+| `editor/editor-login.css` | Login styles |
+| `editor/elan-editor.html` | Editor UI (only after admin session) |
+| `editor/editor-guard.js` | Logout + session check inside the editor page |
+| `railway/editor-host.js` | Gates `/editor`, login assets, CSP |
+| `railway/editor-session.js` | In-memory admin sessions |
+| `railway/editor.js` | `/api/editor` — reads/writes `design/home.json` on GitHub |
 
-The editor host (`railway/editor-host.js`) gates the UI and protects its source. Do not expose `editor/elan-editor.html`, `editor/login.html`, or `editor/editor-guard.js` as ordinary static files.
+## Storefront design layer (customers + iframe preview)
 
-## Site-side editor tools (public only under `/editor/*`)
+| File | Role |
+|------|------|
+| `design-schema.js` | Shared schema (browser + Node) |
+| `design-layer.js` | Applies `/design/home.json` after `render()` |
+| `design/home.json` | Published design data |
+| `edit-boot.js` | Loads edit tools only when `?elan_editor=1` inside iframe |
+| `edit-mode.js` | Visual edit mode inside the framed site |
+| `elan-host-bridge.js` | postMessage bridge parent ↔ iframe |
+| `edit-model.js` | Pure draft model (undo/redo); used by tests / editor logic |
 
-| Path | Served URL | Purpose |
-|---|---|---|
-| `editor/edit-boot.js` | `/editor/edit-boot.js` | Loads tools only when the storefront is framed with `?elan_editor=1` |
-| `editor/edit-mode.js` | `/editor/edit-mode.js` | Full visual edit-mode implementation |
-| `editor/edit-model.js` | `/editor/edit-model.js` | Draft model; also imported by Node tests |
-| `editor/elan-host-bridge.js` | `/editor/elan-host-bridge.js` | Same-origin postMessage bridge |
+## Removed from repo root (do not reintroduce)
 
-The Railway allowlist in `railway/server.js` controls the public editor-tool filenames. Keep these files in sync with that allowlist and Railway's no-store headers. The normal storefront only loads `editor/edit-boot.js`; customers do not load the editor implementation.
+- `editor.html` — localStorage prototype, not production
+- root `editor.js` — old form UI (API is `railway/editor.js`)
+- root `editor-login.js` — duplicate of `editor/editor-login.js`
+- `edit-host.js` — superseded by `edit-mode.js` (recoverable from git history)
 
-## Integration files (kept in framework/shared locations)
+## Separate repo
 
-| Path | Why it stays outside `editor/` |
-|---|---|
-| `railway/editor-host.js`, `railway/editor-session.js` | Railway route/session adapters and private UI gate |
-| `railway/editor.js` | The single editor API handler, mounted by `railway/server.js` |
-| `design-schema.js`, `design-layer.js`, `design/home.json` | Shared with storefront rendering and design persistence |
-| `supabase/migrations/*editor*.sql` | Ordered database migrations; must remain in Supabase's migration directory |
-| `tests/*editor*`, `tests/edit-model.test.js` | Regression and security tests for editor behavior |
+`hossamthapitelgharib/elan-editor` is a **standalone** editor service (older parallel deploy). Production uses **this** repo only.
 
-## Organization rules
 
-- Keep editor-only browser implementation and UI assets in `editor/`.
-- Keep storefront-shared design logic/data at the project root and `design/`.
-- Keep request handlers in the hosting locations (`api/` and `railway/`) and migrations in `supabase/migrations/`.
-- Do not add duplicate editor implementation files at the repository root.
-- Preserve the API URLs and static allowlists when moving files; update tests and this inventory in the same change.
+## How the editor works (mouse only)
+
+| Gesture | What happens |
+|---------|--------------|
+| **Right-click** an element (or empty space) | Selects it and opens the tools menu next to the pointer |
+| Menu → **تحريك العنصر** | Arms the move for that one element. Hold the left button on it and drag anywhere; releasing the button ends the move. To move another element, right-click it and choose the tool again |
+| **Left-click** a dynamic element (a card that opens another page) | Enters that page inside the editor box. Each page keeps its own edits, and the home page is untouched. Menu → **رجوع للصفحة السابقة / الرئيسية** to leave |
+| **Double-click** text | Edit it with the keyboard |
+| Drag the corner handle of the selected element | Resize |
+| **Esc** | Cancels an armed move |
+
+Dragging without choosing the move tool does nothing, so nothing is moved by accident.
+
+## Adding a new tool (future capabilities)
+
+The right-click menu is built from the list in `edit-mode.js`. A new capability is one `register` call and needs no change to the editor window:
+
+```js
+window.ElanEditTools.register({
+  id: 'my_tool',                       // unique id
+  label: 'اسم الأداة في القايمة',        // text shown in the menu
+  when: function (info) { return !!info; },   // optional: when the tool is enabled (info = the element under the pointer, or null)
+  run: function (c) { /* c.id = element id, c.info = its details, c.at = pointer position */ return null; }
+});
+```
+
+A tool that needs a panel can set `ui: '<name>'` and the editor window decides how to show it (as `format` does). Elements get stable ids from `ElanDesignLayer.elements()`; inner pages prefix their ids with the page (`pcard:`, `pg:`), so edits never leak between pages.

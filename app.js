@@ -10,39 +10,28 @@ function lockBodyScroll(lock){
   var body=document.body;
   if(!body)return;
   if(lock){
-    if(body.classList.contains('scroll-locked'))return;
+    if(body.classList.contains('sheet-open'))return;
     body.dataset.scrollY=String(window.scrollY||window.pageYOffset||0);
-    body.classList.add('scroll-locked');
+    body.classList.add('sheet-open');
     body.style.top='-'+body.dataset.scrollY+'px';
   }else{
-    if(!body.classList.contains('scroll-locked'))return;
+    if(!body.classList.contains('sheet-open'))return;
     var y=parseInt(body.dataset.scrollY||'0',10)||0;
-    body.classList.remove('scroll-locked');
+    body.classList.remove('sheet-open');
     body.style.top='';
     window.scrollTo(0,y);
   }
 }
-function syncBodyScroll(){
-  var body=document.body;
-  if(!body)return;
-  var sheet=document.getElementById('sheet');
-  var menu=document.getElementById('menu');
-  var sheetOpen=!!sheet&&!sheet.hasAttribute('hidden');
-  var menuOpen=!!menu&&menu.classList.contains('open');
-  body.classList.toggle('sheet-open',sheetOpen);
-  body.classList.toggle('menu-open',menuOpen);
-  lockBodyScroll(sheetOpen||menuOpen);
-}
 function watchSheet(){
   var sheet=document.getElementById('sheet');
-  var menu=document.getElementById('menu');
-  if(!sheet&&!menu)return;
-  var sync=syncBodyScroll;
+  if(!sheet)return;
+  var sync=function(){
+    lockBodyScroll(!sheet.hasAttribute('hidden'));
+  };
   sync();
   try{
     var mo=new MutationObserver(sync);
-    if(sheet)mo.observe(sheet,{attributes:true,attributeFilter:['hidden','style','class']});
-    if(menu)mo.observe(menu,{attributes:true,attributeFilter:['class']});
+    mo.observe(sheet,{attributes:true,attributeFilter:['hidden','style','class']});
   }catch(e){}
   // also catch programmatic toggles via clicks on cart/fav/notif buttons
   document.addEventListener('click',function(){
@@ -102,6 +91,6 @@ function applyArtAndHero(){
   if(typeof render==='function'){try{render();}catch(e){}}
   watchSheet();
 }
-var CORE='/app-core.js?v=20261013-09';
+var CORE='/app-core.js?v=20261011-01';
 loadScript(CORE, applyArtAndHero);
 })();
