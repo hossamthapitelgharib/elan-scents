@@ -94,8 +94,11 @@ test('only GET and POST are accepted and unknown actions are refused', async () 
   assert.equal((await run({ method: 'GET', query: { action: 'save' }, github: gh })).res.statusCode, 400);
 });
 
-test('refuses to run when GitHub is not configured', async () => {
-  const r = await run({ method: 'GET', env: { GITHUB_TOKEN: '' }, github: fakeGithub(EMPTY) });
+test('keeps editor state readable but refuses writes when GitHub is not configured', async () => {
+  const state = await run({ method: 'GET', env: { GITHUB_TOKEN: '' }, github: fakeGithub(EMPTY) });
+  assert.equal(state.res.statusCode, 200);
+  assert.equal(state.res.body.readOnly, true);
+  const r = await run({ method: 'GET', query: { action: 'save' }, env: { GITHUB_TOKEN: '' }, github: fakeGithub(EMPTY) });
   assert.equal(r.res.statusCode, 503);
   assert.equal(r.res.body.error, 'editor_not_configured');
 });

@@ -2,6 +2,8 @@
    Admin only. Writes exactly one file (design/home.json) with one commit per save.
    Repo, path and branch come from server configuration, never from the request. */
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 const { getContext, requireRoles } = require('../api/_auth');
 const ED = require('../design-schema.js');
 
@@ -42,6 +44,18 @@ function config(env) {
   return { token, repo, branch, origin: origin.replace(/\/+$/, ''), isProd };
 }
 
+function localDesign() {
+  const file = path.resolve(__dirname, '..', DESIGN_PATH);
+  try {
+    const text = fs.readFileSync(file, 'utf8');
+    const parsed = JSON.parse(text);
+    const n = ED.normalize(parsed, { strict: false });
+    return { text, design: n.design, warnings: n.ok && !n.errors.length ? undefined : n.errors.slice(0, 5) };
+  } catch (_) {
+    return { text: ED.serialize({ version: ED.VERSION }), design: ED.normalize({ version: ED.VERSION }).design };
+  }
+}
+
 async function github(cfg, method, path, body) {
   const response = await fetch('https://api.github.com/repos/' + cfg.repo + path, {
     method,
@@ -77,6 +91,12 @@ function parseBody(req) {
 }
 
 async function actionState(cfg) {
+  if (cfg.readOnly) {
+    const local = localDesign();
+    const body = { ok: true, revision: gitBlobSha(local.text), design: local.design, branch: cfg.branch || 'main', readOnly: true };
+    if (local.warnings) body.warnings = local.warnings;
+    return { status: 200, body };
+  }
   const file = await readDesignFile(cfg);
   if (!file.exists) return { status: 200, body: { ok: true, revision: null, design: ED.normalize({ version: ED.VERSION }).design, branch: cfg.branch } };
   let parsed = null;
@@ -156,15 +176,17 @@ module.exports = async function editor(req, res) {
   try {
     const context = requireRoles(await getContext(req), ['platform_admin']);
     if (context.error) return reply(res, context.status, { ok: false, error: context.error, missing: context.missing || [] });
-    const cfg = config();
-    if (cfg.error) return reply(res, 503, { ok: false, error: cfg.error, missing: cfg.missing || [] });
-
     let body = {};
     if (req.method === 'POST') {
       body = parseBody(req);
       if (!body) return reply(res, 400, { ok: false, error: 'invalid_request' });
     }
     const action = req.method === 'GET' ? ((req.query && req.query.action) || 'state') : body.action;
+    let cfg = config();
+    if (cfg.error && action === 'state' && cfg.error === 'editor_not_configured') {
+      cfg = { branch: process.env.EDITOR_TARGET_BRANCH || 'main', readOnly: true };
+    }
+    if (cfg.error) return reply(res, 503, { ok: false, error: cfg.error, missing: cfg.missing || [] });
 
     let result;
     if (action === 'state') result = await actionState(cfg);
