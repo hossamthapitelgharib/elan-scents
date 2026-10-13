@@ -41,6 +41,21 @@ begin
      or has_table_privilege('anon', 'public.sync_logs', 'SELECT') then
     raise exception 'anonymous users must not directly read store-operation tables';
   end if;
+  if has_table_privilege('authenticated', 'public.checkout_sessions', 'SELECT') or has_any_column_privilege('authenticated', 'public.checkout_sessions', 'SELECT')
+     or has_table_privilege('authenticated', 'public.orders', 'SELECT') or has_any_column_privilege('authenticated', 'public.orders', 'SELECT')
+     or has_table_privilege('authenticated', 'public.order_items', 'SELECT') or has_any_column_privilege('authenticated', 'public.order_items', 'SELECT')
+     or has_table_privilege('authenticated', 'public.store_order_requests', 'SELECT') or has_any_column_privilege('authenticated', 'public.store_order_requests', 'SELECT')
+     or has_table_privilege('authenticated', 'public.store_order_request_items', 'SELECT') or has_any_column_privilege('authenticated', 'public.store_order_request_items', 'SELECT')
+     or has_table_privilege('authenticated', 'public.store_shipments', 'SELECT') or has_any_column_privilege('authenticated', 'public.store_shipments', 'SELECT')
+     or has_table_privilege('authenticated', 'public.store_order_notifications', 'SELECT') or has_any_column_privilege('authenticated', 'public.store_order_notifications', 'SELECT')
+     or has_table_privilege('authenticated', 'public.store_order_cart_restorations', 'SELECT') or has_any_column_privilege('authenticated', 'public.store_order_cart_restorations', 'SELECT')
+     or has_table_privilege('authenticated', 'public.order_operation_events', 'SELECT') or has_any_column_privilege('authenticated', 'public.order_operation_events', 'SELECT')
+     or has_table_privilege('authenticated', 'public.order_reconciliation_checks', 'SELECT') or has_any_column_privilege('authenticated', 'public.order_reconciliation_checks', 'SELECT')
+     or has_table_privilege('authenticated', 'public.store_accounts', 'SELECT') or has_any_column_privilege('authenticated', 'public.store_accounts', 'SELECT')
+     or has_table_privilege('authenticated', 'public.commissions', 'SELECT') or has_any_column_privilege('authenticated', 'public.commissions', 'SELECT')
+     or has_table_privilege('authenticated', 'public.sync_logs', 'SELECT') or has_any_column_privilege('authenticated', 'public.sync_logs', 'SELECT') then
+    raise exception 'authenticated customers and store admins must use role-checked APIs for private order and store records';
+  end if;
   if not has_table_privilege('anon', 'public.public_stores', 'SELECT')
      or not has_table_privilege('anon', 'public.public_products', 'SELECT')
      or not has_table_privilege('anon', 'public.cheapest_offers', 'SELECT') then
