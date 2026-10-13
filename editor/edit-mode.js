@@ -384,6 +384,7 @@
     if (kind === 'banner') b = { id: id, type: 'banner', title: { ar: opts.title || 'عنوان جديد' }, subtitle: { ar: opts.subtitle || 'سطر تعريفي قصير' }, style: { align: 'center', size: 'md' } };
     else if (kind === 'text_block' || kind === 'text') b = { id: id, type: 'text', text: { ar: opts.text || 'نص جديد' }, style: { align: 'center', size: 'md' } };
     else if (kind === 'image') b = { id: id, type: 'image', src: opts.src, alt: {}, style: { align: 'center', size: 'md' } };
+    else if (kind === 'smart') b = { id: id, type: 'smart', ref: opts.ref, style: { align: 'center', size: 'md' }, kind: opts.semanticKind || 'section' };
     else throw new Error('نوع غير مدعوم هنا');
     if (opts.image) b.image = opts.image;
     if (!validBlock(b)) throw new Error('بيانات البلوك غير صالحة (راجعي رابط الصورة).');
@@ -445,7 +446,15 @@
       case 'ui.openCreatePanel':
         if (p.kind === 'banner' || p.kind === 'text_block' || p.kind === 'text') return createBlock(p.kind, {});
         if (p.kind === 'image') { var src8 = await mediaPrompt(); return createBlock('image', { src: src8 }); }
-        throw new Error('إنشاء ' + p.kind + ' بيتربط بسابابيس في المرحلة الجاية. المتاح دلوقتي: بانر ونص وصورة.');
+        if (['section', 'perfume', 'brand', 'store', 'occasion', 'note'].indexOf(p.kind) !== -1) {
+          var name8 = String(p.name || '').trim();
+          if (!name8) throw new Error('اكتبي اسم العنصر قبل الإنشاء.');
+          var sr = await fetch('/api/editor-data', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'section.create', section: { name: name8, purpose: p.kind, selection_mode: 'manual', filters: {} } }) });
+          var sj = await sr.json().catch(function () { return {}; });
+          if (!sr.ok || !sj.ok || !sj.ref) throw new Error(sj.error || 'تعذر إنشاء القسم في Supabase.');
+          return createBlock('smart', { ref: sj.ref, semanticKind: p.kind });
+        }
+        throw new Error('نوع إنشاء غير مدعوم.');
       case 'library.open': return { openLibrary: true };
       case 'page.save': throw new Error('الحفظ بيتم من الإديتور نفسه بعد التحقق من الإدارة.');
       default: throw new Error('أمر غير مدعوم');

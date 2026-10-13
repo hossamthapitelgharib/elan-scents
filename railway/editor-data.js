@@ -1,5 +1,6 @@
 /* Élan Scents — authenticated data provider for editor tools.
    Uses the already-attached admin session and Supabase service role only on the server. */
+const crypto = require('crypto');
 const { getContext, requireRoles } = require('../api/_auth');
 
 function reply(res, status, body) {
@@ -82,6 +83,24 @@ async function saveLibrary(ctx, data) {
   return { ok: true };
 }
 
+async function createSection(ctx, input) {
+  const section = input && input.section;
+  const name = String(section && section.name || '').trim().slice(0, 200);
+  if (!name) throw Object.assign(new Error('section_name_required'), { status: 400 });
+  const elementId = 'x-' + crypto.randomUUID().replace(/-/g, '');
+  const mode = section.selection_mode === 'auto' ? 'auto' : 'manual';
+  const rows = await sb(ctx, 'editor_sections', '', 'POST', [{
+    element_id: elementId,
+    name,
+    purpose: String(section.purpose || '').slice(0, 500) || null,
+    selection_mode: mode,
+    filters: section.filters && typeof section.filters === 'object' ? section.filters : {},
+    timer_mode: 'none',
+    status: 'active'
+  }]);
+  return { ok: true, ref: elementId, section: Array.isArray(rows) ? rows[0] : null };
+}
+
 module.exports = async function editorData(req, res) {
   if (req.method !== 'GET' && req.method !== 'POST') return reply(res, 405, { ok: false, error: 'method_not_allowed' });
   try {
@@ -93,6 +112,7 @@ module.exports = async function editorData(req, res) {
     if (action === 'perfumes') return reply(res, 200, { ok: true, rows: await perfumes(ctx, input.filters || {}) });
     if (action === 'library' && req.method === 'GET') return reply(res, 200, { ok: true, library: await library(ctx) });
     if (action === 'library.save' && req.method === 'POST') return reply(res, 200, await saveLibrary(ctx, input.library));
+    if (action === 'section.create' && req.method === 'POST') return reply(res, 200, await createSection(ctx, input));
     return reply(res, 400, { ok: false, error: 'unknown_action' });
   } catch (e) {
     reply(res, e.status || 502, { ok: false, error: e.message === 'supabase_request_failed' ? 'data_provider_failed' : (e.message || 'editor_data_failed') });
