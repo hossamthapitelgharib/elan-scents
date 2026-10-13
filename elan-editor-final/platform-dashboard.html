@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>لوحة Élan Scents</title>
+  <link rel="stylesheet" href="/fonts.css?v=20261010-12">
+  <link rel="stylesheet" href="/portal.css?v=20261010-12">
+</head>
+<body>
+  <header>
+    <div><small>Élan Scents · Platform</small><h1>لوحة المنصة</h1></div>
+    <button id="logout" class="ghost" hidden>تسجيل الخروج</button>
+  </header>
+  <main>
+    <section id="login" class="panel">
+      <h2>دخول إدارة المنصة</h2>
+      <form id="loginForm"><input name="email" type="email" placeholder="البريد الإلكتروني" required><input name="password" type="password" placeholder="كلمة المرور" required><button class="primary">دخول</button></form>
+      <p id="message"></p>
+    </section>
+    <section id="app" hidden>
+<section id="platformFilters" class="platform-filters" aria-label="فلاتر الطلبات"><input name="tracking" placeholder="رقم التتبع"><select name="status"><option value="">كل الحالات</option><option value="awaiting_store_confirmation">بانتظار المتجر</option><option value="processing">قيد التجهيز</option><option value="shipped">تم الشحن</option><option value="delivered">تم التسليم</option><option value="completed">مكتمل</option><option value="store_rejected">مرفوض</option></select><label><input name="attention" type="checkbox" value="1"> يحتاج مراجعة</label><button class="ghost" type="submit">تطبيق</button></section>
+      <div id="stats" class="stats"></div>
+      <p id="platformError" class="platform-error" hidden></p>
+      <section class="panel customer-management" aria-labelledby="customersTitle">
+        <div class="customer-heading"><div><small>Customers</small><h2 id="customersTitle">إدارة العملاء</h2></div><button id="refreshCustomers" class="ghost" type="button">تحديث</button></div>
+        <div id="customerTabs" class="customer-tabs" role="tablist" aria-label="أقسام العملاء">
+          <button id="registeredTab" type="button" role="tab" aria-selected="true" aria-controls="registeredCustomers" data-customer-tab="registered">العملاء المسجلون <b id="registeredCount">0</b></button>
+          <button id="visitorsTab" type="button" role="tab" aria-selected="false" aria-controls="guestCustomers" data-customer-tab="visitors">العملاء الزوار <b id="visitorCount">0</b></button>
+        </div>
+        <div id="registeredCustomers" class="customer-list" role="tabpanel" aria-labelledby="registeredTab"></div>
+        <div id="guestCustomers" class="customer-list" role="tabpanel" aria-labelledby="visitorsTab" hidden></div>
+        <section id="guestAnalytics" class="guest-analytics" aria-labelledby="guestAnalyticsTitle" hidden>
+          <div class="guest-analytics-heading">
+            <div><small>Visitor insights</small><h3 id="guestAnalyticsTitle">تحليلات الزوار والمنتجات</h3></div>
+            <label class="guest-period">الفترة
+              <select id="guestAnalyticsPeriod" aria-label="فترة تحليلات الزوار">
+                <option value="today">اليوم</option>
+                <option value="week">آخر 7 أيام</option>
+                <option value="month">آخر 30 يومًا</option>
+                <option value="year">آخر 365 يومًا</option>
+              </select>
+            </label>
+          </div>
+          <p id="guestAnalyticsRange" class="guest-analytics-range"></p>
+          <p id="guestAnalyticsError" class="platform-error" hidden></p>
+          <div id="guestAnalyticsStats" class="stats guest-analytics-stats"></div>
+          <p class="guest-analytics-note">تُعرض المنتجات التي شاهدها الزوار أو ظهرت لهم في نتائج البحث أو أضافوها للسلة. لا تُحفظ عبارات البحث نفسها.</p>
+          <div class="guest-analytics-grid">
+            <section class="guest-analytics-card"><h4>المنتجات الأكثر مشاهدة وبحثًا</h4><div id="guestTopProducts" class="guest-analytics-list"></div></section>
+            <section class="guest-analytics-card"><h4>المنتجات الموجودة في سلال الزوار الآن</h4><div id="guestBasketProducts" class="guest-analytics-list"></div></section>
+          </div>
+        </section>
+      </section>
+      <section aria-labelledby="ordersTitle"><h2 id="ordersTitle">طلبات المتاجر</h2><div id="orders" class="stack"></div></section>
+    </section>
+  </main>
+  <script src="/portal.js?v=20261010-12"></script>
+  <script src="/platform-dashboard.js?v=20261010-12"></script>
+</body>
+</html>
