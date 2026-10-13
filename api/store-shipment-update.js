@@ -39,10 +39,11 @@ module.exports = async function storeShipmentUpdate(req, res) {
     if (!request) return reply(res, 404, { ok: false, error: 'order_not_found' });
 
     if (context.profile.role !== 'platform_admin') {
-      const accountResponse = await fetch(`${context.supabaseUrl}/rest/v1/store_accounts?select=store_id&user_id=eq.${encodeURIComponent(context.user.id)}&limit=20`, { headers: base });
+      const membershipParams = new URLSearchParams({ select: 'store_id', user_id: `eq.${context.user.id}`, store_id: `eq.${request.store_id}`, limit: '1' });
+      const accountResponse = await fetch(`${context.supabaseUrl}/rest/v1/store_accounts?${membershipParams}`, { headers: base });
       const accounts = await accountResponse.json();
-      if (!accountResponse.ok) return reply(res, 502, { ok: false, error: 'store_access_check_failed' });
-      if (!(accounts || []).some((row) => row.store_id === request.store_id)) return reply(res, 403, { ok: false, error: 'store_access_denied' });
+      if (!accountResponse.ok || !Array.isArray(accounts)) return reply(res, 502, { ok: false, error: 'store_access_check_failed' });
+      if (!accounts.some(row => row.store_id === request.store_id)) return reply(res, 403, { ok: false, error: 'store_access_denied' });
     }
     if (['store_rejected', 'store_cancelled', 'restored'].includes(request.status)) return reply(res, 409, { ok: false, error: 'order_not_shippable', status: request.status });
 

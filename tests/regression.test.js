@@ -124,7 +124,7 @@ test('store dashboard and order update require store ownership or platform role'
   process.env.SUPABASE_URL = 'https://test.supabase.co'; process.env.SUPABASE_SERVICE_ROLE_KEY = 'service';
   global.fetch = async (url, options = {}) => { if (url.includes('/auth/v1/user')) return jsonResponse({ id: 'store-user' }); if (url.includes('/profiles')) return jsonResponse([{ id: 'store-user', role: 'store_admin' }]); if (url.includes('/store_accounts')) return jsonResponse([{ store_id: 'store-a' }]); if (url.includes('/store_order_requests?select=id,store_id,tracking_number,status')) return jsonResponse([{ id: 'request-1', store_id: 'store-a', tracking_number: 'T-1', status: 'store_confirmed' }]); if (options.method === 'PATCH') return jsonResponse([{ id: 'request-1', store_id: 'store-a', tracking_number: 'T-1', status: 'processing' }]); return jsonResponse([{ id: 'request-1', store_id: 'store-a', status: 'processing' }]); };
   const orders = await invoke(api('store-dashboard-orders'), baseRequest()); assert.equal(orders.status, 200);
-  const update = await invoke(api('store-order-update'), { method: 'PATCH', headers: { authorization: 'Bearer test-token' }, body: { requestId: 'request-1', status: 'processing' } }); assert.equal(update.status, 200);
+  const update = await invoke(api('store-order-update'), { method: 'PATCH', headers: { authorization: 'Bearer test-token' }, body: { requestId: 'request-1', status: 'processing' } }); assert.equal(update.status, 200); assert.equal(update.body.ok, true); assert.equal(update.body.order, undefined); assert.equal(update.body.customer_phone, undefined);
 });
 
 test('store shipment updates stay scoped to the store order and never call a carrier API', async () => {
