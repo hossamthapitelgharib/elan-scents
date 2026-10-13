@@ -158,6 +158,19 @@
       }
     };
   }
+  function creationTools() {
+    return [
+      { id: 'create_text', label: 'إنشاء كتلة نصية' },
+      { id: 'create_banner', label: 'إنشاء بانر' },
+      { id: 'create_image', label: 'إنشاء صورة' },
+      { id: 'create_section', label: 'إنشاء سيكشن' },
+      { id: 'create_perfume', label: 'إنشاء كارت عطر' },
+      { id: 'create_brand', label: 'إنشاء كارت براند' },
+      { id: 'create_store', label: 'إنشاء كارت متجر' },
+      { id: 'create_occasion', label: 'إنشاء كارت مناسبة' },
+      { id: 'create_note', label: 'إنشاء كارت نوتة' }
+    ];
+  }
   function reselect() {
     if (selectedId && !entryById(selectedId)) selectedId = null;
     placeBox(); buildBar();
@@ -296,7 +309,7 @@
     if (editing) commitText();
     var e = pick(ev.clientX, ev.clientY);
     select(e ? e.id : null);
-    if (hostApi) hostApi.context({ x: ev.clientX, y: ev.clientY, element: info(e) });
+    if (hostApi) hostApi.context({ x: ev.clientX, y: ev.clientY, element: info(e) || { id: null, name: 'مساحة فارغة', tools: creationTools() } });
   }, true);
 
   // Nothing on the page may act while editing: no links, no cart, no forms.
@@ -439,10 +452,11 @@
     p = p || {};
     switch (action) {
       case 'tool.run': {
-        var toolAction = { edit_text: 'element.edit', duplicate: 'element.duplicate', move_up: 'element.reorder', move_down: 'element.reorder', hide: 'element.hide', reset: 'element.reset', archive: 'element.archive' }[p.id];
+        var toolAction = { edit_text: 'element.edit', duplicate: 'element.duplicate', move_up: 'element.reorder', move_down: 'element.reorder', hide: 'element.hide', reset: 'element.reset', archive: 'element.archive', create_text: 'ui.openCreatePanel', create_banner: 'ui.openCreatePanel', create_image: 'ui.openCreatePanel', create_section: 'ui.openCreatePanel', create_perfume: 'ui.openCreatePanel', create_brand: 'ui.openCreatePanel', create_store: 'ui.openCreatePanel', create_occasion: 'ui.openCreatePanel', create_note: 'ui.openCreatePanel' }[p.id];
         if (!toolAction) throw new Error('الأداة غير مدعومة.');
         if (p.id === 'move_up') p.delta = -1;
         if (p.id === 'move_down') p.delta = 1;
+        if (p.id.indexOf('create_') === 0) p.kind = { create_text: 'text_block', create_banner: 'banner', create_image: 'image', create_section: 'section', create_perfume: 'perfume', create_brand: 'brand', create_store: 'store', create_occasion: 'occasion', create_note: 'note' }[p.id];
         return execute(toolAction, p, meta);
       }
       case 'page.getState': return snapshot();
