@@ -102,10 +102,6 @@ function applyArtAndHero(){
   if(typeof render==='function'){try{render();}catch(e){}}
   watchSheet();
 }
-<<<<<<< Updated upstream
-var CORE='/app-core.js?v=20261013-06';
-=======
-var CORE='/app-core.js?v=20261012-03';
->>>>>>> Stashed changes
+var CORE='/app-core.js?v=20261013-09';
 loadScript(CORE, applyArtAndHero);
 })();
