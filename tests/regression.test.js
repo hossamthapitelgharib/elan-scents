@@ -38,7 +38,9 @@ test('main menu routes to the customer dashboard and footer artwork is configure
   assert.match(account, /id="recentOrders"/);
   assert.match(account, /id="archiveForm"/);
   const platform = fs.readFileSync(path.join(root, 'platform-dashboard.html'), 'utf8');
-  assert.match(platform, /id="platformFilters"/);
+  assert.match(platform, /href="\/dashboard\.html"/);
+  assert.match(platform, /ملخص الطلبات/);
+  assert.doesNotMatch(platform, /id="platformFilters"/);
   const storefront = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
   const styles = fs.readFileSync(path.join(root, 'style.css'), 'utf8');
   assert.match(storefront, /<footer>/);

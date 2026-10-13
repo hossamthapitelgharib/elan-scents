@@ -1,6 +1,7 @@
 const escP = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char]));
 const labelP = { awaiting_store_confirmation: 'بانتظار المتجر', store_confirmed: 'تم التأكيد', processing: 'قيد التجهيز', shipped: 'تم الشحن', delivered: 'تم التسليم', completed: 'مكتمل', store_rejected: 'مرفوض', store_cancelled: 'ملغى', restored: 'مسترجع', needs_review: 'يحتاج مراجعة', matched: 'مطابقة', mismatched: 'غير مطابقة', pending: 'قيد الفحص' };
 const eventP = { view: 'مشاهدة', search: 'ظهور في البحث', cart_add: 'إضافة للسلة', cart_remove: 'حذف/تقليل من السلة' };
+const customerOffsets = { registered: 0, visitors: 0 };
 const dateP = value => { try { return value ? new Date(value).toLocaleString('ar-EG') : '—'; } catch (_) { return '—'; } };
 function numberP(value) { return Math.max(0, Number(value) || 0).toLocaleString('ar-EG'); }
 function durationP(seconds) {
@@ -67,8 +68,8 @@ async function fetchCustomerDetail(panel, offset, append) {
 
 function renderCustomers(data) {
   const customers = data.registeredCustomers || [], visitors = data.guestVisitors || [];
-  document.querySelector('#registeredCount').textContent = customers.length;
-  document.querySelector('#visitorCount').textContent = visitors.length;
+  document.querySelector('#registeredCount').textContent = String(data.counts && data.counts.registered != null ? data.counts.registered : customers.length);
+  document.querySelector('#visitorCount').textContent = String(data.counts && data.counts.visitors != null ? data.counts.visitors : visitors.length);
   document.querySelector('#registeredCustomers').innerHTML = customers.length ? customers.map(customer => {
     const target = `activity-customer-${escP(customer.id)}`;
     return `<article class="customer-row customer-row-expanded"><div class="customer-row-main"><strong>${escP(customer.full_name || 'عميل مسجل')}</strong><small>الهاتف: ${escP(customer.phone || 'غير مسجل')} · تاريخ التسجيل: ${escP(dateP(customer.created_at))}</small><button type="button" class="ghost activity-open" data-load-activity data-kind="customer" data-id="${escP(customer.id)}" data-target="${target}">عرض السلة وسجل النشاط</button></div><div class="customer-cart"><b>${Number(customer.cartItems || 0)} صنف</b><small>${Number(customer.cartUnits || 0)} قطعة في السلة</small></div><div id="${target}" class="customer-activity-panel" hidden></div></article>`;
@@ -77,6 +78,24 @@ function renderCustomers(data) {
     const hash = String(visitor.fingerprint_hash || ''), target = `activity-guest-${escP(visitor.id)}`;
     return `<article class="customer-row customer-row-expanded"><div class="customer-row-main"><strong>زائر · <code title="${escP(hash)}">${escP(hash.slice(0, 16))}${hash.length > 16 ? '…' : ''}</code></strong><small>أول زيارة: ${escP(dateP(visitor.first_seen_at))} · آخر نشاط: ${escP(dateP(visitor.last_seen_at))}</small><button type="button" class="ghost activity-open" data-load-activity data-kind="guest" data-id="${escP(visitor.id)}" data-target="${target}">عرض السلة وسجل النشاط</button></div><div class="customer-cart"><b>${Number(visitor.cart_items_count || 0)} صنف</b><small>${Number(visitor.cart_units || 0)} قطعة في السلة</small></div><div id="${target}" class="customer-activity-panel" hidden></div></article>`;
   }).join('') : '<div class="empty">لا يوجد زوار نشطون</div>';
+  const pagination = data.pagination || {};
+  if (pagination.registered) {
+    customerOffsets.registered = Number(pagination.registered.offset) || 0;
+    renderCustomerPagination('registered', pagination.registered);
+  }
+  if (pagination.visitors) {
+    customerOffsets.visitors = Number(pagination.visitors.offset) || 0;
+    renderCustomerPagination('visitors', pagination.visitors);
+  }
+}
+function renderCustomerPagination(type, page) {
+  const root = document.querySelector(type === 'registered' ? '#registeredPagination' : '#visitorPagination');
+  if (!root) return;
+  const offset = Math.max(0, Number(page.offset) || 0), limit = Math.max(1, Number(page.limit) || 50), total = Math.max(0, Number(page.total) || 0);
+  if (!total) { root.innerHTML = '<span class="muted">لا توجد صفحات</span>'; return; }
+  const currentPage = Math.floor(offset / limit) + 1, pageCount = Math.ceil(total / limit);
+  const previous = Math.max(0, offset - limit), next = offset + limit;
+  root.innerHTML = `<button class="ghost" type="button" data-customer-page="${type}" data-offset="${previous}" ${offset === 0 ? 'disabled' : ''}>السابق</button><span>الصفحة ${numberP(currentPage)} من ${numberP(pageCount)} · ${numberP(total)} سجل</span><button class="ghost" type="button" data-customer-page="${type}" data-offset="${next}" ${next >= total ? 'disabled' : ''}>التالي</button>`;
 }
 
 const periodsP = { today: 'اليوم', week: 'آخر 7 أيام', month: 'آخر 30 يومًا', year: 'آخر 365 يومًا' };
@@ -114,24 +133,6 @@ function showAnalyticsError(actor, error) {
   if (!box) return;
   box.textContent = error && error.message ? error.message : 'تعذر تحميل التحليلات'; box.hidden = false;
 }
-function filterQuery() {
-  const root = document.querySelector('#platformFilters'); if (!root) return '';
-  const params = new URLSearchParams();
-  for (const field of root.querySelectorAll('input[name], select[name]')) {
-    if (field.disabled || (field.type === 'checkbox' && !field.checked)) continue;
-    const value = String(field.value || '').trim();
-    if (value) params.set(field.name, value);
-  }
-  const query = params.toString(); return query ? `?${query}` : '';
-}
-function badgeP(status) { return `<span class="badge ${status === 'completed' || status === 'matched' || status === 'delivered' ? 'green' : status === 'mismatched' || status === 'store_cancelled' || status === 'store_rejected' ? 'red' : 'blue'}">${escP(labelP[status] || status || '—')}</span>`; }
-function renderOrders(orders) {
-  document.querySelector('#orders').innerHTML = orders.length ? orders.map(order => {
-    const events = order.order_operation_events || [], checks = order.order_reconciliation_checks || [];
-    return `<article class="order"><h3>${escP(order.tracking_number)} · ${escP(order.stores && order.stores.name || '')}</h3><div class="meta">${badgeP(order.status)} ${badgeP(order.reconciliation_status)} <span>العملية الموحدة: ${escP(order.checkout_tracking_number || '—')}</span></div><div class="grid"><div><b>بيانات العميل</b><p>${escP(order.customer_name)} · ${escP(order.customer_phone)}<br>${escP(order.customer_address)}</p><p>الإجمالي: ${Number((order.total_amount ?? order.subtotal) || 0).toFixed(2)} ${escP(order.currency)}</p></div><div><b>المنتجات</b>${(order.store_order_request_items || []).map(item => `<div class="item"><span>${escP(item.product_name)} × ${item.quantity}</span><span>${Number(item.line_total || 0).toFixed(2)} ${escP(item.currency)}</span></div>`).join('')}</div></div><p class="meta">الإشعارات: ${(order.store_order_notifications || []).map(item => `${escP(labelP[item.event_type] || item.event_type)} · ${escP(labelP[item.match_status] || item.match_status)}`).join(' · ') || 'لا يوجد'} · أحداث التدقيق: ${events.length} · فحوص المطابقة: ${checks.length}</p></article>`;
-  }).join('') : '<div class="empty">لا توجد طلبات</div>';
-}
-
 function activateCustomerTabs() {
   const tabs = document.querySelector('#customerTabs'); if (!tabs) return;
   document.querySelector('#registeredAnalytics').hidden = false;
@@ -143,6 +144,8 @@ function activateCustomerTabs() {
     document.querySelector('#visitorsTab').setAttribute('aria-selected', String(guests));
     document.querySelector('#registeredCustomers').hidden = guests;
     document.querySelector('#guestCustomers').hidden = !guests;
+    document.querySelector('#registeredPagination').hidden = guests;
+    document.querySelector('#visitorPagination').hidden = !guests;
     document.querySelector('#registeredAnalytics').hidden = guests;
     document.querySelector('#guestAnalytics').hidden = !guests;
   });
@@ -150,12 +153,12 @@ function activateCustomerTabs() {
 async function loadPlatform() {
   if (!Portal.session()) return;
   document.querySelector('#login').hidden = true; document.querySelector('#app').hidden = false; document.querySelector('#logout').hidden = false;
-  const headers = Portal.auth(), responses = await Promise.all([fetch('/api/dashboard-orders' + filterQuery(), { headers }), fetch('/api/platform-customer-summary', { headers }), fetch('/api/platform-stores', { headers }).catch(() => null)]);
+  const headers = Portal.auth(), responses = await Promise.all([fetch('/api/platform-order-summary', { headers }), fetch('/api/platform-customer-summary', { headers }), fetch('/api/platform-stores', { headers }).catch(() => null)]);
   const ordersData = await responses[0].json(), customersData = await responses[1].json();
-  if (!responses[0].ok) throw Error(ordersData.error || 'تعذر تحميل بيانات الطلبات');
+  if (!responses[0].ok) throw Error(ordersData.error || 'تعذر تحميل ملخص الطلبات');
   if (!responses[1].ok) throw Error(customersData.error || 'تعذر تحميل ملخص العملاء');
-  const orders = ordersData.orders || [];
-  document.querySelector('#stats').innerHTML = [['طلبات المتاجر', orders.length], ['عملاء مسجلون', customersData.counts.registered], ['الزوار', customersData.counts.visitors], ['مكتملة', orders.filter(order => ['completed','delivered'].includes(order.status)).length]].map(item => `<div class="stat"><small>${item[0]}</small><b>${numberP(item[1])}</b></div>`).join('');
+  const orders = ordersData.counts || {};
+  document.querySelector('#stats').innerHTML = [['طلبات المتاجر', orders.orders], ['مكتملة', orders.completed], ['مفتوحة', orders.open], ['تحتاج مراجعة', orders.needsReview], ['عملاء مسجلون', customersData.counts.registered], ['الزوار', customersData.counts.visitors]].map(item => `<div class="stat"><small>${item[0]}</small><b>${numberP(item[1])}</b></div>`).join('');
   const storeError = document.querySelector('#platformStoreError'), storeStats = document.querySelector('#platformStoreStats');
   try {
     if (!responses[2]) throw Error('تعذر الاتصال ببيانات المتاجر');
@@ -171,26 +174,27 @@ async function loadPlatform() {
     storeError.textContent = error && error.message ? error.message : 'تعذر تحميل ملخص المتاجر';
     storeError.hidden = false;
   }
-  document.querySelector('#platformError').hidden = true; renderOrders(orders);
+  document.querySelector('#platformError').hidden = true;
 }
-async function loadCustomersDashboard() {
+async function loadCustomersDashboard(loadInsights = true) {
   if (!Portal.session()) return;
   document.querySelector('#login').hidden = true; document.querySelector('#app').hidden = false; document.querySelector('#logout').hidden = false;
-  const response = await fetch('/api/platform-customers', { headers: Portal.auth() }), data = await response.json();
+  const query = new URLSearchParams({ registeredOffset: String(customerOffsets.registered), visitorOffset: String(customerOffsets.visitors) });
+  const response = await fetch(`/api/platform-customers?${query}`, { headers: Portal.auth() }), data = await response.json();
   if (!response.ok) throw Error(data.error || 'تعذر تحميل بيانات العملاء');
   document.querySelector('#platformError').hidden = true;
   document.querySelector('#stats').innerHTML = [['العملاء المسجلون', data.counts.registered], ['العملاء الزوار', data.counts.visitors]].map(item => `<div class="stat"><small>${item[0]}</small><b>${numberP(item[1])}</b></div>`).join('');
   renderCustomers(data);
-  loadAnalytics('guest').catch(error => showAnalyticsError('guest', error));
-  loadAnalytics('customer').catch(error => showAnalyticsError('customer', error));
+  if (loadInsights) {
+    loadAnalytics('guest').catch(error => showAnalyticsError('guest', error));
+    loadAnalytics('customer').catch(error => showAnalyticsError('customer', error));
+  }
 }
 function loadCurrentDashboard() {
   return document.body.dataset.dashboard === 'customers' ? loadCustomersDashboard() : loadPlatform();
 }
 
 activateCustomerTabs();
-const platformFilters = document.querySelector('#platformFilters');
-if (platformFilters) platformFilters.addEventListener('submit', event => { event.preventDefault(); loadPlatform().catch(reportError); });
 const refreshCustomers = document.querySelector('#refreshCustomers');
 if (refreshCustomers) refreshCustomers.addEventListener('click', () => loadCurrentDashboard().catch(reportError));
 const guestAnalyticsPeriod = document.querySelector('#guestAnalyticsPeriod');
@@ -202,6 +206,15 @@ document.addEventListener('click', event => {
   if (more) {
     const panel = more.closest('.customer-activity-panel'); if (!panel) return;
     more.disabled = true; fetchCustomerDetail(panel, Number(panel.dataset.offset || 0), true).catch(error => { more.textContent = error.message || 'تعذر تحميل المزيد'; }).finally(() => { more.disabled = false; }); return;
+  }
+  const pageButton = event.target.closest('[data-customer-page]');
+  if (pageButton) {
+    const type = pageButton.dataset.customerPage, offset = Number(pageButton.dataset.offset);
+    if (!['registered', 'visitors'].includes(type) || !Number.isSafeInteger(offset) || offset < 0) return;
+    customerOffsets[type] = offset;
+    pageButton.disabled = true;
+    loadCustomersDashboard(false).catch(reportError);
+    return;
   }
   const button = event.target.closest('[data-load-activity]'); if (!button) return;
   const panel = document.getElementById(button.dataset.target); if (!panel) return;

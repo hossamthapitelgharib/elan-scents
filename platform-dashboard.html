@@ -4,13 +4,17 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>لوحة Élan Scents</title>
-  <link rel="stylesheet" href="/fonts.css?v=20261013-07">
-  <link rel="stylesheet" href="/portal.css?v=20261013-07">
+  <link rel="stylesheet" href="/fonts.css?v=20261013-08">
+  <link rel="stylesheet" href="/portal.css?v=20261013-08">
 </head>
 <body>
   <header>
     <div><small>Élan Scents · Platform</small><h1>لوحة إدارة المنصة</h1></div>
-    <nav class="dashboard-nav" aria-label="لوحات الإدارة"><a href="/customers-dashboard.html">إدارة العملاء</a><a href="/stores-dashboard.html">إدارة المتاجر</a></nav>
+    <nav class="dashboard-nav" aria-label="لوحات الإدارة">
+      <a href="/dashboard.html">إدارة الطلبات</a>
+      <a href="/customers-dashboard.html">إدارة العملاء</a>
+      <a href="/stores-dashboard.html">إدارة المتاجر</a>
+    </nav>
     <button id="logout" class="ghost" hidden>تسجيل الخروج</button>
   </header>
   <main>
@@ -20,17 +24,15 @@
       <p id="message"></p>
     </section>
     <section id="app" hidden>
-      <nav class="dashboard-nav-links" aria-label="التنقل بين لوحات الإدارة"><a href="/customers-dashboard.html">لوحة العملاء التفصيلية</a><a href="/stores-dashboard.html">لوحة المتاجر</a></nav>
-      <form id="platformFilters" class="platform-filters" aria-label="فلاتر الطلبات">
-        <input name="tracking" placeholder="رقم التتبع">
-        <select name="status"><option value="">كل الحالات</option><option value="awaiting_store_confirmation">بانتظار المتجر</option><option value="processing">قيد التجهيز</option><option value="shipped">تم الشحن</option><option value="delivered">تم التسليم</option><option value="completed">مكتمل</option><option value="store_rejected">مرفوض</option></select>
-        <label><input name="attention" type="checkbox" value="1"> يحتاج مراجعة</label>
-        <button class="ghost" type="submit">تطبيق</button>
-      </form>
+      <nav class="dashboard-nav-links" aria-label="التنقل بين لوحات الإدارة">
+        <a href="/dashboard.html">لوحة الطلبات والإشعارات التفصيلية</a>
+        <a href="/customers-dashboard.html">لوحة العملاء التفصيلية</a>
+        <a href="/stores-dashboard.html">لوحة المتاجر</a>
+      </nav>
       <div id="stats" class="stats"></div>
       <p id="platformError" class="platform-error" hidden></p>
       <section class="panel customer-overview" aria-labelledby="customerOverviewTitle">
-        <div><small>Customer overview</small><h2 id="customerOverviewTitle">ملخص العملاء</h2><p>هذه الصفحة تعرض أعدادًا إجمالية فقط. تفاصيل الزوار والعملاء المسجلين وسلالهم وأنشطتهم متاحة في لوحة العملاء الإدارية.</p></div>
+        <div><small>Customer overview</small><h2 id="customerOverviewTitle">ملخص العملاء</h2><p>تعرض هذه الصفحة أعدادًا إجمالية فقط. تفاصيل الزوار والعملاء المسجلين وسلالهم وأنشطتهم متاحة في لوحة العملاء الإدارية.</p></div>
         <a class="primary" href="/customers-dashboard.html">فتح لوحة العملاء</a>
       </section>
       <section class="panel platform-store-overview" aria-labelledby="platformStoreTitle">
@@ -38,10 +40,12 @@
         <p id="platformStoreError" class="platform-error" hidden></p>
         <div id="platformStoreStats" class="stats platform-store-summary-stats"></div>
       </section>
-      <section aria-labelledby="ordersTitle"><h2 id="ordersTitle">طلبات المتاجر</h2><div id="orders" class="stack"></div></section>
+      <section class="panel" aria-labelledby="ordersSummaryTitle">
+        <div class="platform-store-overview-head"><div><small>Order overview</small><h2 id="ordersSummaryTitle">ملخص الطلبات</h2><p>هذه اللوحة تعرض أعدادًا مجمعة فقط. بيانات العملاء وتفاصيل الطلبات التشغيلية محفوظة في لوحة إدارة الطلبات.</p></div><a class="primary" href="/dashboard.html">فتح لوحة الطلبات</a></div>
+      </section>
     </section>
   </main>
-  <script src="/portal.js?v=20261013-07"></script>
-  <script src="/platform-dashboard.js?v=20261013-07"></script>
+  <script src="/portal.js?v=20261013-08"></script>
+  <script src="/platform-dashboard.js?v=20261013-08"></script>
 </body>
 </html>

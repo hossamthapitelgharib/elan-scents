@@ -32,3 +32,7 @@
 
 /* Aggregate store indicators on the platform overview */
 .platform-store-overview{display:block;margin:18px 0;padding:18px 20px;border:1px solid #ead9b1;border-radius:18px;background:#fffdf7}.platform-store-overview-head{display:flex;justify-content:space-between;align-items:center;gap:14px}.platform-store-overview-head h2{margin:4px 0}.platform-store-overview-head p{margin:0;color:var(--muted);font-size:12px;line-height:1.7}.platform-store-summary-stats{margin-top:14px}.platform-store-summary-stats .stat{border-top:3px solid #d1a23d}.platform-store-overview[hidden]{display:none}@media(max-width:700px){.platform-store-overview{padding:14px}.platform-store-overview-head{align-items:flex-start;flex-direction:column}.platform-store-overview-head .primary{width:100%;text-align:center}.platform-store-summary-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+.customer-pagination{display:flex;justify-content:center;align-items:center;gap:12px;margin:12px 0 20px;padding:10px;border:1px solid #eadfc9;border-radius:13px;background:#fffdf8}.customer-pagination span{color:var(--muted);font-size:11px}.customer-pagination button:disabled{opacity:.45;cursor:not-allowed}@media(max-width:600px){.customer-pagination{gap:7px;flex-wrap:wrap}.customer-pagination span{flex-basis:100%;order:-1;text-align:center}}
+
+.customer-pagination[hidden]{display:none!important}

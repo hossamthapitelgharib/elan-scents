@@ -8,17 +8,11 @@ const root = path.join(__dirname, '..');
 const source = fs.readFileSync(path.join(root, 'platform-dashboard.js'), 'utf8');
 const html = fs.readFileSync(path.join(root, 'platform-dashboard.html'), 'utf8');
 const customerHtml = fs.readFileSync(path.join(root, 'customers-dashboard.html'), 'utf8');
+const orderSummaryApi = fs.readFileSync(path.join(root, 'api', 'platform-order-summary.js'), 'utf8');
 
 function makeNode() {
   return {
-    hidden: false,
-    value: '',
-    textContent: '',
-    innerHTML: '',
-    dataset: {},
-    attributes: {},
-    listeners: {},
-    controls: [],
+    hidden: false, value: '', textContent: '', innerHTML: '', dataset: {}, attributes: {}, listeners: {}, controls: [],
     addEventListener(type, callback) { this.listeners[type] = callback; },
     setAttribute(name, value) { this.attributes[name] = value; },
     querySelectorAll() { return this.controls; },
@@ -27,13 +21,12 @@ function makeNode() {
 
 function loadDashboard() {
   const selectors = [
-    '#customerTabs', '#platformFilters', '#refreshCustomers', '#guestAnalyticsPeriod', '#registeredAnalyticsPeriod',
-    '#loginForm', '#login', '#app', '#logout', '#stats', '#platformError',
-    '#registeredTab', '#visitorsTab', '#registeredCustomers', '#guestCustomers',
-    '#registeredAnalytics',
-    '#guestAnalyticsRange', '#guestAnalyticsStats', '#guestTopProducts',
-    '#guestBasketProducts', '#guestAnalyticsError', '#registeredAnalyticsRange', '#registeredAnalyticsStats',
-    '#registeredTopProducts', '#registeredBasketProducts', '#registeredAnalyticsError', '#guestAnalytics', '#orders', '#message',
+    '#customerTabs', '#refreshCustomers', '#guestAnalyticsPeriod', '#registeredAnalyticsPeriod',
+    '#loginForm', '#login', '#app', '#logout', '#stats', '#platformError', '#platformStoreError', '#platformStoreStats',
+    '#registeredTab', '#visitorsTab', '#registeredCustomers', '#guestCustomers', '#registeredCount', '#visitorCount',
+    '#registeredPagination', '#visitorPagination', '#registeredAnalytics',
+    '#guestAnalyticsRange', '#guestAnalyticsStats', '#guestTopProducts', '#guestBasketProducts', '#guestAnalyticsError',
+    '#registeredAnalyticsRange', '#registeredAnalyticsStats', '#registeredTopProducts', '#registeredBasketProducts', '#registeredAnalyticsError', '#guestAnalytics', '#message',
   ];
   const nodes = new Map(selectors.map(selector => [selector, makeNode()]));
   nodes.get('#guestCustomers').hidden = true;
@@ -54,13 +47,16 @@ function loadDashboard() {
   return { context, nodes, documentListeners };
 }
 
-test('platform dashboard shows links and summaries while the separate customers page owns customer records', () => {
-  assert.match(html, /<form id="platformFilters"[^>]*>/);
-  assert.match(html, /<button[^>]*type="submit">تطبيق<\/button>/);
+test('platform dashboard links to detailed admin tools and contains only aggregate order/customer/store sections', () => {
+  assert.doesNotMatch(html, /platformFilters|id="orders"|بيانات العميل/);
+  assert.match(html, /href="\/dashboard\.html"/);
   assert.match(html, /customers-dashboard\.html/);
   assert.match(html, /id="platformStoreStats"/);
   assert.match(html, /href="\/stores-dashboard\.html"/);
   assert.doesNotMatch(html, /id="registeredCustomers"|id="guestCustomers"|id="guestTopProducts"/);
+  assert.doesNotMatch(source, /customer_(?:name|phone|address|email)|dashboard-orders/);
+  assert.match(source, /platform-order-summary/);
+  assert.doesNotMatch(orderSummaryApi, /customer_(?:name|phone|address|email)|store_order_request_items|initial_payload|customer_address/);
   assert.match(customerHtml, /id="registeredCustomers"/);
   assert.match(customerHtml, /id="guestCustomers"/);
   assert.match(customerHtml, /id="guestTopProducts"/);
@@ -70,17 +66,24 @@ test('platform dashboard shows links and summaries while the separate customers 
   assert.match(customerHtml, /id="registeredBasketProducts"/);
 });
 
-test('platform filters serialize named values and omit empty or unchecked fields', () => {
+test('platform dashboard requests aggregate-only counts and does not render customer order details', async () => {
   const { context, nodes } = loadDashboard();
-  nodes.get('#platformFilters').controls = [
-    { name: 'tracking', type: 'text', value: '  TRK-45  ' },
-    { name: 'status', type: 'select-one', value: 'processing' },
-    { name: 'attention', type: 'checkbox', value: '1', checked: false },
-    { name: 'unused', type: 'text', value: '   ' },
-  ];
-  assert.equal(vm.runInContext('filterQuery()', context), '?tracking=TRK-45&status=processing');
-  nodes.get('#platformFilters').controls[2].checked = true;
-  assert.equal(vm.runInContext('filterQuery()', context), '?tracking=TRK-45&status=processing&attention=1');
+  context.Portal.session = () => true;
+  const requests = [];
+  context.fetch = async url => {
+    requests.push(String(url));
+    if (String(url).includes('platform-order-summary')) return { ok: true, json: async () => ({ counts: { orders: 70, completed: 18, open: 47, needsReview: 5 } }) };
+    if (String(url).includes('platform-customer-summary')) return { ok: true, json: async () => ({ counts: { registered: 12, visitors: 25 } }) };
+    if (String(url).includes('platform-stores')) return { ok: true, json: async () => ({ stores: [{ status: 'active', summary: { available_product_count: 80, active_offer_count: 16, open_order_count: 7, review_order_count: 2 } }] }) };
+    throw new Error(`unexpected request: ${url}`);
+  };
+  await context.loadPlatform();
+  assert.ok(requests.some(url => url.includes('/api/platform-order-summary')));
+  assert.ok(!requests.some(url => url.includes('/api/dashboard-orders')));
+  assert.match(nodes.get('#stats').innerHTML, /طلبات المتاجر/);
+  assert.match(nodes.get('#stats').innerHTML, /٧٠/);
+  assert.match(nodes.get('#stats').innerHTML, /تحتاج مراجعة/);
+  assert.doesNotMatch(nodes.get('#stats').innerHTML, /محمول|عميل خاص|0100/);
 });
 
 test('customer tabs toggle visitor and registered-customer lists', () => {
@@ -90,6 +93,8 @@ test('customer tabs toggle visitor and registered-customer lists', () => {
   tabHandler({ target: { closest: () => visitorButton } });
   assert.equal(nodes.get('#registeredCustomers').hidden, true);
   assert.equal(nodes.get('#guestCustomers').hidden, false);
+  assert.equal(nodes.get('#registeredPagination').hidden, true);
+  assert.equal(nodes.get('#visitorPagination').hidden, false);
   assert.equal(nodes.get('#registeredTab').attributes['aria-selected'], 'false');
   assert.equal(nodes.get('#visitorsTab').attributes['aria-selected'], 'true');
 
@@ -97,11 +102,31 @@ test('customer tabs toggle visitor and registered-customer lists', () => {
   tabHandler({ target: { closest: () => registeredButton } });
   assert.equal(nodes.get('#registeredCustomers').hidden, false);
   assert.equal(nodes.get('#guestCustomers').hidden, true);
+  assert.equal(nodes.get('#registeredPagination').hidden, false);
+  assert.equal(nodes.get('#visitorPagination').hidden, true);
   assert.equal(nodes.get('#registeredTab').attributes['aria-selected'], 'true');
   assert.equal(nodes.get('#visitorsTab').attributes['aria-selected'], 'false');
   assert.equal(nodes.get('#registeredAnalytics').hidden, false);
   assert.equal(nodes.get('#guestAnalytics').hidden, true);
   assert.ok(context);
+});
+
+test('customer list paging renders exact totals and enables only valid previous/next controls', () => {
+  const { context, nodes } = loadDashboard();
+  context.customerFixture = {
+    registeredCustomers: Array.from({ length: 50 }, (_, i) => ({ id: `c${i}`, full_name: `عميل ${i}`, cartItems: 0, cartUnits: 0 })),
+    guestVisitors: [], counts: { registered: 501, visitors: 0 },
+    pagination: {
+      registered: { offset: 50, limit: 50, total: 501, hasMore: true },
+      visitors: { offset: 0, limit: 50, total: 0, hasMore: false },
+    },
+  };
+  vm.runInContext('renderCustomers(customerFixture)', context);
+  assert.equal(nodes.get('#registeredCount').textContent, '501');
+  assert.match(nodes.get('#registeredPagination').innerHTML, /الصفحة [٠-٩]+ من [٠-٩]+/);
+  assert.match(nodes.get('#registeredPagination').innerHTML, /data-offset="0"/);
+  assert.match(nodes.get('#registeredPagination').innerHTML, /data-offset="100"/);
+  assert.match(nodes.get('#visitorPagination').innerHTML, /لا توجد صفحات/);
 });
 
 test('guest analytics render the four available rankings into the current two-panel layout safely', () => {
