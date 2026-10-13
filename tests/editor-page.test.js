@@ -66,7 +66,8 @@ test('live editor keeps creation and editing actions in the right-click menu and
   assert.match(page, /إنشاء كارت عطر/);
   assert.match(page, /element\.edit/);
   assert.match(page, /if\(liveMode\)originalHeaderButtons\.forEach\(b=>b\.disabled=!bridgeReady\)/);
-  assert.match(page, /if\(b===refreshBtn\)b\.disabled=!bridgeReady/);
+  assert.match(page, /const toolsReady=!!\(liveMode&&bridgeReady\)/);
+  assert.match(page, /b\.hidden=!toolsReady;b\.disabled=!toolsReady/);
   assert.match(page, /رفع التعديل إلى GitHub/);
   assert.match(page, /النشر على Railway/);
   const mode = read('editor/edit-mode.js');
