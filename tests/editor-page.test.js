@@ -43,6 +43,7 @@ test('edit-mode uses same-origin bridge and defers saves to the parent editor', 
   assert.doesNotMatch(mode, /allowedEditorOrigins:\s*\[\s*'\*'/);
   assert.match(mode, /page\.save/);
   assert.match(mode, /page\.getState/);
+  assert.match(mode, /case 'library\.open': return \{ openLibrary: true \}/);
   assert.match(bridge, /'page\.getState'.*'element\.select'.*'element\.edit'/);
   assert.doesNotMatch(mode, /localStorage|sessionStorage|document\.cookie|eval\(|new Function/);
 });

@@ -446,7 +446,7 @@
         if (p.kind === 'banner' || p.kind === 'text_block' || p.kind === 'text') return createBlock(p.kind, {});
         if (p.kind === 'image') { var src8 = await mediaPrompt(); return createBlock('image', { src: src8 }); }
         throw new Error('إنشاء ' + p.kind + ' بيتربط بسابابيس في المرحلة الجاية. المتاح دلوقتي: بانر ونص وصورة.');
-      case 'library.open': throw new Error('المكتبة بتتربط بسابابيس في المرحلة الجاية.');
+      case 'library.open': return { openLibrary: true };
       case 'page.save': throw new Error('الحفظ بيتم من الإديتور نفسه بعد التحقق من الإدارة.');
       default: throw new Error('أمر غير مدعوم');
     }
