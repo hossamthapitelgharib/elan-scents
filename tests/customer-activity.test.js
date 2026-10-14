@@ -35,3 +35,16 @@ test('customer activity migration preserves RLS, full product joins, four rankin
   assert.match(snapshotMigration, /drop constraint if exists guest_product_analytics_product_id_fkey/i);
   assert.match(snapshotMigration, /product_snapshot jsonb not null/i);
 });
+
+test('admin customer details serve immutable product snapshots for current carts and event history', () => {
+  const root = path.join(__dirname, '..');
+  const migration = fs.readFileSync(path.join(root, 'supabase/migrations/20261014093223_platform_customer_detail_product_snapshots.sql'), 'utf8');
+  assert.match(migration, /nullif\(e\.product_snapshot, '\{\}'::jsonb\)/i);
+  assert.match(migration, /nullif\(ci\.product_snapshot, '\{\}'::jsonb\)/i);
+  assert.match(migration, /productSnapshot/i);
+  assert.match(migration, /selectedSize/i);
+  assert.match(migration, /selectedOffer/i);
+  assert.match(migration, /left join public\.public_products p on p\.id = e\.product_id/i);
+  assert.match(migration, /grant execute on function public\.platform_customer_activity_detail\(uuid, uuid, integer, integer\) to service_role/i);
+  assert.match(migration, /revoke all on function public\.platform_customer_activity_detail\(uuid, uuid, integer, integer\) from public, anon, authenticated/i);
+});

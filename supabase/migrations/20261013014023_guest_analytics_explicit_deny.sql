@@ -1,5 +1,4 @@
--- PENDING: not applied to the live database yet. After it is applied, move it to supabase/migrations/
--- and rename it with the version the database recorded.
+-- Applied to the connected Supabase database as version 20261013014023.
 --
 -- guest_analytics_visits and guest_product_analytics are written and read only by the server
 -- (service_role bypasses RLS). They have RLS enabled but no policy, which the Supabase linter reports (0008).
