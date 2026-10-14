@@ -7,6 +7,7 @@ const root = path.resolve(__dirname, '..');
 const SB = 'https://sb.example.test';
 function env() {
   process.env.SUPABASE_URL = SB; process.env.SUPABASE_ANON_KEY = 'anon'; process.env.SUPABASE_SERVICE_ROLE_KEY = 'service';
+  process.env.EDITOR_SITE_ORIGIN = 'https://storefront.example.test/';
 }
 function start() {
   const server = require('../railway/server.js');
@@ -64,8 +65,9 @@ test('only an admin can log in; the session is a browser-session cookie and logo
     const page = await fetch(url(s, '/editor'), { headers: { cookie } });
     const html = await page.text();
     assert.match(html, /elan-editor-bridge/);
+    assert.match(html, /ELAN_EDITOR_SITE_ORIGIN="https:\/\/storefront\.example\.test"/);
     const csp = page.headers.get('content-security-policy');
-    assert.match(csp, /frame-src 'self'/); assert.match(csp, /frame-ancestors 'none'/);
+    assert.match(csp, /frame-src 'self' https:\/\/storefront\.example\.test/); assert.match(csp, /frame-ancestors 'none'/);
     assert.doesNotMatch(csp, /unsafe-eval|script-src[^;]*'unsafe-inline'/);
     assert.equal((await fetch(url(s, '/api/editor-session'), { headers: { cookie } })).status, 200);
 
@@ -87,7 +89,8 @@ test('edit mode only loads inside the editor window and never talks to customers
   assert.match(boot, /elan_editor/);
   assert.match(boot, /edit-mode\.js/);
   const edit = fs.readFileSync(path.join(root, 'edit-mode.js'), 'utf8');
-  assert.match(edit, /allowedEditorOrigins: \[location\.origin\]/);
+  assert.match(edit, /function editorParentOrigin\(\)/);
+  assert.match(edit, /allowedEditorOrigins: \[editorParentOrigin\(\)\]/);
   assert.doesNotMatch(edit, /localStorage|sessionStorage|document\.cookie|eval\(|new Function/);
   const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
   assert.doesNotMatch(html, /edit-mode|elan-host-bridge/);
@@ -139,7 +142,7 @@ test('the menu is built from a tool registry so new capabilities are one registe
   assert.match(html, /el\?\.tools\|\|info\?\.tools/);
   assert.match(html, /runLive\('tool\.run'/);
   const bridge = fs.readFileSync(path.join(root, 'elan-host-bridge.js'), 'utf8');
-  for (const action of ['tool.run', 'element.nudge', 'page.markSaved']) assert.ok(bridge.includes(action), action);
+  for (const action of ['tool.run', 'element.nudge', 'page.getState', 'element.select', 'element.edit', 'page.markSaved']) assert.ok(bridge.includes(action), action);
 });
 
 test('moving is a one-shot tool chosen from the menu: no drag without it, no arrow keys, it ends on release', () => {

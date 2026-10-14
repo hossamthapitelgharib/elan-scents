@@ -11,11 +11,21 @@ const ROOT = path.resolve(__dirname, '..');
 const COOKIE = 'elan_sess';
 const LOGIN_FILES = { '/editor-login.js': 'text/javascript; charset=utf-8', '/editor-login.css': 'text/css; charset=utf-8', '/editor-guard.js': 'text/javascript; charset=utf-8', '/editor-media.js': 'text/javascript; charset=utf-8' };
 
+function editorSiteOrigin() {
+  try {
+    const u = new URL(String(process.env.EDITOR_SITE_ORIGIN || ''));
+    if (u.protocol === 'https:' && !u.username && !u.password && u.pathname === '/' && !u.search && !u.hash) return u.origin;
+  } catch (_) { /* use the known production storefront */ }
+  return 'https://elan-site-production.up.railway.app';
+}
+
 function sha(s) { return "'sha256-" + crypto.createHash('sha256').update(s, 'utf8').digest('base64') + "'"; }
 
 let PAGE = null;
 function buildPage() {
   let html = fs.readFileSync(path.join(ROOT, 'editor', 'elan-editor.html'), 'utf8');
+  const siteOrigin = editorSiteOrigin();
+  html = html.replace('</head>', '<script>window.ELAN_EDITOR_SITE_ORIGIN=' + JSON.stringify(siteOrigin) + ';</script></head>');
   html = html.replace('</body>', '<script src="/editor-guard.js"></script><script src="/editor-media.js"></script></body>');
   const hashes = [];
   html.replace(/<script>([\s\S]*?)<\/script>/g, (_, code) => { hashes.push(sha(code)); return ''; });
@@ -29,7 +39,7 @@ function buildPage() {
     "img-src 'self' data: blob: https:",
     "media-src 'self' blob: https:",
     "connect-src 'self'",
-    "frame-src 'self'",
+    "frame-src 'self' " + siteOrigin,
     "frame-ancestors 'none'", "base-uri 'none'", "form-action 'self'", "object-src 'none'"
   ].join('; ');
   return { html, csp };
@@ -162,4 +172,4 @@ async function handle(req, res, pathname) {
   return false;
 }
 
-module.exports = { handle, attachSession, buildPage };
+module.exports = { handle, attachSession, buildPage, editorSiteOrigin };

@@ -24,7 +24,8 @@ test('edit mode loads only inside the editor window and never for customers', ()
 
 test('edit mode talks to its own editor window only', () => {
   const mode = read('edit-mode.js');
-  assert.match(mode, /allowedEditorOrigins: \[location\.origin\]/);
+  assert.match(mode, /function editorParentOrigin\(\)/);
+  assert.match(mode, /allowedEditorOrigins: \[editorParentOrigin\(\)\]/);
   assert.doesNotMatch(mode, /allowedEditorOrigins:\s*\[\s*'\*'/);
   assert.doesNotMatch(mode, /localStorage|sessionStorage/);
 });
@@ -87,4 +88,16 @@ test('right-click menu is not closed by a repeat selection message for the same 
   const page = read('editor/elan-editor.html');
   assert.match(page, /liveMenuFor=el\?\.id\|\|null/);
   assert.match(page, /\(m\.element\?\.id\|\|null\)===liveMenuFor/);
+});
+
+test('live preview defaults to the configured storefront origin, not the editor origin', () => {
+  const page = read('editor/elan-editor.html');
+  const host = read('railway/editor-host.js');
+  const mode = read('edit-mode.js');
+  assert.match(page, /address\.value=\(window\.ELAN_EDITOR_SITE_ORIGIN\|\|\'https:\/\/elan-site-production\.up\.railway\.app\'\)\+'\/'/);
+  assert.match(host, /frame-src 'self' \" \+ siteOrigin/);
+  assert.match(host, /window\.ELAN_EDITOR_SITE_ORIGIN/);
+  assert.match(host, /frame-ancestors 'none'/);
+  assert.match(page, /url\.searchParams\.set\('elan_editor_origin',location\.origin\)/);
+  assert.match(mode, /allowedEditorOrigins: \[editorParentOrigin\(\)\]/);
 });

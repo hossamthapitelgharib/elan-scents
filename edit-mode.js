@@ -548,8 +548,19 @@
     return { revision: baseRevision, design: clone(work) };
   }
 
+  function editorParentOrigin() {
+    var raw = new URLSearchParams(location.search).get('elan_editor_origin');
+    if (!raw || raw.length > 300) return location.origin;
+    try {
+      var u = new URL(raw);
+      var localHttp = u.protocol === 'http:' && (u.hostname === 'localhost' || u.hostname === '127.0.0.1');
+      if ((!localHttp && u.protocol !== 'https:') || u.username || u.password || u.pathname !== '/' || u.search || u.hash || u.origin !== raw) return location.origin;
+      return u.origin;
+    } catch (_) { return location.origin; }
+  }
+
   hostApi = Bridge.install({
-    allowedEditorOrigins: [location.origin],
+    allowedEditorOrigins: [editorParentOrigin()],
     authorize: async function () {
       try { var r = await fetch('/api/editor-session', { credentials: 'same-origin', cache: 'no-store' }); return r.ok; } catch (_) { return false; }
     },
