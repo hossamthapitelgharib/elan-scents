@@ -155,11 +155,66 @@ test('shipping UI and migration keep carrier integration out of the platform', (
   assert.match(customer, /store_shipments/); assert.match(store, /store-shipment-update/);
 });
 
-test('notification API reads and marks only accessible notifications', async () => {
+test('notification API returns only UI fields and marks only the customer’s own notification', async () => {
   process.env.SUPABASE_URL = 'https://test.supabase.co'; process.env.SUPABASE_SERVICE_ROLE_KEY = 'service';
-  global.fetch = async (url, options = {}) => { if (url.includes('/auth/v1/user')) return jsonResponse({ id: 'customer-1' }); if (url.includes('/profiles')) return jsonResponse([{ id: 'customer-1', role: 'customer' }]); if (options.method === 'PATCH') return jsonResponse([{ id: 'n1', is_read: true }]); return jsonResponse([{ id: 'n1', user_id: 'customer-1', type: 'store_cancelled', is_read: false }]); };
-  const read = await invoke(api('notifications'), { method: 'GET', headers: { authorization: 'Bearer token' }, query: { unread: '1' } }); assert.equal(read.status, 200);
-  const marked = await invoke(api('notifications'), { method: 'PATCH', headers: { authorization: 'Bearer token' }, body: { id: 'n1' } }); assert.equal(marked.status, 200);
+  const notificationId = '55555555-5555-4555-8555-555555555555';
+  const calls = [];
+  global.fetch = async (url, options = {}) => {
+    if (url.includes('/auth/v1/user')) return jsonResponse({ id: 'customer-1' });
+    if (url.includes('/profiles')) return jsonResponse([{ id: 'customer-1', role: 'customer' }]);
+    if (url.includes('/notifications?')) {
+      calls.push({ url: String(url), options });
+      return jsonResponse([{ id: notificationId, user_id: 'customer-1', recipient_role: 'customer', checkout_session_id: 'private-session', type: 'store_cancelled', title: 'تم إلغاء الطلب', body: 'تم تحديث الطلب.', is_read: false, created_at: '2026-10-13T00:00:00Z', payload: { customer_email: 'private@example.test', customer_address: 'private address', secret: 'private-payload' } }]);
+    }
+    throw new Error(`unexpected ${url}`);
+  };
+  const read = await invoke(api('notifications'), { method: 'GET', headers: { authorization: 'Bearer token' }, query: { unread: '1' } });
+  assert.equal(read.status, 200);
+  assert.deepEqual(read.body.notifications, [{ id: notificationId, title: 'تم إلغاء الطلب', body: 'تم تحديث الطلب.', is_read: false, created_at: '2026-10-13T00:00:00Z' }]);
+  assert.equal(JSON.stringify(read.body).includes('private'), false);
+  const readQuery = new URL(calls[0].url).searchParams;
+  assert.equal(readQuery.get('select'), 'id,title,body,is_read,created_at');
+  assert.equal(readQuery.get('user_id'), 'eq.customer-1');
+  const marked = await invoke(api('notifications'), { method: 'PATCH', headers: { authorization: 'Bearer token' }, body: { id: notificationId } });
+  assert.equal(marked.status, 200);
+  assert.deepEqual(marked.body, { ok: true });
+  assert.equal(calls[1].options.headers.Prefer, 'return=minimal');
+  assert.equal(new URL(calls[1].url).searchParams.get('user_id'), 'eq.customer-1');
+});
+
+test('store-admin notifications include every assigned store but never expose raw payloads', async () => {
+  process.env.SUPABASE_URL = 'https://test.supabase.co'; process.env.SUPABASE_SERVICE_ROLE_KEY = 'service';
+  const assignedStoreIds = Array.from({ length: 25 }, (_, index) => `00000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`);
+  let storeAccountQuery, notificationQuery;
+  global.fetch = async (input, options = {}) => {
+    const url = new URL(String(input));
+    if (url.pathname.endsWith('/auth/v1/user')) return jsonResponse({ id: 'store-user' });
+    if (url.pathname.endsWith('/profiles')) return jsonResponse([{ id: 'store-user', role: 'store_admin' }]);
+    if (url.pathname.endsWith('/store_accounts')) {
+      storeAccountQuery = url.searchParams;
+      const offset = Number(url.searchParams.get('offset')) || 0, limit = Number(url.searchParams.get('limit')) || 20;
+      return jsonResponse(assignedStoreIds.slice(offset, offset + limit).map(store_id => ({ store_id })));
+    }
+    if (url.pathname.endsWith('/notifications')) {
+      notificationQuery = url.searchParams;
+      return jsonResponse([{ id: 'n2', title: 'طلب جديد', body: 'تم إرسال طلب جديد إلى المتجر.', is_read: false, created_at: '2026-10-13T00:00:00Z', store_id: assignedStoreIds[24], payload: { customer_phone: 'private' } }]);
+    }
+    throw new Error(`unexpected ${url.pathname} ${options.method || 'GET'}`);
+  };
+  const result = await invoke(api('notifications'), { method: 'GET', headers: { authorization: 'Bearer token' } });
+  assert.equal(result.status, 200);
+  assert.equal(storeAccountQuery.get('limit'), '500');
+  assert.equal(storeAccountQuery.get('offset'), '0');
+  assert.ok(notificationQuery.get('or').includes(assignedStoreIds[24]));
+  assert.deepEqual(result.body.notifications, [{ id: 'n2', title: 'طلب جديد', body: 'تم إرسال طلب جديد إلى المتجر.', is_read: false, created_at: '2026-10-13T00:00:00Z' }]);
+  assert.equal(JSON.stringify(result.body).includes('private'), false);
+});
+
+test('notification UI refreshes through the sanitized API instead of subscribing to database rows', () => {
+  const portal = fs.readFileSync(path.join(root, 'portal.js'), 'utf8');
+  assert.doesNotMatch(portal, /postgres_changes|loadRealtime|createClient/);
+  assert.match(portal, /fetch\('\/api\/notifications\?limit=50'/);
+  assert.match(portal, /setInterval\(\(\) => Portal\.refreshNotifications\(true\), 30000\)/);
 });
 
 test('customer UI keeps the previous basket identity and mobile entry point', () => {

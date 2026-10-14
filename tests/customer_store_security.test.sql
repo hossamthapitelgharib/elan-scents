@@ -53,6 +53,8 @@ begin
      or has_table_privilege('authenticated', 'public.order_reconciliation_checks', 'SELECT') or has_any_column_privilege('authenticated', 'public.order_reconciliation_checks', 'SELECT')
      or has_table_privilege('authenticated', 'public.store_accounts', 'SELECT') or has_any_column_privilege('authenticated', 'public.store_accounts', 'SELECT')
      or has_table_privilege('authenticated', 'public.commissions', 'SELECT') or has_any_column_privilege('authenticated', 'public.commissions', 'SELECT')
+     or has_table_privilege('authenticated', 'public.notifications', 'SELECT') or has_any_column_privilege('authenticated', 'public.notifications', 'SELECT')
+     or has_table_privilege('authenticated', 'public.notifications', 'UPDATE') or has_any_column_privilege('authenticated', 'public.notifications', 'UPDATE')
      or has_table_privilege('authenticated', 'public.sync_logs', 'SELECT') or has_any_column_privilege('authenticated', 'public.sync_logs', 'SELECT') then
     raise exception 'authenticated customers and store admins must use role-checked APIs for private order and store records';
   end if;
