@@ -114,18 +114,19 @@
   }
   function cur(id) { return ED.editFor(work, device(), id) || {}; }
   /* What the editor needs to know about an element: the original editor's type names plus its current look. */
-  var TYPE_OF = { section: 'section', title: 'text', 'hero-text': 'text', hero: 'section', 'hero-counters': 'text', card: 'card', block: 'block', 'text-area': 'text', group: 'section', 'image-el': 'image' };
+  var TYPE_OF = { section: 'section', title: 'text', 'hero-text': 'text', hero: 'section', 'hero-counters': 'text', card: 'card', block: 'block' };
+  function solidBackground(c) { var m = /^rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)$/.exec(c || ''); return !m || (m[4] !== undefined && parseFloat(m[4]) === 0) ? '' : rgbToHex(c); }
   function info(e) {
     if (!e) return null;
     var node = layer.textTarget(e) || e.el, cs = getComputedStyle(node), st = cur(e.id).style || {};
     var blk = work.blocks.filter(function (b) { return b.id === e.id; })[0];
     var type = blk ? ({ text: 'text_block', banner: 'banner', image: 'image' })[blk.type] : (TYPE_OF[e.kind] || 'text');
     return {
-      id: e.id, name: e.name, kind: e.kind, type: type, canText: !!layer.textTarget(e), isBlock: !!blk, dynamic: !!dynamicTarget(e),
+      id: e.id, name: e.name, kind: e.kind, type: type, text: String(node.textContent || '').trim().slice(0, 120), canText: !!layer.textTarget(e), isBlock: !!blk, dynamic: !!dynamicTarget(e),
       style: {
         fontFamily: st.fontFamily || (cs.fontFamily || '').split(',')[0].replace(/["']/g, '').trim(),
         fontSize: st.fontSize || Math.round(parseFloat(cs.fontSize) || 16),
-        color: st.color || rgbToHex(cs.color), background: st.background || (function (c) { return !c || c === 'transparent' || /,\s*0\)$/.test(c) ? '' : rgbToHex(c); })(getComputedStyle(e.el).backgroundColor),
+        color: st.color || rgbToHex(cs.color), background: st.background || solidBackground(getComputedStyle(e.el).backgroundColor),
         align: st.align || ({ start: 'right', end: 'left', center: 'center', left: 'left', right: 'right' })[cs.textAlign] || 'right',
         effect: st.effect || 'none'
       }
@@ -353,17 +354,7 @@
 
   function setMedia(id, src) {
     var b = work.blocks.filter(function (x) { return x.id === id; })[0];
-    if (!b) {
-      var en = entryById(id);
-      if (!en || (en.kind !== 'hero' && en.kind !== 'card' && en.kind !== 'section' && en.kind !== 'image-el')) throw new Error('الصور بتتغيّر في الواجهة أو الكروت أو السيكشنز أو بلوك صورة/بانر.');
-      var kind = /\.(mp4|webm)(\?|$)/i.test(src) ? 'video' : 'image';
-      if (kind === 'video' && (en.kind === 'card' || en.kind === 'image-el')) throw new Error('الكارت بيقبل صورة بس.');
-      var probe2 = { version: ED.VERSION, edits: { all: {} } }; probe2.edits.all[id] = { media: { src: src, kind: kind } };
-      if (!ED.normalize(probe2, { strict: true }).ok) throw new Error('رابط الميديا مش مسموح.');
-      mutate(function () { edit('all', id).media = { src: src, kind: kind }; });
-      return;
-    }
-    if (b.type !== 'image' && b.type !== 'banner') throw new Error('الصور بتتغيّر في بلوك صورة أو بانر بس.');
+    if (!b || (b.type !== 'image' && b.type !== 'banner')) throw new Error('الصور بتتغيّر في بلوك صورة أو بانر بس.');
     var probe = clone(b); if (b.type === 'image') probe.src = src; else probe.image = src;
     if (!validBlock(probe)) throw new Error('رابط الصورة مش مسموح.');
     mutate(function (d) { var t = d.blocks.filter(function (x) { return x.id === id; })[0]; if (t.type === 'image') t.src = src; else t.image = src; });

@@ -78,13 +78,47 @@ test('when the editor cannot start, it says why instead of showing no tools', ()
   assert.equal(ok.error, undefined);
 });
 
-test('save error shows which Railway settings are missing', () => {
-  const page = read('editor/elan-editor.html');
-  assert.match(page, /الناقص: '\+j\.missing\.join/);
+test('a refused GitHub save is explained in plain words, without writing any file', async () => {
+  const { actionDiagnose } = require('../railway/editor.js').internals;
+  const calls = [];
+  const realFetch = global.fetch;
+  const script = {
+    'GET /repos/o/r': [200, {}],
+    'GET /repos/o/r/branches/main': [200, { commit: { sha: 'abc' }, protected: false }],
+    'GET /repos/o/r/contents/design/home.json?ref=main': [200, {}],
+    'POST /repos/o/r/git/refs': [403, { message: 'Resource not accessible by personal access token' }]
+  };
+  global.fetch = async (url, init) => {
+    const key = (init.method || 'GET') + ' ' + new URL(url).pathname + new URL(url).search;
+    calls.push(key); const [status, json] = script[key] || [500, {}];
+    return { status, json: async () => json };
+  };
+  try {
+    const r = await actionDiagnose({ token: 't', repo: 'o/r', branch: 'main' });
+    assert.match(r.body.verdict, /Contents = Read and write/);
+    assert.ok(calls.every((c) => !c.startsWith('PUT') && !c.startsWith('PATCH')));
+    assert.ok(!JSON.stringify(r).includes('Bearer'));
+  } finally { global.fetch = realFetch; }
 });
 
-test('right-click menu is not closed by a repeat selection message for the same element', () => {
-  const page = read('editor/elan-editor.html');
-  assert.match(page, /liveMenuFor=el\?\.id\|\|null/);
-  assert.match(page, /\(m\.element\?\.id\|\|null\)===liveMenuFor/);
+test('every font in the editor panel is accepted by the design schema and loadable on the page', () => {
+  const ED = require('../design-schema.js');
+  const html = read('editor/elan-editor.html');
+  const m = /const fontDefinitions=(\[\[.*?\]\]);/s.exec(html);
+  assert.ok(m, 'font list not found in the editor');
+  const fonts = eval(m[1]).flatMap((g) => g[1]);
+  assert.equal(fonts.length, 29);
+  for (const f of fonts) {
+    assert.ok(ED.FONTS.includes(f), f + ' missing from schema');
+    assert.ok(ED.normalize({ version: ED.VERSION, edits: { all: { 'sec:brands': { style: { fontFamily: f } } } } }, { strict: true }).ok, f);
+  }
+  assert.ok(ED.WEB_FONTS.includes('Cairo') && !ED.WEB_FONTS.includes('Tahoma'));
+  assert.match(read('design-layer.js'), /fonts\.googleapis\.com\/css2\?family=/);
+});
+
+test('the live format panel sends a colour only when the owner changed it', () => {
+  const html = read('editor/elan-editor.html');
+  assert.match(html, /if\(document\.getElementById\('color'\)\.value!==init\.color\)/);
+  assert.match(html, /if\(document\.getElementById\('bg'\)\.value!==init\.bg\)/);
+  assert.match(read('edit-mode.js'), /function solidBackground/);
 });

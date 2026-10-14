@@ -5,8 +5,7 @@ const crypto = require('crypto');
 
 const BUCKET = 'site-media';
 const MAX_BYTES = 10 * 1024 * 1024;
-const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
-const TYPES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif', 'image/avif': 'avif', 'video/mp4': 'mp4', 'video/webm': 'webm' };
+const TYPES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif', 'image/avif': 'avif' };
 
 function cfg() { return { url: String(process.env.SUPABASE_URL || '').replace(/\/+$/, ''), anon: process.env.SUPABASE_ANON_KEY }; }
 function headers(session, extra) { return Object.assign({ apikey: cfg().anon, Authorization: 'Bearer ' + session.token }, extra || {}); }
@@ -18,8 +17,6 @@ function looksLike(buf, type) {
   if (type === 'image/png') return buf.slice(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
   if (type === 'image/gif') return buf.slice(0, 4).toString('latin1') === 'GIF8';
   if (type === 'image/webp') return buf.slice(0, 4).toString('latin1') === 'RIFF' && buf.slice(8, 12).toString('latin1') === 'WEBP';
-  if (type === 'video/mp4') return buf.slice(4, 8).toString('latin1') === 'ftyp';
-  if (type === 'video/webm') return buf.slice(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]));
   if (type === 'image/avif') return buf.slice(4, 12).toString('latin1') === 'ftypavif';
   return false;
 }
@@ -42,7 +39,7 @@ async function upload(session, buf, type, fileName) {
   const ext = TYPES[type];
   if (!ext) return { status: 415, error: 'unsupported_type' };
   if (!buf || !buf.length) return { status: 400, error: 'empty_file' };
-  if (buf.length > (type.indexOf('video/') === 0 ? MAX_VIDEO_BYTES : MAX_BYTES)) return { status: 413, error: 'file_too_large' };
+  if (buf.length > MAX_BYTES) return { status: 413, error: 'file_too_large' };
   if (!looksLike(buf, type)) return { status: 415, error: 'file_does_not_match_type' };
   const path = 'uploads/' + new Date().getUTCFullYear() + '/' + crypto.randomBytes(10).toString('hex') + '.' + ext;
   let up;
@@ -50,7 +47,6 @@ async function upload(session, buf, type, fileName) {
   catch (_) { return { status: 502, error: 'storage_unreachable' }; }
   if (!up.ok) return { status: up.status === 401 || up.status === 403 ? up.status : 502, error: 'upload_failed' };
   const url = c.url + '/storage/v1/object/public/' + BUCKET + '/' + path;
-  if (type.indexOf('video/') === 0) return { status: 200, url };
   let row;
   try {
     row = await fetch(c.url + '/rest/v1/media_library', {
@@ -62,4 +58,4 @@ async function upload(session, buf, type, fileName) {
   return { status: 200, url };
 }
 
-module.exports = { list, upload, looksLike, MAX_BYTES, MAX_VIDEO_BYTES, TYPES };
+module.exports = { list, upload, looksLike, MAX_BYTES, TYPES };
