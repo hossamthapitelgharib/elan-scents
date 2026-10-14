@@ -329,12 +329,22 @@
     seq.splice(i === -1 ? 0 : i + 1, 0, blockId);
     return seq;
   }
+  async function createSmart(kind, c) {
+    var name = String(prompt('اسم العنصر الجديد') || '').trim();
+    if (!name) throw new Error('اكتبي اسم العنصر قبل الإنشاء.');
+    var r = await fetch('/api/editor-data', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'section.create', section: { name: name, purpose: kind, selection_mode: 'manual', filters: {} } }) });
+    var j = await r.json().catch(function () { return {}; });
+    if (!r.ok || !j.ok || !j.ref) throw new Error(j.error || 'تعذر إنشاء القسم المركزي.');
+    return createBlock('smart', { ref: j.ref, semanticKind: kind, at: c && c.at });
+  }
+
   function createBlock(kind, opts) {
     opts = opts || {};
     var id = 'x-' + rid(), b;
     if (kind === 'banner') b = { id: id, type: 'banner', title: { ar: opts.title || 'عنوان جديد' }, subtitle: { ar: opts.subtitle || 'سطر تعريفي قصير' }, style: { align: 'center', size: 'md' } };
     else if (kind === 'text_block' || kind === 'text') b = { id: id, type: 'text', text: { ar: opts.text || 'نص جديد' }, style: { align: 'center', size: 'md' } };
     else if (kind === 'image') b = { id: id, type: 'image', src: opts.src, alt: {}, style: { align: 'center', size: 'md' } };
+    else if (kind === 'smart') b = { id: id, type: 'smart', ref: opts.ref, style: { align: 'center', size: 'md' }, kind: opts.semanticKind || 'section' };
     else throw new Error('نوع غير مدعوم هنا');
     if (opts.image) b.image = opts.image;
     if (!validBlock(b)) throw new Error('بيانات البلوك غير صالحة (راجعي رابط الصورة).');
@@ -360,6 +370,30 @@
     mutate(function (d) { var t = d.blocks.filter(function (x) { return x.id === id; })[0]; if (t.type === 'image') t.src = src; else t.image = src; });
   }
 
+  function libraryElement(c) {
+    var b = work.blocks.filter(function (x) { return x.id === c.id; })[0];
+    return clone(b || c.info || { id: c.id, type: 'element' });
+  }
+  async function saveToLibrary(c) {
+    var read = await fetch('/api/editor-data?action=library', { credentials: 'same-origin', cache: 'no-store' });
+    var current = await read.json().catch(function () { return {}; });
+    if (!read.ok || !current.ok || !current.library) throw new Error('تعذر قراءة المكتبة المركزية.');
+    var element = libraryElement(c), item = { name: element.name || element.id || 'عنصر', kind: element.kind || element.type || 'element', category: element.kind || element.type || 'general', payload: element };
+    var saved = Array.isArray(current.library.savedElements) ? current.library.savedElements.slice() : [];
+    saved.push(item);
+    var write = await fetch('/api/editor-data', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'library.save', library: { archive: current.library.archive || [], savedElements: saved } }) });
+    var result = await write.json().catch(function () { return {}; });
+    if (!write.ok || !result.ok) throw new Error(result.error || 'تعذر حفظ العنصر في المكتبة.');
+    return { saved: true };
+  }
+  function downloadFromLibrary(c) {
+    var element = libraryElement(c), blob = new Blob([JSON.stringify({ format: 'elan-element-v1', element: element }, null, 2)], { type: 'application/json' });
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'elan-element.json'; a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+    return { downloaded: true };
+  }
+  function deleteMedia(c) { archive(c.id); return { archived: true }; }
+
 
   /* ---------- tools: the editor's menu is built from this list, so a new capability = one new register() call ---------- */
   var TOOLS = [];
@@ -367,8 +401,6 @@
   function toolList(i) {
     return TOOLS.map(function (t) { return { id: t.id, label: t.label, ui: t.ui || null, enabled: t.when ? !!t.when(i) : true }; });
   }
-  var NEEDS_DB = 'بيتربط بسابابيس في المرحلة الجاية.';
-  function later(label) { return function () { throw new Error(label + ' ' + NEEDS_DB); }; }
   function has(i) { return !!i; }
   function hasText(i) { return !!(i && i.canText); }
   registerTool({ id: 'format', label: 'تنسيق النص: الخط • اللون • الحجم • 3D', ui: 'format', when: has });
@@ -376,18 +408,18 @@
   registerTool({ id: 'open', label: 'فتح العنصر (الدخول لصفحته)', when: function (i) { return !!(i && i.dynamic); }, run: function (c) { enterPage(entryById(c.id)); return null; } });
   registerTool({ id: 'go_back', label: 'رجوع للصفحة السابقة', when: inner, run: function () { goBack(); return null; } });
   registerTool({ id: 'go_home', label: 'رجوع للصفحة الرئيسية', when: inner, run: function () { goHome(); return null; } });
-  [['create_section', 'إنشاء سيكشن'], ['create_brand', 'إنشاء كارت براند'], ['create_store', 'إنشاء كارت متجر'], ['create_perfume', 'إنشاء كارت عطر'], ['create_occasion', 'إنشاء مناسبة'], ['create_note', 'إنشاء نوتة عطر']].forEach(function (x) { registerTool({ id: x[0], label: x[1], run: later(x[1]) }); });
+  [['create_section', 'إنشاء سيكشن'], ['create_brand', 'إنشاء كارت براند'], ['create_store', 'إنشاء كارت متجر'], ['create_perfume', 'إنشاء كارت عطر'], ['create_occasion', 'إنشاء مناسبة'], ['create_note', 'إنشاء نوتة عطر']].forEach(function (x) { registerTool({ id: x[0], label: x[1], run: function (c) { return createSmart(x[0].replace('create_', ''), c); } }); });
   registerTool({ id: 'create_text_block', label: 'إنشاء كتلة نصية', run: function (c) { return createBlock('text_block', { at: c.at }); } });
   registerTool({ id: 'create_banner', label: 'إنشاء بانر صورة أو فيديو', ui: 'media_new', run: function (c) { return createBlock('banner', { at: c.at, image: c.src }); } });
   registerTool({ id: 'create_image', label: 'إنشاء صورة', ui: 'media_new', run: function (c) { if (!c.src) throw new Error('اختاري صورة الأول.'); return createBlock('image', { at: c.at, src: c.src }); } });
   registerTool({ id: 'create_text', label: 'إنشاء نص', run: function (c) { return createBlock('text_block', { at: c.at }); } });
-  registerTool({ id: 'media', label: 'رفع صورة أو فيديو داخل العناصر أو الهيرو', ui: 'media', when: function (i) { return !!i && ['card', 'banner', 'image', 'section'].indexOf(i.type) !== -1; }, run: function (c) { return mediaPrompt().then(function (src) { setMedia(c.id, src); return null; }); } });
-  registerTool({ id: 'media_delete', label: 'حذف ميديا الكارت أو الهيرو إلى الأرشيف', when: function () { return false; }, run: later('حذف الميديا') });
+  registerTool({ id: 'media', label: 'رفع صورة أو فيديو داخل العناصر أو الهيرو', ui: 'media', when: function (i) { return !!i && ['banner', 'image'].indexOf(i.type) !== -1; }, run: function (c) { return mediaPrompt().then(function (src) { setMedia(c.id, src); return null; }); } });
+  registerTool({ id: 'media_delete', label: 'حذف ميديا العنصر إلى الأرشيف', when: function (i) { return !!i && ['banner', 'image'].indexOf(i.type) !== -1; }, run: deleteMedia });
   registerTool({ id: 'edit_text', label: 'تعديل النص بالكيبورد', when: hasText, run: function (c) { startText(c.id); return null; } });
   registerTool({ id: 'copy', label: 'نسخ العنصر', when: has, run: function (c) { return execute('element.duplicate', { elementId: c.id }, {}); } });
   registerTool({ id: 'archive', label: 'حذف العنصر إلى الأرشيف', when: has, run: function (c) { archive(c.id); return null; } });
-  registerTool({ id: 'library_save', label: 'حفظ العنصر في المكتبة', when: has, run: later('المكتبة') });
-  registerTool({ id: 'library_download', label: 'تنزيل العنصر للمكتبة كملف', when: has, run: later('المكتبة') });
+  registerTool({ id: 'library_save', label: 'حفظ العنصر في المكتبة', when: has, run: saveToLibrary });
+  registerTool({ id: 'library_download', label: 'تنزيل العنصر للمكتبة كملف', when: has, run: downloadFromLibrary });
   window.ElanEditTools = { register: registerTool, list: function () { return TOOLS.slice(); } };
 
   /* ---------- commands from the editor ---------- */
@@ -443,8 +475,9 @@
       case 'ui.openCreatePanel':
         if (p.kind === 'banner' || p.kind === 'text_block' || p.kind === 'text') return createBlock(p.kind === 'text' ? 'text_block' : p.kind, { at: p.at });
         if (p.kind === 'image') { var src8 = await mediaPrompt(); return createBlock('image', { src: src8, at: p.at }); }
-        throw new Error('إنشاء ' + p.kind + ' بيتربط بسابابيس في المرحلة الجاية. المتاح دلوقتي: بانر ونص وصورة.');
-      case 'library.open': throw new Error('المكتبة بتتربط بسابابيس في المرحلة الجاية.');
+        if (['section', 'brand', 'store', 'perfume', 'occasion', 'note'].indexOf(p.kind) !== -1) return createSmart(p.kind, { at: p.at });
+        throw new Error('نوع إنشاء غير مدعوم: ' + p.kind);
+      case 'library.open': return { openLibrary: true };
       case 'page.save': throw new Error('الحفظ بيتم من الإديتور نفسه بعد التحقق من الإدارة.');
       default: throw new Error('أمر غير مدعوم');
     }
