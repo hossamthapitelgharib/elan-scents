@@ -30,7 +30,11 @@
   var DEVICES = ['all', 'desktop', 'tablet', 'mobile'];
   var EDIT_ID_RE = /^[a-z0-9:_-]{1,60}$/;
   var WEIGHTS = [400, 500, 600, 700];
-  var FONTS = ['Tahoma', 'Arial', 'Georgia', 'Times New Roman', 'Verdana'];
+  /* Device fonts, the fonts the site already ships, and the extra Arabic/English families the editor offers. */
+  var DEVICE_FONTS = ['Tahoma', 'Arial', 'Georgia', 'Times New Roman', 'Verdana', 'Trebuchet MS', 'Courier New', 'system-ui'];
+  var LOCAL_FONTS = ['El Messiri', 'IBM Plex Sans Arabic', 'Playfair Display'];
+  var WEB_FONTS = ['Cairo', 'Tajawal', 'Almarai', 'Amiri', 'Changa', 'Noto Kufi Arabic', 'Noto Naskh Arabic', 'Noto Sans Arabic', 'Reem Kufi', 'Inter', 'Roboto', 'Open Sans', 'Lato', 'Montserrat', 'Poppins', 'Cormorant Garamond', 'Libre Baskerville', 'Merriweather'];
+  var FONTS = DEVICE_FONTS.concat(LOCAL_FONTS, WEB_FONTS);
   var EFFECTS = ['none', 'soft', 'gold', 'deep'];
   var EDIT_LIMITS = { ids: 400, offset: 4000, size: 4000, minSize: 16, font: [8, 120], radius: 80 };
   var BREAKPOINTS = { mobile: 640, tablet: 1024 };
@@ -360,7 +364,7 @@
 
   return {
     VERSION: VERSION, BUILTIN: BUILTIN, TEXT_KEYS: TEXT_KEYS, LIMITS: LIMITS,
-    DEVICES: DEVICES, FONTS: FONTS, EFFECTS: EFFECTS, BREAKPOINTS: BREAKPOINTS, EDIT_ID_RE: EDIT_ID_RE,
+    DEVICES: DEVICES, FONTS: FONTS, DEVICE_FONTS: DEVICE_FONTS, LOCAL_FONTS: LOCAL_FONTS, WEB_FONTS: WEB_FONTS, EFFECTS: EFFECTS, BREAKPOINTS: BREAKPOINTS, EDIT_ID_RE: EDIT_ID_RE,
     normalize: normalize, isEmpty: isEmpty, serialize: serialize, plan: plan, applyTexts: applyTexts,
     deviceOf: deviceOf, editFor: editFor,
     isRef: function (r) { return typeof r === 'string' && REF_RE.test(r); },

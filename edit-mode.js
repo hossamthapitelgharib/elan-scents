@@ -125,7 +125,7 @@
       style: {
         fontFamily: st.fontFamily || (cs.fontFamily || '').split(',')[0].replace(/["']/g, '').trim(),
         fontSize: st.fontSize || Math.round(parseFloat(cs.fontSize) || 16),
-        color: st.color || rgbToHex(cs.color), background: st.background || rgbToHex(getComputedStyle(e.el).backgroundColor),
+        color: st.color || rgbToHex(cs.color), background: st.background || (function (c) { return !c || c === 'transparent' || /,\s*0\)$/.test(c) ? '' : rgbToHex(c); })(getComputedStyle(e.el).backgroundColor),
         align: st.align || ({ start: 'right', end: 'left', center: 'center', left: 'left', right: 'right' })[cs.textAlign] || 'right',
         effect: st.effect || 'none'
       }
