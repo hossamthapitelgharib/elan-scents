@@ -23,9 +23,13 @@
 npm test
 ```
 
+يُنشئ `npm test` تقريرًا زمنيًا في `reports/test-runs/` حتى عند فشل الاختبارات. أما `npm run test:raw` فيشغّل Node Test Runner دون إنشاء تقرير.
+
 ## التشغيل التلقائي
 
 يعمل workflow الموجود في `.github/workflows/tests.yml` تلقائيًا عند كل `push` إلى `main` وعند كل Pull Request إلى `main`.
+
+بعد كل تشغيل يرفع GitHub Actions مجلد `reports/test-runs/` كـArtifact لمدة 30 يومًا، بما في ذلك التشغيل الفاشل.
 
 ## قاعدة مهمة
 

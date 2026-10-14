@@ -23,3 +23,11 @@ jobs:
         run: node scripts/bump-asset-version.js 20261011-11
       - name: Run regression suite
         run: npm test
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: elan-scents-test-reports-${{ github.run_id }}
+          path: reports/test-runs/
+          if-no-files-found: warn
+          retention-days: 30

@@ -16,6 +16,8 @@ Thumbs.db
 # Local logs and test output
 *.log
 coverage/
+reports/test-runs/test-*.md
+reports/test-runs/latest.json
 
 # Temporary preview artifacts
 .tmp/
