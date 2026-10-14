@@ -27,9 +27,9 @@ npm test
 
 ## التشغيل التلقائي
 
-يعمل workflow الموجود في `.github/workflows/tests.yml` تلقائيًا عند كل `push` إلى `main` وعند كل Pull Request إلى `main`.
+يعمل workflow الموجود في `.github/workflows/tests.yml` تلقائيًا عند كل `push` إلى أي فرع وعند كل Pull Request إلى `main`.
 
-بعد كل تشغيل يرفع GitHub Actions مجلد `reports/test-runs/` كـArtifact لمدة 30 يومًا، بما في ذلك التشغيل الفاشل.
+بعد كل تشغيل عبر GitHub Actions يرفع مجلد `reports/test-runs/` كـArtifact لمدة 30 يومًا، بما في ذلك التشغيل الفاشل. التشغيل المحلي عبر `npm test` يحفظ التقرير في مساحة العمل؛ يصبح رفعه البعيد تلقائيًا عند push/فتح Pull Request يشغّل الـworkflow، ولا ينفذ السكربت push للـGit من تلقاء نفسه.
 
 ## قاعدة مهمة
 
