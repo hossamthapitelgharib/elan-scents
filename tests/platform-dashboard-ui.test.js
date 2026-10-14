@@ -6,6 +6,7 @@ const vm = require('node:vm');
 
 const root = path.join(__dirname, '..');
 const source = fs.readFileSync(path.join(root, 'platform-dashboard.js'), 'utf8');
+const customerSource = fs.readFileSync(path.join(root, 'customers-dashboard.js'), 'utf8');
 const html = fs.readFileSync(path.join(root, 'platform-dashboard.html'), 'utf8');
 const customerHtml = fs.readFileSync(path.join(root, 'customers-dashboard.html'), 'utf8');
 const orderSummaryApi = fs.readFileSync(path.join(root, 'api', 'platform-order-summary.js'), 'utf8');
@@ -19,7 +20,7 @@ function makeNode() {
   };
 }
 
-function loadDashboard() {
+function loadDashboard(dashboard = 'customers') {
   const selectors = [
     '#customerTabs', '#refreshCustomers', '#guestAnalyticsPeriod', '#registeredAnalyticsPeriod',
     '#loginForm', '#login', '#app', '#logout', '#stats', '#platformError', '#platformStoreError', '#platformStoreStats',
@@ -43,7 +44,7 @@ function loadDashboard() {
     URLSearchParams,
     console,
   });
-  vm.runInContext(source, context, { filename: 'platform-dashboard.js' });
+  vm.runInContext(dashboard === 'platform' ? source : customerSource, context, { filename: dashboard === 'platform' ? 'platform-dashboard.js' : 'customers-dashboard.js' });
   return { context, nodes, documentListeners };
 }
 
@@ -53,6 +54,7 @@ test('platform dashboard links to detailed admin tools and contains only aggrega
   assert.match(html, /customers-dashboard\.html/);
   assert.match(html, /id="platformStoreStats"/);
   assert.match(html, /href="\/stores-dashboard\.html"/);
+  assert.match(html, /src="\/platform-dashboard\.js\?v=/);
   assert.doesNotMatch(html, /id="registeredCustomers"|id="guestCustomers"|id="guestTopProducts"/);
   assert.doesNotMatch(source, /customer_(?:name|phone|address|email)|dashboard-orders/);
   assert.match(source, /platform-order-summary/);
@@ -64,13 +66,17 @@ test('platform dashboard links to detailed admin tools and contains only aggrega
   assert.match(customerHtml, /id="registeredAnalyticsPeriod"/);
   assert.match(customerHtml, /id="registeredTopProducts"/);
   assert.match(customerHtml, /id="registeredBasketProducts"/);
+  assert.match(customerHtml, /src="\/customers-dashboard\.js\?v=/);
+  assert.doesNotMatch(customerHtml, /src="\/platform-dashboard\.js\?v=/);
+  assert.doesNotMatch(source, /renderCustomers|loadCustomersDashboard|customerOffsets|customer_product_events/);
+  assert.match(customerSource, /loadCustomersDashboard/);
   assert.match(customerHtml, /الأكثر إضافةً أو حذفًا من سلال الزوار/);
   assert.match(customerHtml, /حذفها\/تقليلها/);
   assert.doesNotMatch(customerHtml, /المنتجات الموجودة في سلال الزوار الآن/);
 });
 
 test('platform dashboard requests aggregate-only counts and does not render customer order details', async () => {
-  const { context, nodes } = loadDashboard();
+  const { context, nodes } = loadDashboard('platform');
   context.Portal.session = () => true;
   const requests = [];
   context.fetch = async url => {
