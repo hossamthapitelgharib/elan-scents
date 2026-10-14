@@ -27,7 +27,9 @@ test('customer activity migration preserves RLS, full product joins, four rankin
   assert.match(dashboard, /registeredAnalyticsPeriod/);
   assert.match(identity, /customer-activity/); assert.match(identity, /heartbeat/);
   assert.match(identity, /prepareLogout/);
-  assert.match(core, /trackGuestProduct\('cart_remove'/); assert.match(core, /trackGuestProduct\('search'/);
+  for (const eventType of ['view', 'search', 'cart_add', 'cart_remove']) {
+    assert.match(core, new RegExp(`trackGuestProduct\\(['\"]${eventType}['\"]`));
+  }
   assert.match(snapshotMigration, /capture_product_snapshot/i);
   assert.match(snapshotMigration, /product_images/i); assert.match(snapshotMigration, /aromaticNotes/i);
   assert.match(snapshotMigration, /storeOffers/i); assert.match(snapshotMigration, /cart_items_product_snapshot/i);
