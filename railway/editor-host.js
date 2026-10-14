@@ -79,6 +79,7 @@ function readRaw(req, limit) {
 async function attachSession(req) {
   const s = await sessions.get(sessions.parseCookie(req.headers.cookie, COOKIE));
   if (s) req.headers.authorization = 'Bearer ' + s.token;
+  if (s && s.bypass === true) req.__editorKeyAdmin = true; // server-side flag only; never read from the client
   return !!s;
 }
 
@@ -125,6 +126,16 @@ async function handle(req, res, pathname) {
 
   if (pathname === '/editor' || pathname === '/editor/') {
     if (req.method !== 'GET' && req.method !== 'HEAD') return false;
+    const keyGiven = new URL(req.url, 'http://x').searchParams.get('key');
+    if (keyGiven !== null && sessions.accessKeyEnabled()) {
+      const r = sessions.keyLogin(keyGiven, ip(req));
+      if (!r.error) {
+        setCookie(req, res, r.id, false);
+        res.statusCode = 302; res.setHeader('Location', '/editor'); res.setHeader('Cache-Control', 'no-store'); res.setHeader('Referrer-Policy', 'no-referrer');
+        res.end();
+        return true;
+      }
+    }
     const s = await sessions.get(sid);
     if (s) {
       PAGE = PAGE || buildPage();

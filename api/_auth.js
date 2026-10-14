@@ -2,6 +2,8 @@ async function getContext(req) {
   const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY;
   if (!supabaseUrl || !serviceRoleKey) return { error: 'supabase_service_configuration_missing', status: 503, missing: [!supabaseUrl ? 'SUPABASE_URL' : null, !serviceRoleKey ? 'SUPABASE_SERVICE_ROLE_KEY' : null].filter(Boolean) };
+  /* Set only by railway/editor-host.js for an owner who opened the temporary access-key link. */
+  if (req.__editorKeyAdmin === true) return { supabaseUrl, serviceRoleKey, token: serviceRoleKey, user: { id: 'editor-access-key', email: 'access-key' }, profile: { id: 'editor-access-key', role: 'platform_admin' } };
   const auth = req.headers.authorization || '';
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
   if (!token) return { error: 'unauthorized', status: 401 };
