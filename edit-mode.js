@@ -122,7 +122,7 @@
     var blk = work.blocks.filter(function (b) { return b.id === e.id; })[0];
     var type = blk ? ({ text: 'text_block', banner: 'banner', image: 'image' })[blk.type] : (TYPE_OF[e.kind] || 'text');
     return {
-      id: e.id, name: e.name, kind: e.kind, type: type, text: String(node.textContent || '').trim().slice(0, 120), canText: !!layer.textTarget(e), isBlock: !!blk, dynamic: !!dynamicTarget(e),
+      id: e.id, name: e.name, kind: e.kind, type: type, text: String(node.textContent || '').trim().slice(0, 120), media: st.media || '', canText: !!layer.textTarget(e), isBlock: !!blk, dynamic: !!dynamicTarget(e),
       style: {
         fontFamily: st.fontFamily || (cs.fontFamily || '').split(',')[0].replace(/["']/g, '').trim(),
         fontSize: st.fontSize || Math.round(parseFloat(cs.fontSize) || 16),
@@ -364,10 +364,22 @@
 
   function setMedia(id, src) {
     var b = work.blocks.filter(function (x) { return x.id === id; })[0];
-    if (!b || (b.type !== 'image' && b.type !== 'banner')) throw new Error('الصور بتتغيّر في بلوك صورة أو بانر بس.');
-    var probe = clone(b); if (b.type === 'image') probe.src = src; else probe.image = src;
-    if (!validBlock(probe)) throw new Error('رابط الصورة مش مسموح.');
-    mutate(function (d) { var t = d.blocks.filter(function (x) { return x.id === id; })[0]; if (t.type === 'image') t.src = src; else t.image = src; });
+    if (b) {
+      var probe = clone(b);
+      if (b.type === 'image') probe.src = src;
+      else if (b.type === 'banner') probe.image = src;
+      else { probe.style = probe.style || {}; probe.style.media = src; }
+      if (!validBlock(probe)) throw new Error('رابط الصورة مش مسموح.');
+      mutate(function (d) {
+        var t = d.blocks.filter(function (x) { return x.id === id; })[0];
+        if (t.type === 'image') t.src = src;
+        else if (t.type === 'banner') t.image = src;
+        else { t.style = t.style || {}; t.style.media = src; }
+      });
+      return;
+    }
+    if (!entryById(id)) throw new Error('العنصر غير موجود.');
+    mutate(function () { var e = edit('all', id); e.style = e.style || {}; e.style.media = src; });
   }
 
   function libraryElement(c) {
@@ -392,7 +404,11 @@
     setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
     return { downloaded: true };
   }
-  function deleteMedia(c) { archive(c.id); return { archived: true }; }
+  function deleteMedia(c) {
+    if (c.info && c.info.media) mutate(function () { var e = edit('all', c.id); if (e.style) delete e.style.media; });
+    else archive(c.id);
+    return { archived: true };
+  }
 
 
   /* ---------- tools: the editor's menu is built from this list, so a new capability = one new register() call ---------- */
@@ -413,8 +429,8 @@
   registerTool({ id: 'create_banner', label: 'إنشاء بانر صورة أو فيديو', ui: 'media_new', run: function (c) { return createBlock('banner', { at: c.at, image: c.src }); } });
   registerTool({ id: 'create_image', label: 'إنشاء صورة', ui: 'media_new', run: function (c) { if (!c.src) throw new Error('اختاري صورة الأول.'); return createBlock('image', { at: c.at, src: c.src }); } });
   registerTool({ id: 'create_text', label: 'إنشاء نص', run: function (c) { return createBlock('text_block', { at: c.at }); } });
-  registerTool({ id: 'media', label: 'رفع صورة أو فيديو داخل العناصر أو الهيرو', ui: 'media', when: function (i) { return !!i && ['banner', 'image'].indexOf(i.type) !== -1; }, run: function (c) { return mediaPrompt().then(function (src) { setMedia(c.id, src); return null; }); } });
-  registerTool({ id: 'media_delete', label: 'حذف ميديا العنصر إلى الأرشيف', when: function (i) { return !!i && ['banner', 'image'].indexOf(i.type) !== -1; }, run: deleteMedia });
+  registerTool({ id: 'media', label: 'رفع صورة أو فيديو داخل العناصر أو الهيرو', ui: 'media', when: function (i) { return !!i && ['text', 'text_block'].indexOf(i.type) === -1; }, run: function (c) { return mediaPrompt().then(function (src) { setMedia(c.id, src); return null; }); } });
+  registerTool({ id: 'media_delete', label: 'حذف ميديا العنصر إلى الأرشيف', when: function (i) { return !!i && !!i.media; }, run: deleteMedia });
   registerTool({ id: 'edit_text', label: 'تعديل النص بالكيبورد', when: hasText, run: function (c) { startText(c.id); return null; } });
   registerTool({ id: 'copy', label: 'نسخ العنصر', when: has, run: function (c) { return execute('element.duplicate', { elementId: c.id }, {}); } });
   registerTool({ id: 'archive', label: 'حذف العنصر إلى الأرشيف', when: has, run: function (c) { archive(c.id); return null; } });

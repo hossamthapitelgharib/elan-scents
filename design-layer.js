@@ -220,6 +220,12 @@
     if (ed.h) { el.style.height = ed.h + 'px'; }
     if (st.color) el.style.color = st.color;
     if (st.background) el.style.backgroundColor = st.background;
+    if (st.media) {
+      el.style.backgroundImage = 'url("' + st.media.replace(/([\\"'])/g, '\\$1') + '")';
+      el.style.backgroundSize = st.fit === 'contain' ? 'contain' : 'cover';
+      el.style.backgroundPosition = 'center';
+      el.style.backgroundRepeat = 'no-repeat';
+    }
     if (st.fontSize) el.style.fontSize = st.fontSize + 'px';
     if (st.weight) el.style.fontWeight = String(st.weight);
     if (st.radius !== undefined) el.style.borderRadius = st.radius + 'px';

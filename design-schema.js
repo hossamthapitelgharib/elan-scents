@@ -168,6 +168,10 @@
             if (EFFECTS.indexOf(sv) !== -1) st.effect = sv; else errors.push(where + '.style.effect: invalid');
           } else if (sk === 'opacity') {
             if (typeof sv === 'number' && sv >= 0.1 && sv <= 1) st.opacity = Math.round(sv * 100) / 100; else errors.push(where + '.style.opacity: invalid');
+          } else if (sk === 'media') {
+            if (sv === null || sv === '') return;
+            var media = mediaUrl(sv);
+            if (media) st.media = media; else errors.push(where + '.style.media: invalid media URL');
           } else errors.push(where + '.style.' + sk + ': not editable');
         });
         if (Object.keys(st).length) out.style = st;
