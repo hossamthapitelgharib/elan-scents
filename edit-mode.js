@@ -114,7 +114,7 @@
   }
   function cur(id) { return ED.editFor(work, device(), id) || {}; }
   /* What the editor needs to know about an element: the original editor's type names plus its current look. */
-  var TYPE_OF = { section: 'section', title: 'text', 'hero-text': 'text', hero: 'section', 'hero-counters': 'text', card: 'card', block: 'block' };
+  var TYPE_OF = { section: 'section', title: 'text', 'hero-text': 'text', hero: 'section', 'hero-counters': 'text', card: 'card', block: 'block', 'text-area': 'text', group: 'section', 'image-el': 'image' };
   function info(e) {
     if (!e) return null;
     var node = layer.textTarget(e) || e.el, cs = getComputedStyle(node), st = cur(e.id).style || {};
@@ -355,9 +355,9 @@
     var b = work.blocks.filter(function (x) { return x.id === id; })[0];
     if (!b) {
       var en = entryById(id);
-      if (!en || (en.kind !== 'hero' && en.kind !== 'card' && en.kind !== 'section')) throw new Error('الصور بتتغيّر في الواجهة أو الكروت أو السيكشنز أو بلوك صورة/بانر.');
+      if (!en || (en.kind !== 'hero' && en.kind !== 'card' && en.kind !== 'section' && en.kind !== 'image-el')) throw new Error('الصور بتتغيّر في الواجهة أو الكروت أو السيكشنز أو بلوك صورة/بانر.');
       var kind = /\.(mp4|webm)(\?|$)/i.test(src) ? 'video' : 'image';
-      if (kind === 'video' && en.kind === 'card') throw new Error('الكارت بيقبل صورة بس.');
+      if (kind === 'video' && (en.kind === 'card' || en.kind === 'image-el')) throw new Error('الكارت بيقبل صورة بس.');
       var probe2 = { version: ED.VERSION, edits: { all: {} } }; probe2.edits.all[id] = { media: { src: src, kind: kind } };
       if (!ED.normalize(probe2, { strict: true }).ok) throw new Error('رابط الميديا مش مسموح.');
       mutate(function () { edit('all', id).media = { src: src, kind: kind }; });

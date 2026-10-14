@@ -160,6 +160,30 @@
         add(id, card, 'card', 'كارت ' + ((h4 && h4.textContent.trim().slice(0, 24)) || (i + 1)));
       });
     }
+    /* The parts of the page below the sections: about, contact and every part of the footer. */
+    if (!document.body.classList.contains('inner')) {
+      add('about', document.getElementById('about'), 'section', 'قسم عن إيلان سينتس');
+      Array.prototype.slice.call(document.querySelectorAll('#abIn p')).forEach(function (p, i) {
+        if (!p.querySelector('a')) add('about:p' + (i + 1), p, 'text-area', 'فقرة عن إيلان سينتس ' + (i + 1));
+      });
+      add('about:logo', document.querySelector('#about .alogo'), 'section', 'شعار عن إيلان سينتس');
+      var ct = document.getElementById('contact');
+      add('contact', ct, 'section', 'قسم تواصل معنا');
+      add('contact:title', ct && ct.querySelector('h3'), 'title', 'عنوان تواصل معنا');
+    }
+    var ft = document.querySelector('footer');
+    if (ft) {
+      add('footer', ft, 'section', 'الفوتر');
+      add('footer:logo', ft.querySelector('.footer-logo'), 'image-el', 'شعار الفوتر');
+      add('footer:cols', document.getElementById('fcols'), 'group', 'روابط الفوتر');
+      add('footer:channels', document.getElementById('fch'), 'group', 'قنوات التواصل');
+      add('footer:phones', document.getElementById('fph'), 'group', 'أرقام الفوتر');
+      add('footer:bar', document.getElementById('fbar'), 'group', 'شريط الفوتر');
+      add('footer:credit', document.getElementById('fcr'), 'text-area', 'حقوق الفوتر');
+      Array.prototype.slice.call(ft.querySelectorAll('#fcols h5')).forEach(function (h, i) { add('footer:h' + (i + 1), h, 'text-area', 'عنوان في الفوتر ' + (i + 1)); });
+      Array.prototype.slice.call(ft.querySelectorAll('#fcols a')).forEach(function (l, i) { add('footer:l' + (i + 1), l, 'text-area', 'رابط في الفوتر: ' + l.textContent.trim().slice(0, 20)); });
+      Array.prototype.slice.call(ft.querySelectorAll('#fbar span')).forEach(function (sp, i) { add('footer:b' + (i + 1), sp, 'text-area', 'نص شريط الفوتر ' + (i + 1)); });
+    }
     var main = document.getElementById('main');
     if (!main) return out;
     Array.prototype.slice.call(main.children).forEach(function (c) {
@@ -179,7 +203,7 @@
   }
 
   function textTarget(e) {
-    if (e.kind === 'title') return e.el;
+    if (e.kind === 'title' || e.kind === 'text-area') return e.el;
     if (e.kind === 'hero-text') return e.el.querySelector('h2');
     if (e.kind === 'card') return e.el.querySelector('h4');
     if (e.kind === 'block') return e.el.querySelector('p, h3');
@@ -222,7 +246,7 @@
       }
       return;
     }
-    var img = el.querySelector('.artbg img, img');
+    var img = el.tagName === 'IMG' ? el : el.querySelector('.artbg img, img');
     if (img && m.kind !== 'video') {
       var old = { src: img.getAttribute('src'), srcset: img.getAttribute('srcset') };
       undo.push(function () { img.setAttribute('src', old.src); if (old.srcset === null) img.removeAttribute('srcset'); else img.setAttribute('srcset', old.srcset); });
@@ -248,10 +272,10 @@
     var el = entry.el, st = ed.style || {};
     el.__elanBase = el.getAttribute('style') || '';
     el.setAttribute('data-elan-edited', '1');
-    if (ed.hidden || ed.archived) { el.style.display = 'none'; return; }
+    if (ed.hidden || ed.archived) { el.style.setProperty('display', 'none', 'important'); return; }
     if (ed.dx || ed.dy) {
       el.style.transform = 'translate(' + (ed.dx || 0) + 'px,' + (ed.dy || 0) + 'px)';
-      el.style.position = el.style.position || 'relative';
+      if (!el.style.position && getComputedStyle(el).position === 'static') el.style.position = 'relative';
       el.style.zIndex = '3';
       var strip = entry.kind === 'card' && el.closest('.strip');
       if (strip && !el.__elanStrip) { el.__elanStrip = { node: strip, base: strip.getAttribute('style') || '' }; strip.style.overflow = 'visible'; }
