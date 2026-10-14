@@ -83,6 +83,19 @@ test('only an admin can log in; the session is a browser-session cookie and logo
     assert.doesNotMatch(csp, /unsafe-eval|script-src[^;]*'unsafe-inline'/);
     assert.equal((await fetch(url(s, '/api/editor-session'), { headers: { cookie } })).status, 200);
 
+    const ticketResponse = await post(s, '/api/editor-bridge-ticket', {}, { cookie });
+    const issued = await ticketResponse.json();
+    assert.equal(ticketResponse.status, 200);
+    assert.equal(issued.ok, true);
+    assert.ok(issued.ticket);
+    const bridgeClaims = require('../railway/editor-bridge-ticket.js').verify(issued.ticket);
+    assert.equal(bridgeClaims.aud, 'https://storefront.example.test');
+    assert.equal(bridgeClaims.role, 'platform_admin');
+    assert.equal((await fetch(url(s, '/api/editor-session'), { headers: { 'x-elan-editor-ticket': issued.ticket } })).status, 200);
+    assert.equal((await fetch(url(s, '/api/editor?action=state'), { headers: { 'x-elan-editor-ticket': issued.ticket } })).status, 200);
+    assert.equal((await fetch(url(s, '/api/editor-upload'), { headers: { 'x-elan-editor-ticket': issued.ticket } })).status, 401);
+    assert.equal((await post(s, '/api/editor-bridge-ticket', {}, { cookie, Origin: 'https://evil.example' })).status, 403);
+
     assert.equal((await post(s, '/api/editor-logout', {}, { cookie })).status, 200);
     assert.equal((await fetch(url(s, '/api/editor-session'), { headers: { cookie } })).status, 401);
     assert.match(await (await fetch(url(s, '/editor'), { headers: { cookie } })).text(), /دخول المالكة/);

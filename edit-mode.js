@@ -6,7 +6,7 @@
   var layer = window.ElanDesignLayer, ED = window.ElanDesign, Bridge = window.ElanHostBridge;
   if (!layer || !ED || !Bridge || window.parent === window) return;
 
-  var work = null, baseJson = '', baseRevision = null, hostApi = null, selectedId = null, dirty = false;
+  var work = null, baseJson = '', baseRevision = null, hostApi = null, selectedId = null, dirty = false, bridgeTicket = '';
   var undoStack = [], redoStack = [], editing = null, gesture = null, pendingMedia = null, moveArm = null;
   var SECTIONS_NAMES = { section: 1 };
 
@@ -14,6 +14,13 @@
   function lang() { return document.documentElement.lang === 'en' ? 'en' : 'ar'; }
   function device() { return ED.deviceOf(window.innerWidth); }
   function rid() { var a = new Uint8Array(5); crypto.getRandomValues(a); return Array.prototype.map.call(a, function (b) { return (b % 36).toString(36); }).join(''); }
+  function editorFetch(url, options) {
+    options = options || {};
+    options.headers = Object.assign({}, options.headers || {});
+    if (bridgeTicket) options.headers['X-Elan-Editor-Ticket'] = bridgeTicket;
+    options.credentials = 'same-origin'; options.cache = 'no-store';
+    return fetch(url, options);
+  }
 
   /* ---------- working design ---------- */
   function emptyDesign() { return ED.normalize({ version: ED.VERSION }).design; }
@@ -354,7 +361,7 @@
   async function createSmart(kind, c) {
     var name = String(prompt('اسم العنصر الجديد') || '').trim();
     if (!name) throw new Error('اكتبي اسم العنصر قبل الإنشاء.');
-    var r = await fetch('/api/editor-data', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'section.create', section: { name: name, purpose: kind, selection_mode: 'manual', filters: {} } }) });
+    var r = await editorFetch('/api/editor-data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'section.create', section: { name: name, purpose: kind, selection_mode: 'manual', filters: {} } }) });
     var j = await r.json().catch(function () { return {}; });
     if (!r.ok || !j.ok || !j.ref) throw new Error(j.error || 'تعذر إنشاء القسم المركزي.');
     return createBlock('smart', { ref: j.ref, semanticKind: kind, at: c && c.at });
@@ -420,13 +427,13 @@
     return clone(b || c.info || { id: c.id, type: 'element' });
   }
   async function saveToLibrary(c) {
-    var read = await fetch('/api/editor-data?action=library', { credentials: 'same-origin', cache: 'no-store' });
+    var read = await editorFetch('/api/editor-data?action=library');
     var current = await read.json().catch(function () { return {}; });
     if (!read.ok || !current.ok || !current.library) throw new Error('تعذر قراءة المكتبة المركزية.');
     var element = libraryElement(c), item = { name: element.name || element.id || 'عنصر', kind: element.kind || element.type || 'element', category: element.kind || element.type || 'general', payload: element };
     var saved = Array.isArray(current.library.savedElements) ? current.library.savedElements.slice() : [];
     saved.push(item);
-    var write = await fetch('/api/editor-data', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'library.save', library: { archive: current.library.archive || [], savedElements: saved } }) });
+    var write = await editorFetch('/api/editor-data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'library.save', library: { archive: current.library.archive || [], savedElements: saved } }) });
     var result = await write.json().catch(function () { return {}; });
     if (!write.ok || !result.ok) throw new Error(result.error || 'تعذر حفظ العنصر في المكتبة.');
     return { saved: true };
@@ -533,7 +540,7 @@
   }
 
   async function loadBase() {
-    var r = await fetch('/api/editor?action=state', { credentials: 'same-origin', cache: 'no-store' });
+    var r = await editorFetch('/api/editor?action=state');
     var j = await r.json().catch(function () { return {}; });
     if (!r.ok || !j.ok) {
       var why = r.status === 503 ? 'إعدادات الإديتور ناقصة على السيرفر' + (j.missing && j.missing.length ? ': ' + j.missing.join('، ') : '') + '.'
@@ -554,16 +561,21 @@
     try {
       var u = new URL(raw);
       var localHttp = u.protocol === 'http:' && (u.hostname === 'localhost' || u.hostname === '127.0.0.1');
-      if ((!localHttp && u.protocol !== 'https:') || u.username || u.password || u.pathname !== '/' || u.search || u.hash || u.origin !== raw) return location.origin;
-      return u.origin;
+      var productionEditor = 'https://elan-editor-production-dc4e.up.railway.app';
+      if (u.username || u.password || u.pathname !== '/' || u.search || u.hash || u.origin !== raw) return location.origin;
+      if (u.origin === productionEditor || (localHttp && u.origin === raw)) return u.origin;
+      return location.origin;
     } catch (_) { return location.origin; }
   }
 
   hostApi = Bridge.install({
     allowedEditorOrigins: [editorParentOrigin()],
-    authorize: async function () {
-      try { var r = await fetch('/api/editor-session', { credentials: 'same-origin', cache: 'no-store' }); return r.ok; } catch (_) { return false; }
+    authorize: async function (context) {
+      bridgeTicket = context && typeof context.ticket === 'string' ? context.ticket : bridgeTicket;
+      if (!bridgeTicket) return false;
+      try { var r = await editorFetch('/api/editor-session'); return r.ok; } catch (_) { return false; }
     },
+    onTicket: function (ticket) { bridgeTicket = ticket; },
     getState: async function () { if (!work) await loadBase(); return snapshot(); },
     execute: execute
   });

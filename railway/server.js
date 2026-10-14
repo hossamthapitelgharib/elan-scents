@@ -105,7 +105,10 @@ function loadHandler(name) {
 }
 
 async function handleApi(req, res, url, pathname) {
-  if (pathname === '/api/editor' || pathname === '/api/editor-data') await editorHost.attachSession(req);
+  if (pathname === '/api/editor' || pathname === '/api/editor-data') {
+    await editorHost.attachSession(req);
+    editorHost.attachBridgeTicket(req);
+  }
   const name = pathname.replace(/^\/api\//, '').replace(/\/$/, '');
   const handler = loadHandler(name);
   if (!handler) return sendJson(res, 404, { error: 'not_found' });

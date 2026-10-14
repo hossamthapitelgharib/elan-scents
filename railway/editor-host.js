@@ -6,6 +6,7 @@ const path = require('path');
 const crypto = require('crypto');
 const sessions = require('./editor-session.js');
 const media = require('./editor-media.js');
+const bridgeTickets = require('./editor-bridge-ticket.js');
 
 const ROOT = path.resolve(__dirname, '..');
 const COOKIE = 'elan_sess';
@@ -98,6 +99,12 @@ async function attachSession(req) {
   return !!s;
 }
 
+function attachBridgeTicket(req) {
+  if (!bridgeTickets.verify(req.headers['x-elan-editor-ticket'])) return false;
+  req.__editorKeyAdmin = true; // set only after verifying the server signature, origin, audience and expiry
+  return true;
+}
+
 /* Returns true when the request was handled here. */
 async function handle(req, res, pathname) {
   const sid = sessions.parseCookie(req.headers.cookie, COOKIE);
@@ -136,7 +143,16 @@ async function handle(req, res, pathname) {
   }
   if (pathname === '/api/editor-session') {
     const s = await sessions.get(sid);
-    return (s ? json(res, 200, { ok: true }) : json(res, 401, { ok: false, error: 'unauthorized' })), true;
+    const delegated = bridgeTickets.verify(req.headers['x-elan-editor-ticket']);
+    return (s || delegated ? json(res, 200, { ok: true }) : json(res, 401, { ok: false, error: 'unauthorized' })), true;
+  }
+  if (pathname === '/api/editor-bridge-ticket') {
+    if (req.method !== 'POST' || !sameOrigin(req)) return json(res, 403, { ok: false, error: 'forbidden' }), true;
+    const s = await sessions.get(sid);
+    if (!s) return json(res, 401, { ok: false, error: 'unauthorized' }), true;
+    const ticket = bridgeTickets.issue(editorSiteOrigin());
+    if (!ticket) return json(res, 503, { ok: false, error: 'bridge_ticket_unavailable' }), true;
+    return json(res, 200, { ok: true, ticket, expiresIn: bridgeTickets.TTL_SECONDS }), true;
   }
 
   if (pathname === '/editor' || pathname === '/editor/') {
@@ -177,4 +193,4 @@ async function handle(req, res, pathname) {
   return false;
 }
 
-module.exports = { handle, attachSession, buildPage, editorSiteOrigin };
+module.exports = { handle, attachSession, attachBridgeTicket, buildPage, editorSiteOrigin, bridgeTickets };

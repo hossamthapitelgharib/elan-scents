@@ -103,3 +103,20 @@ test('live preview defaults to the configured storefront origin, not the editor 
   assert.match(page, /url\.searchParams\.set\('elan_editor_origin',location\.origin\)/);
   assert.match(mode, /allowedEditorOrigins: \[editorParentOrigin\(\)\]/);
 });
+
+test('the authenticated editor delegates a short-lived ticket to the storefront iframe without a second login', () => {
+  const page = read('editor/elan-editor.html');
+  const mode = read('edit-mode.js');
+  const bridge = read('elan-host-bridge.js');
+  const host = read('railway/editor-host.js');
+  const server = read('railway/server.js');
+  assert.ok(page.includes("fetch('/api/editor-bridge-ticket'"));
+  assert.ok(page.includes("type:'hello',session:bridgeSession,ticket:bridgeTicket"));
+  assert.ok(page.includes("type:'auth',session:bridgeSession,ticket:bridgeTicket"));
+  assert.ok(page.includes('setInterval(renewBridgeTicket,4*60*1000)'));
+  assert.ok(host.includes("req.headers['x-elan-editor-ticket']"));
+  assert.ok(mode.includes("options.headers['X-Elan-Editor-Ticket'] = bridgeTicket"));
+  assert.ok(mode.includes("https://elan-editor-production-dc4e.up.railway.app"));
+  assert.ok(bridge.includes("m.type==='auth'"));
+  assert.match(server, /pathname === '\/api\/editor' \|\| pathname === '\/api\/editor-data'/);
+});
