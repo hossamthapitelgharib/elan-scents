@@ -38,6 +38,24 @@ test('customer activity migration preserves RLS, full product joins, four rankin
   assert.match(snapshotMigration, /product_snapshot jsonb not null/i);
 });
 
+test('category views expose separate customer event tables and current carts to service_role only', () => {
+  const root = path.join(__dirname, '..');
+  const migration = fs.readFileSync(path.join(root, 'supabase/migrations/20261014101846_customer_activity_category_views.sql'), 'utf8');
+  const accessMigration = fs.readFileSync(path.join(root, 'supabase/migrations/20261014102019_restrict_customer_activity_view_access.sql'), 'utf8');
+  for (const name of [
+    'customer_product_view_events', 'customer_product_search_events',
+    'customer_product_cart_add_events', 'customer_product_cart_remove_events',
+    'guest_current_cart_items', 'registered_customer_current_cart_items'
+  ]) assert.match(migration, new RegExp(`create or replace view public\\.${name}\\s+with \\(security_invoker = true\\)`, 'i'));
+  for (const eventType of ['view', 'search', 'cart_add', 'cart_remove']) assert.match(migration, new RegExp(`where event_type = '${eventType}'`, 'i'));
+  assert.match(migration, /product_snapshot/);
+  assert.match(migration, /jsonb_array_elements\(gv\.cart_snapshot\)/i);
+  assert.match(migration, /revoke all privileges[\s\S]*from public, anon, authenticated/i);
+  assert.match(migration, /grant select on table[\s\S]*to service_role/i);
+  assert.match(accessMigration, /revoke all privileges[\s\S]*from public, anon, authenticated, service_role/i);
+  assert.match(accessMigration, /grant select on table[\s\S]*to service_role/i);
+});
+
 test('admin customer details serve immutable product snapshots for current carts and event history', () => {
   const root = path.join(__dirname, '..');
   const migration = fs.readFileSync(path.join(root, 'supabase/migrations/20261014093223_platform_customer_detail_product_snapshots.sql'), 'utf8');
