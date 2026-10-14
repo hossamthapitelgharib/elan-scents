@@ -30,3 +30,9 @@ test('the storefront loads an extra web font only when a saved design uses it', 
   assert.match(layer, /function ensureFont\(name\)/);
   assert.match(layer, /ED\.WEB_FONTS\.indexOf\(name\) === -1/);
 });
+
+test('the library button opens the archive and image library in live mode', () => {
+  const page = read('editor/elan-editor.html');
+  assert.match(page, /\['library',\(\)=>openLiveLibrary\(\)\]/);
+  assert.match(page, /runLive\('archive\.restore'/);
+});
