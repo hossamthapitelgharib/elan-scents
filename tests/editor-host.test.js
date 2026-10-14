@@ -165,7 +165,7 @@ test('inner pages keep their own edits, separate from the home page', () => {
   assert.equal(ED.normalize({ version: 1, pages: { 'evil:page': { edits: {} } } }, { strict: true }).ok, false);
 });
 
-test('edit mode lets a plain click enter a dynamic page and tracks which page is being edited', () => {
+test('edit mode selects on a click, enters a dynamic page from its open chip or the menu, and tracks which page is being edited', () => {
   const edit = fs.readFileSync(path.join(root, 'edit-mode.js'), 'utf8');
   assert.match(edit, /function dynamicTarget\(e\)/);
   assert.match(edit, /function enterPage\(e\)/);

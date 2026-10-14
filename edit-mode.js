@@ -78,11 +78,14 @@
     '.eo-dlg>div{background:#fffaf0;border:1px solid #c2a66a;border-radius:12px;padding:16px;width:min(420px,92vw);font-size:13px}' +
     '.eo-dlg input[type=text]{width:100%;padding:7px;border:1px solid #c2a66a;border-radius:7px;direction:ltr;margin:8px 0}' +
     '.eo-dlg button{font:inherit;padding:6px 12px;border:1px solid #c2a66a;border-radius:7px;background:#fff;cursor:pointer;margin-inline-end:6px}' +
+    '.eo-tag{position:absolute;top:-24px;right:-2px;background:#c8962a;color:#fff;font-size:11px;padding:2px 8px;border-radius:5px 5px 0 0;white-space:nowrap;pointer-events:none}' +
+    '.eo-open{position:absolute;bottom:-26px;right:-2px;background:#29251c;color:#fff;font-size:12px;padding:3px 10px;border-radius:0 0 6px 6px;white-space:nowrap;cursor:pointer;pointer-events:auto;display:none;user-select:none}.eo-open:hover{background:#c8962a}' +
     '[contenteditable]{outline:2px dashed #c8962a;outline-offset:2px}' +
-    '</style><div class="eo-box"><i class="eo-h" data-h="se"></i></div><div class="eo-msg"></div>' +
+    '</style><div class="eo-box"><span class="eo-tag"></span><span class="eo-open">فتح الصفحة ⤢</span><i class="eo-h" data-h="se"></i></div><div class="eo-msg"></div>' +
     '<div class="eo-dlg"><div><b class="eo-dt"></b><input type="text" class="eo-di" dir="ltr"><p class="eo-dh" style="margin:0 0 8px;color:#7a6a52"></p><button class="eo-ok">تأكيد</button><button class="eo-no">إلغاء</button></div></div>';
   document.body.appendChild(root);
 
+  var tagEl = root.querySelector('.eo-tag'), openEl = root.querySelector('.eo-open');
   var box = root.querySelector('.eo-box'), msgEl = root.querySelector('.eo-msg'), dlg = root.querySelector('.eo-dlg');
 
   var msgTimer = null;
@@ -106,6 +109,11 @@
     var r = e.el.getBoundingClientRect();
     box.style.display = 'block';
     box.style.left = r.left + 'px'; box.style.top = r.top + 'px'; box.style.width = r.width + 'px'; box.style.height = r.height + 'px';
+    tagEl.textContent = e.name || e.id;
+    tagEl.style.top = r.top < 30 ? '2px' : '-24px';
+    var dyn = !!dynamicTarget(e);
+    openEl.style.display = dyn ? 'block' : 'none';
+    openEl.style.bottom = r.bottom > innerHeight - 34 ? '2px' : '-26px';
   }
   function rgbToHex(c) {
     var m = /rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(c || '');
@@ -177,17 +185,32 @@
   function dynamicTarget(e) { return e && layer.goTargetOf ? layer.goTargetOf(e.el) : null; }
   function pageName() { var h = document.querySelector('#view h3'); return (h && h.textContent.trim()) || ''; }
   function inner() { return document.body.classList.contains('inner'); }
-  function goHome() { disarm(); selectedId = null; document.body.classList.remove('inner'); scrollTo(0, 0); reselect(); }
-  function goBack() { disarm(); selectedId = null; try { if (typeof P !== 'undefined' && P.length > 2) { P = P.slice(0, -1); openP(); } else goHome(); } catch (_) { goHome(); } reselect(); }
+  /* Where the owner was before entering each page, so coming back lands on the same spot with the same element selected. */
+  var trail = [];
+  function depthNow() { try { return inner() ? (typeof P !== 'undefined' && P.length ? P.length : 2) : 1; } catch (_) { return 1; } }
+  function restoreFrom(point) { setTimeout(function () { try { scrollTo(0, point.y); } catch (_) { /* optional */ } if (point.id && entryById(point.id)) select(point.id); else reselect(); }, 60); }
+  function returnedTo(depth) {
+    var at = -1; for (var i = trail.length - 1; i >= 0; i--) if (trail[i].depth === depth) { at = i; break; }
+    if (at < 0) return null;
+    var point = trail[at]; trail = trail.slice(0, at); return point;
+  }
+  function goHome() { disarm(); selectedId = null; var first = returnedTo(1); trail = []; document.body.classList.remove('inner'); scrollTo(0, 0); reselect(); if (first) restoreFrom(first); }
+  function goBack() {
+    disarm(); selectedId = null;
+    try { if (typeof P !== 'undefined' && P.length > 2) { P = P.slice(0, -1); openP(); } else { document.body.classList.remove('inner'); scrollTo(0, 0); } } catch (_) { goHome(); return; }
+    var point = returnedTo(depthNow());
+    reselect(); if (point) restoreFrom(point);
+  }
   function enterPage(e) {
     var g = dynamicTarget(e); if (!g || typeof window.go !== 'function') return false;
     if (editing) commitText();
-    disarm(); selectedId = null;
+    disarm(); trail.push({ y: Math.round(scrollY), id: e.id, depth: depthNow() }); selectedId = null;
     window.go(g);
     setTimeout(function () { reselect(); say('دخلتي صفحة جديدة' + (pageName() ? ': ' + pageName() : '') + '. كليك يمين فيها للأدوات، ومن القايمة ترجعي.'); }, 60);
     return true;
   }
 
+  openEl.addEventListener('pointerdown', function (ev) { ev.preventDefault(); ev.stopPropagation(); if (selectedId) enterPage(entryById(selectedId)); });
   window.addEventListener('pointerdown', function (ev) {
     if (inUi(ev.target) && !ev.target.classList.contains('eo-h')) return;
     if (editing) { if (editing.node.contains(ev.target)) return; commitText(); }
@@ -238,7 +261,7 @@
   window.addEventListener('pointerup', function (ev) {
     if (!gesture) return;
     var g = gesture; gesture = null;
-    if (g.mode === 'click') { if (!g.moved) enterPage(entryById(g.id)); return; }
+    if (g.mode === 'click') return;            // a plain click only selects; the "open page" chip or the menu enters a page
     if (!g.moved) return;                      // pressed without dragging: a move stays armed until the element is dragged
     ev.preventDefault();
     mutate(function () {
