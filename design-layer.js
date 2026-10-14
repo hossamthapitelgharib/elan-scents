@@ -139,6 +139,15 @@
   function hash(str) { var h = 5381, i; for (i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) >>> 0; return h.toString(36); }
 
   /* Every element the editor can touch, with a stable id that does not change between renders. */
+  var SERIF = { 'Amiri': 1, 'Noto Naskh Arabic': 1, 'Playfair Display': 1, 'Cormorant Garamond': 1, 'Libre Baskerville': 1, 'Merriweather': 1, 'Georgia': 1, 'Times New Roman': 1 };
+  var loadedFonts = {};
+  function loadFont(name) {                       // adds one Google Fonts stylesheet per web font that is actually used
+    if (loadedFonts[name] || ED.WEB_FONTS.indexOf(name) === -1) return;
+    loadedFonts[name] = 1;
+    var l = document.createElement('link'); l.rel = 'stylesheet';
+    l.href = 'https://fonts.googleapis.com/css2?family=' + name.replace(/ /g, '+') + ':wght@400;700&display=swap';
+    document.head.appendChild(l);
+  }
   function elements() {
     var out = [], seen = {};
     function add(id, el, kind, name) { if (!el || seen[id]) return; seen[id] = 1; out.push({ id: id, el: el, kind: kind, name: name }); }
@@ -211,11 +220,17 @@
     if (ed.h) { el.style.height = ed.h + 'px'; }
     if (st.color) el.style.color = st.color;
     if (st.background) el.style.backgroundColor = st.background;
+    if (st.media) {
+      el.style.backgroundImage = 'url("' + st.media.replace(/([\\"'])/g, '\\$1') + '")';
+      el.style.backgroundSize = st.fit === 'contain' ? 'contain' : 'cover';
+      el.style.backgroundPosition = 'center';
+      el.style.backgroundRepeat = 'no-repeat';
+    }
     if (st.fontSize) el.style.fontSize = st.fontSize + 'px';
     if (st.weight) el.style.fontWeight = String(st.weight);
     if (st.radius !== undefined) el.style.borderRadius = st.radius + 'px';
     if (st.align) el.style.textAlign = ({ start: 'start', end: 'end', center: 'center', left: 'left', right: 'right' })[st.align] || 'center';
-    if (st.fontFamily) el.style.fontFamily = '"' + st.fontFamily + '", sans-serif';
+    if (st.fontFamily) { loadFont(st.fontFamily); el.style.fontFamily = '"' + st.fontFamily + '", ' + (SERIF[st.fontFamily] ? 'serif' : 'sans-serif'); }
     if (st.effect === 'soft') { el.style.textShadow = '0 1px 0 #fff,0 3px 4px rgba(0,0,0,.22)'; el.style.boxShadow = '0 7px 18px rgba(0,0,0,.14)'; }
     if (st.effect === 'gold') { el.style.color = st.color || '#ae852e'; el.style.textShadow = '0 1px 0 #fceab1,0 2px 0 #77541e,0 4px 6px rgba(80,52,0,.3)'; el.style.boxShadow = '0 2px 0 #d6bc79,0 9px 22px rgba(101,72,18,.22)'; }
     if (st.effect === 'deep') { el.style.textShadow = '1px 1px 0 rgba(255,255,255,.6),2px 3px 3px rgba(0,0,0,.3)'; el.style.boxShadow = '0 4px 0 rgba(0,0,0,.13),0 14px 26px rgba(0,0,0,.2)'; }

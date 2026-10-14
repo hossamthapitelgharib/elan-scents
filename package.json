@@ -5,7 +5,8 @@
   "main": "railway/server.js",
   "scripts": {
     "start": "node railway/server.js",
-    "test": "node --test tests/*.test.js"
+    "test": "node scripts/test-and-record.js",
+    "test:raw": "node --test tests/*.test.js"
   },
   "engines": {
     "node": ">=20"

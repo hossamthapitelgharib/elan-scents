@@ -52,6 +52,20 @@
       },
       "sec:notes": {
         "dy": -6
+      },
+      "card:1dsn4il": {
+        "dx": 434,
+        "dy": 1
+      },
+      "card:1dsn4im": {
+        "dx": 74,
+        "dy": -259
+      },
+      "card:1dsn4in": {
+        "dx": -266,
+        "dy": -536,
+        "w": 340,
+        "h": 248
       }
     },
     "all": {
@@ -62,7 +76,11 @@
       },
       "sec:offers:title": {
         "style": {
-          "fontSize": 16
+          "fontSize": 20,
+          "align": "center",
+          "color": "#c62828",
+          "fontFamily": "Reem Kufi",
+          "effect": "soft"
         }
       },
       "hero:counters": {
@@ -78,7 +96,11 @@
       },
       "sec:new:title": {
         "style": {
-          "fontSize": 16
+          "fontSize": 26,
+          "align": "center",
+          "color": "#c62828",
+          "fontFamily": "Noto Kufi Arabic",
+          "effect": "none"
         }
       },
       "sec:cats:title": {
@@ -108,7 +130,11 @@
       },
       "sec:brands:title": {
         "style": {
-          "fontSize": 16
+          "fontSize": 20,
+          "align": "center",
+          "color": "#b8860b",
+          "fontFamily": "Reem Kufi",
+          "effect": "none"
         }
       },
       "sec:offers": {
@@ -118,6 +144,9 @@
           "background": "#000000",
           "align": "start"
         }
+      },
+      "x-52jbo": {
+        "archived": true
       }
     },
     "mobile": {
