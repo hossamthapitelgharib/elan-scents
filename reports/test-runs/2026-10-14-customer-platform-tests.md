@@ -4,7 +4,7 @@
 **الفرع:** `docs/customer-platform-audit`
 **المنطقة الزمنية:** الرياض (UTC+03:00)
 **الأرشيف الخام:** `elan-local-test-logs-2026-10-14-customer-platform.zip`
-**الرفع التلقائي:** [تشغيل GitHub Actions 38546134374](https://github.com/hossamthapitelgharib/elan-scents/actions/runs/38546134374)
+**الرفع التلقائي:** [تشغيل GitHub Actions 38550340978](https://github.com/hossamthapitelgharib/elan-scents/actions/runs/38550340978)
 
 ## الخلاصة
 
@@ -67,6 +67,6 @@
 - الأمر المحلي `npm test` ينشئ تقريرًا زمنيًا كاملًا في `reports/test-runs/` حتى عند الفشل.
 - GitHub Actions يشغّل `npm test` تلقائيًا عند الدفع إلى أي فرع أو فتح/تحديث Pull Request إلى `main`.
 - خطوة رفع الأرشيف تستخدم `if: always()` وترفع `reports/test-runs/` حتى لو فشلت الاختبارات، لمدة 30 يومًا.
-- تشغيل GitHub Actions رقم `38546134374` تحقق عملي: فشل test step ونجحت upload step.
+- تشغيل GitHub Actions رقم `38550340978` تحقق عملي على آخر commit: فشل test step ونجحت upload step؛ تقريره يثبت 195 اختبارًا ورفع الـArtifact.
 
 **حد مهم:** التشغيل المحلي يحفظ التقرير في مساحة العمل فقط؛ الرفع البعيد كـGitHub Artifact يتم تلقائيًا عند تنفيذ التشغيل عبر GitHub Actions، مثل كل push أو Pull Request، وليس عبر دفع commit من داخل كل أمر اختبار محلي.

@@ -150,7 +150,7 @@
 - خطوة `Upload test reports` تعمل باستخدام `if: always()`، لذلك ترفع مجلد `reports/test-runs/` حتى عند فشل الاختبارات، وتحتفظ بالـArtifact لمدة 30 يومًا.
 - تأكد نجاح خطوة الرفع في تشغيل GitHub Actions رقم [38538472647](https://github.com/hossamthapitelgharib/elan-scents/actions/runs/38538472647) رغم فشل بعض الاختبارات.
 - جرى توسيع trigger الـ`push` ليعمل على أي فرع؛ كل تشغيل عبر GitHub Actions يرفع تلقائيًا تقرير TAP المؤرخ حتى عند الفشل.
-- تأكد أيضًا نجاح خطوة رفع التقارير في تشغيل الفرع الحالي [38546134374](https://github.com/hossamthapitelgharib/elan-scents/actions/runs/38546134374)، رغم فشل خطوة الاختبارات.
+- تأكد أيضًا نجاح خطوة رفع التقارير في تشغيل الفرع الحالي [38550340978](https://github.com/hossamthapitelgharib/elan-scents/actions/runs/38550340978)، رغم فشل خطوة الاختبارات؛ يحتوي Artifact على تقرير 195 اختبارًا.
 
 ## ملاحظة نتائج
 
