@@ -146,6 +146,7 @@
 | 13:53 | اختبار Supabase المعاملي ببيانات اصطناعية | 1 / 1 / 0 | نجاح مع rollback كامل؛ لا بيانات اختبار باقية |
 | 14:21 | `npm test` بعد إصلاح اختبارات الواجهة/المحرر | 197 / 197 / 0 | نجاح مستقل؛ لا اختبارات متخطاة |
 | 14:24 | `npm test` بعد cache-busting `20261014-07` | 197 / 197 / 0 | نجاح نهائي على نفس الملفات التي ستُرفع |
+| 14:27 | GitHub Actions على commit `5c0405d` | 197 / 197 / 0 | نجاح الاختبار ورفع Artifact التقارير؛ التشغيل الموازي نجح أيضًا |
 
 ## الرفع التلقائي للاختبارات القادمة
 
@@ -153,7 +154,8 @@
 - خطوة `Upload test reports` تعمل باستخدام `if: always()`، لذلك ترفع مجلد `reports/test-runs/` حتى عند فشل الاختبارات، وتحتفظ بالـArtifact لمدة 30 يومًا.
 - تأكد نجاح خطوة الرفع في تشغيل GitHub Actions رقم [38538472647](https://github.com/hossamthapitelgharib/elan-scents/actions/runs/38538472647) رغم فشل بعض الاختبارات.
 - جرى توسيع trigger الـ`push` ليعمل على أي فرع؛ كل تشغيل عبر GitHub Actions يرفع تلقائيًا تقرير TAP المؤرخ حتى عند الفشل.
-- تأكد أيضًا نجاح خطوة رفع التقارير في تشغيل الفرع الحالي [38550340978](https://github.com/hossamthapitelgharib/elan-scents/actions/runs/38550340978)، رغم فشل خطوة الاختبارات؛ يحتوي Artifact على تقرير 195 اختبارًا.
+- كان التشغيل السابق [38550340978](https://github.com/hossamthapitelgharib/elan-scents/actions/runs/38550340978) على commit قديم قبل إصلاح الإخفاقات: فشل suite، لكن نجح رفع التقرير.
+- تشغيل الـcommit النهائي [38556647178](https://github.com/hossamthapitelgharib/elan-scents/actions/runs/38556647178) اجتاز 197/197 ورفع Artifact يحتوي التقارير اليومية واختبار SQL وأرشيف السجلات؛ التشغيل الموازي [38556648339](https://github.com/hossamthapitelgharib/elan-scents/actions/runs/38556648339) نجح ورفع Artifact ثانيًا.
 
 ## ملاحظة نتائج
 
