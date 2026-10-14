@@ -31,7 +31,9 @@ function config(env) {
   const repo = env.GITHUB_REPO || DEFAULT_REPO;
   const branch = env.EDITOR_TARGET_BRANCH || (isProd ? 'main' : env.EDITOR_BRANCH);
   const host = env.RAILWAY_PUBLIC_DOMAIN;
-  const origin = env.EDITOR_SITE_ORIGIN || (host ? 'https://' + host : '');
+  let origin = env.EDITOR_SITE_ORIGIN || (host ? 'https://' + host : '');
+  const selfOrigin = host ? ('https://' + String(host).replace(/^https?:\/\//, '').replace(/\/+$/, '')) : '';
+  if (isProd && selfOrigin && origin.replace(/\/+$/, '') === selfOrigin) origin = 'https://elan-site-production.up.railway.app';
   const missing = [];
   if (!token) missing.push('GITHUB_TOKEN');
   if (!branch) missing.push('EDITOR_TARGET_BRANCH');

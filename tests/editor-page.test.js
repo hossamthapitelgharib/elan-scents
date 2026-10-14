@@ -77,6 +77,8 @@ test('when the editor cannot start, it says why instead of showing no tools', ()
   assert.ok(!JSON.stringify(none).includes('ghp_'));
   const ok = config({ GITHUB_TOKEN: 't', EDITOR_TARGET_BRANCH: 'main', EDITOR_SITE_ORIGIN: 'https://example.com', RAILWAY_ENVIRONMENT_NAME: 'production' });
   assert.equal(ok.error, undefined);
+  const selfOrigin = config({ GITHUB_TOKEN: 't', EDITOR_TARGET_BRANCH: 'main', EDITOR_SITE_ORIGIN: 'https://editor.example.test', RAILWAY_PUBLIC_DOMAIN: 'editor.example.test', RAILWAY_ENVIRONMENT_NAME: 'production' });
+  assert.equal(selfOrigin.origin, 'https://elan-site-production.up.railway.app');
 });
 
 test('save error shows which Railway settings are missing', () => {

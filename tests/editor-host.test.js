@@ -31,6 +31,18 @@ const url = (s, p) => 'http://127.0.0.1:' + s.address().port + p;
 const post = (s, p, body, headers) => fetch(url(s, p), { method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, headers || {}), body: JSON.stringify(body) });
 const cookieOf = (r) => (r.headers.get('set-cookie') || '').split(';')[0];
 
+test('the editor preview never defaults to the editor service itself as the storefront', () => {
+  const host = require('../railway/editor-host.js');
+  const previous = { origin: process.env.EDITOR_SITE_ORIGIN, domain: process.env.RAILWAY_PUBLIC_DOMAIN };
+  process.env.EDITOR_SITE_ORIGIN = 'https://editor.example.test';
+  process.env.RAILWAY_PUBLIC_DOMAIN = 'editor.example.test';
+  try { assert.equal(host.editorSiteOrigin(), 'https://elan-site-production.up.railway.app'); }
+  finally {
+    if (previous.origin === undefined) delete process.env.EDITOR_SITE_ORIGIN; else process.env.EDITOR_SITE_ORIGIN = previous.origin;
+    if (previous.domain === undefined) delete process.env.RAILWAY_PUBLIC_DOMAIN; else process.env.RAILWAY_PUBLIC_DOMAIN = previous.domain;
+  }
+});
+
 test('the owner editor page is private: anonymous visitors only ever get the login page', async () => {
   env(); const s = await start();
   try {

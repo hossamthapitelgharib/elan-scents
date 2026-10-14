@@ -12,9 +12,14 @@ const COOKIE = 'elan_sess';
 const LOGIN_FILES = { '/editor-login.js': 'text/javascript; charset=utf-8', '/editor-login.css': 'text/css; charset=utf-8', '/editor-guard.js': 'text/javascript; charset=utf-8', '/editor-media.js': 'text/javascript; charset=utf-8' };
 
 function editorSiteOrigin() {
+  let selfOrigin = '';
+  try {
+    const host = String(process.env.RAILWAY_PUBLIC_DOMAIN || '').trim();
+    if (host) selfOrigin = new URL(host.includes('://') ? host : 'https://' + host).origin;
+  } catch (_) { selfOrigin = ''; }
   try {
     const u = new URL(String(process.env.EDITOR_SITE_ORIGIN || ''));
-    if (u.protocol === 'https:' && !u.username && !u.password && u.pathname === '/' && !u.search && !u.hash) return u.origin;
+    if (u.protocol === 'https:' && !u.username && !u.password && u.pathname === '/' && !u.search && !u.hash && (!selfOrigin || u.origin !== selfOrigin)) return u.origin;
   } catch (_) { /* use the known production storefront */ }
   return 'https://elan-site-production.up.railway.app';
 }
