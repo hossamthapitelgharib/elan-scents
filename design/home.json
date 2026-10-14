@@ -52,6 +52,18 @@
       },
       "sec:notes": {
         "dy": -6
+      },
+      "card:1dsn4il": {
+        "dx": 434,
+        "dy": 1
+      },
+      "card:1dsn4im": {
+        "dx": 82,
+        "dy": -264
+      },
+      "card:1dsn4in": {
+        "dx": -249,
+        "dy": -526
       }
     },
     "all": {
@@ -126,6 +138,9 @@
           "background": "#000000",
           "align": "start"
         }
+      },
+      "x-52jbo": {
+        "archived": true
       }
     },
     "mobile": {
