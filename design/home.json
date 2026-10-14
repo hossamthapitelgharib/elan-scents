@@ -62,7 +62,11 @@
       },
       "sec:offers:title": {
         "style": {
-          "fontSize": 16
+          "fontSize": 20,
+          "align": "center",
+          "color": "#b8860b",
+          "fontFamily": "Reem Kufi",
+          "effect": "soft"
         }
       },
       "hero:counters": {
