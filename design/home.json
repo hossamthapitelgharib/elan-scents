@@ -96,7 +96,11 @@
       },
       "sec:new:title": {
         "style": {
-          "fontSize": 16
+          "fontSize": 26,
+          "align": "center",
+          "color": "#c62828",
+          "fontFamily": "Noto Kufi Arabic",
+          "effect": "none"
         }
       },
       "sec:cats:title": {
