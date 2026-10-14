@@ -184,11 +184,29 @@
         add(id, card, 'card', 'كارت ' + ((h4 && h4.textContent.trim().slice(0, 24)) || (i + 1)));
       });
     });
+    var about = document.getElementById('about'), ab = document.getElementById('abIn');
+    add('about', about, 'group', 'عن إيلان');
+    if (ab) Array.prototype.slice.call(ab.querySelectorAll('p')).forEach(function (p, i) { add('about:p' + (i || ''), p, 'text-area', 'نص النبذة ' + (i + 1)); });
+    var footer = document.querySelector('footer');
+    add('footer', footer, 'group', 'التذييل');
+    add('footer:logo', footer && footer.querySelector('.footer-logo, .footer-background'), 'image-el', 'صورة التذييل');
+    add('footer:cols', document.getElementById('fcols'), 'group', 'أعمدة التذييل');
+    add('footer:bar', document.getElementById('fbar'), 'group', 'شريط التذييل');
+    add('footer:credit', document.getElementById('fcr'), 'text-area', 'حقوق التذييل');
+    if (footer) {
+      Array.prototype.slice.call(footer.querySelectorAll('h5')).forEach(function (n, i) { add('footer:h' + (i || ''), n, 'title', 'عنوان التذييل ' + (i + 1)); });
+      Array.prototype.slice.call(footer.querySelectorAll('a')).forEach(function (n, i) { add('footer:l' + (i || ''), n, 'text-area', 'رابط التذييل ' + (i + 1)); });
+      var bar = document.getElementById('fbar');
+      if (bar) Array.prototype.slice.call(bar.querySelectorAll('span')).forEach(function (n, i) { add('footer:b' + (i || ''), n, 'text-area', 'نص الشريط ' + (i + 1)); });
+      var channels = document.getElementById('fch');
+      if (channels) Array.prototype.slice.call(channels.querySelectorAll('b, span')).forEach(function (n, i) { add('footer:channel' + i, n, 'text-area', 'قناة التواصل ' + (i + 1)); });
+    }
+    add('contact:title', document.querySelector('#contact h3'), 'title', 'عنوان التواصل');
     return out;
   }
 
   function textTarget(e) {
-    if (e.kind === 'title') return e.el;
+    if (e.kind === 'title' || e.kind === 'text-area') return e.el;
     if (e.kind === 'hero-text') return e.el.querySelector('h2');
     if (e.kind === 'card') return e.el.querySelector('h4');
     if (e.kind === 'block') return e.el.querySelector('p, h3');
@@ -200,8 +218,39 @@
       if (el.__elanBase) el.setAttribute('style', el.__elanBase); else el.removeAttribute('style');
       delete el.__elanBase; el.removeAttribute('data-elan-edited');
     }
-    if (el.__elanText) { el.__elanText.node.textContent = el.__elanText.value; delete el.__elanText; }
+    if (el.__elanText) {
+      var t = el.__elanText; t.node.textContent = t.children.length ? '' : t.value;
+      t.children.forEach(function (child) { t.node.appendChild(child); }); delete el.__elanText;
+    }
     if (el.__elanStrip) { var st = el.__elanStrip; if (st.base) st.node.setAttribute('style', st.base); else st.node.removeAttribute('style'); delete el.__elanStrip; }
+    if (el.__elanMedia) {
+      var m = el.__elanMedia;
+      if (m.node) {
+        if (m.src === null) m.node.removeAttribute('src'); else m.node.setAttribute('src', m.src);
+        if (m.style) m.node.setAttribute('style', m.style); else m.node.removeAttribute('style');
+        if (m.node.tagName === 'VIDEO') {
+          m.node.__elanHeroVisible = m.visible;
+          if (m.visible !== false && !document.hidden) { var p = m.node.play(); if (p && p.catch) p.catch(function () {}); }
+        }
+      }
+      if (m.button) { if (m.buttonStyle) m.button.setAttribute('style', m.buttonStyle); else m.button.removeAttribute('style'); }
+      delete el.__elanMedia;
+    }
+  }
+
+  function paintMedia(entry, src) {
+    var host = entry.el, node = entry.kind === 'image-el' ? host : host.querySelector('video, img');
+    if (entry.kind === 'hero') node = host.querySelector('#heroVideo');
+    var state = { node: node, src: node && node.getAttribute('src'), style: node && node.getAttribute('style'), visible: node && node.__elanHeroVisible };
+    host.__elanMedia = state;
+    if (node && node.tagName === 'IMG') { node.setAttribute('src', src); return; }
+    if (node && node.tagName === 'VIDEO') {
+      node.__elanHeroVisible = false; node.style.display = 'none'; node.pause();
+      state.button = host.querySelector('#heroPlay');
+      if (state.button) { state.buttonStyle = state.button.getAttribute('style'); state.button.style.display = 'none'; }
+    }
+    host.style.backgroundImage = 'url("' + src + '")';
+    host.style.backgroundSize = 'cover'; host.style.backgroundPosition = 'center'; host.style.backgroundRepeat = 'no-repeat';
   }
 
   function paint(entry, ed) {
@@ -220,12 +269,7 @@
     if (ed.h) { el.style.height = ed.h + 'px'; }
     if (st.color) el.style.color = st.color;
     if (st.background) el.style.backgroundColor = st.background;
-    if (st.media) {
-      el.style.backgroundImage = 'url("' + st.media.replace(/([\\"'])/g, '\\$1') + '")';
-      el.style.backgroundSize = st.fit === 'contain' ? 'contain' : 'cover';
-      el.style.backgroundPosition = 'center';
-      el.style.backgroundRepeat = 'no-repeat';
-    }
+    if (st.media) paintMedia(entry, st.media);
     if (st.fontSize) el.style.fontSize = st.fontSize + 'px';
     if (st.weight) el.style.fontWeight = String(st.weight);
     if (st.radius !== undefined) el.style.borderRadius = st.radius + 'px';
@@ -237,7 +281,7 @@
     if (st.opacity !== undefined) el.style.opacity = String(st.opacity);
     if (ed.text) {
       var node = textTarget(entry), t = ed.text[lang()] || ed.text.ar || ed.text.en;
-      if (node && t) { el.__elanText = { node: node, value: node.textContent }; node.textContent = t; }
+      if (node && t) { el.__elanText = { node: node, value: node.textContent, children: Array.prototype.slice.call(node.childNodes) }; node.textContent = t; }
     }
   }
 
@@ -245,10 +289,15 @@
   function applyEdits() {
     touched.forEach(unpaint);
     touched = [];
-    if (!design || !design.edits) return;
+    if (!design) return;
     var dev = ED.deviceOf(window.innerWidth);
+    var key = pageKey(), pg = design.pages && design.pages[key], view = document.getElementById('view');
     elements().forEach(function (entry) {
       var ed = ED.editFor(design, dev, entry.id);
+      if (pg && view && view.contains(entry.el)) {
+        var pe = ED.editFor(pg, dev, entry.id);
+        if (pe) ed = Object.assign({}, ed || {}, pe, { style: Object.assign({}, ed && ed.style, pe.style) });
+      }
       if (!ed) return;
       paint(entry, ed);
       touched.push(entry.el);
@@ -385,7 +434,7 @@
 
   // A different screen size means a different set of free-form edits.
   window.addEventListener('resize', function () {
-    if (!design || !design.edits) return;
+    if (!design || (!design.edits && !design.pages)) return;
     var d = ED.deviceOf(window.innerWidth);
     if (d !== lastDevice) { lastDevice = d; try { applyEdits(); } catch (e) { /* keep the page usable */ } }
   });

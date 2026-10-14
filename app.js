@@ -22,16 +22,19 @@ function lockBodyScroll(lock){
     window.scrollTo(0,y);
   }
 }
+function syncBodyScroll(){
+  var sheet=document.getElementById('sheet');
+  var menu=document.getElementById('menu');
+  lockBodyScroll(!!((sheet&&!sheet.hasAttribute('hidden'))||(menu&&menu.classList.contains('open'))));
+}
 function watchSheet(){
   var sheet=document.getElementById('sheet');
-  if(!sheet)return;
-  var sync=function(){
-    lockBodyScroll(!sheet.hasAttribute('hidden'));
-  };
+  var menu=document.getElementById('menu');
+  var sync=syncBodyScroll;
   sync();
   try{
     var mo=new MutationObserver(sync);
-    mo.observe(sheet,{attributes:true,attributeFilter:['hidden','style','class']});
+    [sheet,menu].forEach(function(node){if(node)mo.observe(node,{attributes:true,attributeFilter:['hidden','style','class']});});
   }catch(e){}
   // also catch programmatic toggles via clicks on cart/fav/notif buttons
   document.addEventListener('click',function(){
@@ -91,6 +94,6 @@ function applyArtAndHero(){
   if(typeof render==='function'){try{render();}catch(e){}}
   watchSheet();
 }
-var CORE='/app-core.js?v=20261014-06';
+var CORE='/app-core.js?v=20261014-07';
 loadScript(CORE, applyArtAndHero);
 })();

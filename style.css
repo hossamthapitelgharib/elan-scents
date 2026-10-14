@@ -3,8 +3,8 @@
    Imports base theme then applies current desired overrides.
    Frontend display only. Do not add backend/DB rules here.
    ============================================================ */
-@import url('/style-3.css?v=20261014-06');
-@import url('/footer-9x16.css?v=20261014-06');
+@import url('/style-3.css?v=20261014-07');
+@import url('/footer-9x16.css?v=20261014-07');
 
 /* ---------- Menu: slightly narrower panel + slightly larger items ---------- */
 #menu {
@@ -622,6 +622,7 @@ button,a,input,select,textarea{-webkit-tap-highlight-color:transparent}
 /* Cross-browser normalisation: identical text sizing, font smoothing and positioning in every engine. */
 html{-webkit-text-size-adjust:100%;-moz-text-size-adjust:100%;text-size-adjust:100%}
 body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility}
+html,body{overflow-x:clip!important}
 /* Physical fallbacks for logical/inset properties (older Safari, Samsung Internet and Android WebView ignore them). */
 #bar,header{left:0;right:0}
 #mov,#sheet,#hero video,#heroVideo,#hero .hero-overlay,#hero .slot,.card .artbg,.card.art:after{top:0;right:0;bottom:0;left:0}

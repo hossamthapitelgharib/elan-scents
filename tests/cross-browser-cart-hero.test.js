@@ -3,6 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { browser } = require('./browser-fixture');
 
 const root = path.join(__dirname, '..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
@@ -63,4 +64,50 @@ test('storefront is full width, prevents horizontal overflow, and locks scroll f
   assert.match(app, /body\.classList\.add\('sheet-open'\)/);
   assert.match(core, /classList\.toggle\('open'\)/);
   assert.match(read('index.html'), /id="heroPlay"[^>]*hidden/);
+});
+
+test('hero fallback follows actual playback failure and success, and never starts in a hidden tab', async () => {
+  const b = browser();
+  const video = b.document.getElementById('heroVideo'), button = b.document.getElementById('heroPlay');
+  assert.equal(button.hidden, true);
+  let attempts = 0;
+  video.play = () => { attempts++; return Promise.reject(new Error('autoplay blocked')); };
+  b.run(index.match(/<script>([\s\S]*?)<\/script>/)[1]);
+  await Promise.resolve();
+  assert.equal(button.hidden, false, 'blocked autoplay must expose a real recovery control');
+  video.play = () => { attempts++; return Promise.resolve(); };
+  button.click(); await Promise.resolve();
+  assert.equal(button.hidden, true);
+  const before = attempts;
+  b.document.hidden = true;
+  b.document.listeners.visibilitychange[0]();
+  button.click(); await Promise.resolve();
+  assert.equal(attempts, before);
+  assert.equal(video.paused, true);
+  b.document.hidden = false;
+  b.document.listeners.visibilitychange[0](); await Promise.resolve();
+  assert.ok(attempts > before);
+});
+
+test('menu and sheets share one scroll lock and restore the original position only after both close', () => {
+  const b = browser(), observed = [], restored = [];
+  let sync;
+  b.context.MutationObserver = class { constructor(callback) { sync = callback; } observe(node, options) { observed.push([node.id, options]); } };
+  b.window.scrollTo = (x, y) => restored.push([x, y]);
+  const app = read('app.js');
+  b.run(app.slice(app.indexOf('function lockBodyScroll'), app.indexOf('function applyArtAndHero')));
+  b.run('watchSheet()');
+  assert.deepEqual(observed.map(([id]) => id).sort(), ['menu', 'sheet']);
+  const body = b.document.body, menu = b.document.getElementById('menu'), sheet = b.document.getElementById('sheet');
+  menu.classList.add('open'); sync();
+  assert.equal(body.classList.contains('sheet-open'), true);
+  assert.equal(body.style.top, '-180px');
+  sheet.hidden = false; sync();
+  b.window.scrollY = 0; menu.classList.remove('open'); sync();
+  assert.equal(body.style.top, '-180px', 'opening a second overlay must not replace the saved scroll offset');
+  assert.equal(restored.length, 0);
+  sheet.hidden = true; sync();
+  assert.equal(body.classList.contains('sheet-open'), false);
+  assert.equal(body.style.top, '');
+  assert.deepEqual(restored, [[0, 180]]);
 });

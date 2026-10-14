@@ -59,7 +59,9 @@
   }
 
   function mediaUrl(v) {
-    if (typeof v !== 'string' || v.length > LIMITS.url || /[\s"'<>\\]/.test(v) || v.indexOf('..') !== -1) return '';
+    if (typeof v !== 'string' || v.length > LIMITS.url || /[\u0000-\u0020\u007f"'<>\\]/.test(v) || v.indexOf('..') !== -1) return '';
+    try { var decoded = decodeURIComponent(v.split(/[?#]/)[0]); if (decoded.indexOf('..') !== -1 || /[\u0000-\u0020\u007f"'<>\\]/.test(decoded)) return ''; } catch (_) { return ''; }
+    if (!/\.(?:jpe?g|png|webp|gif|avif)(?:[?#]|$)/i.test(v)) return '';
     for (var i = 0; i < MEDIA_PREFIXES.length; i++) if (v.indexOf(MEDIA_PREFIXES[i]) === 0 && v.length > MEDIA_PREFIXES[i].length) return v;
     return '';
   }
@@ -262,16 +264,21 @@
       keys.slice(0, MAX_PAGES).forEach(function (key) {
         if (!PAGE_KEY_RE.test(key)) { errors.push('pages.' + key + ': unknown page'); return; }
         var pg = input.pages[key];
-        if (!isObj(pg) || !Array.isArray(pg.blocks)) { errors.push('pages.' + key + ': blocks must be an array'); return; }
+        if (!isObj(pg)) { errors.push('pages.' + key + ': not an object'); return; }
+        if (pg.blocks !== undefined && !Array.isArray(pg.blocks)) { errors.push('pages.' + key + ': blocks must be an array'); return; }
         var list = [];
-        pg.blocks.forEach(function (raw, i) {
+        (pg.blocks || []).forEach(function (raw, i) {
           var b = blockOf(raw, errors, 'pages.' + key + '[' + i + ']');
           if (!b) return;
           if (seen[b.id]) { errors.push('pages.' + key + '[' + i + ']: duplicate id'); return; }
           seen[b.id] = true; b.slot = isObj(raw) && raw.slot === 'bottom' ? 'bottom' : 'top';
           list.push(b);
         });
-        if (list.length) { design.pages = design.pages || {}; design.pages[key] = { blocks: list }; }
+        var pe = pg.edits === undefined ? {} : editsOf(pg.edits, errors);
+        if (list.length || Object.keys(pe).length) {
+          design.pages = design.pages || {}; design.pages[key] = { blocks: list };
+          if (Object.keys(pe).length) design.pages[key].edits = pe;
+        }
       });
       var total = design.blocks.length + Object.keys(design.pages || {}).reduce(function (n, k) { return n + design.pages[k].blocks.length; }, 0);
       if (total > LIMITS.blocks) errors.push('too many blocks');

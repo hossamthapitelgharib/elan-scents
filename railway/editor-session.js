@@ -54,7 +54,7 @@ async function login(email, password, ip) {
   if (!r.ok || !j.access_token) return { status: 401, error: 'invalid_credentials' };
   let ctx;
   try {
-    ctx = requireRoles(await getContext({ headers: { authorization: 'Bearer ' + j.access_token } }), ['platform_admin']);
+    ctx = requireRoles(await getContext({ headers: { authorization: 'Bearer ' + j.access_token } }, { strictProfile: true }), ['platform_admin']);
   } catch (_) {
     return { status: 502, error: 'role_check_failed' };
   }

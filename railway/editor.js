@@ -2,6 +2,8 @@
    Admin only. Writes exactly one file (design/home.json) with one commit per save.
    Repo, path and branch come from server configuration, never from the request. */
 const crypto = require('crypto');
+const fs = require('node:fs/promises');
+const path = require('node:path');
 const { getContext, requireRoles } = require('../api/_auth');
 const ED = require('../design-schema.js');
 
@@ -85,6 +87,15 @@ async function actionState(cfg) {
   const body = { ok: true, revision: file.sha, design: n.design, branch: cfg.branch };
   if (!n.ok || n.errors.length) body.warnings = n.errors.slice(0, 5);
   return { status: 200, body };
+}
+
+async function readOnlyState(missing) {
+  // Read the deployed snapshot only. A missing GitHub token must not trigger any GitHub request.
+  const text = await fs.readFile(path.resolve(__dirname, '..', DESIGN_PATH), 'utf8');
+  const n = ED.normalize(JSON.parse(text), { strict: false });
+  if (!n.ok) throw new Error('invalid_deployed_design');
+  return { status: 200, body: { ok: true, readOnly: true, revision: gitBlobSha(text), design: n.design,
+    missing, warnings: ['GitHub is not configured; this is the deployed read-only snapshot.'].concat(n.errors.slice(0, 5)) } };
 }
 
 async function actionSave(cfg, body) {
@@ -198,7 +209,14 @@ module.exports = async function editor(req, res) {
     const context = requireRoles(await getContext(req), ['platform_admin']);
     if (context.error) return reply(res, context.status, { ok: false, error: context.error, missing: context.missing || [] });
     const cfg = config();
-    if (cfg.error) return reply(res, 503, { ok: false, error: cfg.error, missing: cfg.missing || [] });
+    if (cfg.error) {
+      const stateRequest = req.method === 'GET' && (!req.query || !req.query.action || req.query.action === 'state');
+      if (stateRequest && cfg.error === 'editor_not_configured' && cfg.missing.length === 1 && cfg.missing[0] === 'GITHUB_TOKEN') {
+        const result = await readOnlyState(cfg.missing);
+        return reply(res, result.status, result.body);
+      }
+      return reply(res, 503, { ok: false, error: cfg.error, missing: cfg.missing || [] });
+    }
 
     let body = {};
     if (req.method === 'POST') {

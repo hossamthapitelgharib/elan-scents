@@ -6,7 +6,7 @@
   var layer = window.ElanDesignLayer, ED = window.ElanDesign, Bridge = window.ElanHostBridge;
   if (!layer || !ED || !Bridge || window.parent === window) return;
 
-  var work = null, baseJson = '', baseRevision = null, hostApi = null, selectedId = null, dirty = false;
+  var work = null, baseJson = '', baseRevision = null, hostApi = null, selectedId = null, dirty = false, readOnly = false;
   var undoStack = [], redoStack = [], editing = null, gesture = null, pendingMedia = null, moveArm = null;
   var SECTIONS_NAMES = { section: 1 };
 
@@ -21,19 +21,33 @@
   function checkDirty() { setDirty(JSON.stringify(work) !== baseJson); }
   function entries() { return layer.elements(); }
   function entryById(id) { var l = entries(); for (var i = 0; i < l.length; i++) if (l[i].id === id) return l[i]; return null; }
-  function bucket(dev) { work.edits = work.edits || {}; return (work.edits[dev] = work.edits[dev] || {}); }
-  function edit(dev, id) { var b = bucket(dev); return (b[id] = b[id] || {}); }
-  function tidy() {
-    if (!work.edits) return;
-    Object.keys(work.edits).forEach(function (dev) {
-      Object.keys(work.edits[dev]).forEach(function (id) {
-        var e = work.edits[dev][id];
+  function scopes() { return [work].concat(Object.keys(work.pages || {}).map(function (key) { return work.pages[key]; })); }
+  function pageScope(id, create) {
+    var e = entryById(id), view = document.getElementById('view'), key = layer.pageKey();
+    if (!e || !view || !view.contains(e.el) || !ED.isPageKey(key)) return work;
+    if (create) { work.pages = work.pages || {}; work.pages[key] = work.pages[key] || { blocks: [] }; }
+    return work.pages && work.pages[key];
+  }
+  function edit(dev, id) {
+    var scope = pageScope(id, true); scope.edits = scope.edits || {};
+    var b = scope.edits[dev] = scope.edits[dev] || {}; return (b[id] = b[id] || {});
+  }
+  function tidyScope(scope) {
+    if (!scope.edits) return;
+    Object.keys(scope.edits).forEach(function (dev) {
+      Object.keys(scope.edits[dev]).forEach(function (id) {
+        var e = scope.edits[dev][id];
         if (e.style && !Object.keys(e.style).length) delete e.style;
-        if (!Object.keys(e).length) delete work.edits[dev][id];
+        if (!Object.keys(e).length) delete scope.edits[dev][id];
       });
-      if (!Object.keys(work.edits[dev]).length) delete work.edits[dev];
+      if (!Object.keys(scope.edits[dev]).length) delete scope.edits[dev];
     });
-    if (!Object.keys(work.edits).length) delete work.edits;
+    if (!Object.keys(scope.edits).length) delete scope.edits;
+  }
+  function tidy() {
+    scopes().forEach(tidyScope);
+    Object.keys(work.pages || {}).forEach(function (key) { var pg = work.pages[key]; if (!(pg.blocks || []).length && !pg.edits) delete work.pages[key]; });
+    if (work.pages && !Object.keys(work.pages).length) delete work.pages;
   }
 
   function mutate(fn) {
@@ -112,9 +126,12 @@
     if (!m) return '#000000';
     return '#' + [m[1], m[2], m[3]].map(function (n) { return ('0' + (+n).toString(16)).slice(-2); }).join('');
   }
-  function cur(id) { return ED.editFor(work, device(), id) || {}; }
+  function cur(id) {
+    var global = ED.editFor(work, device(), id) || {}, local = ED.editFor(pageScope(id, false), device(), id);
+    return local ? Object.assign({}, global, local, { style: Object.assign({}, global.style, local.style) }) : global;
+  }
   /* What the editor needs to know about an element: the original editor's type names plus its current look. */
-  var TYPE_OF = { section: 'section', title: 'text', 'hero-text': 'text', hero: 'section', 'hero-counters': 'text', card: 'card', block: 'block' };
+  var TYPE_OF = { section: 'section', title: 'text', 'text-area': 'text', group: 'section', 'image-el': 'image', 'hero-text': 'text', hero: 'section', 'hero-counters': 'text', card: 'card', block: 'block' };
   function solidBackground(c) { var m = /^rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)$/.exec(c || ''); return !m || (m[4] !== undefined && parseFloat(m[4]) === 0) ? '' : rgbToHex(c); }
   function info(e) {
     if (!e) return null;
@@ -150,7 +167,7 @@
     if (i < 0 || j < 0 || j >= seq.length) return;
     mutate(function (d) { seq.splice(i, 1); seq.splice(j, 0, key); d.order = seq; });
   }
-  function resetElement(id) { mutate(function (d) { if (d.edits) Object.keys(d.edits).forEach(function (dev) { delete d.edits[dev][id]; }); }); }
+  function resetElement(id) { mutate(function () { scopes().forEach(function (d) { if (d.edits) Object.keys(d.edits).forEach(function (dev) { delete d.edits[dev][id]; }); }); }); }
   function archive(id) { mutate(function () { edit('all', id).archived = true; }); selectedId = null; reselect(); say('اتحط في الأرشيف. تقدر ترجّعه من الأرشيف.'); }
 
   /* ---------- picking, drag, resize, text ---------- */
@@ -363,6 +380,10 @@
   }
 
   function setMedia(id, src) {
+    var en = entryById(id);
+    if (!en || ['hero', 'card', 'section', 'image-el', 'group', 'block'].indexOf(en.kind) === -1) throw new Error('العنصر لا يدعم الصور.');
+    var candidate = {}; candidate[id] = { style: { media: src } };
+    if (!ED.normalize({ version: ED.VERSION, edits: { all: candidate } }, { strict: true }).ok) throw new Error('رابط الصورة مش مسموح.');
     var b = work.blocks.filter(function (x) { return x.id === id; })[0];
     if (b) {
       var probe = clone(b);
@@ -440,11 +461,12 @@
 
   /* ---------- commands from the editor ---------- */
   function archiveList() {
-    var out = [], e = (work.edits && work.edits.all) || {};
+    var scope = (layer.pageKey() !== 'home' && work.pages && work.pages[layer.pageKey()]) || work;
+    var out = [], e = (scope.edits && scope.edits.all) || {};
     Object.keys(e).forEach(function (id) { if (e[id].archived) out.push({ id: id, name: (entryById(id) || { name: id }).name }); });
     return out;
   }
-  function snapshot() { return { revision: baseRevision, design: clone(work), device: device(), dirty: dirty, archive: archiveList(), selected: info(selectedId && entryById(selectedId)) }; }
+  function snapshot() { return { revision: baseRevision, readOnly: readOnly, design: clone(work), device: device(), dirty: dirty, archive: archiveList(), selected: info(selectedId && entryById(selectedId)) }; }
   function need(id) { var e = id && entryById(id); if (!e) throw new Error('اختاري عنصر الأول.'); return e; }
 
   async function execute(action, p, meta) {
@@ -483,7 +505,7 @@
       }
       case 'element.edit': { var e9 = need(p.elementId || selectedId); startText(e9.id); return null; }
       case 'element.archive': archive(need(p.elementId || selectedId).id); return null;
-      case 'archive.restore': mutate(function (d) { if (d.edits) Object.keys(d.edits).forEach(function (dev) { if (d.edits[dev][p.elementId]) delete d.edits[dev][p.elementId].archived; }); }); return snapshot();
+      case 'archive.restore': mutate(function () { scopes().forEach(function (d) { if (d.edits) Object.keys(d.edits).forEach(function (dev) { if (d.edits[dev][p.elementId]) delete d.edits[dev][p.elementId].archived; }); }); }); return snapshot();
       case 'history.undo': return { ok: undo() };
       case 'history.redo': return { ok: redo() };
       case 'ui.openFormatPanel': if (p.elementId) select(need(p.elementId).id); if (!selectedId) throw new Error('اضغطي على عنصر في الصفحة الأول.'); return null;
@@ -509,6 +531,7 @@
       var e = new Error('state'); e.userMessage = why; throw e;
     }
     baseRevision = j.revision === null || j.revision === undefined ? 'initial' : j.revision;
+    readOnly = j.readOnly === true;
     work = ED.normalize(j.design || { version: ED.VERSION }, { strict: false }).design;
     undoStack = []; redoStack = []; dirty = false; baseJson = JSON.stringify(work);
     repaint();

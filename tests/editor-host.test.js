@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { liveUI, editBrowser, plain } = require('./browser-fixture');
 const root = path.resolve(__dirname, '..');
 
 const SB = 'https://sb.example.test';
@@ -136,8 +137,17 @@ test('the menu is built from a tool registry so new capabilities are one registe
   assert.match(edit, /function registerTool\(t\)/);
   assert.match(edit, /case 'tool\.run'/);
   const html = fs.readFileSync(path.join(root, 'editor', 'elan-editor.html'), 'utf8');
-  assert.match(html, /el\?\.tools\|\|info\?\.tools/);
+  assert.match(html, /\(info\.tools\|\|\[\]\)\.forEach/); // the host sends tools on the context message, not on the selected element
   assert.match(html, /runLive\('tool\.run'/);
+  const ui = liveUI();
+  ui.run("showLiveMenu({x:12,y:34,element:{id:'hero'},tools:[{id:'move',label:'تحريك',enabled:true},{id:'edit_text',label:'نص',enabled:false}]})");
+  const buttons = ui.context.menu.querySelectorAll('button');
+  assert.equal(buttons.length, 2);
+  assert.equal(buttons[1].disabled, true);
+  buttons[1].click();
+  assert.equal(ui.calls.length, 0);
+  buttons[0].click();
+  assert.deepEqual(plain(ui.calls[0]), ['tool.run', { id: 'move', elementId: 'hero', at: { x: 12, y: 34 } }]);
   const bridge = fs.readFileSync(path.join(root, 'elan-host-bridge.js'), 'utf8');
   for (const action of ['tool.run', 'element.nudge', 'page.markSaved']) assert.ok(bridge.includes(action), action);
 });
@@ -153,7 +163,7 @@ test('moving is a one-shot tool chosen from the menu: no drag without it, no arr
   assert.doesNotMatch(html, /openMovePad|movePad/);
 });
 
-test('inner pages keep their own edits, separate from the home page', () => {
+test('inner pages keep their own edits, separate from the home page', async () => {
   const ED = require('../design-schema.js');
   const r = ED.normalize({ version: 1, pages: { 'brand:AMOUAGE': { edits: { desktop: { 'pg:title': { dx: 90, dy: 50 } } } } } }, { strict: true });
   assert.equal(r.ok, true);
@@ -163,6 +173,23 @@ test('inner pages keep their own edits, separate from the home page', () => {
   assert.equal(ED.isEmpty(r.design), false);
   assert.equal(ED.normalize({ version: 1, pages: { 'brand:X': { edits: { all: { 'bad id': { dx: 1 } } } } } }, { strict: true }).ok, false);
   assert.equal(ED.normalize({ version: 1, pages: { 'evil:page': { edits: {} } } }, { strict: true }).ok, false);
+  assert.equal(ED.serialize(JSON.parse(ED.serialize(r.design))), ED.serialize(r.design));
+  const b = await editBrowser();
+  b.document.body.classList.add('inner');
+  b.context.P = [{ k: 'brand', n: 'AMOUAGE' }];
+  b.document.getElementById('view').innerHTML = '<h3>AMOUAGE</h3>';
+  const title = b.layer.elements().find((e) => e.kind === 'title' && e.id.startsWith('pg:'));
+  await b.mode.execute('element.move', { elementId: title.id, dx: 90, dy: 50 });
+  const snapshot = b.mode.state();
+  assert.equal(snapshot.design.edits, undefined);
+  assert.equal(snapshot.design.pages['brand:AMOUAGE'].edits.desktop[title.id].dy, 50);
+  assert.equal(title.el.style.transform, 'translate(90px,50px)');
+  b.context.P = [{ k: 'brand', n: 'ARMAF' }]; b.layer.applyEdits();
+  assert.equal(title.el.style.transform, '', 'another brand must not inherit the previous brand layout');
+  b.context.P = [{ k: 'brand', n: 'AMOUAGE' }]; b.layer.applyEdits();
+  assert.equal(title.el.style.transform, 'translate(90px,50px)');
+  await b.mode.execute('history.undo');
+  assert.equal(title.el.style.transform, '', 'undo must restore the unedited page');
 });
 
 test('edit mode lets a plain click enter a dynamic page and tracks which page is being edited', () => {
