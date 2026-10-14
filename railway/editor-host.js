@@ -112,7 +112,7 @@ async function handle(req, res, pathname) {
     if (!s) return json(res, 401, { ok: false, error: 'unauthorized' }), true;
     if (req.method !== 'POST' || !sameOrigin(req)) return json(res, 403, { ok: false, error: 'forbidden' }), true;
     const type = String(req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
-    const buf = await readRaw(req, media.MAX_BYTES + 1);
+    const buf = await readRaw(req, media.MAX_VIDEO_BYTES + 1);
     if (!buf) return json(res, 413, { ok: false, error: 'file_too_large' }), true;
     let name = ''; try { name = decodeURIComponent(String(req.headers['x-file-name'] || '')); } catch (_) { name = ''; }
     const r = await media.upload(s, buf, type, name);

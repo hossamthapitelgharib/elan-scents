@@ -114,8 +114,7 @@
   }
   function cur(id) { return ED.editFor(work, device(), id) || {}; }
   /* What the editor needs to know about an element: the original editor's type names plus its current look. */
-  var TYPE_OF = { section: 'section', title: 'text', 'hero-text': 'text', hero: 'section', 'hero-counters': 'text', card: 'card', block: 'block' };
-  function solidBackground(c) { var m = /^rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)$/.exec(c || ''); return !m || (m[4] !== undefined && parseFloat(m[4]) === 0) ? '' : rgbToHex(c); }
+  var TYPE_OF = { section: 'section', title: 'text', 'hero-text': 'text', hero: 'section', 'hero-counters': 'text', card: 'card', block: 'block', 'text-area': 'text', group: 'section', 'image-el': 'image' };
   function info(e) {
     if (!e) return null;
     var node = layer.textTarget(e) || e.el, cs = getComputedStyle(node), st = cur(e.id).style || {};
@@ -126,7 +125,7 @@
       style: {
         fontFamily: st.fontFamily || (cs.fontFamily || '').split(',')[0].replace(/["']/g, '').trim(),
         fontSize: st.fontSize || Math.round(parseFloat(cs.fontSize) || 16),
-        color: st.color || rgbToHex(cs.color), background: st.background || solidBackground(getComputedStyle(e.el).backgroundColor),
+        color: st.color || rgbToHex(cs.color), background: st.background || (function (c) { return !c || c === 'transparent' || /,\s*0\)$/.test(c) ? '' : rgbToHex(c); })(getComputedStyle(e.el).backgroundColor),
         align: st.align || ({ start: 'right', end: 'left', center: 'center', left: 'left', right: 'right' })[cs.textAlign] || 'right',
         effect: st.effect || 'none'
       }
@@ -364,6 +363,17 @@
 
   function setMedia(id, src) {
     var b = work.blocks.filter(function (x) { return x.id === id; })[0];
+    if (!b) {
+      var en = entryById(id);
+      if (en && !(en.kind !== 'hero' && en.kind !== 'card' && en.kind !== 'section' && en.kind !== 'image-el')) {
+        var kind = /\.(mp4|webm)(\?|$)/i.test(src) ? 'video' : 'image';
+        if (kind === 'video' && (en.kind === 'card' || en.kind === 'image-el')) throw new Error('الكارت بيقبل صورة بس.');
+        var probe2 = { version: ED.VERSION, edits: { all: {} } }; probe2.edits.all[id] = { media: { src: src, kind: kind } };
+        if (!ED.normalize(probe2, { strict: true }).ok) throw new Error('رابط الميديا مش مسموح.');
+        mutate(function () { edit('all', id).media = { src: src, kind: kind }; });
+        return;
+      }
+    }
     if (b) {
       var probe = clone(b);
       if (b.type === 'image') probe.src = src;
