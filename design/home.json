@@ -108,7 +108,11 @@
       },
       "sec:brands:title": {
         "style": {
-          "fontSize": 16
+          "fontSize": 20,
+          "align": "center",
+          "color": "#b8860b",
+          "fontFamily": "Reem Kufi",
+          "effect": "none"
         }
       },
       "sec:offers": {
