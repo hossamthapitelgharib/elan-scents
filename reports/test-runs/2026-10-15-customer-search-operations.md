@@ -2,7 +2,7 @@
 
 **المستودع:** `hossamthapitelgharib/elan-scents`  
 **مشروع Supabase:** `sbgdtuqfrnfeggkwqtrw`  
-**Migrations المطبقة:** `20261015032124_customer_search_operations` و`20261015033400_customer_search_retention_365_days`
+**Migrations المطبقة:** `20261015032124_customer_search_operations` و`20261015033601_customer_search_retention_365_days`
 
 ## ما أُنجز
 

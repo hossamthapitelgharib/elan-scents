@@ -1,4 +1,4 @@
-const { safeEqual } = require('../lib/secure');
+const { getContext, requireRoles } = require('./_auth');
 
 const MAX_STORES = 1000;
 const FIELD_LIMITS = {
@@ -14,20 +14,6 @@ const FIELD_LIMITS = {
 function reply(res, status, body) {
   res.setHeader('Cache-Control', 'no-store');
   res.status(status).setHeader('Content-Type', 'application/json').json(body);
-}
-
-function auth(req, res) {
-  const expected = process.env.DASHBOARD_TOKEN;
-  if (!expected) { reply(res, 503, { ok: false, error: 'dashboard_token_not_configured' }); return false; }
-  if (!safeEqual(String(req.headers['x-dashboard-token'] || ''), expected)) { reply(res, 401, { ok: false, error: 'unauthorized' }); return false; }
-  return true;
-}
-
-function supabase() {
-  return {
-    url: process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL,
-    key: process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY,
-  };
 }
 
 function mask(value) {
@@ -81,12 +67,12 @@ function clean(value) {
 }
 
 module.exports = async function storeIntegrations(req, res) {
-  if (!auth(req, res)) return;
-  const { url, key } = supabase();
-  if (!url || !key) { reply(res, 503, { ok: false, error: 'supabase_service_configuration_missing' }); return; }
-  const base = `${url}/rest/v1/`;
-
   try {
+    const context = requireRoles(await getContext(req), ['platform_admin']);
+    if (context.error) { reply(res, context.status, { ok: false, error: context.error }); return; }
+    const base = `${context.supabaseUrl}/rest/v1/`;
+    const key = context.serviceRoleKey;
+
     if (req.method === 'GET') {
       const storeParams = new URLSearchParams({ select: 'id,name,short_description', order: 'name.asc,id.asc', limit: String(MAX_STORES) });
       const stores = await getRows(`${base}public_stores?${storeParams}`, key);

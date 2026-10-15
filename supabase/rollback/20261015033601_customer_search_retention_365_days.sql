@@ -1,4 +1,4 @@
--- ROLLBACK for supabase/migrations/20261015033400_customer_search_retention_365_days.sql
+-- ROLLBACK for supabase/migrations/20261015033601_customer_search_retention_365_days.sql
 -- Run manually only if the project owner requests it. Already-deleted rows cannot be restored by this rollback.
 
 begin;

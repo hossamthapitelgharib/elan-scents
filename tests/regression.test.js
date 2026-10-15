@@ -108,14 +108,19 @@ test('restore API is idempotent for a pending restoration', async () => {
 test('platform, store and customer dashboard APIs enforce their scopes', async () => {
   process.env.SUPABASE_URL = 'https://test.supabase.co'; process.env.SUPABASE_SERVICE_ROLE_KEY = 'service';
   process.env.DASHBOARD_TOKEN = 'dashboard-token';
+  let profileRole = 'customer';
   global.fetch = async (url) => {
     if (url.includes('/auth/v1/user')) return jsonResponse({ id: 'user-1' });
-    if (url.includes('/profiles')) return jsonResponse([{ id: 'user-1', role: 'customer' }]);
+    if (url.includes('/profiles')) return jsonResponse([{ id: 'user-1', role: profileRole }]);
     if (url.includes('/store_accounts')) return jsonResponse([{ store_id: 'store-a' }]);
     return jsonResponse([{ user_id: 'user-1', tracking_number: 'T-1', store_order_requests: [{ store_order_cart_restorations: [{ status: 'restored' }] }] }]);
   };
-  const platform = await invoke(api('dashboard-orders'), { method: 'GET', headers: { 'x-dashboard-token': 'dashboard-token' }, query: {} }); assert.equal(platform.status, 200); assert.equal(platform.body.ok, true);
+  const tokenOnly = await invoke(api('dashboard-orders'), { method: 'GET', headers: { 'x-dashboard-token': 'dashboard-token' }, query: {} }); assert.equal(tokenOnly.status, 401);
+  const customerDashboard = await invoke(api('dashboard-orders'), baseRequest()); assert.equal(customerDashboard.status, 403);
+  profileRole = 'platform_admin';
+  const platform = await invoke(api('dashboard-orders'), baseRequest()); assert.equal(platform.status, 200); assert.equal(platform.body.ok, true);
   const customer = await invoke(api('customer-orders'), baseRequest()); assert.equal(customer.status, 200);
+  profileRole = 'customer';
   const store = await invoke(api('store-dashboard-orders'), baseRequest()); assert.equal(store.status, 403);
   delete process.env.DASHBOARD_TOKEN;
 });

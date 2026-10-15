@@ -4,8 +4,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const root = path.resolve(__dirname, '..');
-const migration = fs.readFileSync(path.join(root, 'supabase/migrations/20261015033400_customer_search_retention_365_days.sql'), 'utf8');
-const rollback = fs.readFileSync(path.join(root, 'supabase/rollback/20261015033400_customer_search_retention_365_days.sql'), 'utf8');
+const migration = fs.readFileSync(path.join(root, 'supabase/migrations/20261015033601_customer_search_retention_365_days.sql'), 'utf8');
+const rollback = fs.readFileSync(path.join(root, 'supabase/rollback/20261015033601_customer_search_retention_365_days.sql'), 'utf8');
 const transactionalTest = fs.readFileSync(path.join(root, 'tests/customer-activity-transactional.test.sql'), 'utf8');
 
 test('customer search retention keeps rows for 365 days and schedules a protected daily purge', () => {

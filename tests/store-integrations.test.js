@@ -16,11 +16,18 @@ function recorder() {
 function response(data, status = 200) {
   return new Response(data == null ? '' : JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
 }
+function authenticatedFetch(handlerFetch, role = 'platform_admin') {
+  return async (input, options = {}) => {
+    const url = new URL(String(input));
+    if (url.pathname.endsWith('/auth/v1/user')) return response({ id: 'admin-user' });
+    if (url.pathname.endsWith('/rest/v1/profiles')) return response([{ id: 'admin-user', role }]);
+    return handlerFetch(input, options);
+  };
+}
 const storeId = 'f6ab1d8d-1087-4112-8976-1210d1ec8c55';
-const savedEnv = Object.fromEntries(['DASHBOARD_TOKEN', 'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SECRET_KEY'].map(key => [key, process.env[key]]));
+const savedEnv = Object.fromEntries(['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SECRET_KEY'].map(key => [key, process.env[key]]));
 const savedFetch = global.fetch;
 test.before(() => {
-  process.env.DASHBOARD_TOKEN = 'dashboard-secret';
   process.env.SUPABASE_URL = 'https://test.supabase.co';
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-key';
 });
@@ -28,12 +35,11 @@ test.after(() => {
   global.fetch = savedFetch;
   for (const [key, value] of Object.entries(savedEnv)) value === undefined ? delete process.env[key] : process.env[key] = value;
 });
-
 function request(method = 'GET', body) {
-  return { method, headers: { 'x-dashboard-token': 'dashboard-secret', host: 'admin.example' }, body };
+  return { method, headers: { authorization: 'Bearer admin-token', host: 'admin.example' }, body };
 }
 
-test('store integrations reject requests without the dashboard token before calling Supabase', async () => {
+test('store integrations reject requests without an authenticated session before calling Supabase', async () => {
   let called = false;
   global.fetch = async () => { called = true; throw new Error('unexpected'); };
   const res = recorder();
@@ -42,9 +48,18 @@ test('store integrations reject requests without the dashboard token before call
   assert.equal(called, false);
 });
 
+test('store integrations reject authenticated customers before reading or changing settings', async () => {
+  let called = false;
+  global.fetch = authenticatedFetch(async () => { called = true; throw new Error('unexpected'); }, 'customer');
+  const res = recorder();
+  await handler(request(), res);
+  assert.equal(res.out.status, 403);
+  assert.equal(called, false);
+});
+
 test('GET reads the normalized per-store row and returns only masked secrets', async () => {
   const requests = [];
-  global.fetch = async (input, options = {}) => {
+  global.fetch = authenticatedFetch(async (input, options = {}) => {
     const url = new URL(String(input)); requests.push({ url, options });
     if (url.pathname === '/rest/v1/public_stores') return response([{ id: storeId, name: 'Store A', short_description: 'A store' }]);
     if (url.pathname === '/rest/v1/store_integrations') return response([{
@@ -54,7 +69,7 @@ test('GET reads the normalized per-store row and returns only masked secrets', a
     }]);
     if (url.pathname === '/rest/v1/site_settings') return response([]);
     throw new Error(`unexpected ${url.pathname}`);
-  };
+  });
   const res = recorder();
   await handler(request(), res);
   assert.equal(res.out.status, 200);
@@ -73,10 +88,11 @@ test('GET reads the normalized per-store row and returns only masked secrets', a
   assert.equal(JSON.stringify(res.out.body).includes('HOOKSECRETKEY456'), false);
   assert.equal(requests.some(call => call.url.pathname === '/rest/v1/store_integrations'), true);
   assert.ok(requests.every(call => call.options.headers.apikey === 'service-key'));
+  assert.equal(res.out.headers['Cache-Control'], 'no-store');
 });
 
 test('GET supports legacy site_settings values until they are resaved in normalized rows', async () => {
-  global.fetch = async input => {
+  global.fetch = authenticatedFetch(async input => {
     const url = new URL(String(input));
     if (url.pathname === '/rest/v1/public_stores') return response([{ id: storeId, name: 'Store A' }]);
     if (url.pathname === '/rest/v1/store_integrations') return response([]);
@@ -84,7 +100,7 @@ test('GET supports legacy site_settings values until they are resaved in normali
       enabled: true, baseUrl: 'https://legacy.example', apiKey: 'LEGACYKEY98765', webhookSecret: 'LEGACYHOOK76543',
     } }) }]);
     throw new Error(`unexpected ${url.pathname}`);
-  };
+  });
   const res = recorder();
   await handler(request(), res);
   assert.equal(res.out.status, 200);
@@ -96,16 +112,14 @@ test('GET supports legacy site_settings values until they are resaved in normali
 
 test('PUT upserts by store_id and preserves existing secrets when masked inputs are blank', async () => {
   const requests = [];
-  global.fetch = async (input, options = {}) => {
+  global.fetch = authenticatedFetch(async (input, options = {}) => {
     const url = new URL(String(input)); requests.push({ url, options });
     if (url.pathname === '/rest/v1/stores') return response([{ id: storeId, name: 'Store A' }]);
     if (url.pathname === '/rest/v1/store_integrations' && options.method === 'POST') return response(null, 201);
-    if (url.pathname === '/rest/v1/store_integrations') return response([{
-      store_id: storeId, api_key: 'PRESERVEDAPIKEY', webhook_secret: 'PRESERVEDHOOKSECRET',
-    }]);
+    if (url.pathname === '/rest/v1/store_integrations') return response([{ store_id: storeId, api_key: 'PRESERVEDAPIKEY', webhook_secret: 'PRESERVEDHOOKSECRET' }]);
     if (url.pathname === '/rest/v1/site_settings') return response([]);
     throw new Error(`unexpected ${url.pathname} ${options.method}`);
-  };
+  });
   const res = recorder();
   await handler(request('PUT', { stores: [{
     name: 'Store A', enabled: false, baseUrl: 'https://new.example', cartUrl: '', apiBaseUrl: '',
@@ -129,11 +143,11 @@ test('PUT upserts by store_id and preserves existing secrets when masked inputs 
 
 test('PUT rejects unknown stores and oversized values before any upsert', async () => {
   const requests = [];
-  global.fetch = async (input, options = {}) => {
+  global.fetch = authenticatedFetch(async (input, options = {}) => {
     const url = new URL(String(input)); requests.push({ url, options });
     if (url.pathname === '/rest/v1/stores') return response([]);
     throw new Error(`unexpected ${url.pathname}`);
-  };
+  });
   const unknown = recorder();
   await handler(request('PUT', { stores: [{ name: 'Unknown store' }] }), unknown);
   assert.equal(unknown.out.status, 400);
