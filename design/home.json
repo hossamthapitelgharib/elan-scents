@@ -132,7 +132,7 @@
         "style": {
           "fontSize": 20,
           "align": "center",
-          "color": "#7b1fa2",
+          "color": "#e8dcc4",
           "fontFamily": "Reem Kufi",
           "effect": "none"
         }
@@ -150,7 +150,7 @@
       },
       "hero": {
         "media": {
-          "src": "https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/uploads/2026/0dad190fc712b791dd4e.png",
+          "src": "https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/uploads/2026/f131f5dc5d3888717232.png",
           "kind": "image"
         }
       },
