@@ -15,6 +15,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Block web uploads over editor files
+        if: github.event_name == 'push'
+        run: node scripts/guard-web-upload.js "${{ github.event.before }}..${{ github.sha }}"
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
