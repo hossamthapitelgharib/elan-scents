@@ -183,4 +183,4 @@
 | الجدولة الحية | `pg_cron` 1.6.4، job نشط `customer-searches-retention-365d` يوميًا 03:17 GMT |
 | الصلاحيات | غير مسموح لـ`anon` أو `authenticated`؛ مسموح لـ`service_role` |
 
-Artifact تشغيل 205/205 السابق لا يشمل هذا الترحيل؛ يرفع التشغيل الناتج عن push الحالي التقرير الأحدث وملخص TAP 206/206، ويضاف رابطه بعد التحقق من نجاحه.
+نجح تشغيل [GitHub Actions رقم 38677311711](https://github.com/hossamthapitelgharib/elan-scents/actions/runs/38677311711) بعد الترحيل: 206/206، ونجحت خطوة رفع التقارير. نُزّل الـArtifact وتحقق وجود تقرير 15 أكتوبر وملخص TAP الكامل.
