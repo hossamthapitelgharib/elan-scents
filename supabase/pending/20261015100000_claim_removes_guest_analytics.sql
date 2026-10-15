@@ -3,6 +3,25 @@ begin;
 -- When a guest signs in, their basket, visit sessions and product events already move to the
 -- account. The anonymous analytics rows kept under the browser's HMAC must go too, otherwise the
 -- same person (and the same visit) is counted once as a guest and again as a customer.
+-- Before they go, one row is written to guest_conversions: it is the record of "this browser became
+-- this registered person". It keeps the visitor-to-registered funnel measurable, and it shows how
+-- many browsers one person used, which is what turns browser counts into an estimate of people.
+create table if not exists public.guest_conversions (
+  visitor_hash text primary key check (visitor_hash ~ '^[a-f0-9]{64}$'),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  first_seen_date date not null,
+  converted_on date not null,
+  converted_at timestamptz not null default now()
+);
+create index if not exists guest_conversions_user_idx on public.guest_conversions (user_id);
+create index if not exists guest_conversions_dates_idx on public.guest_conversions (first_seen_date, converted_on);
+alter table public.guest_conversions enable row level security;
+revoke all on table public.guest_conversions from anon, authenticated;
+grant all on table public.guest_conversions to service_role;
+drop policy if exists guest_conversions_no_client_access on public.guest_conversions;
+create policy guest_conversions_no_client_access on public.guest_conversions
+  for all to anon, authenticated using (false) with check (false);
+
 -- The old two-argument function is dropped so that a call can never be ambiguous.
 drop function if exists public.claim_guest_browser_cart(text, uuid);
 
@@ -52,6 +71,13 @@ begin
   update public.customer_product_events set guest_id=null,user_id=p_user_id where guest_id=v_guest.id;
 
   if coalesce(p_analytics_hash, '') ~ '^[a-f0-9]{64}$' then
+    insert into public.guest_conversions (visitor_hash, user_id, first_seen_date, converted_on)
+    values (
+      p_analytics_hash, p_user_id,
+      coalesce((select min(activity_date) from public.guest_analytics_visits where visitor_hash = p_analytics_hash),
+               (v_guest.first_seen_at at time zone 'Africa/Cairo')::date),
+      (now() at time zone 'Africa/Cairo')::date)
+    on conflict (visitor_hash) do nothing;
     delete from public.guest_product_analytics where visitor_hash = p_analytics_hash;
     delete from public.guest_analytics_visits where visitor_hash = p_analytics_hash;
   end if;
@@ -63,6 +89,52 @@ begin
   return jsonb_build_object('claimed',true,'cart',v_moved,'items',jsonb_array_length(v_cart),'snapshot',v_cart);
 end;
 $$;
+
+-- Visitor funnel for a period (Cairo dates). Browsers are what can be observed; the estimate of
+-- people divides them by the measured average number of browsers per registered person.
+create or replace function public.guest_funnel_summary(p_period text default 'today')
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_end date := (now() at time zone 'Africa/Cairo')::date;
+  v_start date;
+  v_new bigint := 0;
+  v_converted bigint := 0;
+  v_people bigint := 0;
+  v_sample bigint := 0;
+  v_per_person numeric := 1;
+begin
+  if p_period not in ('today','week','month','year') then raise exception 'invalid funnel period'; end if;
+  v_start := case p_period when 'today' then v_end when 'week' then v_end-6 when 'month' then v_end-29 else v_end-364 end;
+
+  select count(*) into v_new from (
+    select visitor_hash, min(activity_date) as first_date from public.guest_analytics_visits group by visitor_hash
+    union all
+    select visitor_hash, first_seen_date from public.guest_conversions
+  ) seen where first_date between v_start and v_end;
+
+  select count(*) into v_converted from public.guest_conversions where first_seen_date between v_start and v_end;
+  select count(distinct user_id) into v_people from public.guest_conversions where converted_on between v_start and v_end;
+  select count(*), coalesce(avg(c), 1) into v_sample, v_per_person
+    from (select count(*) c from public.guest_conversions group by user_id) x;
+
+  return jsonb_build_object(
+    'period', p_period, 'startDate', v_start, 'endDate', v_end,
+    'newBrowsers', v_new,
+    'convertedBrowsers', v_converted,
+    'registeredPeople', v_people,
+    'conversionRate', case when v_new > 0 then round(v_converted::numeric / v_new, 4) else 0 end,
+    'browsersPerPerson', round(greatest(v_per_person, 1), 2),
+    'browsersPerPersonSample', v_sample,
+    'estimatedPeople', greatest(0, round(v_new / greatest(v_per_person, 1)))
+  );
+end;
+$$;
+revoke all on function public.guest_funnel_summary(text) from public, anon, authenticated;
+grant execute on function public.guest_funnel_summary(text) to service_role;
 
 revoke all on function public.claim_guest_browser_cart(text,uuid,text) from public, anon, authenticated;
 grant execute on function public.claim_guest_browser_cart(text,uuid,text) to service_role;
