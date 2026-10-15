@@ -66,3 +66,10 @@ test('guest capture is automatic, browser-local, and its migration keeps only is
   assert.match(migration, /delete from public\.guest_visitors/i);
   assert.match(migration, /guest_analytics_summary/);
 });
+
+test('the vendor folder for the ThumbmarkJS build exists and CLAUDE.md tells Manus how to fill it', () => {
+  const root = path.join(__dirname, '..');
+  assert.ok(fs.existsSync(path.join(root, 'vendor')));
+  assert.match(fs.readFileSync(path.join(root, 'CLAUDE.md'), 'utf8'), /vendor\/thumbmark\.js/);
+  assert.match(fs.readFileSync(path.join(root, 'guest-identity.js'), 'utf8'), /\/vendor\/thumbmark\.js/);
+});
