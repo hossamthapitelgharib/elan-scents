@@ -147,6 +147,18 @@
       },
       "x-52jbo": {
         "archived": true
+      },
+      "hero": {
+        "media": {
+          "src": "https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/uploads/2026/0dad190fc712b791dd4e.png",
+          "kind": "image"
+        }
+      },
+      "card:1dsn4im": {
+        "media": {
+          "src": "https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/uploads/2026/0dad190fc712b791dd4e.png",
+          "kind": "image"
+        }
       }
     },
     "mobile": {
