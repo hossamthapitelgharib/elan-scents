@@ -106,9 +106,24 @@ declare
   v_people bigint := 0;
   v_sample bigint := 0;
   v_per_person numeric := 1;
+  v_valid_guest bigint := 0;
+  v_valid_customer bigint := 0;
+  v_start_ts timestamptz;
+  v_end_ts timestamptz;
 begin
   if p_period not in ('today','week','month','year') then raise exception 'invalid funnel period'; end if;
   v_start := case p_period when 'today' then v_end when 'week' then v_end-6 when 'month' then v_end-29 else v_end-364 end;
+
+  v_start_ts := v_start::timestamp at time zone 'Africa/Cairo';
+  v_end_ts := (v_end+1)::timestamp at time zone 'Africa/Cairo';
+  -- A valid visit is counted like a video view: a real visit (one session, shared by all tabs of
+  -- a browser, renewed after 30 idle minutes) that lasted at least 10 active seconds or did
+  -- something with a product. Instant bounces and bots that never interact are not counted.
+  select count(*) filter (where cs.guest_id is not null), count(*) filter (where cs.user_id is not null)
+    into v_valid_guest, v_valid_customer
+    from public.customer_sessions cs
+    where cs.started_at >= v_start_ts and cs.started_at < v_end_ts
+      and (cs.active_seconds >= 10 or exists (select 1 from public.customer_product_events e where e.session_id = cs.session_id));
 
   select count(*) into v_new from (
     select visitor_hash, min(activity_date) as first_date from public.guest_analytics_visits group by visitor_hash
@@ -123,6 +138,8 @@ begin
 
   return jsonb_build_object(
     'period', p_period, 'startDate', v_start, 'endDate', v_end,
+    'validVisitsGuest', v_valid_guest,
+    'validVisitsCustomer', v_valid_customer,
     'newBrowsers', v_new,
     'convertedBrowsers', v_converted,
     'registeredPeople', v_people,
