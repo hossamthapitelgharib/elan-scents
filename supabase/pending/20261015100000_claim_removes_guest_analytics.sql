@@ -7,11 +7,12 @@ begin;
 -- this registered person". It keeps the visitor-to-registered funnel measurable, and it shows how
 -- many browsers one person used, which is what turns browser counts into an estimate of people.
 create table if not exists public.guest_conversions (
-  visitor_hash text primary key check (visitor_hash ~ '^[a-f0-9]{64}$'),
+  visitor_hash text not null check (visitor_hash ~ '^[a-f0-9]{64}$'),
   user_id uuid not null references public.profiles(id) on delete cascade,
   first_seen_date date not null,
   converted_on date not null,
-  converted_at timestamptz not null default now()
+  converted_at timestamptz not null default now(),
+  primary key (visitor_hash, user_id)
 );
 create index if not exists guest_conversions_user_idx on public.guest_conversions (user_id);
 create index if not exists guest_conversions_dates_idx on public.guest_conversions (first_seen_date, converted_on);
@@ -77,7 +78,7 @@ begin
       coalesce((select min(activity_date) from public.guest_analytics_visits where visitor_hash = p_analytics_hash),
                (v_guest.first_seen_at at time zone 'Africa/Cairo')::date),
       (now() at time zone 'Africa/Cairo')::date)
-    on conflict (visitor_hash) do nothing;
+    on conflict (visitor_hash, user_id) do nothing;
     delete from public.guest_product_analytics where visitor_hash = p_analytics_hash;
     delete from public.guest_analytics_visits where visitor_hash = p_analytics_hash;
   end if;
@@ -126,15 +127,17 @@ begin
       and (cs.active_seconds >= 10 or exists (select 1 from public.customer_product_events e where e.session_id = cs.session_id));
 
   select count(*) into v_new from (
-    select visitor_hash, min(activity_date) as first_date from public.guest_analytics_visits group by visitor_hash
-    union all
-    select visitor_hash, first_seen_date from public.guest_conversions
+    select visitor_hash, min(first_date) as first_date from (
+      select visitor_hash, min(activity_date) as first_date from public.guest_analytics_visits group by visitor_hash
+      union all
+      select visitor_hash, first_seen_date from public.guest_conversions
+    ) u group by visitor_hash
   ) seen where first_date between v_start and v_end;
 
-  select count(*) into v_converted from public.guest_conversions where first_seen_date between v_start and v_end;
+  select count(distinct visitor_hash) into v_converted from public.guest_conversions where first_seen_date between v_start and v_end;
   select count(distinct user_id) into v_people from public.guest_conversions where converted_on between v_start and v_end;
   select count(*), coalesce(avg(c), 1) into v_sample, v_per_person
-    from (select count(*) c from public.guest_conversions group by user_id) x;
+    from (select count(distinct visitor_hash) c from public.guest_conversions group by user_id) x;
 
   return jsonb_build_object(
     'period', p_period, 'startDate', v_start, 'endDate', v_end,

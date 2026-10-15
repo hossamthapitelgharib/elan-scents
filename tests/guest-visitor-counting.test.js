@@ -18,7 +18,7 @@ function shared(opts = {}) {
   };
 }
 // One call = one tab. Tabs of the same browser share `browser` (storage + cookies).
-function openTab(browser, now = () => Date.now()) {
+function openTab(browser, now = () => Date.now(), respond = null) {
   const requests = [], listeners = {};
   const localStorage = {
     getItem(k) { if (browser.blocked) throw new Error('blocked'); return browser.values.has(k) ? browser.values.get(k) : null; },
@@ -41,7 +41,8 @@ function openTab(browser, now = () => Date.now()) {
     window, document, localStorage, URLSearchParams, Date: Object.assign(function () { return new Date(now()); }, { now }),
     fetch: async (url, options = {}) => {
       const body = JSON.parse(options.body || '{}'); requests.push({ url: String(url), body });
-      return { ok: true, json: async () => String(url) === '/api/guest-cart' ? { ok: true, visitorId: 'v', cart: [] } : { ok: true, tracked: true } };
+      const custom = respond && respond(String(url), body);
+      return { ok: true, json: async () => custom || (String(url) === '/api/guest-cart' ? { ok: true, visitorId: 'v', cart: [] } : { ok: true, tracked: true }) };
     },
     setTimeout() { return 0; }, setInterval() { return 0; }
   };
@@ -129,4 +130,14 @@ test('automated browsers (webdriver) are never tracked', async () => {
   assert.equal(context.window.GuestIdentity.enabled(), false);
   await context.window.GuestIdentity.track('view', '245a6e52-46c6-42e9-a730-9e5bec3dd203');
   assert.equal(sent.length, 0);
+});
+
+test('the browser adopts the key the server merged it into', async () => {
+  const browser = shared(); const canonical = '77777777-7777-4777-8777-777777777777';
+  const tab = openTab(browser, () => Date.now(), (url) => url === '/api/guest-cart' ? { ok: true, visitorId: 'v', cart: [], visitorKey: canonical } : null);
+  await tab.identity.resolve();
+  assert.equal(browser.values.get(KEY), canonical);
+  assert.equal(browser.cookies.get('elan_vk'), canonical);
+  await tab.identity.track('view', '245a6e52-46c6-42e9-a730-9e5bec3dd203');
+  assert.equal(tab.requests.at(-1).body.visitorKey, canonical);
 });

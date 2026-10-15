@@ -134,7 +134,15 @@
   }
 
   function resolve() {
-    if (!identification) identification = request('resolve').catch(function (error) {
+    if (!identification) identification = request('resolve').then(function (body) {
+      // the server may have merged this browser into the key it already knew
+      if (body && body.visitorKey && UUID.test(body.visitorKey) && body.visitorKey !== visitorKey()) {
+        try { localStorage.setItem(STORAGE_KEY, body.visitorKey); } catch (_) {}
+        writeCookie(body.visitorKey);
+        cachedKey = body.visitorKey;
+      }
+      return body;
+    }).catch(function (error) {
       identification = null;
       throw error;
     });

@@ -42,6 +42,15 @@ function createAdminClient(url, key) {
   });
 }
 
+function cookieKey(req) {
+  const m = String((req.headers && req.headers.cookie) || '').match(/(?:^|;\s*)elan_gid=([^;]+)/);
+  return m && UUID.test(m[1]) ? m[1] : null;
+}
+function setKeyCookie(req, res, key) {
+  const secure = String((req.headers && req.headers['x-forwarded-proto']) || '').includes('https') ? '; Secure' : '';
+  res.setHeader('Set-Cookie', `elan_gid=${key}; Max-Age=34560000; Path=/; HttpOnly; SameSite=Lax${secure}`);
+}
+
 function hmac(secret, purpose, visitorKey) {
   return createHmac('sha256', secret).update(`${purpose}:${visitorKey}`).digest('hex');
 }
@@ -54,7 +63,7 @@ module.exports = async (req, res) => {
   if (String((req.headers && req.headers['sec-fetch-site']) || '') === 'cross-site') return json(res, 403, { error: 'cross_site_not_allowed' });
   const body = req.body || {};
   const action = String(body.action || 'resolve');
-  const visitorKey = String(body.visitorKey || '');
+  let visitorKey = String(body.visitorKey || '');
   if (!UUID.test(visitorKey)) return json(res, 400, { error: 'invalid_browser_key' });
   if (!['resolve', 'save', 'claim', 'track'].includes(action)) return json(res, 400, { error: 'unsupported_action' });
   const ip = clientIp(req);
@@ -75,15 +84,32 @@ module.exports = async (req, res) => {
   const admin = createAdminClient(supabaseUrl, serviceKey);
 
   try {
+    // The server cookie outlives script-set storage (Safari clears that after a week without a visit).
+    // If this browser arrives with a different key than the one the server already gave it, the two
+    // records are merged into the cookie's key, so one browser is never two visitors.
+    let canonicalKey = null;
+    if (action === 'resolve') {
+      const known = cookieKey(req);
+      if (!known) setKeyCookie(req, res, visitorKey);
+      else if (known !== visitorKey) {
+        const merge = await admin('rpc/merge_guest_browser', {
+          p_from_fingerprint: fingerprintHash, p_to_fingerprint: hmac(serviceKey, 'guest-browser', known),
+          p_from_analytics: analyticsHash, p_to_analytics: hmac(serviceKey, 'guest-analytics', known)
+        }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+        if (merge && merge.merged === true) { canonicalKey = known; visitorKey = known; }
+      }
+    }
+    const fingerprintUse = canonicalKey ? hmac(serviceKey, 'guest-browser', canonicalKey) : fingerprintHash;
+    const analyticsUse = canonicalKey ? hmac(serviceKey, 'guest-analytics', canonicalKey) : analyticsHash;
     if (action === 'resolve' || action === 'save') {
       const cart = action === 'save' ? cleanCart(body.items) : undefined;
       const rpc = action === 'resolve' ? 'resolve_guest_browser' : 'save_guest_browser_cart';
-      const payload = { p_fingerprint_hash: fingerprintHash, p_analytics_hash: analyticsHash };
+      const payload = { p_fingerprint_hash: fingerprintUse, p_analytics_hash: analyticsUse };
       if (action === 'save') payload.p_cart_snapshot = cart;
       const response = await admin(`rpc/${rpc}`, payload);
       if (!response.ok) return json(res, 502, { error: 'guest_profile_unavailable' });
       const profile = await response.json();
-      return json(res, 200, { ok: true, visitorId: profile.visitorId, status: profile.status, cart: cleanCart(profile.cart || []) });
+      return json(res, 200, { ok: true, visitorId: profile.visitorId, status: profile.status, cart: cleanCart(profile.cart || []), ...(canonicalKey ? { visitorKey: canonicalKey } : {}) });
     }
 
     if (action === 'track') {

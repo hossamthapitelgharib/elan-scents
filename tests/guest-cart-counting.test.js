@@ -68,3 +68,44 @@ test('requests that come from another website are refused', async () => {
   await activity({ method: 'POST', headers: { 'user-agent': 'Mozilla/5.0', 'sec-fetch-site': 'cross-site' }, body: { action: 'session', sessionAction: 'start', visitorKey: key(), sessionId: key() } }, res2);
   assert.equal(res2.out.status, 403); assert.equal(touched, false);
 });
+
+function headerRecorder() { const out = { headers: {} }; return { out, status(n) { out.status = n; return this; }, setHeader(k, v) { out.headers[k] = v; return this; }, json(b) { out.body = b; return this; } }; }
+
+test('a first visit gets a long-lived server cookie holding its key', async () => {
+  env(); global.fetch = async () => reply({ visitorId: 'v', status: 'guest', cart: [] });
+  const k = key(), res = headerRecorder();
+  await handler({ method: 'POST', headers: { 'user-agent': 'Mozilla/5.0', 'x-forwarded-proto': 'https' }, body: { action: 'resolve', visitorKey: k } }, res);
+  assert.match(res.out.headers['Set-Cookie'], new RegExp(`^elan_gid=${k}; Max-Age=\\d+; Path=/; HttpOnly; SameSite=Lax; Secure`));
+});
+
+test('a browser that comes back with a different key is merged into the key the server already knows', async () => {
+  env(); const known = key(), fresh = key(), calls = [];
+  global.fetch = async (url, options = {}) => {
+    const u = String(url); calls.push({ u, body: JSON.parse(options.body || '{}') });
+    if (u.endsWith('/rpc/merge_guest_browser')) return reply({ merged: true, reason: 'merged' });
+    return reply({ visitorId: 'v', status: 'guest', cart: [] });
+  };
+  const res = headerRecorder();
+  await handler({ method: 'POST', headers: { 'user-agent': 'Mozilla/5.0', cookie: `elan_gid=${known}` }, body: { action: 'resolve', visitorKey: fresh } }, res);
+  const merge = calls.find((c) => c.u.endsWith('/rpc/merge_guest_browser')).body;
+  for (const k of ['p_from_fingerprint', 'p_to_fingerprint', 'p_from_analytics', 'p_to_analytics']) assert.match(merge[k], /^[a-f0-9]{64}$/);
+  assert.notEqual(merge.p_from_fingerprint, merge.p_to_fingerprint);
+  assert.equal(res.out.body.visitorKey, known);
+  const resolveCall = calls.find((c) => c.u.endsWith('/rpc/resolve_guest_browser')).body;
+  assert.equal(resolveCall.p_fingerprint_hash, merge.p_to_fingerprint);
+  assert.equal(res.out.headers['Set-Cookie'], undefined);
+});
+
+test('if the merge is not available the browser keeps its own key, so nothing is lost', async () => {
+  env(); const known = key(), fresh = key(), calls = [];
+  global.fetch = async (url, options = {}) => {
+    const u = String(url); calls.push({ u, body: JSON.parse(options.body || '{}') });
+    if (u.endsWith('/rpc/merge_guest_browser')) return reply({ message: 'not found' }, 404);
+    return reply({ visitorId: 'v', status: 'guest', cart: [] });
+  };
+  const res = headerRecorder();
+  await handler({ method: 'POST', headers: { 'user-agent': 'Mozilla/5.0', cookie: `elan_gid=${known}` }, body: { action: 'resolve', visitorKey: fresh } }, res);
+  assert.equal(res.out.status, 200); assert.equal(res.out.body.visitorKey, undefined);
+  const merge = calls.find((c) => c.u.endsWith('/rpc/merge_guest_browser')).body;
+  assert.equal(calls.find((c) => c.u.endsWith('/rpc/resolve_guest_browser')).body.p_fingerprint_hash, merge.p_from_fingerprint);
+});
