@@ -38,10 +38,21 @@ function sessionRows(sessions) {
 function cartRows(items) {
   return (items || []).map(item => `<tr><td class="activity-product-cell">${productSummary(item.product)}</td><td>${sizeText(item.size)}</td><td>${offerText(item.offer)}</td><td>${numberP(item.quantity)}</td></tr>`).join('');
 }
+function searchRows(searches) {
+  return (searches || []).map(search => {
+    const results = (search.results || []).map(result => {
+      const product = result.product || {};
+      return `<div class="search-result-product">${productSummary(product)}${sizeText(product.selectedSize)}${offerText(product.selectedOffer)}</div>`;
+    }).join('') || '<span class="muted">لم تظهر منتجات مطابقة</span>';
+    return `<tr><td>${escP(dateP(search.occurredAt))}</td><td><strong>${escP(search.searchText)}</strong></td><td>${numberP(search.resultCount)}</td><td>${results}</td></tr>`;
+  }).join('');
+}
 function detailMarkup(detail, offset) {
   const cart = Array.isArray(detail.currentCart) ? detail.currentCart : [];
   return `<div class="activity-overview"><span>عدد الزيارات: <b>${numberP(detail.visitCount)}</b></span><span>الوقت النشط: <b>${escP(durationP(detail.activeSeconds))}</b></span><span>عمليات مسجلة: <b>${numberP(detail.eventTotal)}</b></span></div>
     <h4>محتوى السلة الحالي</h4>${cart.length ? `<div class="activity-table-wrap"><table class="activity-table"><thead><tr><th>المنتج وبياناته</th><th>الحجم</th><th>المتجر والعرض</th><th>الكمية</th></tr></thead><tbody>${cartRows(cart)}</tbody></table></div>` : '<p class="muted">السلة الحالية فارغة.</p>'}
+    <h4>عمليات البحث ونتائج المنتجات</h4><div class="activity-table-wrap"><table class="activity-table"><thead><tr><th>التوقيت</th><th>عبارة البحث</th><th>عدد النتائج</th><th>المنتجات وبياناتها الكاملة</th></tr></thead><tbody data-searches>${searchRows(detail.searches)}</tbody></table></div>
+    <p class="activity-page-note" data-search-note>يعرض ${numberP(Math.min(offset + (detail.searches || []).length, detail.searchTotal || 0))} من ${numberP(detail.searchTotal || 0)} عملية بحث.</p>
     <h4>عمليات مشاهدة وبحث وإضافة وحذف</h4><div class="activity-table-wrap"><table class="activity-table"><thead><tr><th>العملية</th><th>التوقيت</th><th>المنتج بكامل بياناته</th><th>الحجم</th><th>العرض/المتجر</th><th>الكمية المتغيرة</th></tr></thead><tbody data-events>${activityEventRows(detail.events)}</tbody></table></div>
     <p class="activity-page-note">يعرض ${numberP(Math.min(offset + (detail.events || []).length, detail.eventTotal))} من ${numberP(detail.eventTotal)} عملية.</p>
     <h4>الزيارات ومدة كل جلسة</h4><div class="activity-table-wrap"><table class="activity-table"><thead><tr><th>بدأت في</th><th>مدة النشاط</th><th>انتهت في</th><th>آخر تحديث</th></tr></thead><tbody data-sessions>${sessionRows(detail.sessions)}</tbody></table></div>
@@ -55,11 +66,14 @@ async function fetchCustomerDetail(panel, offset, append) {
   const detail = result.detail;
   if (!append) panel.innerHTML = detailMarkup(detail, offset);
   else {
-    const eventBody = panel.querySelector('[data-events]'), sessionBody = panel.querySelector('[data-sessions]');
+    const eventBody = panel.querySelector('[data-events]'), sessionBody = panel.querySelector('[data-sessions]'), searchBody = panel.querySelector('[data-searches]');
     if (eventBody) eventBody.insertAdjacentHTML('beforeend', activityEventRows(detail.events));
     if (sessionBody) sessionBody.insertAdjacentHTML('beforeend', sessionRows(detail.sessions));
+    if (searchBody) searchBody.insertAdjacentHTML('beforeend', searchRows(detail.searches));
     const note = panel.querySelector('.activity-page-note');
     if (note) note.textContent = `يعرض ${numberP(Math.min(offset + (detail.events || []).length, detail.eventTotal))} من ${numberP(detail.eventTotal)} عملية؛ تُحمّل الزيارات بالصفحات نفسها.`;
+    const searchNote = panel.querySelector('[data-search-note]');
+    if (searchNote) searchNote.textContent = `يعرض ${numberP(Math.min(offset + (detail.searches || []).length, detail.searchTotal || 0))} من ${numberP(detail.searchTotal || 0)} عملية بحث.`;
     const more = panel.querySelector('[data-more-activity]'); if (more) more.hidden = !detail.hasMore;
   }
   panel.dataset.offset = String(offset + 100);

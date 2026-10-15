@@ -12,6 +12,7 @@ test('customer activity migration preserves RLS, full product joins, four rankin
   const snapshotName = '20261013101123_product_activity_snapshots.sql';
   const appliedSnapshot = path.join(root, 'supabase/migrations', snapshotName);
   const snapshotMigration = fs.readFileSync(fs.existsSync(appliedSnapshot) ? appliedSnapshot : path.join(root, 'supabase/pending', snapshotName), 'utf8');
+  const searchMigration = fs.readFileSync(path.join(root, 'supabase/migrations/20261015032124_customer_search_operations.sql'), 'utf8');
   const core = loadCoreSource();
   assert.match(migration, /create table if not exists public\.customer_sessions/i);
   assert.match(migration, /create table if not exists public\.customer_product_events/i);
@@ -27,15 +28,30 @@ test('customer activity migration preserves RLS, full product joins, four rankin
   assert.match(dashboard, /registeredAnalyticsPeriod/);
   assert.match(identity, /customer-activity/); assert.match(identity, /heartbeat/);
   assert.match(identity, /prepareLogout/);
-  for (const eventType of ['view', 'search', 'cart_add', 'cart_remove']) {
+  for (const eventType of ['view', 'cart_add', 'cart_remove']) {
     assert.match(core, new RegExp(`trackGuestProduct\\(['\"]${eventType}['\"]`));
   }
+  assert.match(core, /GuestIdentity\.search\(query,items\)/);
   assert.match(snapshotMigration, /capture_product_snapshot/i);
   assert.match(snapshotMigration, /product_images/i); assert.match(snapshotMigration, /aromaticNotes/i);
   assert.match(snapshotMigration, /storeOffers/i); assert.match(snapshotMigration, /cart_items_product_snapshot/i);
   assert.match(snapshotMigration, /drop constraint if exists customer_product_events_product_id_fkey/i);
   assert.match(snapshotMigration, /drop constraint if exists guest_product_analytics_product_id_fkey/i);
   assert.match(snapshotMigration, /product_snapshot jsonb not null/i);
+  assert.match(searchMigration, /create table if not exists public\.customer_searches/i);
+  assert.match(searchMigration, /search_text text not null/i);
+  assert.match(searchMigration, /result_products jsonb not null/i);
+  assert.match(searchMigration, /capture_product_snapshot/i);
+  assert.match(searchMigration, /record_customer_product_event/i);
+  assert.match(searchMigration, /update public\.customer_searches set guest_id = null, user_id = p_user_id/i);
+  assert.match(searchMigration, /platform_customer_search_detail/i);
+  assert.match(searchMigration, /grant execute on function public\.record_customer_search[\s\S]*to service_role/i);
+  assert.match(searchMigration, /revoke all on public\.customer_searches from public, anon, authenticated/i);
+  assert.match(dashboard, /عمليات البحث ونتائج المنتجات/);
+  assert.match(dashboard, /search\.searchText/);
+  assert.match(identity, /search: search/);
+  assert.match(core, /GuestIdentity\.search\(query,items\)/);
+  assert.match(core, /LAST_GUEST_SEARCH_KEY=signature/);
 });
 
 test('category views expose separate customer event tables and current carts to service_role only', () => {

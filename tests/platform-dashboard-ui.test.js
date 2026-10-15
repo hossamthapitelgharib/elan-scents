@@ -176,6 +176,21 @@ test('customer list paging renders exact totals and enables only valid previous/
   assert.match(nodes.get('#visitorPagination').innerHTML, /لا توجد صفحات/);
 });
 
+test('customer search history escapes the query and renders complete product snapshots', () => {
+  const { context } = loadDashboard();
+  context.searchFixture = [{
+    searchText: '<script>alert(1)</script>', occurredAt: '2026-10-15T03:00:00Z', resultCount: 1,
+    results: [{ product: { name: 'Rose', brand_name: 'Brand', selectedSize: { size_label: '50ml' }, selectedOffer: { storeName: 'Store', price: 80, currency: 'EGP' } } }]
+  }];
+  const html = vm.runInContext('searchRows(searchFixture)', context);
+  assert.match(html, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
+  assert.doesNotMatch(html, /<script>/);
+  assert.match(html, /Rose/);
+  assert.match(html, /50ml/);
+  assert.match(html, /Store/);
+  assert.match(html, /80 EGP/);
+});
+
 test('guest analytics render the four available rankings into the current two-panel layout safely', () => {
   const { context, nodes } = loadDashboard();
   context.analyticsFixture = {

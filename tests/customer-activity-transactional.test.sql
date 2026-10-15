@@ -20,6 +20,10 @@ declare
   v_product_id uuid;
   v_customer_role text;
   v_cart_result jsonb;
+  v_search_result jsonb;
+  v_search_ok boolean;
+  v_claim_result jsonb;
+  v_search_detail jsonb;
   v_event_ok boolean;
   v_event_type text;
   v_sentinel constant text := 'customer_activity_fixture_force_rollback';
@@ -114,11 +118,53 @@ begin
       raise exception 'one or more registered-customer event category views failed to expose snapshots';
     end if;
 
+    v_search_ok := public.record_customer_search(
+      v_guest_hash, v_analytics_hash, null, v_guest_session,
+      'عطر تجريبي للزائر', jsonb_build_array(jsonb_build_object(
+        'productId', v_product_id, 'productSizeId', v_product_size_id, 'storeProductId', v_store_product_id
+      ))
+    );
+    if v_search_ok is distinct from true then raise exception 'guest search operation was not recorded'; end if;
+    v_search_ok := public.record_customer_search(
+      v_guest_hash, v_analytics_hash, null, v_guest_session, 'بحث بلا نتائج', '[]'::jsonb
+    );
+    if v_search_ok is distinct from true then raise exception 'guest no-result search operation was not recorded'; end if;
+    v_search_ok := public.record_customer_search(
+      null, null, v_customer_id, v_customer_session,
+      'عطر تجريبي للعميل', jsonb_build_array(jsonb_build_object(
+        'productId', v_product_id, 'productSizeId', v_product_size_id, 'storeProductId', v_store_product_id
+      ))
+    );
+    if v_search_ok is distinct from true then raise exception 'registered-customer search operation was not recorded'; end if;
+
+    select to_jsonb(cs) into v_search_result from public.customer_searches cs
+    where cs.guest_id = v_guest_id and cs.search_text = 'عطر تجريبي للزائر' limit 1;
+    if v_search_result is null
+       or v_search_result->>'result_count' <> '1'
+       or v_search_result->'result_products'->0->'product' = '{}'::jsonb then
+      raise exception 'guest query did not preserve its complete authoritative result snapshot';
+    end if;
+    if not exists (
+      select 1 from public.customer_searches cs
+      where cs.guest_id = v_guest_id and cs.search_text = 'بحث بلا نتائج'
+        and cs.result_count = 0 and cs.result_products = '[]'::jsonb limit 1
+    ) then raise exception 'zero-result search operation was not retained'; end if;
+
+    v_search_detail := public.platform_customer_search_detail(v_guest_id, null, 100, 0);
+    if (v_search_detail->>'searchTotal')::integer <> 2
+       or jsonb_array_length(v_search_detail->'searches') <> 2 then
+      raise exception 'admin detail RPC did not return all guest search operations';
+    end if;
+    v_search_detail := public.platform_customer_search_detail(null, v_customer_id, 100, 0);
+    if (v_search_detail->>'searchTotal')::integer <> 1 then
+      raise exception 'admin detail RPC did not return registered-customer searches';
+    end if;
+
     if not exists (
       select 1 from public.guest_product_analytics a
       where a.visitor_hash = v_analytics_hash
         and a.product_id = v_product_id
-        and a.event_count = 1
+        and a.event_count = 2
         and a.product_snapshot <> '{}'::jsonb
       limit 1
     ) then
@@ -143,6 +189,16 @@ begin
       raise exception 'guest and registered-customer visits were not separated into sessions';
     end if;
 
+    v_claim_result := public.claim_guest_browser_cart(v_guest_hash, v_customer_id);
+    if coalesce((v_claim_result->>'claimed')::boolean, false) is not true then
+      raise exception 'guest claim did not complete';
+    end if;
+    if exists (select 1 from public.guest_visitors where id = v_guest_id limit 1)
+       or not exists (select 1 from public.customer_searches where user_id = v_customer_id and guest_id is null and search_text = 'عطر تجريبي للزائر' limit 1)
+       or not exists (select 1 from public.customer_searches where user_id = v_customer_id and guest_id is null and search_text = 'بحث بلا نتائج' limit 1) then
+      raise exception 'guest search history was not transferred to the registered customer';
+    end if;
+
     raise exception using errcode = 'P0001', message = v_sentinel;
   exception when others then
     if sqlerrm <> v_sentinel then
@@ -156,6 +212,7 @@ begin
      or exists (select 1 from public.guest_visitors where fingerprint_hash = v_guest_hash limit 1)
      or exists (select 1 from public.customer_sessions where session_id in (v_guest_session, v_customer_session) limit 1)
      or exists (select 1 from public.customer_product_events where user_id = v_customer_id or guest_id = v_guest_id limit 1)
+     or exists (select 1 from public.customer_searches where user_id = v_customer_id or guest_id = v_guest_id limit 1)
      or exists (select 1 from public.guest_product_analytics where visitor_hash = v_analytics_hash limit 1)
      or exists (select 1 from public.cart_items where user_id = v_customer_id limit 1) then
     raise exception 'synthetic fixture data remained after the rollback subtransaction';

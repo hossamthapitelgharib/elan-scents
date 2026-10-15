@@ -7,7 +7,7 @@
 | الغرض | ملفات الواجهة | نطاق البيانات |
 |---|---|---|
 | طلبات العميل الشخصية | `account.html` و`account.js` | العميل المسجل يرى طلباته هو فقط عبر صلاحياته. ليست لوحة العملاء الإدارية. |
-| لوحة إدارة العملاء | `customers-dashboard.html` و`customers-dashboard.js` | `platform_admin` فقط؛ الزوار والعملاء المسجلون، الجلسات والسلال والأحداث والترتيبات. |
+| لوحة إدارة العملاء | `customers-dashboard.html` و`customers-dashboard.js` | `platform_admin` فقط؛ الزوار والعملاء المسجلون، الجلسات والسلال والأحداث وعبارات البحث ونتائجها والترتيبات. |
 | لوحة إدارة المنصة | `platform-dashboard.html` و`platform-dashboard.js` | `platform_admin` فقط؛ أرقام مجمعة للعملاء والطلبات والمتاجر وروابط إلى اللوحات التفصيلية. |
 | لوحة إدارة المتاجر | `stores-dashboard.html` و`stores-dashboard.js` | `platform_admin` فقط؛ تشغيل المتاجر دون عرض بيانات الاتصال الشخصية للعملاء أو payload الخام. |
 | لوحة إدارة الطلبات | `dashboard.html` و`dashboard.js` | إدارة الطلبات والإشعارات التفصيلية بصلاحية الإدارة. |
@@ -18,7 +18,7 @@
 
 - `api/` هو جذر مسارات API الذي تتوقعه إعدادات الاستضافة؛ أسماء الملفات داخله تصبح endpoints مباشرة، لذلك لا تُنقل يدويًا إلى مجلدات فرعية من دون تغيير مسارات النشر والاختبارات.
 - `api/_auth.js`: التحقق المشترك من الجلسة والدور.
-- نشاط الزائر والعميل: `api/customer-activity.js` و`api/guest-analytics.js` و`api/guest-cart.js`.
+- نشاط الزائر والعميل: `api/customer-activity.js` يسجل الجلسات والأحداث وعمليات البحث؛ `customer_searches` هو سجل الاستعلامات ولقطات النتائج؛ و`api/guest-analytics.js` و`api/guest-cart.js` للتحليلات والسلة.
 - الإدارة: `api/platform-customers.js` و`api/platform-customer-detail.js` و`api/platform-customer-summary.js` و`api/customer-product-rankings.js`.
 - المتاجر: `api/platform-stores.js` و`api/platform-store-detail.js` و`api/store-integrations.js`.
 - ملفات HTML وJavaScript العامة في جذر المشروع تبقى أسماء دخول ثابتة للروابط الحالية؛ نقلها يتطلب تحديث rewrite/server routing، الروابط، التخزين المؤقت، والاختبارات معًا.
@@ -27,7 +27,7 @@
 
 - `supabase/migrations/`: مصدر تغييرات المخطط، مرتبة حسب الإصدار؛ لا يُعاد كتابة تاريخ migrations المطبق.
 - `tests/*.test.js`: اختبارات Node التي يشغلها `npm test` ويرفع CI نتائجها.
-- `tests/customer-activity-transactional.test.sql`: تحقق فعلي من قاعدة Supabase باستخدام صفوف اصطناعية داخل معاملة متراجعة؛ يُشغّل منفصلًا، ولا يُنفذ في GitHub Actions لأنه لا يوجد حتى الآن مشروع/فرع قاعدة اختبار مخصص أو secret اتصال CI.
+- `tests/customer-activity-transactional.test.sql`: تحقق فعلي من قاعدة Supabase للأحداث وعمليات البحث ونقل سجل الزائر باستخدام صفوف اصطناعية داخل معاملة متراجعة؛ يُشغّل منفصلًا، ولا يُنفذ في GitHub Actions لأنه لا يوجد حتى الآن مشروع/فرع قاعدة اختبار مخصص أو secret اتصال CI.
 - `docs/customer-platform/`: نص التكليف الأصلي والتدقيق وخريطة الملفات وجرد قاعدة المتاجر وسجل الاستمرار.
 - `reports/test-runs/`: تقارير محلية موقّتة وملفات الأرشيف التي يرفعها workflow.
 

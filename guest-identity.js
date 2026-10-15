@@ -190,12 +190,27 @@
     return token ? send() : resolve().then(send);
   }
 
+  function search(searchText, products) {
+    var token = accessToken();
+    var results = (Array.isArray(products) ? products : []).slice(0, 10).map(function (item) {
+      return {
+        productId: String(item.id || item.productId || ''),
+        productSizeId: item.sizeId || item.productSizeId || null,
+        storeProductId: item.storeProductId || null
+      };
+    });
+    var data = { searchText: String(searchText || '').trim(), results: results };
+    var send = function () { return sendActivity('search', data, token || null); };
+    return token ? send() : resolve().then(send);
+  }
+
   window.GuestIdentity = {
     enabled: function () { return true; },
     resolve: resolve,
     save: save,
     claim: claim,
     track: track,
+    search: search,
     sessionId: sessionId,
     startSession: startSession,
     prepareLogout: prepareLogout

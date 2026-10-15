@@ -22,7 +22,7 @@ module.exports = async function customerActivity(req, res) {
   if (!supabaseUrl || !serviceKey) return reply(res, 503, { ok: false, error: 'activity_unavailable' });
 
   const action = String(body.action || '');
-  if (!['session', 'track'].includes(action)) return reply(res, 400, { ok: false, error: 'invalid_action' });
+  if (!['session', 'track', 'search'].includes(action)) return reply(res, 400, { ok: false, error: 'invalid_action' });
   const sessionId = String(body.sessionId || '');
   if (!UUID.test(sessionId)) return reply(res, 400, { ok: false, error: 'invalid_session_id' });
 
@@ -59,6 +59,32 @@ module.exports = async function customerActivity(req, res) {
         p_user_id: userId,
         p_session_id: sessionId,
         p_action: sessionAction
+      });
+    } else if (action === 'search') {
+      const searchText = typeof body.searchText === 'string' ? body.searchText.trim() : '';
+      if (!searchText || Array.from(searchText).length > 200) return reply(res, 400, { ok: false, error: 'invalid_search_text' });
+      if (!Array.isArray(body.results) || body.results.length > 10) return reply(res, 400, { ok: false, error: 'invalid_search_results' });
+      const seen = new Set();
+      const results = [];
+      for (const item of body.results) {
+        if (!item || typeof item !== 'object' || !UUID.test(String(item.productId || ''))) return reply(res, 400, { ok: false, error: 'invalid_search_results' });
+        const productSizeId = item.productSizeId ? String(item.productSizeId) : null;
+        const storeProductId = item.storeProductId ? String(item.storeProductId) : null;
+        if ((productSizeId && !UUID.test(productSizeId)) || (storeProductId && !UUID.test(storeProductId))) {
+          return reply(res, 400, { ok: false, error: 'invalid_search_results' });
+        }
+        const key = `${item.productId}:${productSizeId || ''}:${storeProductId || ''}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        results.push({ productId: String(item.productId), productSizeId, storeProductId });
+      }
+      response = await rpc('record_customer_search', {
+        p_fingerprint_hash: fingerprintHash,
+        p_analytics_hash: analyticsHash,
+        p_user_id: userId,
+        p_session_id: sessionId,
+        p_search_text: searchText,
+        p_results: results
       });
     } else {
       const eventType = String(body.eventType || '');
