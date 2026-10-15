@@ -13,6 +13,8 @@ function client(url, key) {
   return (rpc, body) => fetch(`${url}/rest/v1/rpc/${rpc}`, { method: 'POST', headers, body: JSON.stringify(body) });
 }
 
+const BOT_AGENT = /bot\b|crawl|spider|slurp|headless|lighthouse|pagespeed|preview|monitor|uptime|curl\/|wget|python-requests|node-fetch|axios/i;
+
 module.exports = async function customerActivity(req, res) {
   if (req.method !== 'POST') return reply(res, 405, { ok: false, error: 'method_not_allowed' });
   const body = req.body || {};
@@ -21,6 +23,9 @@ module.exports = async function customerActivity(req, res) {
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY;
   if (!supabaseUrl || !serviceKey) return reply(res, 503, { ok: false, error: 'activity_unavailable' });
 
+  if (!(req.headers && req.headers.authorization) && BOT_AGENT.test(String((req.headers && req.headers['user-agent']) || ''))) {
+    return reply(res, 200, { ok: true, tracked: false, bot: true });
+  }
   const action = String(body.action || '');
   if (!['session', 'track'].includes(action)) return reply(res, 400, { ok: false, error: 'invalid_action' });
   const sessionId = String(body.sessionId || '');

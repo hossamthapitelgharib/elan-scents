@@ -2,12 +2,22 @@ const { createHmac } = require('node:crypto');
 const { createLimiter, clientIp } = require('../lib/rate-limit');
 
 // Per client address and per minute. Creating a visitor row (resolve) and claiming are the expensive actions.
+// Mobile carriers and offices share one address between many shoppers, so the per-address cap is
+// generous and the strict cap is per browser key. A busy network must not lose real visitors.
 const LIMITS = {
   resolve: createLimiter({ max: 30, windowMs: 60000 }),
   claim: createLimiter({ max: 30, windowMs: 60000 }),
   save: createLimiter({ max: 120, windowMs: 60000 }),
   track: createLimiter({ max: 300, windowMs: 60000 })
 };
+const NETWORK_LIMITS = {
+  resolve: createLimiter({ max: 600, windowMs: 60000 }),
+  claim: createLimiter({ max: 300, windowMs: 60000 }),
+  save: createLimiter({ max: 2400, windowMs: 60000 }),
+  track: createLimiter({ max: 6000, windowMs: 60000 })
+};
+// Crawlers and monitors run scripts too; they must not be counted as shoppers.
+const BOT_AGENT = /bot\b|crawl|spider|slurp|headless|lighthouse|pagespeed|preview|monitor|uptime|curl\/|wget|python-requests|node-fetch|axios/i;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const json = (res, status, body) => res.status(status).json(body);
@@ -46,7 +56,11 @@ module.exports = async (req, res) => {
   const visitorKey = String(body.visitorKey || '');
   if (!UUID.test(visitorKey)) return json(res, 400, { error: 'invalid_browser_key' });
   if (!['resolve', 'save', 'claim', 'track'].includes(action)) return json(res, 400, { error: 'unsupported_action' });
-  const limit = LIMITS[action](`${clientIp(req)}:${action}`);
+  const ip = clientIp(req);
+  const limit = [LIMITS[action](`${visitorKey}:${action}`), NETWORK_LIMITS[action](`${ip}:${action}`)].find((l) => !l.allowed) || { allowed: true };
+  if (action !== 'claim' && BOT_AGENT.test(String((req.headers && req.headers['user-agent']) || ''))) {
+    return json(res, 200, { ok: true, tracked: false, bot: true, cart: [] });
+  }
   if (!limit.allowed) {
     res.setHeader('Retry-After', String(limit.retryAfter));
     return json(res, 429, { error: 'too_many_requests' });
@@ -97,10 +111,16 @@ module.exports = async (req, res) => {
     const user = await userResponse.json();
     if (!UUID.test(String(user.id || ''))) return json(res, 401, { error: 'login_required' });
 
-    const response = await admin('rpc/claim_guest_browser_cart', {
+    // The newer function also removes this browser's guest analytics, so the same person is not
+    // counted as a guest and as a customer. Until that migration is applied the old one is used.
+    let response = await admin('rpc/claim_guest_browser_cart', {
       p_fingerprint_hash: fingerprintHash,
-      p_user_id: user.id
+      p_user_id: user.id,
+      p_analytics_hash: analyticsHash
     });
+    if (response.status === 404 || response.status === 400) {
+      response = await admin('rpc/claim_guest_browser_cart', { p_fingerprint_hash: fingerprintHash, p_user_id: user.id });
+    }
     if (!response.ok) return json(res, 502, { error: 'cart_transfer_failed' });
     const result = await response.json();
     return json(res, 200, { ok: true, claimed: !!result.claimed, cart: Number(result.cart) || 0 });

@@ -19,15 +19,14 @@ function storage(seed = {}) {
 }
 function response(body) { return { ok: true, json: async () => body }; }
 function loadIdentity() {
-  const local = storage({ elan_auth_session: JSON.stringify({ access_token: 'registered-token' }) });
-  const session = storage({ elan_customer_activity_session_v1: oldSessionId });
+  const local = storage({ elan_auth_session: JSON.stringify({ access_token: 'registered-token' }), elan_visit_v1: JSON.stringify({ id: oldSessionId, last: Date.now() }) });
   const requests = [];
   let uuidIndex = 0;
   const window = { location: { search: '' }, crypto: { randomUUID: () => UUIDs[uuidIndex++ % UUIDs.length] }, addEventListener() {} };
   window.parent = window;
   const document = { visibilityState: 'visible', addEventListener() {} };
   const context = {
-    window, document, localStorage: local, sessionStorage: session, URLSearchParams,
+    window, document, localStorage: local, URLSearchParams,
     fetch: async (url, options = {}) => {
       const call = { url: String(url), options, body: JSON.parse(options.body || '{}') };
       requests.push(call);
@@ -36,11 +35,11 @@ function loadIdentity() {
     setTimeout() {}, setInterval() {}
   };
   vm.runInNewContext(identitySource, context, { filename: 'guest-identity.js' });
-  return { identity: window.GuestIdentity, local, session, requests };
+  return { identity: window.GuestIdentity, local, requests };
 }
 
 test('logout ends the registered session with its token and rotates the browser session id', async () => {
-  const { identity, local, session, requests } = loadIdentity();
+  const { identity, local, requests } = loadIdentity();
   await identity.startSession('registered-token');
   assert.equal(requests[0].body.sessionAction, 'start');
   assert.equal(requests[0].body.sessionId, oldSessionId);
@@ -52,7 +51,7 @@ test('logout ends the registered session with its token and rotates the browser 
   assert.equal(ending.body.sessionId, oldSessionId);
   assert.equal(ending.options.headers.Authorization, 'Bearer registered-token');
   assert.equal(ending.options.keepalive, true);
-  assert.equal(session.getItem('elan_customer_activity_session_v1'), null);
+  assert.equal(local.getItem('elan_visit_v1'), null);
 
   local.removeItem('elan_auth_session');
   local.removeItem('elan_guest_browser_key_v2');
