@@ -24,6 +24,7 @@ declare
   v_search_ok boolean;
   v_claim_result jsonb;
   v_search_detail jsonb;
+  v_retention_deleted bigint;
   v_event_ok boolean;
   v_event_type text;
   v_sentinel constant text := 'customer_activity_fixture_force_rollback';
@@ -158,6 +159,17 @@ begin
     v_search_detail := public.platform_customer_search_detail(null, v_customer_id, 100, 0);
     if (v_search_detail->>'searchTotal')::integer <> 1 then
       raise exception 'admin detail RPC did not return registered-customer searches';
+    end if;
+
+    insert into public.customer_searches(guest_id, user_id, session_id, search_text, result_products, result_count, occurred_at)
+    values
+      (v_guest_id, null, v_guest_session, 'اختبار منتهي الاحتفاظ', '[]'::jsonb, 0, now() - interval '366 days'),
+      (v_guest_id, null, v_guest_session, 'اختبار داخل الاحتفاظ', '[]'::jsonb, 0, now() - interval '364 days');
+    v_retention_deleted := public.purge_expired_customer_searches();
+    if v_retention_deleted <> 1
+       or exists (select 1 from public.customer_searches where guest_id = v_guest_id and search_text = 'اختبار منتهي الاحتفاظ' limit 1)
+       or not exists (select 1 from public.customer_searches where guest_id = v_guest_id and search_text = 'اختبار داخل الاحتفاظ' limit 1) then
+      raise exception '365-day retention did not delete only the expired search row';
     end if;
 
     if not exists (
