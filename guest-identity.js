@@ -25,6 +25,14 @@
     return;
   }
 
+  var AUTOMATED = false;
+  try { AUTOMATED = typeof navigator !== 'undefined' && navigator.webdriver === true; } catch (_) {}
+  if (AUTOMATED) {
+    var inert = function () { return Promise.resolve({ ok: true, tracked: false, cart: [] }); };
+    window.GuestIdentity = { enabled: function () { return false; }, resolve: inert, save: inert, claim: inert, track: inert, sessionId: function () { return null; }, startSession: inert, prepareLogout: inert };
+    return;
+  }
+
   var STORAGE_KEY = 'elan_guest_browser_key_v2';
   var UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   var cachedKey = null;
@@ -61,6 +69,14 @@
   var VISIT_IDLE_MS = 30 * 60 * 1000;       // a new visit starts only after 30 quiet minutes
   var lastStartedVisit = null;
   var recentViews = {};
+  var ACTIVE_MS = 30000;                    // time counts only while the person is really using the page
+  var lastInteraction = 0;
+  function recentlyActive() { return Date.now() - lastInteraction < ACTIVE_MS; }
+  function interacted() {
+    var now = Date.now(), wasIdle = now - lastInteraction >= ACTIVE_MS;
+    lastInteraction = now;
+    if (wasIdle && sessionStarted) sendSession('resume').catch(function () {});
+  }
 
   function readCookie() {
     try {
@@ -150,6 +166,11 @@
 
   function sendSession(action, keepalive) {
     var token = accessToken();
+    if (action === 'resume') {
+      // coming back after an idle gap re-opens the visit without adding the idle minutes to its active time
+      var reopen = function () { return sendActivity('session', { sessionAction: 'start' }, token || null); };
+      return token ? reopen() : resolve().then(reopen);
+    }
     if (action === 'heartbeat' && sessionId(true) !== lastStartedVisit) {
       sessionStarted = false;
       return startSession();
@@ -246,10 +267,10 @@
   }
 
   setInterval(function () {
-    if (sessionStarted && document.visibilityState !== 'hidden') sendSession('heartbeat').catch(function () {});
+    if (sessionStarted && document.visibilityState !== 'hidden' && recentlyActive()) sendSession('heartbeat').catch(function () {});
   }, 30000);
   window.addEventListener('pagehide', function () {
-    if (!sessionStarted) return;
+    if (!sessionStarted || !recentlyActive()) return;
     sendSession('heartbeat', true).catch(function () {});
   });
   window.addEventListener('pageshow', function () {
@@ -259,6 +280,9 @@
     if (document.visibilityState === 'visible') {
       if (!sessionStarted || lastStartedVisit !== sessionId(false)) { sessionStarted = false; startSession().catch(function () {}); }
     }
+  });
+  ['pointerdown', 'keydown', 'touchstart', 'wheel', 'scroll'].forEach(function (type) {
+    window.addEventListener(type, interacted, { capture: true, passive: true });
   });
   window.addEventListener('storage', function (e) {
     if (e.key === STORAGE_KEY && e.newValue && UUID.test(e.newValue)) cachedKey = e.newValue;

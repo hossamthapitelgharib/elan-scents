@@ -92,9 +92,41 @@ test('closing one tab does not end the visit other tabs still use', async () => 
   const browser = shared();
   const tab = openTab(browser);
   await tab.identity.startSession();
+  tab.listeners.pointerdown();
+  await new Promise((r) => setImmediate(r));
   tab.requests.length = 0;
   tab.listeners.pagehide();
   await new Promise((r) => setImmediate(r));
   const sent = tab.requests.filter((r) => r.url === '/api/customer-activity').map((r) => r.body.sessionAction);
   assert.deepEqual(sent, ['heartbeat']);
+});
+
+test('an idle page adds no active time: the last heartbeat is skipped and a return re-opens the visit without a heartbeat', async () => {
+  const browser = shared(); let t = 1_800_000_000_000;
+  const tab = openTab(browser, () => t);
+  await tab.identity.startSession();
+  tab.listeners.pointerdown();            // first touch
+  await new Promise((r) => setImmediate(r)); tab.requests.length = 0;
+  t += 120000;                            // two quiet minutes
+  tab.listeners.pagehide();               // leaving while idle must not add idle time
+  await new Promise((r) => setImmediate(r));
+  assert.equal(tab.requests.filter((r) => r.url === '/api/customer-activity').length, 0);
+  tab.listeners.pointerdown();            // coming back
+  await new Promise((r) => setImmediate(r));
+  const sent = tab.requests.filter((r) => r.url === '/api/customer-activity').map((r) => r.body.sessionAction);
+  assert.deepEqual(sent, ['start']);
+});
+
+test('automated browsers (webdriver) are never tracked', async () => {
+  const sent = [];
+  const context = {
+    window: { location: { search: '' }, crypto: { randomUUID: uuid }, addEventListener() {} }, navigator: { webdriver: true },
+    document: { visibilityState: 'visible', addEventListener() {} }, localStorage: { getItem() { return null; }, setItem() {}, removeItem() {} },
+    URLSearchParams, fetch: async (...a) => { sent.push(a); return { ok: true, json: async () => ({}) }; }, setTimeout() {}, setInterval() {}
+  };
+  context.window.parent = context.window;
+  vm.runInNewContext(source, context, { filename: 'guest-identity.js' });
+  assert.equal(context.window.GuestIdentity.enabled(), false);
+  await context.window.GuestIdentity.track('view', '245a6e52-46c6-42e9-a730-9e5bec3dd203');
+  assert.equal(sent.length, 0);
 });

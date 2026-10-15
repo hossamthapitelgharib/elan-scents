@@ -51,6 +51,7 @@ module.exports = async (req, res) => {
   if (req.method !== 'POST') return json(res, 405, { error: 'method_not_allowed' });
   if (Buffer.byteLength(JSON.stringify(req.body || {})) > 24000) return json(res, 413, { error: 'payload_too_large' });
 
+  if (String((req.headers && req.headers['sec-fetch-site']) || '') === 'cross-site') return json(res, 403, { error: 'cross_site_not_allowed' });
   const body = req.body || {};
   const action = String(body.action || 'resolve');
   const visitorKey = String(body.visitorKey || '');

@@ -57,3 +57,14 @@ test('claim asks the database to drop the guest analytics and falls back to the 
   assert.match(rpcBodies[0].p_analytics_hash, /^[a-f0-9]{64}$/);
   assert.equal('p_analytics_hash' in rpcBodies[1], false);
 });
+
+test('requests that come from another website are refused', async () => {
+  env(); let touched = false;
+  global.fetch = async () => { touched = true; return reply({}); };
+  const res = recorder();
+  await handler({ method: 'POST', headers: { 'user-agent': 'Mozilla/5.0', 'sec-fetch-site': 'cross-site' }, body: { action: 'resolve', visitorKey: key() } }, res);
+  assert.equal(res.out.status, 403); assert.equal(touched, false);
+  const res2 = recorder();
+  await activity({ method: 'POST', headers: { 'user-agent': 'Mozilla/5.0', 'sec-fetch-site': 'cross-site' }, body: { action: 'session', sessionAction: 'start', visitorKey: key(), sessionId: key() } }, res2);
+  assert.equal(res2.out.status, 403); assert.equal(touched, false);
+});

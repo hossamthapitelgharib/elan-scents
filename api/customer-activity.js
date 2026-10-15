@@ -17,6 +17,7 @@ const BOT_AGENT = /bot\b|crawl|spider|slurp|headless|lighthouse|pagespeed|previe
 
 module.exports = async function customerActivity(req, res) {
   if (req.method !== 'POST') return reply(res, 405, { ok: false, error: 'method_not_allowed' });
+  if (String((req.headers && req.headers['sec-fetch-site']) || '') === 'cross-site') return reply(res, 403, { ok: false, error: 'cross_site_not_allowed' });
   const body = req.body || {};
   if (Buffer.byteLength(JSON.stringify(body)) > 8000) return reply(res, 413, { ok: false, error: 'payload_too_large' });
   const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
