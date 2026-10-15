@@ -159,6 +159,9 @@
           "src": "https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/uploads/2026/0dad190fc712b791dd4e.png",
           "kind": "image"
         }
+      },
+      "footer:logo": {
+        "archived": true
       }
     },
     "mobile": {
