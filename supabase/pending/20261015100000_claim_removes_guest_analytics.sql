@@ -48,6 +48,9 @@ begin
   if p_fingerprint_hash !~ '^[a-f0-9]{64}$' or p_user_id is null then
     return jsonb_build_object('claimed', false, 'cart', 0);
   end if;
+  if not exists (select 1 from public.profiles pr where pr.id = p_user_id and pr.role = 'customer') then
+    return jsonb_build_object('claimed', false, 'cart', 0);
+  end if;
   select * into v_guest from public.guest_visitors
     where fingerprint_hash = p_fingerprint_hash and status = 'guest' and identity_version = 2
     for update;
@@ -70,6 +73,7 @@ begin
 
   update public.customer_sessions set guest_id=null,user_id=p_user_id where guest_id=v_guest.id;
   update public.customer_product_events set guest_id=null,user_id=p_user_id where guest_id=v_guest.id;
+  update public.customer_searches set guest_id=null,user_id=p_user_id where guest_id=v_guest.id;
 
   if coalesce(p_analytics_hash, '') ~ '^[a-f0-9]{64}$' then
     insert into public.guest_conversions (visitor_hash, user_id, first_seen_date, converted_on)

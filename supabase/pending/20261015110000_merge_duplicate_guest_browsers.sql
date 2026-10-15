@@ -56,6 +56,8 @@ begin
 
     update public.customer_sessions set guest_id = v_to.id where guest_id = v_from.id;
     update public.customer_product_events set guest_id = v_to.id where guest_id = v_from.id;
+    -- customer_searches cascades on delete, so its rows must move before the duplicate guest is removed
+    update public.customer_searches set guest_id = v_to.id where guest_id = v_from.id;
     update public.guest_visitors
       set cart_snapshot = v_cart,
           first_seen_at = least(v_to.first_seen_at, v_from.first_seen_at),
