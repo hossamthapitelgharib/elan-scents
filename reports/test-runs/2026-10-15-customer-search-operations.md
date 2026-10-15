@@ -30,6 +30,7 @@
 | التحقق من الصلاحيات الحية | `anon_can_read=false`، `customer_can_read=false`، `service_can_read=true`؛ العميل لا يستطيع تنفيذ RPC تفاصيل الإدارة |
 | حد الاحتفاظ | نجح اختبار حي: حُذف صف 366 يومًا وبقي صف 364 يومًا؛ تراجعت كل fixtures |
 | الجدولة والصلاحيات | `pg_cron` 1.6.4، job نشط يوميًا `03:17 GMT`؛ `anon_can_purge=false`، `customer_can_purge=false`، `service_can_purge=true` |
+| حذف الكتالوج بعد snapshot | اختبار حي متراجع: حُذف منتج وحجم وعرض وصورة اصطناعية؛ بقيت snapshots الحدث وترتيب الزائر ونتيجة البحث كاملة، ولم تبق fixtures |
 
 ## نقاط يجب عدم طمسها
 

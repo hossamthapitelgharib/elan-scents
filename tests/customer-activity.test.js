@@ -13,6 +13,7 @@ test('customer activity migration preserves RLS, full product joins, four rankin
   const appliedSnapshot = path.join(root, 'supabase/migrations', snapshotName);
   const snapshotMigration = fs.readFileSync(fs.existsSync(appliedSnapshot) ? appliedSnapshot : path.join(root, 'supabase/pending', snapshotName), 'utf8');
   const searchMigration = fs.readFileSync(path.join(root, 'supabase/migrations/20261015032124_customer_search_operations.sql'), 'utf8');
+  const transactionalFixture = fs.readFileSync(path.join(root, 'tests/customer-activity-transactional.test.sql'), 'utf8');
   const core = loadCoreSource();
   assert.match(migration, /create table if not exists public\.customer_sessions/i);
   assert.match(migration, /create table if not exists public\.customer_product_events/i);
@@ -47,6 +48,10 @@ test('customer activity migration preserves RLS, full product joins, four rankin
   assert.match(searchMigration, /platform_customer_search_detail/i);
   assert.match(searchMigration, /grant execute on function public\.record_customer_search[\s\S]*to service_role/i);
   assert.match(searchMigration, /revoke all on public\.customer_searches from public, anon, authenticated/i);
+  assert.match(transactionalFixture, /insert into public\.products\(brand_id, name, slug/i);
+  assert.match(transactionalFixture, /delete from public\.products where id = v_snapshot_product_id/i);
+  assert.match(transactionalFixture, /activity product snapshot was lost or incomplete after deleting its catalog fixture/i);
+  assert.match(transactionalFixture, /search result snapshot was lost after deleting its catalog fixture/i);
   assert.match(dashboard, /عمليات البحث ونتائج المنتجات/);
   assert.match(dashboard, /search\.searchText/);
   assert.match(identity, /search: search/);

@@ -18,6 +18,13 @@ declare
   v_store_product_id uuid;
   v_product_size_id uuid;
   v_product_id uuid;
+  v_snapshot_brand_id uuid;
+  v_snapshot_product_id uuid;
+  v_snapshot_size_id uuid;
+  v_snapshot_store_product_id uuid;
+  v_snapshot_store_id uuid;
+  v_snapshot_store_name text;
+  v_snapshot_name text := 'fixture-product-' || gen_random_uuid()::text;
   v_customer_role text;
   v_cart_result jsonb;
   v_search_result jsonb;
@@ -160,6 +167,66 @@ begin
     if (v_search_detail->>'searchTotal')::integer <> 1 then
       raise exception 'admin detail RPC did not return registered-customer searches';
     end if;
+
+    -- Build an entirely synthetic product/listing. Its history must survive catalog deletion.
+    select st.id, st.name into v_snapshot_store_id, v_snapshot_store_name
+    from public.stores st order by st.id limit 1;
+    if v_snapshot_store_id is null then raise exception 'snapshot fixture requires one store'; end if;
+    insert into public.brands(name, slug, is_active)
+    values ('Fixture brand ' || v_snapshot_name, 'fixture-brand-' || replace(v_snapshot_name, '-', ''), true)
+    returning id into v_snapshot_brand_id;
+    insert into public.products(brand_id, name, slug, short_description, official_description, gender, notes_source, content_source, status, is_active)
+    values (v_snapshot_brand_id, v_snapshot_name, 'fixture-product-' || replace(v_snapshot_name, '-', ''),
+      'fixture description', 'fixture full description', 'unisex', 'store_catalog', 'transactional_fixture', 'published', true)
+    returning id into v_snapshot_product_id;
+    insert into public.product_sizes(product_id, size_ml, size_label, sku)
+    values (v_snapshot_product_id, 37, '37ml fixture', 'FIXTURE-' || left(replace(v_snapshot_product_id::text, '-', ''), 12))
+    returning id into v_snapshot_size_id;
+    insert into public.product_images(product_id, product_size_id, image_url, alt_text, sort_order, is_primary)
+    values (v_snapshot_product_id, v_snapshot_size_id, 'https://example.invalid/fixture-product.jpg', 'fixture image', 0, true);
+    insert into public.store_products(store_id, product_size_id, price, original_price, stock_quantity, is_available, currency, data_source, sync_status, product_url)
+    values (v_snapshot_store_id, v_snapshot_size_id, 123.45, 150, 2, true, 'EGP', 'store_catalog', 'synced', 'https://example.invalid/fixture-product')
+    returning id into v_snapshot_store_product_id;
+
+    v_event_ok := public.record_customer_product_event(
+      v_guest_hash, v_analytics_hash, null, v_guest_session,
+      'view', v_snapshot_product_id, v_snapshot_size_id, v_snapshot_store_product_id, null
+    );
+    if v_event_ok is distinct from true then raise exception 'synthetic catalog view event was rejected'; end if;
+    v_search_ok := public.record_customer_search(
+      v_guest_hash, v_analytics_hash, null, v_guest_session, 'fixture snapshot after catalog delete',
+      jsonb_build_array(jsonb_build_object(
+        'productId', v_snapshot_product_id, 'productSizeId', v_snapshot_size_id, 'storeProductId', v_snapshot_store_product_id
+      ))
+    );
+    if v_search_ok is distinct from true then raise exception 'synthetic catalog search event was rejected'; end if;
+
+    delete from public.products where id = v_snapshot_product_id;
+    if not exists (
+      select 1 from public.customer_product_events e
+      where e.guest_id = v_guest_id
+        and e.product_snapshot->'baseProduct'->>'name' = v_snapshot_name
+        and e.product_snapshot->'brand'->>'name' = 'Fixture brand ' || v_snapshot_name
+        and e.product_snapshot->'selectedSize'->>'size_label' = '37ml fixture'
+        and e.product_snapshot->'selectedOffer'->>'storeName' = v_snapshot_store_name
+        and jsonb_array_length(e.product_snapshot->'images') = 1
+      limit 1
+    ) then raise exception 'activity product snapshot was lost or incomplete after deleting its catalog fixture'; end if;
+    if not exists (
+      select 1 from public.guest_product_analytics a
+      where a.visitor_hash = v_analytics_hash
+        and a.product_snapshot->'baseProduct'->>'name' = v_snapshot_name
+        and a.product_snapshot->'selectedOffer'->>'storeName' = v_snapshot_store_name
+      limit 1
+    ) then raise exception 'guest ranking snapshot was lost after deleting its catalog fixture'; end if;
+    if not exists (
+      select 1 from public.customer_searches cs
+      where cs.guest_id = v_guest_id and cs.search_text = 'fixture snapshot after catalog delete'
+        and cs.result_count = 1
+        and cs.result_products->0->'product'->'baseProduct'->>'name' = v_snapshot_name
+        and cs.result_products->0->'product'->'selectedOffer'->>'storeName' = v_snapshot_store_name
+      limit 1
+    ) then raise exception 'search result snapshot was lost after deleting its catalog fixture'; end if;
 
     insert into public.customer_searches(guest_id, user_id, session_id, search_text, result_products, result_count, occurred_at)
     values
