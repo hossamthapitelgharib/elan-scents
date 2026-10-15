@@ -162,6 +162,18 @@
       },
       "footer:logo": {
         "archived": true
+      },
+      "card:17iwb3v": {
+        "media": {
+          "src": "https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/uploads/2026/f131f5dc5d3888717232.png",
+          "kind": "image"
+        }
+      },
+      "card:17iwb3u": {
+        "media": {
+          "src": "https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/uploads/2026/f131f5dc5d3888717232.png",
+          "kind": "image"
+        }
       }
     },
     "mobile": {
