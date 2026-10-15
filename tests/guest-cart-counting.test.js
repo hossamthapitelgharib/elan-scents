@@ -109,3 +109,12 @@ test('if the merge is not available the browser keeps its own key, so nothing is
   const merge = calls.find((c) => c.u.endsWith('/rpc/merge_guest_browser')).body;
   assert.equal(calls.find((c) => c.u.endsWith('/rpc/resolve_guest_browser')).body.p_fingerprint_hash, merge.p_from_fingerprint);
 });
+
+test('a new-guest request replaces the cookie and is never merged back into the previous person', async () => {
+  env(); const old = key(), fresh = key(), calls = [];
+  global.fetch = async (url, options = {}) => { calls.push(String(url)); return reply({ visitorId: 'v', status: 'guest', cart: [] }); };
+  const res = headerRecorder();
+  await handler({ method: 'POST', headers: { 'user-agent': 'Mozilla/5.0', cookie: `elan_gid=${old}`, 'x-forwarded-proto': 'https' }, body: { action: 'resolve', visitorKey: fresh, fresh: true } }, res);
+  assert.match(res.out.headers['Set-Cookie'], new RegExp(`^elan_gid=${fresh};`));
+  assert.equal(calls.some((u) => u.endsWith('/rpc/merge_guest_browser')), false);
+});

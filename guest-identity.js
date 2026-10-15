@@ -227,6 +227,21 @@
     identification = null;
   }
 
+  // "Not your basket?": a new person on a shared browser starts as a new guest. The previous
+  // person's record stays as it was (an abandoned basket); nothing is merged back into it.
+  function startFresh() {
+    return Promise.resolve(prepareLogout()).then(function () {
+      var fresh = createKey();
+      try { localStorage.setItem(STORAGE_KEY, fresh); } catch (_) {}
+      writeCookie(fresh);
+      cachedKey = fresh;
+      identification = null;
+      recentViews = {};
+      identification = request('resolve', { fresh: true }).catch(function (error) { identification = null; throw error; });
+      return identification;
+    }).then(function (body) { return startSession().catch(function () {}).then(function () { return body; }); });
+  }
+
   function claim(token) {
     return saveQueue.catch(function () {}).then(function () { return request('claim', {}, token); }).then(function (result) {
       if (result && result.ok) clearKey();
@@ -261,7 +276,8 @@
     track: track,
     sessionId: sessionId,
     startSession: startSession,
-    prepareLogout: prepareLogout
+    prepareLogout: prepareLogout,
+    startFresh: startFresh
   };
 
   var session = savedSession();

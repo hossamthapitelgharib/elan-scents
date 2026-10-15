@@ -141,3 +141,16 @@ test('the browser adopts the key the server merged it into', async () => {
   await tab.identity.track('view', '245a6e52-46c6-42e9-a730-9e5bec3dd203');
   assert.equal(tab.requests.at(-1).body.visitorKey, canonical);
 });
+
+test('"not your basket" gives the next person a new guest key and the server cookie follows', async () => {
+  const browser = shared();
+  const tab = openTab(browser);
+  await tab.identity.resolve();
+  const before = browser.values.get(KEY);
+  await tab.identity.startFresh();
+  const after = browser.values.get(KEY);
+  assert.notEqual(before, after);
+  assert.equal(browser.cookies.get('elan_vk'), after);
+  const last = tab.requests.filter((r) => r.url === '/api/guest-cart').at(-1).body;
+  assert.equal(last.fresh, true); assert.equal(last.visitorKey, after);
+});

@@ -90,7 +90,7 @@ module.exports = async (req, res) => {
     let canonicalKey = null;
     if (action === 'resolve') {
       const known = cookieKey(req);
-      if (!known) setKeyCookie(req, res, visitorKey);
+      if (!known || body.fresh === true) setKeyCookie(req, res, visitorKey);
       else if (known !== visitorKey) {
         const merge = await admin('rpc/merge_guest_browser', {
           p_from_fingerprint: fingerprintHash, p_to_fingerprint: hmac(serviceKey, 'guest-browser', known),
