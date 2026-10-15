@@ -118,3 +118,52 @@ test('a new-guest request replaces the cookie and is never merged back into the 
   assert.match(res.out.headers['Set-Cookie'], new RegExp(`^elan_gid=${fresh};`));
   assert.equal(calls.some((u) => u.endsWith('/rpc/merge_guest_browser')), false);
 });
+
+const hex = (c, n = 64) => c.repeat(n);
+const partsBody = { gpu: 'aaaaaaaa11', screen: 'bbbbbbbb22', canvas: 'cccccccc33', fonts: 'eeeeeeee55', tz: 'ffffffff66', hw: '1111111177', platform: '2222222288', lang: '3333333399' };
+async function identifyRun(candidates, { storeOk = true } = {}) {
+  env(); const calls = [];
+  global.fetch = async (url, options = {}) => {
+    const u = String(url), body = JSON.parse(options.body || '{}'); calls.push({ u, body });
+    if (u.endsWith('/rpc/guest_signal_store')) return storeOk ? reply(true) : reply({}, 500);
+    if (u.endsWith('/rpc/guest_signal_candidates')) return reply(candidates);
+    if (u.endsWith('/rpc/guest_identity_link')) return reply(true);
+    if (u.endsWith('/rpc/guest_final_id')) return reply(hex('9'));
+    return reply({});
+  };
+  const res = headerRecorder();
+  await handler({ method: 'POST', headers: { 'user-agent': 'Mozilla/5.0 Chrome', 'accept-language': 'ar-EG', 'x-forwarded-for': '41.2.3.4' }, body: { action: 'identify', visitorKey: key(), fp: hex('1', 32), parts: partsBody, behavior: { interactions: 5, activeSeconds: 30, pages: 3 } } }, res);
+  return { res: res.out, calls };
+}
+const sameIp = async () => { const { createHmac } = require('node:crypto'); return createHmac('sha256', 'service-key').update('guest-ip:41.2.3.4').digest('hex'); };
+
+test('identify stores hashed signals and links a very similar guest on the same network', async () => {
+  const ipHash = await sameIp();
+  const { res, calls } = await identifyRun([{ analyticsHash: hex('b'), fp: hex('1', 32), parts: partsBody, ipHash, ipPrefixHash: hex('0'), cartHash: null, lastSeenAt: new Date().toISOString(), popularity: 1, convertedUserIds: [] }]);
+  assert.equal(res.status, 200); assert.equal(res.body.identified, true); assert.equal(res.body.linked, 1);
+  assert.match(res.body.finalVisitorId, /^[a-f0-9]{32}$/);
+  const store = calls.find((c) => c.u.endsWith('/rpc/guest_signal_store')).body;
+  for (const k of ['p_ip_hash', 'p_ip_prefix_hash', 'p_ua_hash', 'p_lang_hash']) assert.match(store[k], /^[a-f0-9]{64}$/);
+  assert.equal(JSON.stringify(store).includes('41.2.3.4'), false);
+  assert.equal(JSON.stringify(store).includes('Chrome'), false);
+});
+
+test('identify never links a guest that belongs to a different registered person', async () => {
+  const ipHash = await sameIp();
+  const { res, calls } = await identifyRun([{ analyticsHash: hex('b'), fp: hex('1', 32), parts: partsBody, ipHash, ipPrefixHash: hex('0'), cartHash: null, lastSeenAt: new Date().toISOString(), popularity: 1, convertedUserIds: ['u-1'] }]);
+  assert.equal(res.body.linked, 0);
+  assert.equal(calls.some((c) => c.u.endsWith('/rpc/guest_identity_link')), false);
+});
+
+test('identify never links on a common device or without network support', async () => {
+  const ipHash = await sameIp();
+  const common = await identifyRun([{ analyticsHash: hex('b'), fp: hex('1', 32), parts: partsBody, ipHash, ipPrefixHash: hex('0'), popularity: 9, convertedUserIds: [], lastSeenAt: new Date().toISOString() }]);
+  assert.equal(common.res.body.linked, 0);
+  const elsewhere = await identifyRun([{ analyticsHash: hex('b'), fp: hex('1', 32), parts: partsBody, ipHash: hex('d'), ipPrefixHash: hex('e'), popularity: 1, convertedUserIds: [], lastSeenAt: new Date().toISOString() }]);
+  assert.equal(elsewhere.res.body.linked, 0);
+});
+
+test('a failing database never breaks the shopper: identify just reports not identified', async () => {
+  const { res } = await identifyRun([], { storeOk: false });
+  assert.equal(res.status, 200); assert.equal(res.body.identified, false);
+});

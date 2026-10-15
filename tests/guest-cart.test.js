@@ -52,7 +52,10 @@ test('guest capture is automatic, browser-local, and its migration keeps only is
   assert.match(identity, /localStorage\.getItem\(STORAGE_KEY\)/);
   assert.match(identity, /randomUUID/);
   assert.match(identity, /setTimeout\(function \(\) \{ startSession\(\)/);
-  assert.doesNotMatch(identity, /navigator\.userAgent|screenWidth|fingerprint\(\)/);
+  // Owner decision (2026-10-15): coarse device signals are collected for counting people only. The raw
+  // user-agent string is still never read in the browser, and nothing here may move a basket.
+  assert.doesNotMatch(identity, /navigator\.userAgent(?!Data)|screenWidth/);
+  assert.doesNotMatch(identity, /request\('(?:save|claim)'[^;]*parts/);
   assert.match(identity, /track: track/);
   assert.match(core, /GuestIdentity\.claim/);
   assert.match(core, /trackGuestProduct\('cart_add'/);

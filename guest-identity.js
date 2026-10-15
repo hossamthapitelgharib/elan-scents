@@ -11,7 +11,7 @@
     var noWrite = function () { return Promise.resolve({ ok: true, preview: true, tracked: false, cart: [] }); };
     window.GuestIdentity = {
       enabled: function () { return false; },
-      resolve: noWrite, save: noWrite, claim: noWrite, track: noWrite,
+      resolve: noWrite, save: noWrite, claim: noWrite, track: noWrite, identify: noWrite, finalVisitorId: function () { return null; },
       sessionId: function () { return null; }, startSession: noWrite
     };
     ['click', 'auxclick', 'submit', 'contextmenu', 'dragstart'].forEach(function (type) {
@@ -29,7 +29,7 @@
   try { AUTOMATED = typeof navigator !== 'undefined' && navigator.webdriver === true; } catch (_) {}
   if (AUTOMATED) {
     var inert = function () { return Promise.resolve({ ok: true, tracked: false, cart: [] }); };
-    window.GuestIdentity = { enabled: function () { return false; }, resolve: inert, save: inert, claim: inert, track: inert, sessionId: function () { return null; }, startSession: inert, prepareLogout: inert };
+    window.GuestIdentity = { enabled: function () { return false; }, resolve: inert, save: inert, claim: inert, track: inert, identify: inert, finalVisitorId: function () { return null; }, sessionId: function () { return null; }, startSession: inert, prepareLogout: inert };
     return;
   }
 
@@ -74,7 +74,10 @@
   function recentlyActive() { return Date.now() - lastInteraction < ACTIVE_MS; }
   function interacted() {
     var now = Date.now(), wasIdle = now - lastInteraction >= ACTIVE_MS;
+    if (lastInteraction) behaviorStats.activeMs += Math.min(now - lastInteraction, 5000);
+    behaviorStats.interactions += 1;
     lastInteraction = now;
+    if (behaviorStats.activeMs >= 5000 && behaviorStats.interactions >= 1 && identifiedFor !== sessionId(false)) identify();
     if (wasIdle && sessionStarted) sendSession('resume').catch(function () {});
   }
 
@@ -123,6 +126,136 @@
     return rec.id;
   }
 
+
+  /* ---------- device signals (for counting people, never for moving baskets) ---------- */
+  var behaviorStats = { interactions: 0, activeMs: 0, pages: 1 };
+  var identifiedFor = null, identifying = null, identifyAttempts = {}, finalVisitorId = null, lastCartSig = '', fingerprintPromise = null;
+
+  function smallHash(str) {                 // cyrb53: fast, well spread, 14 hex characters
+    var h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+    for (var i = 0; i < str.length; i++) {
+      var ch = str.charCodeAt(i);
+      h1 = Math.imul(h1 ^ ch, 2654435761); h2 = Math.imul(h2 ^ ch, 1597334677);
+    }
+    h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+    h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+    return ('00000000000000' + (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(16)).slice(-14);
+  }
+
+  function osFamily() {
+    var raw = '';
+    try { raw = String((navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || '').toLowerCase(); } catch (_) {}
+    if (/iphone|ipad|ipod|ios/.test(raw)) return 'ios';
+    if (/android/.test(raw)) return 'android';
+    if (/win/.test(raw)) return 'win';
+    if (/mac/.test(raw)) return 'mac';
+    if (/linux|x11|cros/.test(raw)) return 'linux';
+    return raw ? smallHash(raw) : '';
+  }
+
+  function gpuName() {
+    try {
+      var canvas = document.createElement('canvas');
+      var gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+      if (!gl) return '';
+      var ext = gl.getExtension('WEBGL_debug_renderer_info');
+      return ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) || '') : '';
+    } catch (_) { return ''; }
+  }
+
+  function canvasSignature() {
+    try {
+      var c = document.createElement('canvas'); c.width = 200; c.height = 40;
+      var x = c.getContext('2d'); if (!x) return '';
+      x.textBaseline = 'top'; x.font = '16px Arial'; x.fillStyle = '#c8962a'; x.fillRect(4, 4, 80, 20);
+      x.fillStyle = '#222'; x.fillText('Élan Scents 123 عطر', 8, 8);
+      return c.toDataURL();
+    } catch (_) { return ''; }
+  }
+
+  function fontsSignature() {
+    try {
+      var list = ['Arial', 'Verdana', 'Times New Roman', 'Courier New', 'Georgia', 'Tahoma', 'Trebuchet MS', 'Impact', 'Segoe UI', 'Helvetica', 'Roboto', 'Menlo', 'Noto Sans Arabic', 'IBM Plex Sans Arabic'];
+      var span = document.createElement('span');
+      span.style.cssText = 'position:absolute;left:-9999px;top:-9999px;font-size:72px;visibility:hidden';
+      span.textContent = 'mmmmmmmmmmlliWWعطر';
+      document.body.appendChild(span);
+      span.style.fontFamily = 'monospace'; var base = span.offsetWidth;
+      var found = list.filter(function (name) { span.style.fontFamily = '"' + name + '",monospace'; return span.offsetWidth !== base; });
+      document.body.removeChild(span);
+      return found.join(',');
+    } catch (_) { return ''; }
+  }
+
+  function collectParts() {
+    var parts = {}, put = function (key, value) { if (value) parts[key] = smallHash(String(value)); };
+    try { var w = Math.max(screen.width, screen.height), h = Math.min(screen.width, screen.height); put('screen', w + 'x' + h + 'x' + screen.colorDepth); } catch (_) {}
+    try { put('tz', Intl.DateTimeFormat().resolvedOptions().timeZone); } catch (_) {}
+    try { put('hw', navigator.hardwareConcurrency); } catch (_) {}
+    try { put('lang', String(navigator.language || '').split('-')[0].toLowerCase()); } catch (_) {}
+    put('platform', osFamily());
+    put('gpu', gpuName());
+    put('canvas', canvasSignature());
+    put('fonts', fontsSignature());
+    return parts;
+  }
+
+  // ThumbmarkJS is used when its official build is present at /vendor/thumbmark.js. Without it,
+  // the built-in signals above produce the overall fingerprint.
+  function loadThumbmark() {
+    if (window.ThumbmarkJS || window.Thumbmark) return Promise.resolve(true);
+    return fetch('/vendor/thumbmark.js', { method: 'HEAD' }).then(function (r) {
+      if (!r.ok) return false;
+      return new Promise(function (done) {
+        var el = document.createElement('script');
+        el.src = '/vendor/thumbmark.js'; el.onload = function () { done(true); }; el.onerror = function () { done(false); };
+        document.head.appendChild(el);
+      });
+    }).catch(function () { return false; });
+  }
+  function thumbmarkHash() {
+    return loadThumbmark().then(function (ok) {
+      if (!ok) return '';
+      var lib = window.ThumbmarkJS || window.Thumbmark;
+      var run = typeof lib.getFingerprint === 'function' ? lib.getFingerprint()
+        : typeof lib === 'function' ? new lib().get() : Promise.resolve('');
+      return Promise.resolve(run).then(function (result) {
+        var value = result && typeof result === 'object' ? (result.thumbmark || result.hash || JSON.stringify(result)) : result;
+        return value ? smallHash(String(value)) + smallHash(String(value) + '#') : '';
+      });
+    }).catch(function () { return ''; });
+  }
+
+  function collectFingerprint() {
+    if (!fingerprintPromise) fingerprintPromise = thumbmarkHash().then(function (tm) {
+      var parts = collectParts();
+      var own = smallHash(Object.keys(parts).sort().map(function (k) { return k + parts[k]; }).join('|'));
+      return { fp: tm || (own + smallHash(own + '#')), parts: parts, thumbmark: !!tm };
+    });
+    return fingerprintPromise;
+  }
+
+  function behaviorSnapshot() {
+    return { interactions: behaviorStats.interactions, activeSeconds: Math.round(behaviorStats.activeMs / 1000), pages: behaviorStats.pages };
+  }
+
+  // One identification per visit, only after the person really used the page (5 active seconds
+  // and an interaction), so bots and instant bounces do not create or link anything.
+  function identify() {
+    if (accessToken()) return Promise.resolve({ ok: true, identified: false });
+    var visit = sessionId(false);
+    if (identifying) return identifying;
+    if (identifiedFor === visit || (identifyAttempts[visit] || 0) >= 3) return Promise.resolve({ ok: true, identified: false });
+    identifyAttempts[visit] = (identifyAttempts[visit] || 0) + 1;
+    identifying = resolve().then(collectFingerprint).then(function (info) {
+      return request('identify', { fp: info.fp, parts: info.parts, behavior: behaviorSnapshot(), cartSig: lastCartSig });
+    }).then(function (result) {
+      if (result && result.ok) { identifiedFor = visit; if (result.identified) finalVisitorId = result.finalVisitorId || finalVisitorId; }
+      return result;
+    }).catch(function () { return { ok: false, identified: false }; }).then(function (result) { identifying = null; return result; });
+    return identifying;
+  }
+
   async function request(action, data, token) {
     var headers = { 'Content-Type': 'application/json' };
     if (token) headers.Authorization = 'Bearer ' + token;
@@ -153,6 +286,7 @@
     var snapshot = Array.isArray(items) ? items.map(function (item) {
       return { sid: item.sid, storeProductId: item.storeProductId || null, q: item.q || item.quantity || 1 };
     }) : [];
+    lastCartSig = snapshot.length ? smallHash(snapshot.map(function (i) { return i.sid + ':' + i.q; }).sort().join('|')) + smallHash(snapshot.length + '#') : '';
     saveQueue = saveQueue.catch(function () {}).then(function () { return request('save', { items: snapshot }); });
     return saveQueue;
   }
@@ -277,7 +411,9 @@
     sessionId: sessionId,
     startSession: startSession,
     prepareLogout: prepareLogout,
-    startFresh: startFresh
+    startFresh: startFresh,
+    identify: identify,
+    finalVisitorId: function () { return finalVisitorId; }
   };
 
   var session = savedSession();
@@ -307,6 +443,9 @@
   });
   ['pointerdown', 'keydown', 'touchstart', 'wheel', 'scroll'].forEach(function (type) {
     window.addEventListener(type, interacted, { capture: true, passive: true });
+  });
+  ['hashchange', 'popstate'].forEach(function (type) {
+    window.addEventListener(type, function () { behaviorStats.pages += 1; });
   });
   window.addEventListener('storage', function (e) {
     if (e.key === STORAGE_KEY && e.newValue && UUID.test(e.newValue)) cachedKey = e.newValue;

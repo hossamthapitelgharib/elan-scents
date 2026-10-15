@@ -154,3 +154,34 @@ test('"not your basket" gives the next person a new guest key and the server coo
   const last = tab.requests.filter((r) => r.url === '/api/guest-cart').at(-1).body;
   assert.equal(last.fresh, true); assert.equal(last.visitorKey, after);
 });
+
+test('identify runs once per visit, only after real use, and sends signals plus behaviour', async () => {
+  const browser = shared(); let t = 1_800_000_000_000;
+  const tab = openTab(browser, () => t);
+  await tab.identity.startSession();
+  tab.listeners.pointerdown();
+  await new Promise((r) => setImmediate(r));
+  assert.equal(tab.requests.some((r) => r.body.action === 'identify'), false, 'one touch is not enough');
+  t += 3000; tab.listeners.pointerdown(); t += 3000; tab.listeners.pointerdown();
+  await new Promise((r) => setTimeout(r, 20));
+  const sent = tab.requests.filter((r) => r.body.action === 'identify');
+  assert.equal(sent.length, 1);
+  assert.match(sent[0].body.fp, /^[a-f0-9]{16,64}$/);
+  assert.ok(sent[0].body.behavior.interactions >= 3 && sent[0].body.behavior.activeSeconds >= 5);
+  assert.equal(typeof sent[0].body.parts, 'object');
+  t += 3000; tab.listeners.pointerdown();
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(tab.requests.filter((r) => r.body.action === 'identify').length, 1, 'not repeated in the same visit');
+});
+
+test('identify never sends the raw basket or any personal value', async () => {
+  const browser = shared(); let t = 1_800_000_000_000;
+  const tab = openTab(browser, () => t);
+  await tab.identity.save([{ sid: '245a6e52-46c6-42e9-a730-9e5bec3dd203', q: 2 }]);
+  await tab.identity.startSession();
+  tab.listeners.pointerdown(); t += 3000; tab.listeners.pointerdown(); t += 3000; tab.listeners.pointerdown();
+  await new Promise((r) => setTimeout(r, 20));
+  const body = tab.requests.find((r) => r.body.action === 'identify').body;
+  assert.match(body.cartSig, /^[a-f0-9]{16,64}$/);
+  assert.equal(JSON.stringify(body).includes('245a6e52'), false);
+});
