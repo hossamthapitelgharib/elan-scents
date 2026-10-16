@@ -3,11 +3,11 @@
    asks for the design (page.getState) and saves it through the server, which checks the admin again. */
 (function () {
   'use strict';
-  var layer = window.ElanDesignLayer, ED = window.ElanDesign, Bridge = window.ElanHostBridge;
-  if (!layer || !ED || !Bridge || window.parent === window) return;
+  var layer = window.ElanDesignLayer, ED = window.ElanDesign, Bridge = window.ElanHostBridge, Geometry = window.ElanEditorGeometry;
+  if (!layer || !ED || !Bridge || !Geometry || window.parent === window) return;
 
   var work = null, baseJson = '', baseRevision = null, hostApi = null, selectedId = null, dirty = false, bridgeTicket = '';
-  var undoStack = [], redoStack = [], editing = null, gesture = null, pendingMedia = null, moveArm = null;
+  var undoStack = [], redoStack = [], editing = null, gesture = null, pendingMedia = null;
   var SECTIONS_NAMES = { section: 1 };
 
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
@@ -79,7 +79,6 @@
     '#elan-eo-root *{box-sizing:border-box}' +
     '.eo-box{position:fixed;outline:2px solid #c8962a;background:rgba(200,150,42,.06);display:none}' +
     '.eo-h{position:absolute;width:13px;height:13px;right:-6px;bottom:-6px;background:#c8962a;border-radius:3px;cursor:nwse-resize;pointer-events:auto;touch-action:none}' +
-    'body.eo-armed,body.eo-armed *{cursor:move!important}.eo-armed-box{outline:2px dashed #1f7a3d!important;background:rgba(31,122,61,.08)!important}' +
     '.eo-msg{position:fixed;bottom:12px;left:50%;transform:translateX(-50%);background:#29251c;color:#fff;padding:8px 14px;border-radius:9px;font-size:13px;display:none;max-width:90vw;pointer-events:none}' +
     '.eo-dlg{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.35);pointer-events:auto}' +
     '.eo-dlg>div{background:#fffaf0;border:1px solid #c2a66a;border-radius:12px;padding:16px;width:min(420px,92vw);font-size:13px}' +
@@ -178,17 +177,7 @@
 
   function base(id) { var e = cur(id); return { dx: e.dx || 0, dy: e.dy || 0 }; }
 
-  /* Move works in one step: right-click an element, choose "تحريك العنصر", then hold the left button on THAT element and
-     drag it anywhere. When the button is released the move ends; to move another element, repeat from the right-click. */
-  function armMove(id) {
-    var e = entryById(id); if (!e) throw new Error('اختاري عنصر الأول.');
-    moveArm = { id: id }; select(id);
-    document.body.classList.add('eo-armed'); box.classList.add('eo-armed-box');
-    say('اضغطي على العنصر بالشمال واسحبيه. لما تفكي الضغط التحريك بيخلص.');
-  }
-  function disarm() { if (!moveArm) return; moveArm = null; document.body.classList.remove('eo-armed'); box.classList.remove('eo-armed-box'); }
-
-  /* Left click on a dynamic element (it opens another page for visitors) enters that page: the editor treats it as a separate page. */
+  /* The open chip explicitly enters a dynamic page; a normal left click remains a selection/drag gesture. */
   function dynamicTarget(e) { return e && layer.goTargetOf ? layer.goTargetOf(e.el) : null; }
   function pageName() { var h = document.querySelector('#view h3'); return (h && h.textContent.trim()) || ''; }
   function inner() { return document.body.classList.contains('inner'); }
@@ -201,9 +190,9 @@
     if (at < 0) return null;
     var point = trail[at]; trail = trail.slice(0, at); return point;
   }
-  function goHome() { disarm(); selectedId = null; var first = returnedTo(1); trail = []; document.body.classList.remove('inner'); scrollTo(0, 0); reselect(); if (first) restoreFrom(first); }
+  function goHome() { selectedId = null; var first = returnedTo(1); trail = []; document.body.classList.remove('inner'); scrollTo(0, 0); reselect(); if (first) restoreFrom(first); }
   function goBack() {
-    disarm(); selectedId = null;
+    selectedId = null;
     try { if (typeof P !== 'undefined' && P.length > 2) { P = P.slice(0, -1); openP(); } else { document.body.classList.remove('inner'); scrollTo(0, 0); } } catch (_) { goHome(); return; }
     var point = returnedTo(depthNow());
     reselect(); if (point) restoreFrom(point);
@@ -211,7 +200,7 @@
   function enterPage(e) {
     var g = dynamicTarget(e); if (!g || typeof window.go !== 'function') return false;
     if (editing) commitText();
-    disarm(); trail.push({ y: Math.round(scrollY), id: e.id, depth: depthNow() }); selectedId = null;
+    trail.push({ y: Math.round(scrollY), id: e.id, depth: depthNow() }); selectedId = null;
     window.go(g);
     setTimeout(function () { reselect(); say('دخلتي صفحة جديدة' + (pageName() ? ': ' + pageName() : '') + '. كليك يمين فيها للأدوات، ومن القايمة ترجعي.'); }, 60);
     return true;
@@ -224,13 +213,11 @@
     var handle = ev.target.classList && ev.target.classList.contains('eo-h') ? ev.target.getAttribute('data-h') : null;
     ev.preventDefault(); ev.stopPropagation();
     if (ev.button !== undefined && ev.button !== 0) return;
-    var e, mode = 'click';
+    var e, mode = 'move';
     if (handle) { e = entryById(selectedId); mode = 'resize'; }
     else {
       e = pick(ev.clientX, ev.clientY);
-      var armed = moveArm && entryById(moveArm.id);
-      if (armed && document.elementsFromPoint(ev.clientX, ev.clientY).indexOf(armed.el) !== -1) { e = armed; mode = 'move'; select(e.id); }
-      else { if (moveArm) disarm(); if (e) select(e.id); else { select(null); return; } }
+      if (e) select(e.id); else { select(null); return; }
     }
     if (!e) return;
     var r = e.el.getBoundingClientRect(), b = base(e.id);
@@ -240,19 +227,20 @@
 
   window.addEventListener('pointermove', function (ev) {
     if (!gesture) return;
-    if (gesture.mode === 'click') { if (Math.abs(ev.clientX - gesture.sx) + Math.abs(ev.clientY - gesture.sy) >= 6) gesture.moved = true; return; }
     var g = gesture, ddx = ev.clientX - g.sx, ddy = ev.clientY - g.sy;
     if (!g.moved && Math.abs(ddx) + Math.abs(ddy) < 3) return;
     g.moved = true; ev.preventDefault();
     g.el.style.position = g.el.style.position || 'relative'; g.el.style.zIndex = '3';
     if (g.mode === 'move') {
-      g.dx = Math.round(g.b.dx + ddx); g.dy = Math.round(g.b.dy + ddy);
+      var next = Geometry.move(g.r, g.b, { x: ddx, y: ddy });
+      g.dx = next.dx; g.dy = next.dy;
       g.el.style.transform = 'translate(' + g.dx + 'px,' + g.dy + 'px)';
     } else {
       var h = g.handle, w = g.r.width, hh = g.r.height;
       if (h.indexOf('e') !== -1) w = g.r.width + ddx; if (h.indexOf('w') !== -1) w = g.r.width - ddx;
       if (h.indexOf('s') !== -1) hh = g.r.height + ddy; if (h.indexOf('n') !== -1) hh = g.r.height - ddy;
-      w = Math.max(16, Math.round(w)); hh = Math.max(16, Math.round(hh));
+      var size = Geometry.resize(g.r.width, g.r.height, w - g.r.width, hh - g.r.height);
+      w = size.w; hh = size.h;
       if (h.length === 2 || h === 'e' || h === 'w') { g.el.style.width = w + 'px'; g.el.style.maxWidth = 'none'; g.el.style.flex = '0 0 auto'; g.w = w; }
       if (h.length === 2 || h === 'n' || h === 's') { g.el.style.height = hh + 'px'; g.h = hh; }
       // keep the opposite edge where it was, whatever the page direction is
@@ -268,8 +256,7 @@
   window.addEventListener('pointerup', function (ev) {
     if (!gesture) return;
     var g = gesture; gesture = null;
-    if (g.mode === 'click') return;            // a plain click only selects; the "open page" chip or the menu enters a page
-    if (!g.moved) return;                      // pressed without dragging: a move stays armed until the element is dragged
+    if (!g.moved) return;                      // A plain click selects; only a drag commits offsets.
     ev.preventDefault();
     mutate(function () {
       var e = edit(device(), g.id);
@@ -278,7 +265,6 @@
       if (g.w) e.w = g.w;
       if (g.h) e.h = g.h;
     });
-    if (g.mode === 'move') { disarm(); say('خلص التحريك. لتحريك عنصر تاني اضغطي كليك يمين عليه واختاري تحريك العنصر.'); }
   }, true);
 
   // Nothing on the page may act while editing: no links, no cart, no forms.
@@ -292,7 +278,6 @@
     if (inUi(ev.target)) return;
     ev.preventDefault(); ev.stopPropagation();
     if (editing) commitText();
-    disarm();
     var e = pick(ev.clientX, ev.clientY);
     select(e ? e.id : null);
     if (hostApi) hostApi.context({ x: ev.clientX, y: ev.clientY, element: info(e), tools: toolList(info(e)) });
@@ -312,7 +297,7 @@
     if (!editing) return;
     var ed = editing; editing = null;
     ed.node.removeAttribute('contenteditable');
-    var text = ed.node.textContent.replace(/\s+/g, ' ').trim();
+    var text = ed.node.textContent.replace(/\r\n?/g, '\n').trim();
     if (!text || text === ed.before) { ed.node.textContent = ed.before; return; }
     mutate(function () {
       var e = edit('all', ed.id); e.text = e.text || {};
@@ -335,7 +320,6 @@
     if (mod && !ev.shiftKey && ev.key.toLowerCase() === 'z') { ev.preventDefault(); undo(); }
     else if (mod && (ev.key.toLowerCase() === 'y' || (ev.shiftKey && ev.key.toLowerCase() === 'z'))) { ev.preventDefault(); redo(); }
     else if (selectedId && ev.key === 'Delete') { ev.preventDefault(); archive(selectedId); }
-    else if (ev.key === 'Escape' && moveArm) { disarm(); say('اتلغى التحريك.'); }
   }, true);
   window.addEventListener('scroll', placeBox, true);
   window.addEventListener('resize', function () { placeBox(); });
@@ -518,7 +502,6 @@
   function has(i) { return !!i; }
   function hasText(i) { return !!(i && i.canText); }
   registerTool({ id: 'format', label: 'تنسيق النص: الخط • اللون • الحجم • 3D', ui: 'format', when: has });
-  registerTool({ id: 'move', label: 'تحريك العنصر', when: has, run: function (c) { armMove(c.id); return null; } });
   registerTool({ id: 'open', label: 'فتح العنصر (الدخول لصفحته)', when: function (i) { return !!(i && i.dynamic); }, run: function (c) { enterPage(entryById(c.id)); return null; } });
   registerTool({ id: 'go_back', label: 'رجوع للصفحة السابقة', when: inner, run: function () { goBack(); return null; } });
   registerTool({ id: 'go_home', label: 'رجوع للصفحة الرئيسية', when: inner, run: function () { goHome(); return null; } });

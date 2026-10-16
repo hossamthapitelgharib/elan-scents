@@ -160,7 +160,7 @@ test('the editor page wires the original context menu, format dialog and header 
 test('the menu is built from a tool registry so new capabilities are one register() call', () => {
   const edit = fs.readFileSync(path.join(root, 'edit-mode.js'), 'utf8');
   assert.match(edit, /window\.ElanEditTools = \{ register: registerTool/);
-  for (const label of ['تحريك العنصر', 'تنسيق النص: الخط • اللون • الحجم • 3D', 'إنشاء نص', 'نسخ العنصر']) assert.ok(edit.includes(label), label);
+  for (const label of ['تنسيق النص: الخط • اللون • الحجم • 3D', 'إنشاء نص', 'نسخ العنصر']) assert.ok(edit.includes(label), label);
   assert.match(edit, /function registerTool\(t\)/);
   assert.match(edit, /case 'tool\.run'/);
   const html = fs.readFileSync(path.join(root, 'editor', 'elan-editor.html'), 'utf8');
@@ -170,11 +170,12 @@ test('the menu is built from a tool registry so new capabilities are one registe
   for (const action of ['tool.run', 'element.nudge', 'page.getState', 'element.select', 'element.edit', 'page.markSaved']) assert.ok(bridge.includes(action), action);
 });
 
-test('moving is a one-shot tool chosen from the menu: no drag without it, no arrow keys, it ends on release', () => {
+test('moving is a direct pointer drag with no separate move tool or arrow controls', () => {
   const edit = fs.readFileSync(path.join(root, 'edit-mode.js'), 'utf8');
-  assert.match(edit, /function armMove/);
-  assert.match(edit, /function disarm\(\)/);
-  assert.match(edit, /if \(g\.mode === 'move'\) \{ disarm\(\)/);
+  assert.match(edit, /var e, mode = 'move'/);
+  assert.match(edit, /Geometry\.move\(g\.r, g\.b/);
+  assert.match(edit, /if \(!g\.moved\) return;/);
+  assert.doesNotMatch(edit, /registerTool\(\{ id: 'move'/);
   assert.match(edit, /window\.addEventListener\('pointerup'/);
   assert.doesNotMatch(edit, /Arrow(Left|Right|Up|Down)/);
   const html = fs.readFileSync(path.join(root, 'editor', 'elan-editor.html'), 'utf8');

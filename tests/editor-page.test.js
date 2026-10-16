@@ -30,15 +30,19 @@ test('edit mode talks to its own editor window only', () => {
   assert.doesNotMatch(mode, /localStorage|sessionStorage/);
 });
 
-test('moving an element is one mouse gesture armed from the menu, with no arrow pad or arrow keys', () => {
+test('moving an element starts with a direct pointer drag and uses original size bounds', () => {
   const mode = read('edit-mode.js');
   const editor = read('editor/elan-editor.html');
-  assert.match(mode, /registerTool\(\{ id: 'move', label: 'تحريك العنصر'/);
+  const geometry = read('editor/editor-geometry.js');
+  assert.match(mode, /var e, mode = 'move'/);
+  assert.match(mode, /Geometry\.move\(g\.r, g\.b/);
+  assert.match(mode, /if \(!g\.moved\) return;/);
+  assert.doesNotMatch(mode, /registerTool\(\{ id: 'move'/);
+  assert.match(geometry, /MIN_WIDTH = 40/);
+  assert.match(geometry, /MIN_HEIGHT = 30/);
   assert.doesNotMatch(mode, /movepad/);
   assert.doesNotMatch(mode, /ev\.key\.indexOf\('Arrow'\)/);
   assert.doesNotMatch(editor, /movepad|movePad|openMovePad/);
-  assert.match(mode, /function armMove/);
-  assert.match(mode, /disarm\(\); say\('خلص التحريك/);          // the move ends when the button is released
 });
 
 test('a dynamic element opens as its own page and the menu can go back', () => {
