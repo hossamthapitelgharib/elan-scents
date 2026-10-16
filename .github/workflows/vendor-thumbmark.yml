@@ -1,0 +1,67 @@
+name: vendor-thumbmark (temporary)
+
+on:
+  push:
+    branches: [chore/vendor-thumbmarkjs]
+    paths: ['.github/workflows/vendor-thumbmark.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  vendor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Download, verify and vendor ThumbmarkJS
+        run: |
+          set -euo pipefail
+          VERSION=1.9.0
+          WORK=$(mktemp -d)
+          cd "$WORK"
+          TGZ=$(npm pack "@thumbmarkjs/thumbmarkjs@${VERSION}" --silent)
+
+          EXPECTED=$(npm view "@thumbmarkjs/thumbmarkjs@${VERSION}" dist.integrity)
+          ACTUAL="sha512-$(openssl dgst -sha512 -binary "$TGZ" | base64 -w0)"
+          if [ "$EXPECTED" != "$ACTUAL" ]; then
+            echo "npm integrity mismatch: $EXPECTED vs $ACTUAL"
+            exit 1
+          fi
+
+          tar -xzf "$TGZ"
+          test -s package/dist/thumbmark.umd.js
+          cd "$GITHUB_WORKSPACE"
+          mkdir -p vendor
+          cp "$WORK/package/dist/thumbmark.umd.js" vendor/thumbmark.js
+          node --check vendor/thumbmark.js
+
+          cat > "$WORK/check.js" <<'EOF'
+          const fs = require('fs');
+          const vm = require('vm');
+          const ctx = { window: {} };
+          vm.runInNewContext(fs.readFileSync('vendor/thumbmark.js', 'utf8'), ctx);
+          if (!ctx.ThumbmarkJS || typeof ctx.ThumbmarkJS.Thumbmark !== 'function') {
+            throw new Error('ThumbmarkJS.Thumbmark is missing');
+          }
+          console.log('ok');
+          EOF
+          if OUT=$(node "$WORK/check.js" 2>&1); then
+            STATUS="ok"
+          else
+            STATUS="failed: $(echo "$OUT" | head -c 300 | tr '\n' ' ')"
+          fi
+
+          HASH=$(sha256sum vendor/thumbmark.js | cut -d' ' -f1)
+          printf '%s\n%s\n' "$VERSION" "$HASH" > vendor/thumbmark.version.txt
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add vendor/thumbmark.js vendor/thumbmark.version.txt
+          git commit -m "chore: vendor ThumbmarkJS ${VERSION} (official UMD build, unmodified)" \
+            -m "npm integrity verified. sha256 ${HASH}. load check in vm: ${STATUS}"
+          git push
