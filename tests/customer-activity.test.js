@@ -16,6 +16,7 @@ test('customer activity migration preserves RLS, full product joins, four rankin
   const migrationDirs = ['supabase/migrations', 'supabase/pending'];
   const transferMigrationPath = migrationDirs.map(dir => {
     const base = path.join(root, dir);
+    if (!fs.existsSync(base)) return null;
     const name = fs.readdirSync(base).find(file => file.endsWith('_transfer_guest_analytics_on_claim.sql'));
     return name ? path.join(base, name) : null;
   }).find(Boolean);
