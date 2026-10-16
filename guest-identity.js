@@ -213,12 +213,22 @@
       });
     }).catch(function () { return false; });
   }
+  // ThumbmarkJS 0.20+ is used as new ThumbmarkJS.Thumbmark(options).get(); older builds expose
+  // getFingerprint(). Both work. Its sampled usage logging is switched off, so nothing about a
+  // visitor is sent to a third party.
+  function runThumbmark(lib) {
+    var Ctor = typeof lib.Thumbmark === 'function' ? lib.Thumbmark : (typeof lib === 'function' ? lib : null);
+    if (Ctor) return new Ctor({ logging: false }).get();
+    if (typeof lib.getFingerprint === 'function') {
+      try { if (typeof lib.setOption === 'function') lib.setOption('logging', false); } catch (_) {}
+      return lib.getFingerprint();
+    }
+    return '';
+  }
   function thumbmarkHash() {
     return loadThumbmark().then(function (ok) {
       if (!ok) return '';
-      var lib = window.ThumbmarkJS || window.Thumbmark;
-      var run = typeof lib.getFingerprint === 'function' ? lib.getFingerprint()
-        : typeof lib === 'function' ? new lib().get() : Promise.resolve('');
+      var run = runThumbmark(window.ThumbmarkJS || window.Thumbmark);
       return Promise.resolve(run).then(function (result) {
         var value = result && typeof result === 'object' ? (result.thumbmark || result.hash || JSON.stringify(result)) : result;
         return value ? smallHash(String(value)) + smallHash(String(value) + '#') : '';
