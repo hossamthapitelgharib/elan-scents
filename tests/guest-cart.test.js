@@ -31,6 +31,24 @@ test('resolve stores only server HMACs and returns this browser basket', async (
   assert.match(payload.p_fingerprint_hash, /^[a-f0-9]{64}$/); assert.match(payload.p_analytics_hash, /^[a-f0-9]{64}$/);
 });
 
+test('claim transfers both server HMACs with the authenticated customer ID', async () => {
+  process.env.SUPABASE_URL = 'https://test.supabase.co'; process.env.SUPABASE_SERVICE_ROLE_KEY = 'unit-test-server-secret';
+  const calls = [];
+  global.fetch = async (url, options = {}) => {
+    calls.push({ url: String(url), options });
+    if (String(url).endsWith('/auth/v1/user')) return response({ id: 'a6d53c31-c9d7-428a-82f4-c742bf923690' });
+    return response({ claimed: true, cart: 2, items: 1 });
+  };
+  const res = recorder();
+  await handler({ method: 'POST', headers: { authorization: 'Bearer unit-test-token' }, body: { action: 'claim', visitorKey } }, res);
+  assert.equal(res.out.status, 200); assert.equal(res.out.body.claimed, true);
+  assert.match(calls[1].url, /rpc\/claim_guest_browser_cart$/);
+  const payload = JSON.parse(calls[1].options.body);
+  assert.match(payload.p_fingerprint_hash, /^[a-f0-9]{64}$/);
+  assert.match(payload.p_analytics_hash, /^[a-f0-9]{64}$/);
+  assert.equal(payload.p_user_id, 'a6d53c31-c9d7-428a-82f4-c742bf923690');
+});
+
 test('legacy guest activity route accepts cart removal and writes to the unified detailed ledger', async () => {
   process.env.SUPABASE_URL = 'https://test.supabase.co'; process.env.SUPABASE_SERVICE_ROLE_KEY = 'unit-test-server-secret';
   const calls = [];

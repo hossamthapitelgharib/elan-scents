@@ -13,6 +13,14 @@ test('customer activity migration preserves RLS, full product joins, four rankin
   const appliedSnapshot = path.join(root, 'supabase/migrations', snapshotName);
   const snapshotMigration = fs.readFileSync(fs.existsSync(appliedSnapshot) ? appliedSnapshot : path.join(root, 'supabase/pending', snapshotName), 'utf8');
   const searchMigration = fs.readFileSync(path.join(root, 'supabase/migrations/20261015032124_customer_search_operations.sql'), 'utf8');
+  const migrationDirs = ['supabase/migrations', 'supabase/pending'];
+  const transferMigrationPath = migrationDirs.map(dir => {
+    const base = path.join(root, dir);
+    const name = fs.readdirSync(base).find(file => file.endsWith('_transfer_guest_analytics_on_claim.sql'));
+    return name ? path.join(base, name) : null;
+  }).find(Boolean);
+  assert.ok(transferMigrationPath, 'guest analytics claim-transfer migration must be present');
+  const transferMigration = fs.readFileSync(transferMigrationPath, 'utf8');
   const transactionalFixture = fs.readFileSync(path.join(root, 'tests/customer-activity-transactional.test.sql'), 'utf8');
   const core = loadCoreSource();
   assert.match(migration, /create table if not exists public\.customer_sessions/i);
@@ -48,10 +56,17 @@ test('customer activity migration preserves RLS, full product joins, four rankin
   assert.match(searchMigration, /platform_customer_search_detail/i);
   assert.match(searchMigration, /grant execute on function public\.record_customer_search[\s\S]*to service_role/i);
   assert.match(searchMigration, /revoke all on public\.customer_searches from public, anon, authenticated/i);
+  assert.match(transferMigration, /p_analytics_hash text/i);
+  assert.match(transferMigration, /delete from public\.guest_product_analytics\s+where visitor_hash = p_analytics_hash/i);
+  assert.match(transferMigration, /delete from public\.guest_analytics_visits\s+where visitor_hash = p_analytics_hash/i);
+  assert.match(transferMigration, /update public\.customer_product_events\s+set guest_id = null, user_id = p_user_id/i);
+  assert.match(transferMigration, /update public\.customer_searches\s+set guest_id = null, user_id = p_user_id/i);
   assert.match(transactionalFixture, /insert into public\.products\(brand_id, name, slug/i);
   assert.match(transactionalFixture, /delete from public\.products where id = v_snapshot_product_id/i);
   assert.match(transactionalFixture, /activity product snapshot was lost or incomplete after deleting its catalog fixture/i);
   assert.match(transactionalFixture, /search result snapshot was lost after deleting its catalog fixture/i);
+  assert.match(transactionalFixture, /claim_guest_browser_cart\(v_guest_hash, v_analytics_hash, v_customer_id\)/i);
+  assert.match(transactionalFixture, /guest search history or anonymous product aggregates were not transferred\/removed correctly/i);
   assert.match(dashboard, /عمليات البحث ونتائج المنتجات/);
   assert.match(dashboard, /search\.searchText/);
   assert.match(identity, /search: search/);

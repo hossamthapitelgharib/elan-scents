@@ -34,6 +34,10 @@ declare
   v_retention_deleted bigint;
   v_event_ok boolean;
   v_event_type text;
+  v_expected_event_counts jsonb;
+  v_actual_event_counts jsonb;
+  v_expected_session_count bigint;
+  v_expected_search_count bigint;
   v_sentinel constant text := 'customer_activity_fixture_force_rollback';
 begin
   begin
@@ -268,14 +272,50 @@ begin
       raise exception 'guest and registered-customer visits were not separated into sessions';
     end if;
 
-    v_claim_result := public.claim_guest_browser_cart(v_guest_hash, v_customer_id);
+    select coalesce(jsonb_object_agg(event_type, operation_count), '{}'::jsonb)
+      into v_expected_event_counts
+    from (
+      select event_type, sum(operation_count)::bigint as operation_count
+      from (
+        select event_type, count(*)::bigint as operation_count
+        from public.customer_product_events where guest_id = v_guest_id group by event_type
+        union all
+        select event_type, count(*)::bigint as operation_count
+        from public.customer_product_events where user_id = v_customer_id group by event_type
+      ) before_claim
+      group by event_type
+    ) totals;
+    select (select count(*) from public.customer_sessions where guest_id = v_guest_id)
+         + (select count(*) from public.customer_sessions where user_id = v_customer_id)
+      into v_expected_session_count;
+    select (select count(*) from public.customer_searches where guest_id = v_guest_id)
+         + (select count(*) from public.customer_searches where user_id = v_customer_id)
+      into v_expected_search_count;
+
+    v_claim_result := public.claim_guest_browser_cart(v_guest_hash, v_analytics_hash, v_customer_id);
     if coalesce((v_claim_result->>'claimed')::boolean, false) is not true then
       raise exception 'guest claim did not complete';
     end if;
+    select coalesce(jsonb_object_agg(event_type, operation_count), '{}'::jsonb)
+      into v_actual_event_counts
+    from (
+      select event_type, count(*)::bigint as operation_count
+      from public.customer_product_events where user_id = v_customer_id group by event_type
+    ) after_claim;
+    if v_actual_event_counts is distinct from v_expected_event_counts
+       or (select count(*) from public.customer_sessions where user_id = v_customer_id) <> v_expected_session_count
+       or (select count(*) from public.customer_searches where user_id = v_customer_id) <> v_expected_search_count
+       or exists (select 1 from public.customer_sessions where guest_id = v_guest_id limit 1)
+       or exists (select 1 from public.customer_product_events where guest_id = v_guest_id limit 1)
+       or exists (select 1 from public.customer_searches where guest_id = v_guest_id limit 1) then
+      raise exception 'guest sessions, product operations, or searches were lost instead of reassigned';
+    end if;
     if exists (select 1 from public.guest_visitors where id = v_guest_id limit 1)
+       or exists (select 1 from public.guest_product_analytics where visitor_hash = v_analytics_hash limit 1)
+       or exists (select 1 from public.guest_analytics_visits where visitor_hash = v_analytics_hash limit 1)
        or not exists (select 1 from public.customer_searches where user_id = v_customer_id and guest_id is null and search_text = 'عطر تجريبي للزائر' limit 1)
        or not exists (select 1 from public.customer_searches where user_id = v_customer_id and guest_id is null and search_text = 'بحث بلا نتائج' limit 1) then
-      raise exception 'guest search history was not transferred to the registered customer';
+      raise exception 'guest search history or anonymous product aggregates were not transferred/removed correctly';
     end if;
 
     raise exception using errcode = 'P0001', message = v_sentinel;

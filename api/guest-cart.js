@@ -99,6 +99,7 @@ module.exports = async (req, res) => {
 
     const response = await admin('rpc/claim_guest_browser_cart', {
       p_fingerprint_hash: fingerprintHash,
+      p_analytics_hash: analyticsHash,
       p_user_id: user.id
     });
     if (!response.ok) return json(res, 502, { error: 'cart_transfer_failed' });
