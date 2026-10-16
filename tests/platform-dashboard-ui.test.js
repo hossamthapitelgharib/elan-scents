@@ -26,11 +26,13 @@ function loadDashboard(dashboard = 'customers') {
     '#loginForm', '#login', '#app', '#logout', '#stats', '#platformError', '#platformStoreError', '#platformStoreStats',
     '#registeredTab', '#visitorsTab', '#registeredCustomers', '#guestCustomers', '#registeredCount', '#visitorCount',
     '#registeredPagination', '#visitorPagination', '#registeredAnalytics',
+    '#registeredBestSellersPeriod', '#registeredBestSellersError', '#registeredBestSellersAudit', '#registeredBestSellersTable',
     '#guestAnalyticsRange', '#guestAnalyticsStats', '#guestTopProducts', '#guestBasketProducts', '#guestAnalyticsError',
     '#registeredAnalyticsRange', '#registeredAnalyticsStats', '#registeredTopProducts', '#registeredBasketProducts', '#registeredAnalyticsError', '#guestAnalytics', '#message',
   ];
   const nodes = new Map(selectors.map(selector => [selector, makeNode()]));
   nodes.get('#guestCustomers').hidden = true;
+  nodes.get('#registeredBestSellersPeriod').value = 'all';
   const documentListeners = {};
   const document = {
     querySelector(selector) { return nodes.get(selector) || null; },
@@ -66,6 +68,8 @@ test('platform dashboard links to detailed admin tools and contains only aggrega
   assert.match(customerHtml, /id="registeredAnalyticsPeriod"/);
   assert.match(customerHtml, /id="registeredTopProducts"/);
   assert.match(customerHtml, /id="registeredBasketProducts"/);
+  assert.match(customerHtml, /id="registeredBestSellersTable"/);
+  assert.match(customerHtml, /id="registeredBestSellersAudit"/);
   assert.match(customerHtml, /src="\/customers-dashboard\.js\?v=/);
   assert.doesNotMatch(customerHtml, /src="\/platform-dashboard\.js\?v=/);
   assert.doesNotMatch(source, /renderCustomers|loadCustomersDashboard|customerOffsets|customer_product_events/);
@@ -137,6 +141,7 @@ test('customer dashboard loads insights lazily for the active tab and reuses the
       topViewed: [], topSearched: [], topCartAdded: [], topCartRemoved: []
     } }) };
     if (url.pathname === '/api/customer-product-rankings') return { ok: true, json: async () => ({ records: [], total: 0, hasMore: false }) };
+    if (url.pathname === '/api/customer-best-sellers') return { ok: true, json: async () => ({ records: [], total: 0, hasMore: false, audit: { eligiblePurchases: 0, eligibleUnits: 0, rankedUnits: 0, unlinkedEligibleUnits: 0 } }) };
     throw new Error(`unexpected request: ${url}`);
   };
   const flush = () => new Promise(resolve => setImmediate(resolve));
@@ -145,6 +150,7 @@ test('customer dashboard loads insights lazily for the active tab and reuses the
   assert.equal(requests.filter(url => url.pathname === '/api/guest-analytics').length, 1);
   assert.equal(requests.find(url => url.pathname === '/api/guest-analytics').searchParams.get('actor'), 'customer');
   assert.equal(requests.filter(url => url.pathname === '/api/customer-product-rankings').length, 4);
+  assert.equal(requests.filter(url => url.pathname === '/api/customer-best-sellers').length, 1);
 
   const tabHandler = nodes.get('#customerTabs').listeners.click;
   tabHandler({ target: { closest: () => ({ dataset: { customerTab: 'visitors' } }) } });
@@ -152,10 +158,12 @@ test('customer dashboard loads insights lazily for the active tab and reuses the
   assert.equal(requests.filter(url => url.pathname === '/api/guest-analytics').length, 2);
   assert.equal(requests.filter(url => url.pathname === '/api/customer-product-rankings').length, 8);
   assert.equal(requests.filter(url => url.pathname === '/api/guest-analytics' && url.searchParams.get('actor') === 'guest').length, 1);
+  assert.equal(requests.filter(url => url.pathname === '/api/customer-best-sellers').length, 1);
 
   tabHandler({ target: { closest: () => ({ dataset: { customerTab: 'registered' } }) } });
   await flush();
   assert.equal(requests.filter(url => url.pathname === '/api/guest-analytics').length, 2);
+  assert.equal(requests.filter(url => url.pathname === '/api/customer-best-sellers').length, 1);
 });
 
 test('customer list paging renders exact totals and enables only valid previous/next controls', () => {

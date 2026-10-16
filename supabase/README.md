@@ -1,6 +1,6 @@
 # Supabase migrations
 
-`migrations/` contains **52** tracked SQL source files for the live Supabase project. The live ledger currently contains **54** records. The two-record difference is the documented historical source gap below. Migration files are kept in ascending version order, and `tests/migrations-consistency.test.js` checks local naming and ordering.
+`migrations/` contains **53** tracked SQL source files for the live Supabase project. The live ledger currently contains **55** records. The two-record difference is the documented historical source gap below. Migration files are kept in ascending version order, and `tests/migrations-consistency.test.js` checks local naming and ordering.
 
 ## Live-history gaps
 
@@ -31,6 +31,7 @@ The customer, store, and platform access changes applied to the live project inc
 - `20261015032124_customer_search_operations`
 - `20261015033601_customer_search_retention_365_days`
 - `20261016010826_transfer_guest_analytics_on_claim`
+- `20261016013630_registered_customer_best_sellers`
 
 Two earlier applied migrations on 2026-10-13 (`20261013014000_harden_anon_grants_rls_initplan_and_order_pricing` and `20261013014023_guest_analytics_explicit_deny`) are also tracked locally. The live ledger is authoritative for version prefixes. Historical `PENDING` comments in immutable migration files are intentionally preserved.
 

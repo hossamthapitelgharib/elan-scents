@@ -207,6 +207,85 @@ function showAnalyticsError(actor, error) {
   if (!box) return;
   box.textContent = error && error.message ? error.message : 'تعذر تحميل التحليلات'; box.hidden = false;
 }
+let bestSellerStateP = null;
+let bestSellerRequestP = 0;
+let bestSellerInflightP = null;
+function showBestSellerError(error) {
+  const box = document.querySelector('#registeredBestSellersError');
+  if (!box) return;
+  box.textContent = 'تعذر تحميل ترتيب المبيعات. يُرجى المحاولة مرة أخرى.'; box.hidden = false;
+}
+function renderBestSellers(data, records) {
+  const audit = data.audit || {};
+  const auditBox = document.querySelector('#registeredBestSellersAudit');
+  const tableBox = document.querySelector('#registeredBestSellersTable');
+  if (!auditBox || !tableBox) return;
+  const keyStats = [
+    ['عمليات شراء مؤهلة', audit.eligiblePurchases],
+    ['الوحدات المؤهلة', audit.eligibleUnits],
+    ['الوحدات المرتبة بعطر معروف', audit.rankedUnits],
+    ['وحدات مؤهلة غير مرتبطة بعطر', audit.unlinkedEligibleUnits]
+  ];
+  const auditRows = [
+    ['إجمالي وحدات بنود العملاء المسجلين', audit.registeredUnits],
+    ['وحدات الطلبات الملغاة أو المرفوضة المستبعدة', audit.excludedCancelledUnits],
+    ['وحدات الطلبات غير المكتملة المستبعدة', audit.excludedInProgressUnits],
+    ['وحدات الطلبات قيد المراجعة أو غير المطابقة', audit.excludedReviewOrMismatchUnits],
+    ['وحدات حالات طلب غير معروفة', audit.excludedOtherUnits],
+    ['وحدات تعارض هوية الطلب وجلسة الدفع', audit.ownerConflictUnits],
+    ['وحدات طلبات غير مسجلة مستبعدة من الترتيب', audit.unregisteredUnitsExcluded]
+  ];
+  const auditDetails = `<details class="activity-full-data"><summary>تفاصيل تدقيق الأعداد</summary><div class="activity-data-grid">${auditRows.map(([label, value]) => `<div><b>${escP(label)}</b><span>${numberP(value)}</span></div>`).join('')}</div></details>`;
+  const warning = Number(audit.unlinkedEligibleUnits) > 0 || Number(audit.ownerConflictUnits) > 0
+    ? '<p class="platform-error">توجد وحدات مؤهلة لم تدخل ترتيب العطور بسبب نقص ربط المنتج أو تعارض هوية؛ راجع تفاصيل التدقيق.</p>' : '';
+  auditBox.innerHTML = keyStats.map(([label, value]) => `<div class="stat"><small>${escP(label)}</small><b>${numberP(value)}</b></div>`).join('') + auditDetails + warning;
+  const rows = Array.isArray(records) ? records : [];
+  const body = rows.map(row => {
+    const sizes = (row.sizeBreakdown || []).map(size => `${escP(size.size)}: ${numberP(size.units)}`).join('، ') || '—';
+    return `<tr><td>${numberP(row.rank)}</td><td class="activity-product-cell">${productSummary(row.product)}</td><td><strong>${numberP(row.unitsSold)}</strong></td><td>${numberP(row.purchases)}</td><td>${numberP(row.storeCount)}</td><td>${sizes}</td></tr>`;
+  }).join('');
+  const table = rows.length
+    ? `<div class="activity-table-wrap"><table class="activity-table rank-table"><thead><tr><th>الترتيب</th><th>العطر الأساسي</th><th>الوحدات المباعة</th><th>عمليات الشراء</th><th>عدد المتاجر</th><th>تفصيل الأحجام</th></tr></thead><tbody>${body}</tbody></table></div>`
+    : '<div class="empty">لا توجد مبيعات مؤهلة في هذه الفترة.</div>';
+  const more = data.hasMore ? `<button class="ghost" type="button" data-best-sellers-more>تحميل المزيد</button>` : '';
+  tableBox.innerHTML = `${table}<div class="rank-pagination"><span>عرض ${numberP(rows.length)} من ${numberP(data.total)}</span>${more}</div>`;
+}
+async function loadRegisteredBestSellers(offset = 0, append = false) {
+  if (!Portal.session()) return;
+  const requestId = ++bestSellerRequestP;
+  const period = document.querySelector('#registeredBestSellersPeriod').value || 'all';
+  const tableBox = document.querySelector('#registeredBestSellersTable');
+  if (!append && tableBox) tableBox.innerHTML = '<p class="muted">جارٍ تدقيق المبيعات وترتيب العطور…</p>';
+  const query = new URLSearchParams({ period, limit: '50', offset: String(offset) });
+  const response = await fetch(`/api/customer-best-sellers?${query}`, { headers: Portal.auth() });
+  const result = await response.json();
+  if (!response.ok) throw Error('تعذر تحميل ترتيب المبيعات');
+  if (requestId !== bestSellerRequestP || (document.querySelector('#registeredBestSellersPeriod').value || 'all') !== period) return;
+  document.querySelector('#registeredBestSellersError').hidden = true;
+  const previous = append && bestSellerStateP && bestSellerStateP.period === period ? bestSellerStateP.records : [];
+  const records = previous.concat(result.records || []);
+  bestSellerStateP = { period, records, total: result.total, hasMore: result.hasMore, audit: result.audit, fromDate: result.fromDate, toDate: result.toDate };
+  renderBestSellers(result, records);
+}
+function ensureBestSellers(force = false) {
+  if (!Portal.session()) return Promise.resolve();
+  const period = document.querySelector('#registeredBestSellersPeriod').value || 'all';
+  if (!force && bestSellerStateP && bestSellerStateP.period === period) return Promise.resolve(bestSellerStateP);
+  if (bestSellerInflightP && bestSellerInflightP.period === period) return bestSellerInflightP.promise;
+  const promise = loadRegisteredBestSellers(0, false).finally(() => {
+    if (bestSellerInflightP && bestSellerInflightP.promise === promise) bestSellerInflightP = null;
+  });
+  bestSellerInflightP = { period, promise };
+  return promise;
+}
+async function loadMoreBestSellers(button) {
+  const state = bestSellerStateP;
+  if (!state || !state.hasMore || state.period !== (document.querySelector('#registeredBestSellersPeriod').value || 'all')) return;
+  button.disabled = true;
+  try { await loadRegisteredBestSellers(state.records.length, true); }
+  catch (error) { showBestSellerError(error); }
+  finally { button.disabled = false; }
+}
 function activateCustomerTabs() {
   const tabs = document.querySelector('#customerTabs'); if (!tabs) return;
   document.querySelector('#registeredAnalytics').hidden = false;
@@ -224,6 +303,7 @@ function activateCustomerTabs() {
     document.querySelector('#registeredAnalytics').hidden = guests;
     document.querySelector('#guestAnalytics').hidden = !guests;
     ensureAnalytics(guests ? 'guest' : 'customer').catch(error => showAnalyticsError(guests ? 'guest' : 'customer', error));
+    if (!guests) ensureBestSellers().catch(showBestSellerError);
   });
 }
 async function loadCustomersDashboard(loadInsights = true) {
@@ -238,6 +318,7 @@ async function loadCustomersDashboard(loadInsights = true) {
   if (loadInsights) {
     const actor = activeCustomerTabP === 'visitors' ? 'guest' : 'customer';
     ensureAnalytics(actor, true).catch(error => showAnalyticsError(actor, error));
+    if (actor === 'customer') ensureBestSellers().catch(showBestSellerError);
   }
 }
 activateCustomerTabs();
@@ -247,7 +328,11 @@ const guestAnalyticsPeriod = document.querySelector('#guestAnalyticsPeriod');
 if (guestAnalyticsPeriod) guestAnalyticsPeriod.addEventListener('change', () => loadAnalytics('guest').catch(error => showAnalyticsError('guest', error)));
 const registeredAnalyticsPeriod = document.querySelector('#registeredAnalyticsPeriod');
 if (registeredAnalyticsPeriod) registeredAnalyticsPeriod.addEventListener('change', () => loadAnalytics('customer').catch(error => showAnalyticsError('customer', error)));
+const registeredBestSellersPeriod = document.querySelector('#registeredBestSellersPeriod');
+if (registeredBestSellersPeriod) registeredBestSellersPeriod.addEventListener('change', () => ensureBestSellers(true).catch(showBestSellerError));
 document.addEventListener('click', event => {
+  const bestSellersMore = event.target.closest('[data-best-sellers-more]');
+  if (bestSellersMore) { loadMoreBestSellers(bestSellersMore); return; }
   const rankMore = event.target.closest('[data-rank-more]');
   if (rankMore) { loadMoreProductRanking(rankMore); return; }
   const more = event.target.closest('[data-more-activity]');

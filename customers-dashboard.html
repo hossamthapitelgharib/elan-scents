@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>لوحة العملاء · Élan Scents</title>
-  <link rel="stylesheet" href="/fonts.css?v=20261015-03">
-  <link rel="stylesheet" href="/portal.css?v=20261015-03">
+  <link rel="stylesheet" href="/fonts.css?v=20261016-02">
+  <link rel="stylesheet" href="/portal.css?v=20261016-02">
 </head>
 <body data-dashboard="customers">
   <header>
@@ -56,6 +56,19 @@
             <section class="guest-analytics-card"><h4>المنتجات الأكثر مشاهدة وبحثًا</h4><div id="registeredTopProducts" class="guest-analytics-list"></div></section>
             <section class="guest-analytics-card"><h4>المنتجات الأكثر إضافةً وحذفًا من السلة</h4><div id="registeredBasketProducts" class="guest-analytics-list"></div></section>
           </div>
+          <section class="guest-analytics-card best-sellers-card" aria-labelledby="registeredBestSellersTitle">
+            <div class="guest-analytics-heading"><div><small>العملاء المسجلون</small><h4 id="registeredBestSellersTitle">عطور الأكثر مبيعًا</h4></div>
+              <label class="guest-period">الفترة
+                <select id="registeredBestSellersPeriod" aria-label="فترة ترتيب العطور الأكثر مبيعًا">
+                  <option value="all">من بداية السجل</option><option value="today">اليوم</option><option value="week">آخر 7 أيام</option><option value="month">آخر 30 يومًا</option><option value="year">آخر 365 يومًا</option>
+                </select>
+              </label>
+            </div>
+            <p class="guest-analytics-note">الترتيب حسب الوحدات في طلبات العملاء المسجلين المكتملة والمطابقة أو المسلّمة دون تعارض، مع جمع الأحجام والمتاجر تحت العطر الأساسي. الفترة محسوبة من تاريخ إنشاء الطلب. لا توجد حاليًا بيانات موثقة للمرتجعات أو الاستردادات لخصمها من العدد.</p>
+            <p id="registeredBestSellersError" class="platform-error" hidden></p>
+            <div id="registeredBestSellersAudit" class="stats guest-analytics-stats" aria-live="polite"></div>
+            <div id="registeredBestSellersTable" class="guest-analytics-list" aria-live="polite"></div>
+          </section>
         </section>
         <section id="guestAnalytics" class="guest-analytics" aria-labelledby="guestAnalyticsTitle" hidden>
           <div class="guest-analytics-heading">
@@ -78,7 +91,7 @@
       </section>
     </section>
   </main>
-  <script src="/portal.js?v=20261015-03"></script>
-  <script src="/customers-dashboard.js?v=20261015-03"></script>
+  <script src="/portal.js?v=20261016-02"></script>
+  <script src="/customers-dashboard.js?v=20261016-02"></script>
 </body>
 </html>
