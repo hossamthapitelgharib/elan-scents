@@ -540,7 +540,7 @@ const refreshBtn=document.createElement('button');refreshBtn.textContent='تحد
 
 const SAVE_ERR={conflict:'حد غيّر الصفحة وإنتي بتعدّلي. دوسي تحديث وجرّبي تاني.',unauthorized:'انتهت الجلسة، سجّلي الدخول من جديد.',editor_not_configured:'إعدادات الإديتور ناقصة على Railway.',main_not_allowed:'الحفظ على main مقفول.',github_auth_failed:'مفتاح GitHub مش شغال أو صلاحيته ناقصة.',invalid_design:'في تعديل مش مسموح (راجعي الألوان والروابط).',branch_not_found:'الفرع المطلوب مش موجود على GitHub.'};
 
-const stageBox=document.createElement('span');stageBox.id='editorStages';stageBox.style.cssText='display:flex;gap:5px;margin-inline-start:6px;align-items:center;white-space:nowrap';
+const stageBox=document.createElement('span');stageBox.id='editorStages';stageBox.style.cssText='display:flex;gap:5px;margin-inline-start:0;align-items:center;white-space:nowrap;flex-basis:100%;order:2;justify-content:flex-start';
 const stage=(txt)=>{const c=document.createElement('span');c.dataset.label=txt;c.innerHTML='<i aria-hidden="true"></i><span>'+txt+'</span>';c.style.cssText='display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:3px 6px;border-radius:99px;border:1px solid #685b41;color:#8c8068';c.querySelector('i').style.cssText='width:7px;height:7px;border-radius:50%;display:inline-block;background:#685b41';return c;};
 const chipUp=stage('رفع على GitHub'),chipPub=stage('نشر على Railway'),chipLoad=stage('تحميل النسخة الجديدة');stageBox.append(chipUp,chipPub,chipLoad);
 function setStages(n){[chipUp,chipPub,chipLoad].forEach((c,i)=>{const on=i<n;c.style.color=on?'#d7f2c4':'#8c8068';c.style.borderColor=on?'#7ab35b':'#685b41';c.querySelector('i').style.background=on?'#82c65f':'#685b41';c.querySelector('span').textContent=(on?'✓ ':'')+c.dataset.label;});}
