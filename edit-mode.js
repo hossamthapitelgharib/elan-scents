@@ -358,12 +358,54 @@
     seq.splice(i === -1 ? 0 : i + 1, 0, blockId);
     return seq;
   }
-  async function createSmart(kind, c) {
-    var name = String(prompt('اسم العنصر الجديد') || '').trim();
-    if (!name) throw new Error('اكتبي اسم العنصر قبل الإنشاء.');
-    var r = await editorFetch('/api/editor-data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'section.create', section: { name: name, purpose: kind, selection_mode: 'manual', filters: {} } }) });
+  async function editorData(action, payload) {
+    var r = await editorFetch('/api/editor-data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ action: action }, payload || {})) });
     var j = await r.json().catch(function () { return {}; });
-    if (!r.ok || !j.ok || !j.ref) throw new Error(j.error || 'تعذر إنشاء القسم المركزي.');
+    if (!r.ok || !j.ok) throw new Error(j.error || 'تعذر تحميل بيانات الكتالوج.');
+    return j;
+  }
+  function chooseCatalogOption(title, rows, labelOf) {
+    rows = Array.isArray(rows) ? rows.filter(function (x) { return x && x.name; }).slice(0, 40) : [];
+    if (!rows.length) throw new Error('لا توجد عناصر نشطة من هذا النوع في الكتالوج.');
+    var list = rows.map(function (x, i) { return (i + 1) + '. ' + (labelOf ? labelOf(x) : x.name); }).join('\n');
+    var choice = prompt(title + '\n\n' + list + (rows.length === 40 ? '\n\nتُعرض أول 40 نتيجة فقط؛ استخدمي بحثًا أضيق إذا لم يظهر المطلوب.' : '') + '\n\nاكتبي رقم الاختيار');
+    if (choice === null || !String(choice).trim()) throw new Error('اتلغى');
+    var index = Number(choice);
+    if (!Number.isInteger(index) || index < 1 || index > rows.length) throw new Error('رقم الاختيار غير صحيح.');
+    return rows[index - 1];
+  }
+  async function createSmart(kind, c) {
+    var filters = {}, selectionMode = 'auto', productSizeIds = [], defaultName = 'قسم عطور جديد';
+    var filterKinds = {
+      brand: { key: 'brand', list: 'brands', label: 'اختاري براندًا نشطًا من الكتالوج' },
+      store: { key: 'store', list: 'stores', label: 'اختاري متجرًا نشطًا من الكتالوج' },
+      occasion: { key: 'occ', list: 'occasions', label: 'اختاري مناسبة موجودة في الكتالوج' },
+      note: { key: 'note', list: 'notes', label: 'اختاري نوتة عطر موجودة في الكتالوج' }
+    };
+    if (filterKinds[kind]) {
+      var options = await editorData('options');
+      var spec = filterKinds[kind];
+      var selected = chooseCatalogOption(spec.label, options.options && options.options[spec.list]);
+      filters[spec.key] = String(selected.name);
+      defaultName = String(selected.name);
+    } else if (kind === 'perfume') {
+      var search = prompt('اكتبي جزءًا من اسم عطر منشور للبحث في الكتالوج');
+      if (search === null || !String(search).trim()) throw new Error('اتلغى');
+      var found = await editorData('perfumes', { filters: { search: String(search).trim() } });
+      var product = chooseCatalogOption('اختاري العطر والحجم المطلوبين', found.rows, function (x) { return x.name + (x.size_label ? ' — ' + x.size_label : ''); });
+      if (!product.product_size_id) throw new Error('معرّف حجم المنتج غير متاح.');
+      selectionMode = 'manual';
+      productSizeIds = [product.product_size_id];
+      defaultName = String(product.name || 'عطر محفوظ');
+    } else if (kind !== 'section') {
+      throw new Error('نوع إنشاء غير مدعوم.');
+    }
+    var name = String(prompt('اسم القسم الذي سيظهر في المتجر', defaultName) || '').trim();
+    if (!name) throw new Error('اكتبي اسمًا للقسم قبل الإنشاء.');
+    var elementId = 'x-' + rid();
+    if (!validBlock({ id: 'x-' + rid(), type: 'smart', ref: elementId, style: { align: 'center', size: 'md' } })) throw new Error('تعذر تجهيز البلوك الجديد.');
+    var j = await editorData('section.create', { section: { element_id: elementId, name: name, purpose: kind, selection_mode: selectionMode, filters: filters, product_size_ids: productSizeIds } });
+    if (!j.ref || j.ref !== elementId) throw new Error('لم يتم تأكيد إنشاء القسم المركزي.');
     return createBlock('smart', { ref: j.ref, semanticKind: kind, at: c && c.at });
   }
 
@@ -433,7 +475,7 @@
     var element = libraryElement(c), item = { name: element.name || element.id || 'عنصر', kind: element.kind || element.type || 'element', category: element.kind || element.type || 'general', payload: element };
     var saved = Array.isArray(current.library.savedElements) ? current.library.savedElements.slice() : [];
     saved.push(item);
-    var write = await editorFetch('/api/editor-data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'library.save', library: { archive: current.library.archive || [], savedElements: saved } }) });
+    var write = await editorFetch('/api/editor-data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'library.save', expectedRevision: current.library.revision, library: { archive: current.library.archive || [], savedElements: saved } }) });
     var result = await write.json().catch(function () { return {}; });
     if (!write.ok || !result.ok) throw new Error(result.error || 'تعذر حفظ العنصر في المكتبة.');
     return { saved: true };
@@ -443,6 +485,22 @@
     var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'elan-element.json'; a.click();
     setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
     return { downloaded: true };
+  }
+  function insertLibraryPayload(payload, restoreId) {
+    var candidate = payload && payload.format === 'elan-element-v1' ? payload.element : payload;
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate) || ['text', 'banner', 'image', 'smart'].indexOf(candidate.type) === -1) throw new Error('العنصر المحفوظ ليس بلوكًا قابلًا للإدراج.');
+    var normalized = ED.normalize({ version: ED.VERSION, blocks: [candidate] }, { strict: true });
+    if (!normalized.ok || !normalized.design.blocks || normalized.design.blocks.length !== 1) throw new Error('تعريف العنصر المحفوظ غير صالح لهذا التصميم.');
+    var block = clone(normalized.design.blocks[0]);
+    var id = restoreId || ('x-' + rid());
+    if (restoreId && block.id !== restoreId) throw new Error('معرّف العنصر المؤرشف لا يطابق تعريفه.');
+    if (work.blocks.some(function (existing) { return existing.id === id; })) throw new Error('العنصر موجود بالفعل في الصفحة.');
+    block.id = id;
+    if (!validBlock(block)) throw new Error('العنصر المحفوظ لا يجتاز مخطط التصميم.');
+    var order = insertAfterSelected(id);
+    mutate(function (design) { design.blocks.push(block); design.order = order; });
+    select(id);
+    return { elementId: id };
   }
   function deleteMedia(c) {
     if (c.info && c.info.media) mutate(function () { var e = edit('all', c.id); if (e.style) delete e.style.media; });
@@ -523,7 +581,15 @@
       }
       case 'element.edit': { var e9 = need(p.elementId || selectedId); startText(e9.id); return null; }
       case 'element.archive': archive(need(p.elementId || selectedId).id); return null;
-      case 'archive.restore': mutate(function (d) { if (d.edits) Object.keys(d.edits).forEach(function (dev) { if (d.edits[dev][p.elementId]) delete d.edits[dev][p.elementId].archived; }); }); return snapshot();
+      case 'archive.restore': {
+        var archiveId = String(p.elementId || ''), edits = work.edits || {};
+        if (!archiveId) throw new Error('معرّف العنصر المؤرشف مطلوب.');
+        var archivedHere = Object.keys(edits).some(function (dev) { return edits[dev] && edits[dev][archiveId] && edits[dev][archiveId].archived; });
+        if (archivedHere) mutate(function (d) { Object.keys(d.edits || {}).forEach(function (dev) { if (d.edits[dev][archiveId]) delete d.edits[dev][archiveId].archived; }); });
+        else insertLibraryPayload(p.payload, archiveId);
+        select(archiveId); return snapshot();
+      }
+      case 'library.insert': return insertLibraryPayload(p.payload, null);
       case 'history.undo': return { ok: undo() };
       case 'history.redo': return { ok: redo() };
       case 'ui.openFormatPanel': if (p.elementId) select(need(p.elementId).id); if (!selectedId) throw new Error('اضغطي على عنصر في الصفحة الأول.'); return null;

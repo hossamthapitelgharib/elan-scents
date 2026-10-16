@@ -48,18 +48,29 @@
   var smartCache = {};
   window.ElanPendingSections = window.ElanPendingSections || {};   // edit mode only: drafts not saved yet
   function perfumeBy(id) { try { return PERFUMES.filter(function (x) { return String(x.id) === String(id); })[0] || null; } catch (e) { return null; } }
+  function sameCatalogName(value, filter) {
+    var actual = String(value == null ? '' : value), wanted = String(filter == null ? '' : filter);
+    if (actual === wanted) return true;
+    try { return typeof esc === 'function' && actual === esc(wanted); } catch (e) { return false; }
+  }
   function autoList(f) {
     f = f || {};
     var l = [];
-    try { l = PERFUMES.map(function (p) { return { p: p, b: best(p) }; }).filter(function (x) { return x.b; }); } catch (e) { return []; }
+    try {
+      l = PERFUMES.map(function (p) {
+        var offers = (p.offers || []).filter(function (o) {
+          return o && o.avail && (!f.store || sameCatalogName(o.store, f.store)) && (!f.flag || (o.flags || []).indexOf(f.flag) > -1);
+        });
+        offers.sort(function (a, b) { return a.price - b.price; });
+        return { p: p, b: offers[0] || null };
+      }).filter(function (x) { return x.b; });
+    } catch (e) { return []; }
     l = l.filter(function (x) {
       var p = x.p;
-      if (f.brand && p.brand !== f.brand) return false;
+      if (f.brand && !sameCatalogName(p.brand, f.brand)) return false;
       if (f.cat && !(p.cats || []).some(function (i) { return nmOf('cats', i) === f.cat; })) return false;
       if (f.occ && !(p.occs || []).some(function (i) { return nmOf('occ', i) === f.occ; })) return false;
       if (f.note && !(p.notes || []).some(function (i) { return nmOf('notes', i) === f.note; })) return false;
-      if (f.store && !p.offers.some(function (o) { return o.store === f.store; })) return false;
-      if (f.flag && !p.offers.some(function (o) { return (o.flags || []).indexOf(f.flag) > -1; })) return false;
       if (f.min !== undefined && f.min !== '' && x.b.price < +f.min) return false;
       if (f.max !== undefined && f.max !== '' && x.b.price > +f.max) return false;
       return true;

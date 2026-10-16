@@ -32,7 +32,7 @@ function buildPage() {
   let html = fs.readFileSync(path.join(ROOT, 'editor', 'elan-editor.html'), 'utf8');
   const siteOrigin = editorSiteOrigin();
   html = html.replace('</head>', '<script>window.ELAN_EDITOR_SITE_ORIGIN=' + JSON.stringify(siteOrigin) + ';</script></head>');
-  html = html.replace('</body>', '<script src="/editor-guard.js"></script><script src="/editor-media.js"></script></body>');
+  html = html.replace('</body>', '<script src="/editor-guard.js"></script><script src="/editor-media.js"></script><script src="/editor/editor-live-library.js?v=20261016-01"></script></body>');
   const hashes = [];
   html.replace(/<script>([\s\S]*?)<\/script>/g, (_, code) => { hashes.push(sha(code)); return ''; });
   const handlers = [];
