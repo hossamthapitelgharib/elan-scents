@@ -1,6 +1,6 @@
 const { getContext, requireRoles } = require('./_auth');
 const PERIODS = new Set(['today', 'week', 'month', 'year']);
-const ACTORS = new Set(['guest', 'customer']);
+const ACTORS = new Set(['guest', 'customer', 'all']);
 const EVENTS = new Set(['view', 'search', 'cart_add', 'cart_remove']);
 function reply(res, status, body) {
   res.setHeader('Cache-Control', 'no-store');
