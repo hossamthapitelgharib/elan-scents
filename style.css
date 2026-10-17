@@ -632,16 +632,6 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-r
 [dir=rtl] #bar div{padding-right:100%}
 [dir=ltr] #bar div{padding-left:100%}
 
-/* ---------- Hero poster fallback while the motion asset loads ---------- */
-#hero {
-  background-image: url('/assets/hero-poster.jpg?v=20261009-11') !important;
-  background-size: cover !important;
-  background-position: center center !important;
-  background-repeat: no-repeat !important;
-}
-#heroVideo { opacity: 0 !important; transition: opacity .18s ease; }
-#heroVideo.is-ready { opacity: 1 !important; }
-
 /* ---------- Élan Scents footer identity ---------- */
 footer {
   background: linear-gradient(180deg, #686868 0%, #777777 52%, #626262 100%) !important;
