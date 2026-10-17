@@ -11,7 +11,7 @@
   if (!layer || !ED || !Bridge || window.parent === window) return;
 
   var work = null, baseJson = '', baseRevision = null, hostApi = null, selectedId = null, dirty = false, bridgeTicket = '', readOnly = false;
-  var undoStack = [], redoStack = [], editing = null, gesture = null, pendingMedia = null;
+  var undoStack = [], redoStack = [], editing = null, gesture = null, pendingMedia = null, touchPress = null, suppressContextUntil = 0;
   var SECTIONS_NAMES = { section: 1 };
 
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
@@ -121,7 +121,9 @@
       root.querySelector('.eo-dh').textContent = hint || '';
       var input = root.querySelector('.eo-di'); input.value = value || '';
       dlg.style.display = 'flex'; input.focus();
-      function done(v) { dlg.style.display = 'none'; root.querySelector('.eo-ok').onclick = root.querySelector('.eo-no').onclick = null; resolve(v); }
+      function done(v) { dlg.style.display = 'none'; input.removeEventListener('keydown', onKey); root.querySelector('.eo-ok').onclick = root.querySelector('.eo-no').onclick = null; resolve(v); }
+      function onKey(ev) { if (ev.key === 'Enter') { ev.preventDefault(); done(input.value.trim()); } else if (ev.key === 'Escape') { ev.preventDefault(); done(null); } }
+      input.addEventListener('keydown', onKey);
       root.querySelector('.eo-ok').onclick = function () { done(input.value.trim()); };
       root.querySelector('.eo-no').onclick = function () { done(null); };
     });
@@ -152,11 +154,12 @@
   var TYPE_OF = { section: 'section', title: 'text', 'hero-text': 'text', hero: 'section', 'hero-counters': 'text', card: 'card', block: 'block', 'text-area': 'text', group: 'section', 'image-el': 'image' };
   function info(e) {
     if (!e) return null;
-    var node = layer.textTarget(e) || e.el, cs = getComputedStyle(node), st = cur(e.id).style || {};
+    var node = layer.textTarget(e) || e.el, cs = getComputedStyle(node), current = cur(e.id), st = current.style || {};
     var blk = work.blocks.filter(function (b) { return b.id === e.id; })[0];
     var type = blk ? ({ text: 'text_block', banner: 'banner', image: 'image' })[blk.type] : (TYPE_OF[e.kind] || 'text');
+    var media = st.media || (current.media && current.media.src) || (blk && (blk.src || blk.image)) || '';
     return {
-      id: e.id, name: e.name, kind: e.kind, type: type, text: String(node.textContent || '').trim().slice(0, 120), media: st.media || '', canText: !!layer.textTarget(e), isBlock: !!blk, dynamic: !!dynamicTarget(e),
+      id: e.id, name: e.name, kind: e.kind, type: type, text: String(node.textContent || '').trim().slice(0, 120), media: media, canText: !!layer.textTarget(e), isBlock: !!blk, dynamic: !!dynamicTarget(e),
       style: {
         fontFamily: st.fontFamily || (cs.fontFamily || '').split(',')[0].replace(/["']/g, '').trim(),
         fontSize: st.fontSize || Math.round(parseFloat(cs.fontSize) || 16),
@@ -234,6 +237,16 @@
     var handle = ev.target.classList && ev.target.classList.contains('eo-h') ? ev.target.getAttribute('data-h') : null;
     ev.preventDefault(); ev.stopPropagation();
     if (ev.button !== undefined && ev.button !== 0) return;
+    if (ev.pointerType === 'touch') {
+      if (touchPress) clearTimeout(touchPress.timer);
+      touchPress = { x: ev.clientX, y: ev.clientY, pointerId: ev.pointerId, timer: setTimeout(function () {
+        if (!touchPress || touchPress.pointerId !== ev.pointerId) return;
+        suppressContextUntil = Date.now() + 900; gesture = null;
+        var target = pick(touchPress.x, touchPress.y);
+        select(target ? target.id : null);
+        if (hostApi) hostApi.context({ x: touchPress.x, y: touchPress.y, element: info(target), tools: toolList(info(target)) });
+      }, 550) };
+    }
     var e, mode = 'move';
     if (handle) { e = entryById(selectedId); mode = 'resize'; }
     else {
@@ -247,6 +260,9 @@
   }, true);
 
   window.addEventListener('pointermove', function (ev) {
+    if (touchPress && touchPress.pointerId === ev.pointerId && Math.hypot(ev.clientX - touchPress.x, ev.clientY - touchPress.y) > 8) {
+      clearTimeout(touchPress.timer); touchPress = null;
+    }
     if (!gesture) return;
     var g = gesture, ddx = ev.clientX - g.sx, ddy = ev.clientY - g.sy;
     if (!g.moved && Math.abs(ddx) + Math.abs(ddy) < 3) return;
@@ -275,6 +291,7 @@
   }, true);
 
   window.addEventListener('pointerup', function (ev) {
+    if (touchPress && touchPress.pointerId === ev.pointerId) { clearTimeout(touchPress.timer); touchPress = null; }
     if (!gesture) return;
     var g = gesture; gesture = null;
     if (!g.moved) return;                      // A plain click selects; only a drag commits offsets.
@@ -288,6 +305,11 @@
     });
   }, true);
 
+  window.addEventListener('pointercancel', function (ev) {
+    if (touchPress && touchPress.pointerId === ev.pointerId) { clearTimeout(touchPress.timer); touchPress = null; }
+    gesture = null;
+  }, true);
+
   // Nothing on the page may act while editing: no links, no cart, no forms.
   ['click', 'auxclick', 'submit', 'dragstart'].forEach(function (t) {
     window.addEventListener(t, function (ev) { if (inUi(ev.target)) return; if (editing && editing.node.contains(ev.target)) return; ev.preventDefault(); ev.stopPropagation(); }, true);
@@ -298,6 +320,7 @@
   window.addEventListener('contextmenu', function (ev) {
     if (inUi(ev.target)) return;
     ev.preventDefault(); ev.stopPropagation();
+    if (Date.now() < suppressContextUntil) return;
     if (editing) commitText();
     var e = pick(ev.clientX, ev.clientY);
     select(e ? e.id : null);
@@ -369,47 +392,135 @@
     if (!r.ok || !j.ok) throw new Error(j.error || 'تعذر تحميل بيانات الكتالوج.');
     return j;
   }
-  function chooseCatalogOption(title, rows, labelOf) {
-    rows = Array.isArray(rows) ? rows.filter(function (x) { return x && x.name; }).slice(0, 40) : [];
-    if (!rows.length) throw new Error('لا توجد عناصر نشطة من هذا النوع في الكتالوج.');
+  function chooseCatalogOption(title, rows, labelOf, optional) {
+    rows = Array.isArray(rows) ? rows.filter(function (x) { return x && (x.name || x.size_ml != null || x.value); }) : [];
+    if (!rows.length) { if (optional) return null; throw new Error('لا توجد عناصر نشطة من هذا النوع في الكتالوج.'); }
+    if (rows.length > 40) {
+      var query = prompt(title + '\nعدد الخيارات ' + rows.length + '. اكتبي كلمة بحث، أو اتركيه فارغًا لعرض أول 40.');
+      if (query === null) throw new Error('اتلغى');
+      if (String(query).trim()) {
+        var needle = String(query).trim().toLocaleLowerCase();
+        rows = rows.filter(function (x) { return String(x.name || x.value || x.size_ml || '').toLocaleLowerCase().indexOf(needle) !== -1; });
+      }
+      rows = rows.slice(0, 40);
+    }
+    if (!rows.length) throw new Error('لم يظهر خيار مطابق لبحثك.');
     var list = rows.map(function (x, i) { return (i + 1) + '. ' + (labelOf ? labelOf(x) : x.name); }).join('\n');
-    var choice = prompt(title + '\n\n' + list + (rows.length === 40 ? '\n\nتُعرض أول 40 نتيجة فقط؛ استخدمي بحثًا أضيق إذا لم يظهر المطلوب.' : '') + '\n\nاكتبي رقم الاختيار');
-    if (choice === null || !String(choice).trim()) throw new Error('اتلغى');
+    var choice = prompt(title + '\n\n' + list + (rows.length === 40 ? '\n\nتُعرض أول 40 نتيجة فقط؛ استخدمي بحثًا أضيق إذا لم يظهر المطلوب.' : '') + '\n\nاكتبي رقم الاختيار' + (optional ? ' أو اتركيه فارغًا لتخطي المرشح' : ''));
+    if (choice === null) throw new Error('اتلغى');
+    if (optional && !String(choice).trim()) return null;
+    if (!String(choice).trim()) throw new Error('اتلغى');
     var index = Number(choice);
     if (!Number.isInteger(index) || index < 1 || index > rows.length) throw new Error('رقم الاختيار غير صحيح.');
     return rows[index - 1];
   }
+  async function askSectionTimer() {
+    var choice = await ask('مؤقت القسم', 'اكتبي none بلا مؤقت، window لتاريخي بداية ونهاية، أو duration لمدة بالساعات.', 'none');
+    if (choice === null) return null;
+    var mode = String(choice).trim().toLowerCase();
+    if (mode === 'none') return { mode: 'none' };
+    if (mode === 'window') {
+      var startText = await ask('بداية المؤقت', 'أدخلي التاريخ والوقت بصيغة يفهمها المتصفح، مثل 2026-10-20T09:00.');
+      if (startText === null) return null;
+      var endText = await ask('نهاية المؤقت', 'أدخلي تاريخًا ووقتًا بعد وقت البداية.');
+      if (endText === null) return null;
+      var start = new Date(startText), end = new Date(endText);
+      if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || end <= start) throw new Error('فترة المؤقت غير صحيحة.');
+      return { mode: 'window', starts_at: start.toISOString(), ends_at: end.toISOString() };
+    }
+    if (mode === 'duration') {
+      var hoursText = await ask('مدة المؤقت بالساعات', 'يبدأ العد من أول حفظ. يوم واحد = 24 ساعة.');
+      if (hoursText === null) return null;
+      var hours = Number(String(hoursText).trim());
+      if (!Number.isSafeInteger(hours) || hours < 1) throw new Error('أدخلي عدد ساعات صحيحًا أكبر من صفر.');
+      return { mode: 'duration', duration_hours: hours };
+    }
+    throw new Error('اختاري none أو window أو duration.');
+  }
   async function createSmart(kind, c) {
-    var filters = {}, selectionMode = 'auto', productSizeIds = [], defaultName = 'قسم عطور جديد';
+    var filters = {}, selectionMode = 'auto', productSizeIds = [], defaultName = 'قسم عطور جديد', catalogName = null;
     var filterKinds = {
-      brand: { key: 'brand', list: 'brands', label: 'اختاري براندًا نشطًا من الكتالوج' },
-      store: { key: 'store', list: 'stores', label: 'اختاري متجرًا نشطًا من الكتالوج' },
-      occasion: { key: 'occ', list: 'occasions', label: 'اختاري مناسبة موجودة في الكتالوج' },
-      note: { key: 'note', list: 'notes', label: 'اختاري نوتة عطر موجودة في الكتالوج' }
+      brand: { key: 'brand', label: 'اسم البراند (سيُطابق الموجود أو يُنشأ)' },
+      store: { key: 'store', label: 'اسم المتجر (الاسم وحده لا ينشئ اتصالًا)' },
+      occasion: { key: 'occ', label: 'اسم المناسبة (سيُطابق الموجود أو يُنشأ)' },
+      note: { key: 'note', label: 'اسم النوتة (سيُطابق الموجود أو يُنشأ)' }
     };
     if (filterKinds[kind]) {
-      var options = await editorData('options');
       var spec = filterKinds[kind];
-      var selected = chooseCatalogOption(spec.label, options.options && options.options[spec.list]);
-      filters[spec.key] = String(selected.name);
-      defaultName = String(selected.name);
+      catalogName = await ask(spec.label, 'أدخلي الاسم فقط؛ سيُطابق سجلًا موجودًا أو يُنشئ سجلًا جديدًا.');
+      if (catalogName === null) throw new Error('اتلغى');
+      catalogName = String(catalogName).trim();
+      if (!catalogName) throw new Error('اكتبي اسمًا صحيحًا.');
+      filters[spec.key] = catalogName;
+      defaultName = catalogName;
     } else if (kind === 'perfume') {
-      var search = prompt('اكتبي جزءًا من اسم عطر منشور للبحث في الكتالوج');
-      if (search === null || !String(search).trim()) throw new Error('اتلغى');
-      var found = await editorData('perfumes', { filters: { search: String(search).trim() } });
-      var product = chooseCatalogOption('اختاري العطر والحجم المطلوبين', found.rows, function (x) { return x.name + (x.size_label ? ' — ' + x.size_label : ''); });
-      if (!product.product_size_id) throw new Error('معرّف حجم المنتج غير متاح.');
       selectionMode = 'manual';
-      productSizeIds = [product.product_size_id];
-      defaultName = String(product.name || 'عطر محفوظ');
-    } else if (kind !== 'section') {
+    } else if (kind === 'section') {
+      var chosenMode = await ask('طريقة اختيار العطور', 'اكتبي auto لإضافة كل النتائج المطابقة، أو manual لاختيار العطور والأحجام واحدًا واحدًا.', 'auto');
+      if (chosenMode === null) throw new Error('اتلغى');
+      selectionMode = String(chosenMode).trim().toLowerCase();
+      if (selectionMode !== 'auto' && selectionMode !== 'manual') throw new Error('اختاري auto أو manual.');
+      if (selectionMode === 'auto') {
+        var catalogOptions = await editorData('options');
+        var catalogLists = catalogOptions.options || {};
+        var pickFilter = function (key, title, rows) {
+          var item = chooseCatalogOption(title, rows, null, true);
+          if (item) filters[key] = String(item.value || item.name || item.size_ml);
+        };
+        pickFilter('brand', 'فلتر البراند', catalogLists.brands);
+        pickFilter('store', 'فلتر المتجر', catalogLists.stores);
+        pickFilter('cat', 'فلتر الفئة', catalogLists.categories);
+        pickFilter('occ', 'فلتر المناسبة', catalogLists.occasions);
+        pickFilter('note', 'فلتر النوتة', catalogLists.notes);
+        pickFilter('flag', 'فلتر العروض: new أو offers أو master', [
+          { name: 'وصول جديد', value: 'new' }, { name: 'عروض', value: 'offers' }, { name: 'الأكثر طلبًا', value: 'master' }
+        ]);
+        pickFilter('sort', 'ترتيب النتائج', [
+          { name: 'الأكثر صلة', value: 'relevance' }, { name: 'السعر من الأقل للأعلى', value: 'price_asc' }, { name: 'السعر من الأعلى للأقل', value: 'price_desc' }
+        ]);
+        var sizes = Array.from(new Set((catalogLists.sizes || []).map(function (row) { return Number(row.size_ml); }).filter(function (size) { return Number.isInteger(size) && size > 0; }))).map(function (size) { return { size_ml: size }; });
+        var selectedSize = chooseCatalogOption('فلتر الحجم بالملليلتر', sizes, function (row) { return row.size_ml + ' ml'; }, true);
+        if (selectedSize) filters.size_ml = Number(selectedSize.size_ml);
+        var hasPrice = String(prompt('هل تريدين وضع حدود سعر؟ اكتبي yes أو اتركيه فارغًا للتخطي') || '').trim().toLowerCase();
+        if (hasPrice === 'yes' || hasPrice === 'نعم') {
+          var minPrice = await ask('أقل سعر', 'اختياري؛ اتركيه فارغًا بلا حد أدنى.');
+          if (minPrice === null) throw new Error('اتلغى');
+          var maxPrice = await ask('أعلى سعر', 'اختياري؛ اتركيه فارغًا بلا حد أعلى.');
+          if (maxPrice === null) throw new Error('اتلغى');
+          if (String(minPrice).trim()) filters.min = String(minPrice).trim();
+          if (String(maxPrice).trim()) filters.max = String(maxPrice).trim();
+        }
+      }
+    } else {
       throw new Error('نوع إنشاء غير مدعوم.');
+    }
+    if (selectionMode === 'manual') {
+      var singlePerfume = kind === 'perfume';
+      while (productSizeIds.length < 2000) {
+        var search = prompt('اكتبي جزءًا من اسم عطر منشور للبحث. اتركيه فارغًا لإنهاء الاختيار.');
+        if (search === null) { if (productSizeIds.length) break; throw new Error('اتلغى'); }
+        if (!String(search).trim()) { if (productSizeIds.length) break; throw new Error('اختاري عطرًا واحدًا على الأقل.'); }
+        var found = await editorData('perfumes', { filters: { search: String(search).trim() } });
+        var product = chooseCatalogOption('اختاري العطر والحجم المطلوبين', found.rows, function (x) { return x.name + (x.size_label ? ' — ' + x.size_label : ''); });
+        if (!product.product_size_id) throw new Error('معرّف حجم المنتج غير متاح.');
+        if (productSizeIds.indexOf(product.product_size_id) !== -1) throw new Error('هذا العطر والحجم مضافان بالفعل.');
+        productSizeIds.push(product.product_size_id);
+        if (productSizeIds.length === 1) defaultName = String(product.name || 'عطور مختارة');
+        if (singlePerfume || productSizeIds.length >= 2000 || !confirm('تمت إضافة ' + (product.name || 'العطر') + (product.size_label ? ' · ' + product.size_label : '') + '. هل تريدين إضافة عطر وحجم آخر؟')) break;
+      }
     }
     var name = String(prompt('اسم القسم الذي سيظهر في المتجر', defaultName) || '').trim();
     if (!name) throw new Error('اكتبي اسمًا للقسم قبل الإنشاء.');
+    var timer = await askSectionTimer();
+    if (!timer) throw new Error('اتلغى');
+    if (catalogName !== null) {
+      var catalog = await editorData('catalog.create', { kind: kind, name: catalogName });
+      if (!catalog.record || !catalog.record.id || !catalog.record.name) throw new Error('لم يتم تأكيد مطابقة أو إنشاء سجل الكتالوج.');
+      filters[filterKinds[kind].key] = String(catalog.record.name);
+    }
     var elementId = 'x-' + rid();
     if (!validBlock({ id: 'x-' + rid(), type: 'smart', ref: elementId, style: { align: 'center', size: 'md' } })) throw new Error('تعذر تجهيز البلوك الجديد.');
-    var j = await editorData('section.create', { section: { element_id: elementId, name: name, purpose: kind, selection_mode: selectionMode, filters: filters, product_size_ids: productSizeIds } });
+    var j = await editorData('section.create', { section: { element_id: elementId, name: name, purpose: kind, selection_mode: selectionMode, filters: filters, product_size_ids: productSizeIds, timer: timer } });
     if (!j.ref || j.ref !== elementId) throw new Error('لم يتم تأكيد إنشاء القسم المركزي.');
     return createBlock('smart', { ref: j.ref, semanticKind: kind, at: c && c.at });
   }
@@ -507,9 +618,24 @@
     return { elementId: id };
   }
   function deleteMedia(c) {
-    if (c.info && c.info.media) mutate(function () { var e = edit('all', c.id); if (e.style) delete e.style.media; });
-    else archive(c.id);
-    return { archived: true };
+    var block = work.blocks.filter(function (b) { return b.id === c.id; })[0];
+    if (!c.info || !c.info.media) { archive(c.id); return { archived: true }; }
+    if (block && (block.type === 'image' || block.type === 'video')) { archive(c.id); return { archived: true }; }
+    if (block && block.type === 'banner' && block.image) {
+      var candidate = clone(block); delete candidate.image;
+      if (!validBlock(candidate)) { archive(c.id); return { archived: true }; }
+      mutate(function (d) { var target = d.blocks.filter(function (b) { return b.id === c.id; })[0]; if (target) delete target.image; });
+      return { mediaRemoved: true };
+    }
+    mutate(function (d) {
+      Object.keys(d.edits || {}).forEach(function (dev) {
+        var entry = d.edits[dev] && d.edits[dev][c.id];
+        if (!entry) return;
+        delete entry.media;
+        if (entry.style) { delete entry.style.media; delete entry.style.fit; }
+      });
+    });
+    return { mediaRemoved: true };
   }
 
 

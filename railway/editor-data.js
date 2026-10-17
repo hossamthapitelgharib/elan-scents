@@ -28,7 +28,7 @@ function libraryRevision(archive, savedElements) {
   return crypto.createHash('sha256').update(JSON.stringify(stable)).digest('hex');
 }
 
-async function sb(ctx, table, query, method = 'GET', payload) {
+async function sb(ctx, table, query, method = 'GET', payload, prefer) {
   const url = ctx.supabaseUrl + '/rest/v1/' + table + (query || '');
   const r = await fetch(url, {
     method,
@@ -36,7 +36,7 @@ async function sb(ctx, table, query, method = 'GET', payload) {
       apikey: ctx.serviceRoleKey,
       Authorization: 'Bearer ' + ctx.serviceRoleKey,
       Accept: 'application/json',
-      ...(payload === undefined ? {} : { 'Content-Type': 'application/json', Prefer: 'return=representation' })
+      ...(payload === undefined ? {} : { 'Content-Type': 'application/json', Prefer: prefer || 'return=representation' })
     },
     body: payload === undefined ? undefined : JSON.stringify(payload)
   });
@@ -100,14 +100,70 @@ function objectPayload(value, fallback) {
 }
 function bounded(value, fallback, max) { return String(value == null ? fallback : value).trim().slice(0, max); }
 
+const CATALOG_ENTITIES = {
+  brand: { table: 'brands', conflict: 'slug', columns: 'id,name,slug', unique: 'slug' },
+  store: { table: 'stores', conflict: 'slug', columns: 'id,name,slug,status', unique: 'slug' },
+  occasion: { table: 'occasions', conflict: 'name', columns: 'id,name', unique: 'name' },
+  note: { table: 'aromatic_notes', conflict: 'name', columns: 'id,name', unique: 'name' }
+};
+function canonicalName(value) { return String(value || '').normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase(); }
+function catalogSlug(name) {
+  const slug = name.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-+|-+$/g, '').slice(0, 72);
+  return slug || ('catalog-' + crypto.createHash('sha256').update(canonicalName(name)).digest('hex').slice(0, 16));
+}
+async function createCatalogRecord(ctx, input) {
+  const kind = String(input && input.kind || '');
+  const spec = CATALOG_ENTITIES[kind];
+  if (!spec) throw Object.assign(new Error('invalid_catalog_entity_type'), { status: 400 });
+  if (typeof (input && input.name) !== 'string' || /[\u0000-\u001f\u007f]/.test(input.name)) throw Object.assign(new Error('catalog_name_required'), { status: 400 });
+  const name = input.name.normalize('NFKC').trim().replace(/\s+/g, ' ');
+  if (!name || name.length > 120) throw Object.assign(new Error('catalog_name_required'), { status: 400 });
+  const norm = canonicalName(name);
+  const existing = await sb(ctx, spec.table, '?select=' + spec.columns + '&order=name.asc&limit=1000');
+  if (!Array.isArray(existing)) throw Object.assign(new Error('catalog_read_failed'), { status: 502 });
+  const match = existing.find((row) => canonicalName(row.name) === norm);
+  if (match) return { ok: true, kind, record: match, created: false };
+
+  const row = { name };
+  if (kind === 'brand') {
+    let slug = catalogSlug(name);
+    if (existing.some((record) => record.slug === slug && canonicalName(record.name) !== norm)) {
+      slug = (slug.slice(0, 62) + '-' + crypto.createHash('sha256').update(norm).digest('hex').slice(0, 8));
+    }
+    row.slug = slug;
+    row.is_active = true;
+  } else if (kind === 'store') {
+    let slug = catalogSlug(name);
+    if (existing.some((record) => record.slug === slug && canonicalName(record.name) !== norm)) {
+      slug = slug.slice(0, 62) + '-' + crypto.createHash('sha256').update(norm).digest('hex').slice(0, 8);
+    }
+    row.slug = slug;
+    row.status = 'inactive';
+  }
+  const inserted = await sb(ctx, spec.table, '?on_conflict=' + spec.conflict, 'POST', [row], 'resolution=ignore-duplicates,return=representation');
+  if (Array.isArray(inserted) && inserted[0]) return { ok: true, kind, record: inserted[0], created: true };
+
+  // A concurrent identical request may have won the unique-key race. Resolve only to the same name.
+  const identity = spec.unique === 'name' ? name : row.slug;
+  const winner = await sb(ctx, spec.table, '?select=' + spec.columns + '&' + spec.unique + '=eq.' + encodeURIComponent(identity) + '&limit=2');
+  const sameName = Array.isArray(winner) && winner.find((record) => canonicalName(record.name) === norm);
+  if (sameName) return { ok: true, kind, record: sameName, created: false };
+  throw Object.assign(new Error('catalog_identity_conflict'), { status: 409 });
+}
+
 function normalizeSectionFilters(value) {
   if (value == null) return {};
   if (typeof value !== 'object' || Array.isArray(value)) throw Object.assign(new Error('invalid_section_filters'), { status: 400 });
-  const allowed = new Set(['brand', 'store', 'cat', 'occ', 'note', 'flag', 'min', 'max', 'sort', 'limit']);
+  const allowed = new Set(['brand', 'store', 'cat', 'occ', 'note', 'flag', 'size_ml', 'min', 'max', 'sort', 'limit']);
   const out = {};
   for (const [key, raw] of Object.entries(value)) {
     if (!allowed.has(key)) throw Object.assign(new Error('invalid_section_filter'), { status: 400 });
-    if (key === 'min' || key === 'max') {
+    if (key === 'size_ml') {
+      const number = Number(raw);
+      if (!Number.isInteger(number) || number < 1 || number > 10000) throw Object.assign(new Error('invalid_section_filter'), { status: 400 });
+      out[key] = number;
+    } else if (key === 'min' || key === 'max') {
       if (raw === '' || raw == null) continue;
       const number = Number(raw);
       if (!Number.isFinite(number) || number < 0 || number > 10000000) throw Object.assign(new Error('invalid_section_filter'), { status: 400 });
@@ -215,6 +271,27 @@ async function saveLibrary(ctx, input) {
   return { ok: true, revision: (await library(ctx)).revision };
 }
 
+function normalizeSectionTimer(value) {
+  if (value == null) return { timer_mode: 'none', starts_at: null, ends_at: null, duration_hours: null };
+  if (typeof value !== 'object' || Array.isArray(value)) throw Object.assign(new Error('invalid_section_timer'), { status: 400 });
+  const mode = value.mode == null ? 'none' : value.mode;
+  if (mode === 'none') return { timer_mode: 'none', starts_at: null, ends_at: null, duration_hours: null };
+  if (mode === 'window') {
+    const start = typeof value.starts_at === 'string' ? new Date(value.starts_at) : null;
+    const end = typeof value.ends_at === 'string' ? new Date(value.ends_at) : null;
+    if (!start || !end || !Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || end <= start) throw Object.assign(new Error('invalid_section_timer'), { status: 400 });
+    return { timer_mode: 'window', starts_at: start.toISOString(), ends_at: end.toISOString(), duration_hours: null };
+  }
+  if (mode === 'duration') {
+    const hours = Number(value.duration_hours);
+    if (!Number.isSafeInteger(hours) || hours < 1 || hours > 2147483647) throw Object.assign(new Error('invalid_section_timer'), { status: 400 });
+    const end = new Date(Date.now() + hours * 60 * 60 * 1000);
+    if (!Number.isFinite(end.getTime())) throw Object.assign(new Error('invalid_section_timer'), { status: 400 });
+    return { timer_mode: 'duration', starts_at: null, ends_at: end.toISOString(), duration_hours: hours };
+  }
+  throw Object.assign(new Error('invalid_section_timer'), { status: 400 });
+}
+
 async function createSection(ctx, input) {
   const section = input && input.section;
   const name = String(section && section.name || '').trim().slice(0, 200);
@@ -224,11 +301,12 @@ async function createSection(ctx, input) {
   const elementId = requestedId || ('x-' + crypto.randomUUID().replace(/-/g, ''));
   const mode = section.selection_mode == null ? 'auto' : section.selection_mode;
   if (!['auto', 'manual'].includes(mode)) throw Object.assign(new Error('invalid_section_selection_mode'), { status: 400 });
+  const timer = normalizeSectionTimer(section.timer);
   const purpose = bounded(section.purpose, '', 80);
   if (!['section', 'brand', 'store', 'perfume', 'occasion', 'note'].includes(purpose)) throw Object.assign(new Error('invalid_section_purpose'), { status: 400 });
   const filters = normalizeSectionFilters(section.filters);
   const productSizeIds = Array.isArray(section.product_size_ids) ? Array.from(new Set(section.product_size_ids)) : [];
-  if (productSizeIds.length > 24 || productSizeIds.some((id) => typeof id !== 'string' || !UUID.test(id))) throw Object.assign(new Error('invalid_section_items'), { status: 400 });
+  if (productSizeIds.length > 2000 || productSizeIds.some((id) => typeof id !== 'string' || !UUID.test(id))) throw Object.assign(new Error('invalid_section_items'), { status: 400 });
   if (mode === 'manual' && !productSizeIds.length) throw Object.assign(new Error('manual_section_items_required'), { status: 400 });
   if (mode === 'auto' && productSizeIds.length) throw Object.assign(new Error('auto_section_cannot_have_manual_items'), { status: 400 });
   if (mode === 'manual') {
@@ -241,7 +319,7 @@ async function createSection(ctx, input) {
     purpose,
     selection_mode: mode,
     filters,
-    timer_mode: 'none',
+    ...timer,
     status: 'active'
   }]);
   const created = Array.isArray(rows) ? rows[0] : null;
@@ -269,6 +347,7 @@ module.exports = async function editorData(req, res) {
     if (action === 'perfumes') return reply(res, 200, { ok: true, rows: await perfumes(ctx, input.filters || {}) });
     if (action === 'library' && req.method === 'GET') return reply(res, 200, { ok: true, library: await library(ctx) });
     if (action === 'library.save' && req.method === 'POST') return reply(res, 200, await saveLibrary(ctx, input));
+    if (action === 'catalog.create' && req.method === 'POST') return reply(res, 200, await createCatalogRecord(ctx, input));
     if (action === 'section.create' && req.method === 'POST') return reply(res, 200, await createSection(ctx, input));
     return reply(res, 400, { ok: false, error: 'unknown_action' });
   } catch (e) {

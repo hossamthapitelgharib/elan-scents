@@ -71,10 +71,10 @@ test('dynamic section creation only accepts safe filters and currently published
 
       const automatic = await invoke({
         element_id: 'x-brand1', name: 'Atelier Rose', purpose: 'brand', selection_mode: 'auto',
-        filters: { brand: 'Atelier Rose', limit: 12 }
+        filters: { brand: 'Atelier Rose', size_ml: 100 }
       });
       assert.equal(automatic.statusCode, 200);
-      assert.deepEqual(sections[1].filters, { brand: 'Atelier Rose', limit: 12 });
+      assert.deepEqual(sections[1].filters, { brand: 'Atelier Rose', size_ml: 100 });
       assert.equal(automatic.body.itemCount, 0);
     });
 
@@ -95,6 +95,43 @@ test('dynamic section creation only accepts safe filters and currently published
       assert.equal(unsafeFilter.statusCode, 400);
       assert.equal(unsafeFilter.body.error, 'invalid_section_filter');
       assert.equal(calls.filter((call) => call.table === 'editor_sections' && call.method === 'POST').length, before);
+
+      const unsafeSize = await invoke({ name: 'Bad size', purpose: 'section', selection_mode: 'auto', filters: { size_ml: 0 } });
+      assert.equal(unsafeSize.statusCode, 400);
+      assert.equal(unsafeSize.body.error, 'invalid_section_filter');
+      assert.equal(calls.filter((call) => call.table === 'editor_sections' && call.method === 'POST').length, before);
+
+      const tooManyItems = await invoke({
+        name: 'Too many items', purpose: 'section', selection_mode: 'manual', filters: {},
+        product_size_ids: Array.from({ length: 2001 }, (_, i) => '40000000-0000-4000-8000-' + String(i).padStart(12, '0'))
+      });
+      assert.equal(tooManyItems.statusCode, 400);
+      assert.equal(tooManyItems.body.error, 'invalid_section_items');
+      assert.equal(calls.filter((call) => call.table === 'editor_sections' && call.method === 'POST').length, before);
+    });
+
+    await t.test('window and duration timers persist validated dates and invalid timers never write', async () => {
+      const before = sections.length;
+      const starts = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
+      const ends = new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString();
+      const windowTimer = await invoke({ name: 'Window', purpose: 'section', selection_mode: 'auto', filters: {}, timer: { mode: 'window', starts_at: starts, ends_at: ends } });
+      assert.equal(windowTimer.statusCode, 200);
+      assert.equal(sections[before].timer_mode, 'window');
+      assert.equal(sections[before].starts_at, starts);
+      assert.equal(sections[before].ends_at, ends);
+
+      const now = Date.now();
+      const durationTimer = await invoke({ name: 'Duration', purpose: 'section', selection_mode: 'auto', filters: {}, timer: { mode: 'duration', duration_hours: 36 } });
+      assert.equal(durationTimer.statusCode, 200);
+      assert.equal(sections[before + 1].timer_mode, 'duration');
+      assert.equal(sections[before + 1].duration_hours, 36);
+      assert.ok(new Date(sections[before + 1].ends_at).getTime() >= now + 36 * 60 * 60 * 1000);
+      assert.equal(sections[before + 1].starts_at, null);
+
+      const badTimer = await invoke({ name: 'Bad timer', purpose: 'section', selection_mode: 'auto', filters: {}, timer: { mode: 'window', starts_at: ends, ends_at: starts } });
+      assert.equal(badTimer.statusCode, 400);
+      assert.equal(badTimer.body.error, 'invalid_section_timer');
+      assert.equal(sections.length, before + 2);
     });
   } finally {
     global.fetch = previousFetch;
@@ -103,18 +140,26 @@ test('dynamic section creation only accepts safe filters and currently published
   }
 });
 
-test('visual editor card tools use real catalog selections and the left-click open chip remains available', () => {
+test('visual editor card tools match or create catalog records and the left-click open chip remains available', () => {
   const fs = require('node:fs');
   const path = require('node:path');
   const root = path.resolve(__dirname, '..');
   const editMode = fs.readFileSync(path.join(root, 'edit-mode.js'), 'utf8');
   const hostBridge = fs.readFileSync(path.join(root, 'elan-host-bridge.js'), 'utf8');
   const designLayer = fs.readFileSync(path.join(root, 'design-layer.js'), 'utf8');
-  assert.match(editMode, /editorData\('options'\)/);
   assert.match(editMode, /editorData\('perfumes'/);
-  assert.match(editMode, /filters\[spec\.key\] = String\(selected\.name\)/);
+  assert.match(editMode, /editorData\('catalog\.create', \{ kind: kind, name: catalogName \}\)/);
+  assert.match(editMode, /catalogName = await ask\(spec\.label/);
+  assert.match(editMode, /ev\.key === 'Enter'.*done\(input\.value\.trim\(\)\)/);
+  assert.match(editMode, /ev\.key === 'Escape'.*done\(null\)/);
+  assert.match(editMode, /filters\[filterKinds\[kind\]\.key\] = String\(catalog\.record\.name\)/);
+  assert.match(editMode, /async function askSectionTimer\(\)/);
+  assert.match(editMode, /timer: timer/);
   assert.match(editMode, /product_size_ids: productSizeIds/);
   assert.match(editMode, /selectionMode = 'auto'/);
+  assert.match(editMode, /طريقة اختيار العطور/);
+  assert.match(editMode, /فلتر الحجم بالملليلتر/);
+  assert.match(editMode, /productSizeIds\.indexOf\(product\.product_size_id\) !== -1/);
   assert.match(editMode, /case 'library\.insert'/);
   assert.match(hostBridge, /'library\.insert'/);
   assert.match(designLayer, /sameCatalogName\(o\.store, f\.store\)/);

@@ -18,7 +18,7 @@
     '/assets/',
     'https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/'
   ];
-  var PAGE_KEY_RE = /^(?:sec:(?:brands|stores|cats|occ|notes|all|offers|new|master|soon)|col:(?:cats|occ|notes):\d{1,3}|brand:[^|"'<>\\\u0000-\u001F]{1,80}|store:[^|"'<>\\\u0000-\u001F]{1,80})$/;
+  var PAGE_KEY_RE = /^(?:sec:(?:brands|stores|cats|occ|notes|all|offers|new|master|soon)|col:(?:cats|occ|notes):\d{1,3}|brand:[^|"'<>\\\u0000-\u001F]{1,80}|store:[^|"'<>\\\u0000-\u001F]{1,80}|prod:[a-zA-Z0-9_-]{1,80})$/;
   var MAX_PAGES = 40;
   var REF_RE = /^[a-z0-9][a-z0-9_-]{0,59}$/;
   var BLOCK_ID_RE = /^x-[a-z0-9_-]{1,36}$/;

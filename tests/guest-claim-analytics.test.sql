@@ -1,4 +1,4 @@
--- Run against a scratch database that has supabase/pending/20261015100000_claim_removes_guest_analytics.sql applied.
+-- Run against a scratch database that has supabase/migrations/20261017011522_guest_conversions_and_claim_conversion_record.sql applied.
 -- Everything happens inside a transaction that is rolled back. Test data is fake.
 begin;
 do $$

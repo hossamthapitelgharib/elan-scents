@@ -58,7 +58,8 @@
     var l = [];
     try {
       l = PERFUMES.map(function (p) {
-        var offers = (p.offers || []).filter(function (o) {
+        var offerSource = f.store ? (p.allOffers || []) : (p.offers || []);
+        var offers = offerSource.filter(function (o) {
           return o && o.avail && (!f.store || sameCatalogName(o.store, f.store)) && (!f.flag || (o.flags || []).indexOf(f.flag) > -1);
         });
         offers.sort(function (a, b) { return a.price - b.price; });
@@ -68,9 +69,10 @@
     l = l.filter(function (x) {
       var p = x.p;
       if (f.brand && !sameCatalogName(p.brand, f.brand)) return false;
-      if (f.cat && !(p.cats || []).some(function (i) { return nmOf('cats', i) === f.cat; })) return false;
-      if (f.occ && !(p.occs || []).some(function (i) { return nmOf('occ', i) === f.occ; })) return false;
-      if (f.note && !(p.notes || []).some(function (i) { return nmOf('notes', i) === f.note; })) return false;
+      if (f.size_ml != null && f.size_ml !== '' && Number(p.sizeMl) !== Number(f.size_ml)) return false;
+      if (f.cat && !(p.cats || []).some(function (i) { return sameCatalogName(nmOf('cats', i), f.cat); })) return false;
+      if (f.occ && !(p.occs || []).some(function (i) { return sameCatalogName(nmOf('occ', i), f.occ); })) return false;
+      if (f.note && !(p.notes || []).some(function (i) { return sameCatalogName(nmOf('notes', i), f.note); })) return false;
       if (f.min !== undefined && f.min !== '' && x.b.price < +f.min) return false;
       if (f.max !== undefined && f.max !== '' && x.b.price > +f.max) return false;
       return true;
@@ -78,7 +80,7 @@
     if (f.sort === 'price_asc') l.sort(function (a, b) { return a.b.price - b.b.price; });
     else if (f.sort === 'price_desc') l.sort(function (a, b) { return b.b.price - a.b.price; });
     else l.sort(function (a, b) { return (b.p.rel || 0) - (a.p.rel || 0); });
-    return l.slice(0, Math.max(1, Math.min(24, +f.limit || 12)));
+    return l;
   }
   function manualList(ids) {
     return ids.map(perfumeBy).filter(Boolean).map(function (p) { return { p: p, b: best(p) }; });
@@ -386,6 +388,7 @@
       if (!x) return null;
       if (x.k === 'sec') return 'sec:' + x.id;
       if (x.k === 'col') return 'col:' + x.id + ':' + x.i;
+      if (x.k === 'prod') return 'prod:' + x.sid;
       if (x.k === 'brand') return 'brand:' + x.n;
       if (x.k === 'store') return 'store:' + x.n;
     } catch (e) { /* no page stack yet */ }
