@@ -103,16 +103,19 @@ test('dynamic section creation only accepts safe filters and currently published
   }
 });
 
-test('visual editor card tools use real catalog selections and the left-click open chip remains available', () => {
+test('visual editor card tools match or create catalog records and the left-click open chip remains available', () => {
   const fs = require('node:fs');
   const path = require('node:path');
   const root = path.resolve(__dirname, '..');
   const editMode = fs.readFileSync(path.join(root, 'edit-mode.js'), 'utf8');
   const hostBridge = fs.readFileSync(path.join(root, 'elan-host-bridge.js'), 'utf8');
   const designLayer = fs.readFileSync(path.join(root, 'design-layer.js'), 'utf8');
-  assert.match(editMode, /editorData\('options'\)/);
   assert.match(editMode, /editorData\('perfumes'/);
-  assert.match(editMode, /filters\[spec\.key\] = String\(selected\.name\)/);
+  assert.match(editMode, /editorData\('catalog\.create', \{ kind: kind, name: catalogName \}\)/);
+  assert.match(editMode, /catalogName = await ask\(spec\.label/);
+  assert.match(editMode, /ev\.key === 'Enter'.*done\(input\.value\.trim\(\)\)/);
+  assert.match(editMode, /ev\.key === 'Escape'.*done\(null\)/);
+  assert.match(editMode, /filters\[filterKinds\[kind\]\.key\] = String\(catalog\.record\.name\)/);
   assert.match(editMode, /product_size_ids: productSizeIds/);
   assert.match(editMode, /selectionMode = 'auto'/);
   assert.match(editMode, /case 'library\.insert'/);

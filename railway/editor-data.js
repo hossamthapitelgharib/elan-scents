@@ -28,7 +28,7 @@ function libraryRevision(archive, savedElements) {
   return crypto.createHash('sha256').update(JSON.stringify(stable)).digest('hex');
 }
 
-async function sb(ctx, table, query, method = 'GET', payload) {
+async function sb(ctx, table, query, method = 'GET', payload, prefer) {
   const url = ctx.supabaseUrl + '/rest/v1/' + table + (query || '');
   const r = await fetch(url, {
     method,
@@ -36,7 +36,7 @@ async function sb(ctx, table, query, method = 'GET', payload) {
       apikey: ctx.serviceRoleKey,
       Authorization: 'Bearer ' + ctx.serviceRoleKey,
       Accept: 'application/json',
-      ...(payload === undefined ? {} : { 'Content-Type': 'application/json', Prefer: 'return=representation' })
+      ...(payload === undefined ? {} : { 'Content-Type': 'application/json', Prefer: prefer || 'return=representation' })
     },
     body: payload === undefined ? undefined : JSON.stringify(payload)
   });
@@ -99,6 +99,58 @@ function objectPayload(value, fallback) {
   return payload;
 }
 function bounded(value, fallback, max) { return String(value == null ? fallback : value).trim().slice(0, max); }
+
+const CATALOG_ENTITIES = {
+  brand: { table: 'brands', conflict: 'slug', columns: 'id,name,slug', unique: 'slug' },
+  store: { table: 'stores', conflict: 'slug', columns: 'id,name,slug,status', unique: 'slug' },
+  occasion: { table: 'occasions', conflict: 'name', columns: 'id,name', unique: 'name' },
+  note: { table: 'aromatic_notes', conflict: 'name', columns: 'id,name', unique: 'name' }
+};
+function canonicalName(value) { return String(value || '').normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase(); }
+function catalogSlug(name) {
+  const slug = name.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-+|-+$/g, '').slice(0, 72);
+  return slug || ('catalog-' + crypto.createHash('sha256').update(canonicalName(name)).digest('hex').slice(0, 16));
+}
+async function createCatalogRecord(ctx, input) {
+  const kind = String(input && input.kind || '');
+  const spec = CATALOG_ENTITIES[kind];
+  if (!spec) throw Object.assign(new Error('invalid_catalog_entity_type'), { status: 400 });
+  if (typeof (input && input.name) !== 'string' || /[\u0000-\u001f\u007f]/.test(input.name)) throw Object.assign(new Error('catalog_name_required'), { status: 400 });
+  const name = input.name.normalize('NFKC').trim().replace(/\s+/g, ' ');
+  if (!name || name.length > 120) throw Object.assign(new Error('catalog_name_required'), { status: 400 });
+  const norm = canonicalName(name);
+  const existing = await sb(ctx, spec.table, '?select=' + spec.columns + '&order=name.asc&limit=1000');
+  if (!Array.isArray(existing)) throw Object.assign(new Error('catalog_read_failed'), { status: 502 });
+  const match = existing.find((row) => canonicalName(row.name) === norm);
+  if (match) return { ok: true, kind, record: match, created: false };
+
+  const row = { name };
+  if (kind === 'brand') {
+    let slug = catalogSlug(name);
+    if (existing.some((record) => record.slug === slug && canonicalName(record.name) !== norm)) {
+      slug = (slug.slice(0, 62) + '-' + crypto.createHash('sha256').update(norm).digest('hex').slice(0, 8));
+    }
+    row.slug = slug;
+    row.is_active = true;
+  } else if (kind === 'store') {
+    let slug = catalogSlug(name);
+    if (existing.some((record) => record.slug === slug && canonicalName(record.name) !== norm)) {
+      slug = slug.slice(0, 62) + '-' + crypto.createHash('sha256').update(norm).digest('hex').slice(0, 8);
+    }
+    row.slug = slug;
+    row.status = 'inactive';
+  }
+  const inserted = await sb(ctx, spec.table, '?on_conflict=' + spec.conflict, 'POST', [row], 'resolution=ignore-duplicates,return=representation');
+  if (Array.isArray(inserted) && inserted[0]) return { ok: true, kind, record: inserted[0], created: true };
+
+  // A concurrent identical request may have won the unique-key race. Resolve only to the same name.
+  const identity = spec.unique === 'name' ? name : row.slug;
+  const winner = await sb(ctx, spec.table, '?select=' + spec.columns + '&' + spec.unique + '=eq.' + encodeURIComponent(identity) + '&limit=2');
+  const sameName = Array.isArray(winner) && winner.find((record) => canonicalName(record.name) === norm);
+  if (sameName) return { ok: true, kind, record: sameName, created: false };
+  throw Object.assign(new Error('catalog_identity_conflict'), { status: 409 });
+}
 
 function normalizeSectionFilters(value) {
   if (value == null) return {};
@@ -269,6 +321,7 @@ module.exports = async function editorData(req, res) {
     if (action === 'perfumes') return reply(res, 200, { ok: true, rows: await perfumes(ctx, input.filters || {}) });
     if (action === 'library' && req.method === 'GET') return reply(res, 200, { ok: true, library: await library(ctx) });
     if (action === 'library.save' && req.method === 'POST') return reply(res, 200, await saveLibrary(ctx, input));
+    if (action === 'catalog.create' && req.method === 'POST') return reply(res, 200, await createCatalogRecord(ctx, input));
     if (action === 'section.create' && req.method === 'POST') return reply(res, 200, await createSection(ctx, input));
     return reply(res, 400, { ok: false, error: 'unknown_action' });
   } catch (e) {

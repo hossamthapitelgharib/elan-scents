@@ -103,7 +103,9 @@
       root.querySelector('.eo-dh').textContent = hint || '';
       var input = root.querySelector('.eo-di'); input.value = value || '';
       dlg.style.display = 'flex'; input.focus();
-      function done(v) { dlg.style.display = 'none'; root.querySelector('.eo-ok').onclick = root.querySelector('.eo-no').onclick = null; resolve(v); }
+      function done(v) { dlg.style.display = 'none'; input.removeEventListener('keydown', onKey); root.querySelector('.eo-ok').onclick = root.querySelector('.eo-no').onclick = null; resolve(v); }
+      function onKey(ev) { if (ev.key === 'Enter') { ev.preventDefault(); done(input.value.trim()); } else if (ev.key === 'Escape') { ev.preventDefault(); done(null); } }
+      input.addEventListener('keydown', onKey);
       root.querySelector('.eo-ok').onclick = function () { done(input.value.trim()); };
       root.querySelector('.eo-no').onclick = function () { done(null); };
     });
@@ -380,19 +382,21 @@
     return rows[index - 1];
   }
   async function createSmart(kind, c) {
-    var filters = {}, selectionMode = 'auto', productSizeIds = [], defaultName = 'قسم عطور جديد';
+    var filters = {}, selectionMode = 'auto', productSizeIds = [], defaultName = 'قسم عطور جديد', catalogName = null;
     var filterKinds = {
-      brand: { key: 'brand', list: 'brands', label: 'اختاري براندًا نشطًا من الكتالوج' },
-      store: { key: 'store', list: 'stores', label: 'اختاري متجرًا نشطًا من الكتالوج' },
-      occasion: { key: 'occ', list: 'occasions', label: 'اختاري مناسبة موجودة في الكتالوج' },
-      note: { key: 'note', list: 'notes', label: 'اختاري نوتة عطر موجودة في الكتالوج' }
+      brand: { key: 'brand', label: 'اسم البراند (سيُطابق الموجود أو يُنشأ)' },
+      store: { key: 'store', label: 'اسم المتجر (الاسم وحده لا ينشئ اتصالًا)' },
+      occasion: { key: 'occ', label: 'اسم المناسبة (سيُطابق الموجود أو يُنشأ)' },
+      note: { key: 'note', label: 'اسم النوتة (سيُطابق الموجود أو يُنشأ)' }
     };
     if (filterKinds[kind]) {
-      var options = await editorData('options');
       var spec = filterKinds[kind];
-      var selected = chooseCatalogOption(spec.label, options.options && options.options[spec.list]);
-      filters[spec.key] = String(selected.name);
-      defaultName = String(selected.name);
+      catalogName = await ask(spec.label, 'أدخلي الاسم فقط؛ سيُطابق سجلًا موجودًا أو يُنشئ سجلًا جديدًا.');
+      if (catalogName === null) throw new Error('اتلغى');
+      catalogName = String(catalogName).trim();
+      if (!catalogName) throw new Error('اكتبي اسمًا صحيحًا.');
+      filters[spec.key] = catalogName;
+      defaultName = catalogName;
     } else if (kind === 'perfume') {
       var search = prompt('اكتبي جزءًا من اسم عطر منشور للبحث في الكتالوج');
       if (search === null || !String(search).trim()) throw new Error('اتلغى');
@@ -407,6 +411,11 @@
     }
     var name = String(prompt('اسم القسم الذي سيظهر في المتجر', defaultName) || '').trim();
     if (!name) throw new Error('اكتبي اسمًا للقسم قبل الإنشاء.');
+    if (catalogName !== null) {
+      var catalog = await editorData('catalog.create', { kind: kind, name: catalogName });
+      if (!catalog.record || !catalog.record.id || !catalog.record.name) throw new Error('لم يتم تأكيد مطابقة أو إنشاء سجل الكتالوج.');
+      filters[filterKinds[kind].key] = String(catalog.record.name);
+    }
     var elementId = 'x-' + rid();
     if (!validBlock({ id: 'x-' + rid(), type: 'smart', ref: elementId, style: { align: 'center', size: 'md' } })) throw new Error('تعذر تجهيز البلوك الجديد.');
     var j = await editorData('section.create', { section: { element_id: elementId, name: name, purpose: kind, selection_mode: selectionMode, filters: filters, product_size_ids: productSizeIds } });
