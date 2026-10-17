@@ -204,14 +204,24 @@
   // the built-in signals above produce the overall fingerprint.
   function loadThumbmark() {
     if (window.ThumbmarkJS || window.Thumbmark) return Promise.resolve(true);
-    return fetch('/vendor/thumbmark.js', { method: 'HEAD' }).then(function (r) {
-      if (!r.ok) return false;
-      return new Promise(function (done) {
+    return new Promise(function (done) {
+      var settled = false;
+      var timer = setTimeout(function () { finish(false); }, 3000);
+      function finish(ok) {
+        if (settled) return;
+        settled = true;
+        if (typeof clearTimeout === 'function') clearTimeout(timer);
+        done(ok);
+      }
+      try {
         var el = document.createElement('script');
-        el.src = '/vendor/thumbmark.js'; el.onload = function () { done(true); }; el.onerror = function () { done(false); };
+        el.async = true;
+        el.src = '/vendor/thumbmark.js';
+        el.onload = function () { finish(!!(window.ThumbmarkJS || window.Thumbmark)); };
+        el.onerror = function () { finish(false); };
         document.head.appendChild(el);
-      });
-    }).catch(function () { return false; });
+      } catch (_) { finish(false); }
+    });
   }
   // ThumbmarkJS 0.20+ is used as new ThumbmarkJS.Thumbmark(options).get(); older builds expose
   // getFingerprint(). Both work. Its sampled usage logging is switched off, so nothing about a
