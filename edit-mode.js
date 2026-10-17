@@ -7,7 +7,7 @@
   if (!layer || !ED || !Bridge || !Geometry || window.parent === window) return;
 
   var work = null, baseJson = '', baseRevision = null, hostApi = null, selectedId = null, dirty = false, bridgeTicket = '';
-  var undoStack = [], redoStack = [], editing = null, gesture = null, pendingMedia = null;
+  var undoStack = [], redoStack = [], editing = null, gesture = null, pendingMedia = null, touchPress = null, suppressContextUntil = 0;
   var SECTIONS_NAMES = { section: 1 };
 
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
@@ -214,6 +214,16 @@
     var handle = ev.target.classList && ev.target.classList.contains('eo-h') ? ev.target.getAttribute('data-h') : null;
     ev.preventDefault(); ev.stopPropagation();
     if (ev.button !== undefined && ev.button !== 0) return;
+    if (ev.pointerType === 'touch') {
+      if (touchPress) clearTimeout(touchPress.timer);
+      touchPress = { x: ev.clientX, y: ev.clientY, pointerId: ev.pointerId, timer: setTimeout(function () {
+        if (!touchPress || touchPress.pointerId !== ev.pointerId) return;
+        suppressContextUntil = Date.now() + 900; gesture = null;
+        var target = pick(touchPress.x, touchPress.y);
+        select(target ? target.id : null);
+        if (hostApi) hostApi.context({ x: touchPress.x, y: touchPress.y, element: info(target), tools: toolList(info(target)) });
+      }, 550) };
+    }
     var e, mode = 'move';
     if (handle) { e = entryById(selectedId); mode = 'resize'; }
     else {
@@ -227,6 +237,9 @@
   }, true);
 
   window.addEventListener('pointermove', function (ev) {
+    if (touchPress && touchPress.pointerId === ev.pointerId && Math.hypot(ev.clientX - touchPress.x, ev.clientY - touchPress.y) > 8) {
+      clearTimeout(touchPress.timer); touchPress = null;
+    }
     if (!gesture) return;
     var g = gesture, ddx = ev.clientX - g.sx, ddy = ev.clientY - g.sy;
     if (!g.moved && Math.abs(ddx) + Math.abs(ddy) < 3) return;
@@ -255,6 +268,7 @@
   }, true);
 
   window.addEventListener('pointerup', function (ev) {
+    if (touchPress && touchPress.pointerId === ev.pointerId) { clearTimeout(touchPress.timer); touchPress = null; }
     if (!gesture) return;
     var g = gesture; gesture = null;
     if (!g.moved) return;                      // A plain click selects; only a drag commits offsets.
@@ -268,6 +282,11 @@
     });
   }, true);
 
+  window.addEventListener('pointercancel', function (ev) {
+    if (touchPress && touchPress.pointerId === ev.pointerId) { clearTimeout(touchPress.timer); touchPress = null; }
+    gesture = null;
+  }, true);
+
   // Nothing on the page may act while editing: no links, no cart, no forms.
   ['click', 'auxclick', 'submit', 'dragstart'].forEach(function (t) {
     window.addEventListener(t, function (ev) { if (inUi(ev.target)) return; if (editing && editing.node.contains(ev.target)) return; ev.preventDefault(); ev.stopPropagation(); }, true);
@@ -278,6 +297,7 @@
   window.addEventListener('contextmenu', function (ev) {
     if (inUi(ev.target)) return;
     ev.preventDefault(); ev.stopPropagation();
+    if (Date.now() < suppressContextUntil) return;
     if (editing) commitText();
     var e = pick(ev.clientX, ev.clientY);
     select(e ? e.id : null);
