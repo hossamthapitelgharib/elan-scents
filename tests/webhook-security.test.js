@@ -57,19 +57,26 @@ for (const name of ['store-order-status', 'store-order-cancelled']) {
   });
 }
 
-test('dashboard token endpoints use the constant-time comparison and stay closed without a token', async () => {
+test('admin order and integration APIs require a platform_admin session instead of a shared dashboard token', async () => {
   process.env.SUPABASE_URL = 'https://test.supabase.co'; process.env.SUPABASE_SERVICE_ROLE_KEY = 'service';
-  global.fetch = async () => jsonResponse([]);
-  delete process.env.DASHBOARD_TOKEN;
-  const unconfigured = await call(api('store-integrations'), { method: 'GET', headers: { 'x-dashboard-token': 'x' } });
-  assert.equal(unconfigured.status, 503);
-  process.env.DASHBOARD_TOKEN = 'dash-secret';
-  const wrong = await call(api('store-integrations'), { method: 'GET', headers: { 'x-dashboard-token': 'dash-secreT' } });
-  assert.equal(wrong.status, 401);
-  const wrongOrders = await call(api('dashboard-orders'), { method: 'GET', headers: { 'x-dashboard-token': 'nope' }, query: {} });
-  assert.equal(wrongOrders.status, 401);
-  const right = await call(api('dashboard-orders'), { method: 'GET', headers: { 'x-dashboard-token': 'dash-secret' }, query: {} });
-  assert.equal(right.status, 200);
+  process.env.DASHBOARD_TOKEN = 'legacy-dashboard-secret';
+  let role = 'customer';
+  global.fetch = async url => {
+    const parsed = new URL(String(url));
+    if (parsed.pathname.endsWith('/auth/v1/user')) return jsonResponse({ id: 'test-user' });
+    if (parsed.pathname.endsWith('/rest/v1/profiles')) return jsonResponse([{ id: 'test-user', role }]);
+    return jsonResponse([]);
+  };
+  const tokenOnly = { method: 'GET', headers: { 'x-dashboard-token': 'legacy-dashboard-secret' }, query: {} };
+  assert.equal((await call(api('store-integrations'), tokenOnly)).status, 401);
+  assert.equal((await call(api('dashboard-orders'), tokenOnly)).status, 401);
+  const customerSession = { method: 'GET', headers: { authorization: 'Bearer customer-token' }, query: {} };
+  assert.equal((await call(api('store-integrations'), customerSession)).status, 403);
+  assert.equal((await call(api('dashboard-orders'), customerSession)).status, 403);
+  role = 'platform_admin';
+  const adminSession = { method: 'GET', headers: { authorization: 'Bearer admin-token' }, query: {} };
+  assert.equal((await call(api('store-integrations'), adminSession)).status, 200);
+  assert.equal((await call(api('dashboard-orders'), adminSession)).status, 200);
   delete process.env.DASHBOARD_TOKEN;
 });
 

@@ -136,10 +136,21 @@ begin
      or has_function_privilege('authenticated', 'public.customer_product_ranking(text,text,text,integer,integer)', 'EXECUTE') then
     raise exception 'customer product ranking RPC must remain server-only';
   end if;
+  if has_function_privilege('anon', 'public.platform_registered_customer_best_sellers(text,integer,integer)', 'EXECUTE')
+     or has_function_privilege('authenticated', 'public.platform_registered_customer_best_sellers(text,integer,integer)', 'EXECUTE') then
+    raise exception 'registered customer best-seller RPC must remain server-only';
+  end if;
+  if not exists (select 1 from information_schema.columns where table_schema='public' and table_name='store_order_request_items' and column_name='product_id' and data_type='uuid') then
+    raise exception 'order item product identity snapshot is missing';
+  end if;
+  if exists (select 1 from pg_constraint where conrelid='public.store_order_request_items'::regclass and contype='f' and pg_get_constraintdef(oid) ~* 'FOREIGN KEY \(product_id\)') then
+    raise exception 'historical order product identity must not depend on a live catalog foreign key';
+  end if;
   if not has_function_privilege('service_role', 'public.platform_store_summary()', 'EXECUTE')
      or not has_function_privilege('service_role', 'public.customer_activity_summary(text,text)', 'EXECUTE')
      or not has_function_privilege('service_role', 'public.capture_product_snapshot(uuid,uuid,uuid,text)', 'EXECUTE')
-     or not has_function_privilege('service_role', 'public.customer_product_ranking(text,text,text,integer,integer)', 'EXECUTE') then
+     or not has_function_privilege('service_role', 'public.customer_product_ranking(text,text,text,integer,integer)', 'EXECUTE')
+     or not has_function_privilege('service_role', 'public.platform_registered_customer_best_sellers(text,integer,integer)', 'EXECUTE') then
     raise exception 'server APIs must retain access to administrative summary, ranking and snapshot functions';
   end if;
 end;

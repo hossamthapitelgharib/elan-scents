@@ -185,7 +185,8 @@ module.exports = async function editor(req, res) {
     }
     const action = req.method === 'GET' ? ((req.query && req.query.action) || 'state') : body.action;
     let cfg = config();
-    if (cfg.error && action === 'state' && cfg.error === 'editor_not_configured') {
+    const readOnlyState = req.method === 'GET' && action === 'state' && cfg.error === 'editor_not_configured' && Array.isArray(cfg.missing) && cfg.missing.includes('GITHUB_TOKEN') && !cfg.missing.includes('EDITOR_SITE_ORIGIN') && cfg.missing.every((key) => key === 'GITHUB_TOKEN' || key === 'EDITOR_TARGET_BRANCH');
+    if (readOnlyState) {
       cfg = { branch: process.env.EDITOR_TARGET_BRANCH || 'main', readOnly: true };
     }
     if (cfg.error) return reply(res, 503, { ok: false, error: cfg.error, missing: cfg.missing || [] });

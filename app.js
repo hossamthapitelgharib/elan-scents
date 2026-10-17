@@ -32,12 +32,13 @@ function syncBodyScroll(){
 }
 function watchSheet(){
   var sheet=document.getElementById('sheet');
-  if(!sheet)return;
+  var menu=document.getElementById('menu');
+  if(!sheet&&!menu)return;
   var sync=syncBodyScroll;
   sync();
   try{
     var mo=new MutationObserver(sync);
-    mo.observe(sheet,{attributes:true,attributeFilter:['hidden','style','class']});
+    [menu,sheet].forEach(function(node){if(node)mo.observe(node,{attributes:true,attributeFilter:['hidden','style','class']});});
   }catch(e){}
   // also catch programmatic toggles via clicks on cart/fav/notif buttons
   document.addEventListener('click',function(){

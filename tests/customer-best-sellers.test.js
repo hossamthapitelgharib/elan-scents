@@ -1,0 +1,101 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const handler = require(path.join(__dirname, '..', 'api', 'customer-best-sellers'));
+const root = path.join(__dirname, '..');
+const adminId = '45a6e52c-46c6-42e9-a730-9e5bec3dd201';
+const savedEnv = Object.fromEntries(['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY'].map(key => [key, process.env[key]]));
+const savedFetch = global.fetch;
+test.after(() => { global.fetch = savedFetch; for (const [key, value] of Object.entries(savedEnv)) value === undefined ? delete process.env[key] : process.env[key] = value; });
+function response(data, status = 200) { return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } }); }
+function recorder() { const out = { headers: {} }; return { out, status(value) { out.status = value; return this; }, setHeader(key, value) { out.headers[key] = value; return this; }, json(body) { out.body = body; return this; } }; }
+async function run(role, query, rpcResult, rpcStatus = 200) {
+  process.env.SUPABASE_URL = 'https://test.supabase.co';
+  process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-key';
+  const calls = [];
+  global.fetch = async (input, options = {}) => {
+    const url = String(input); calls.push({ url, options });
+    if (url.endsWith('/auth/v1/user')) return response({ id: adminId });
+    if (url.includes('/profiles?')) return response([{ id: adminId, role }]);
+    if (url.endsWith('/rpc/platform_registered_customer_best_sellers')) return response(rpcResult, rpcStatus);
+    throw new Error(`unexpected ${url}`);
+  };
+  const res = recorder();
+  await handler({ method: 'GET', headers: { authorization: 'Bearer admin-token' }, query }, res);
+  return { res: res.out, calls };
+}
+
+const report = {
+  period: 'all', fromDate: null, toDate: '2026-10-16', limit: 50, offset: 0,
+  total: '1', hasMore: false,
+  records: [{ rank: '1', product: { id: 'perfume-id', name: 'Rose', brand_name: 'Élan', slug: 'rose', private: 'discard' }, unitsSold: '12', purchases: '8', storeCount: '3', sizeBreakdown: [{ size: '50 مل', units: '4' }, { size: '100 مل', units: '8' }], hidden: 'discard' }],
+  audit: { registeredUnits: '13', eligiblePurchases: '8', eligibleUnits: '12', rankedUnits: '12', unlinkedEligibleUnits: '0', unlinkedEligibleLines: '0', excludedCancelledUnits: '1', excludedInProgressUnits: '0', excludedReviewOrMismatchUnits: '0', excludedOtherUnits: '0', ownerConflictUnits: '0', unregisteredUnitsExcluded: '0', returnsAndRefundsTracked: false, raw_payload: 'discard' }
+};
+
+test('best-seller API returns only sanitized paginated metrics to platform admins', async () => {
+  const { res, calls } = await run('platform_admin', { period: 'all', limit: '50', offset: '0' }, report);
+  assert.equal(res.status, 200);
+  assert.equal(res.headers['Cache-Control'], 'no-store');
+  assert.deepEqual(res.body, {
+    ok: true, period: 'all', fromDate: null, toDate: '2026-10-16', limit: 50, offset: 0, total: 1, hasMore: false,
+    records: [{ rank: 1, product: { id: 'perfume-id', name: 'Rose', brand_name: 'Élan', slug: 'rose' }, unitsSold: 12, purchases: 8, storeCount: 3, sizeBreakdown: [{ size: '50 مل', units: 4 }, { size: '100 مل', units: 8 }] }],
+    audit: { registeredUnits: 13, eligiblePurchases: 8, eligibleUnits: 12, rankedUnits: 12, unlinkedEligibleUnits: 0, unlinkedEligibleLines: 0, excludedCancelledUnits: 1, excludedInProgressUnits: 0, excludedReviewOrMismatchUnits: 0, excludedOtherUnits: 0, ownerConflictUnits: 0, unregisteredUnitsExcluded: 0, returnsAndRefundsTracked: false }
+  });
+  const rpc = calls.find(call => call.url.endsWith('/rpc/platform_registered_customer_best_sellers'));
+  assert.ok(rpc);
+  assert.equal(rpc.options.headers.Authorization, 'Bearer service-key');
+  assert.deepEqual(JSON.parse(rpc.options.body), { p_period: 'all', p_limit: 50, p_offset: 0 });
+});
+
+test('best-seller API rejects non-admins and invalid filters or pages before calling the database', async () => {
+  const denied = await run('customer', { period: 'all' }, report);
+  assert.equal(denied.res.status, 403);
+  assert.equal(denied.calls.some(call => call.url.endsWith('/rpc/platform_registered_customer_best_sellers')), false);
+  for (const query of [{ period: 'forever' }, { limit: '101' }, { offset: '-1' }]) {
+    const { res, calls } = await run('platform_admin', query, report);
+    assert.equal(res.status, 400);
+    assert.equal(calls.some(call => call.url.endsWith('/rpc/platform_registered_customer_best_sellers')), false);
+  }
+});
+
+test('best-seller API hides database errors and rejects unsupported methods', async () => {
+  const { res } = await run('platform_admin', {}, { message: 'raw database detail' }, 500);
+  assert.equal(res.status, 502);
+  assert.deepEqual(res.body, { ok: false, error: 'best_sellers_unavailable' });
+  const methodRes = recorder();
+  await handler({ method: 'POST', headers: {}, query: {} }, methodRes);
+  assert.equal(methodRes.out.status, 405);
+});
+
+test('best-seller SQL uses immutable product IDs and auditable registered-sale eligibility with stable descending order', () => {
+  const dirs = ['migrations', 'pending'].map(dir => path.join(root, 'supabase', dir));
+  const file = dirs.flatMap(dir => fs.existsSync(dir) ? fs.readdirSync(dir) : []).find(name => name.endsWith('_registered_customer_best_sellers.sql'));
+  assert.ok(file, 'registered customer best-seller migration exists');
+  const migration = fs.readFileSync(dirs.map(dir => path.join(dir, file)).find(candidate => fs.existsSync(candidate)), 'utf8');
+  assert.match(migration, /add column if not exists product_id uuid/i);
+  assert.match(migration, /product_id, product_name, brand_name, size_label, quantity/i);
+  assert.match(migration, /coalesce\(user_id, checkout_user_id\) is not null/i);
+  assert.match(migration, /status = 'completed' and reconciliation_status = 'matched'/i);
+  assert.match(migration, /status = 'delivered' and reconciliation_status in \('matched','pending'\)/i);
+  assert.match(migration, /owner_conflict/i);
+  assert.match(migration, /quantity > 0/i);
+  assert.match(migration, /order by pt\.units_sold desc,pt\.purchase_count desc,pt\.product_id asc/i);
+  assert.match(migration, /'returnsAndRefundsTracked',false/i);
+  assert.match(migration, /grant execute on function public\.platform_registered_customer_best_sellers\(text,integer,integer\) to service_role/i);
+  assert.equal((migration.match(/with line_scope as materialized/gi) || []).length, 1, 'order lines and quality metrics are computed from one shared scan');
+});
+
+test('registered-customer dashboard exposes the best-seller ranking and audit information only in the registered section', () => {
+  const html = fs.readFileSync(path.join(root, 'customers-dashboard.html'), 'utf8');
+  const js = fs.readFileSync(path.join(root, 'customers-dashboard.js'), 'utf8');
+  assert.match(html, /id="registeredBestSellersTitle">عطور الأكثر مبيعًا/);
+  assert.match(html, /id="registeredBestSellersPeriod"/);
+  assert.match(html, /id="registeredBestSellersAudit"/);
+  assert.match(html, /id="registeredBestSellersTable"/);
+  assert.match(html, /لا توجد حاليًا بيانات موثقة للمرتجعات أو الاستردادات/);
+  assert.match(js, /api\/customer-best-sellers/);
+  assert.match(js, /data-best-sellers-more/);
+  assert.match(js, /excludedReviewOrMismatchUnits/);
+  assert.match(js, /ensureBestSellers/);
+});

@@ -6,6 +6,7 @@ const vm = require('node:vm');
 
 const root = path.join(__dirname, '..');
 const source = fs.readFileSync(path.join(root, 'platform-dashboard.js'), 'utf8');
+const customerSource = fs.readFileSync(path.join(root, 'customers-dashboard.js'), 'utf8');
 const html = fs.readFileSync(path.join(root, 'platform-dashboard.html'), 'utf8');
 const customerHtml = fs.readFileSync(path.join(root, 'customers-dashboard.html'), 'utf8');
 const orderSummaryApi = fs.readFileSync(path.join(root, 'api', 'platform-order-summary.js'), 'utf8');
@@ -19,17 +20,19 @@ function makeNode() {
   };
 }
 
-function loadDashboard() {
+function loadDashboard(dashboard = 'customers') {
   const selectors = [
     '#customerTabs', '#refreshCustomers', '#guestAnalyticsPeriod', '#registeredAnalyticsPeriod',
     '#loginForm', '#login', '#app', '#logout', '#stats', '#platformError', '#platformStoreError', '#platformStoreStats',
     '#registeredTab', '#visitorsTab', '#registeredCustomers', '#guestCustomers', '#registeredCount', '#visitorCount',
     '#registeredPagination', '#visitorPagination', '#registeredAnalytics',
+    '#registeredBestSellersPeriod', '#registeredBestSellersError', '#registeredBestSellersAudit', '#registeredBestSellersTable',
     '#guestAnalyticsRange', '#guestAnalyticsStats', '#guestTopProducts', '#guestBasketProducts', '#guestAnalyticsError',
     '#registeredAnalyticsRange', '#registeredAnalyticsStats', '#registeredTopProducts', '#registeredBasketProducts', '#registeredAnalyticsError', '#guestAnalytics', '#message',
   ];
   const nodes = new Map(selectors.map(selector => [selector, makeNode()]));
   nodes.get('#guestCustomers').hidden = true;
+  nodes.get('#registeredBestSellersPeriod').value = 'all';
   const documentListeners = {};
   const document = {
     querySelector(selector) { return nodes.get(selector) || null; },
@@ -43,7 +46,7 @@ function loadDashboard() {
     URLSearchParams,
     console,
   });
-  vm.runInContext(source, context, { filename: 'platform-dashboard.js' });
+  vm.runInContext(dashboard === 'platform' ? source : customerSource, context, { filename: dashboard === 'platform' ? 'platform-dashboard.js' : 'customers-dashboard.js' });
   return { context, nodes, documentListeners };
 }
 
@@ -53,6 +56,7 @@ test('platform dashboard links to detailed admin tools and contains only aggrega
   assert.match(html, /customers-dashboard\.html/);
   assert.match(html, /id="platformStoreStats"/);
   assert.match(html, /href="\/stores-dashboard\.html"/);
+  assert.match(html, /src="\/platform-dashboard\.js\?v=/);
   assert.doesNotMatch(html, /id="registeredCustomers"|id="guestCustomers"|id="guestTopProducts"/);
   assert.doesNotMatch(source, /customer_(?:name|phone|address|email)|dashboard-orders/);
   assert.match(source, /platform-order-summary/);
@@ -64,13 +68,19 @@ test('platform dashboard links to detailed admin tools and contains only aggrega
   assert.match(customerHtml, /id="registeredAnalyticsPeriod"/);
   assert.match(customerHtml, /id="registeredTopProducts"/);
   assert.match(customerHtml, /id="registeredBasketProducts"/);
+  assert.match(customerHtml, /id="registeredBestSellersTable"/);
+  assert.match(customerHtml, /id="registeredBestSellersAudit"/);
+  assert.match(customerHtml, /src="\/customers-dashboard\.js\?v=/);
+  assert.doesNotMatch(customerHtml, /src="\/platform-dashboard\.js\?v=/);
+  assert.doesNotMatch(source, /renderCustomers|loadCustomersDashboard|customerOffsets|customer_product_events/);
+  assert.match(customerSource, /loadCustomersDashboard/);
   assert.match(customerHtml, /الأكثر إضافةً أو حذفًا من سلال الزوار/);
   assert.match(customerHtml, /حذفها\/تقليلها/);
   assert.doesNotMatch(customerHtml, /المنتجات الموجودة في سلال الزوار الآن/);
 });
 
 test('platform dashboard requests aggregate-only counts and does not render customer order details', async () => {
-  const { context, nodes } = loadDashboard();
+  const { context, nodes } = loadDashboard('platform');
   context.Portal.session = () => true;
   const requests = [];
   context.fetch = async url => {
@@ -131,6 +141,7 @@ test('customer dashboard loads insights lazily for the active tab and reuses the
       topViewed: [], topSearched: [], topCartAdded: [], topCartRemoved: []
     } }) };
     if (url.pathname === '/api/customer-product-rankings') return { ok: true, json: async () => ({ records: [], total: 0, hasMore: false }) };
+    if (url.pathname === '/api/customer-best-sellers') return { ok: true, json: async () => ({ records: [], total: 0, hasMore: false, audit: { eligiblePurchases: 0, eligibleUnits: 0, rankedUnits: 0, unlinkedEligibleUnits: 0 } }) };
     throw new Error(`unexpected request: ${url}`);
   };
   const flush = () => new Promise(resolve => setImmediate(resolve));
@@ -139,6 +150,7 @@ test('customer dashboard loads insights lazily for the active tab and reuses the
   assert.equal(requests.filter(url => url.pathname === '/api/guest-analytics').length, 1);
   assert.equal(requests.find(url => url.pathname === '/api/guest-analytics').searchParams.get('actor'), 'customer');
   assert.equal(requests.filter(url => url.pathname === '/api/customer-product-rankings').length, 4);
+  assert.equal(requests.filter(url => url.pathname === '/api/customer-best-sellers').length, 1);
 
   const tabHandler = nodes.get('#customerTabs').listeners.click;
   tabHandler({ target: { closest: () => ({ dataset: { customerTab: 'visitors' } }) } });
@@ -146,10 +158,12 @@ test('customer dashboard loads insights lazily for the active tab and reuses the
   assert.equal(requests.filter(url => url.pathname === '/api/guest-analytics').length, 2);
   assert.equal(requests.filter(url => url.pathname === '/api/customer-product-rankings').length, 8);
   assert.equal(requests.filter(url => url.pathname === '/api/guest-analytics' && url.searchParams.get('actor') === 'guest').length, 1);
+  assert.equal(requests.filter(url => url.pathname === '/api/customer-best-sellers').length, 1);
 
   tabHandler({ target: { closest: () => ({ dataset: { customerTab: 'registered' } }) } });
   await flush();
   assert.equal(requests.filter(url => url.pathname === '/api/guest-analytics').length, 2);
+  assert.equal(requests.filter(url => url.pathname === '/api/customer-best-sellers').length, 1);
 });
 
 test('customer list paging renders exact totals and enables only valid previous/next controls', () => {
@@ -168,6 +182,21 @@ test('customer list paging renders exact totals and enables only valid previous/
   assert.match(nodes.get('#registeredPagination').innerHTML, /data-offset="0"/);
   assert.match(nodes.get('#registeredPagination').innerHTML, /data-offset="100"/);
   assert.match(nodes.get('#visitorPagination').innerHTML, /لا توجد صفحات/);
+});
+
+test('customer search history escapes the query and renders complete product snapshots', () => {
+  const { context } = loadDashboard();
+  context.searchFixture = [{
+    searchText: '<script>alert(1)</script>', occurredAt: '2026-10-15T03:00:00Z', resultCount: 1,
+    results: [{ product: { name: 'Rose', brand_name: 'Brand', selectedSize: { size_label: '50ml' }, selectedOffer: { storeName: 'Store', price: 80, currency: 'EGP' } } }]
+  }];
+  const html = vm.runInContext('searchRows(searchFixture)', context);
+  assert.match(html, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
+  assert.doesNotMatch(html, /<script>/);
+  assert.match(html, /Rose/);
+  assert.match(html, /50ml/);
+  assert.match(html, /Store/);
+  assert.match(html, /80 EGP/);
 });
 
 test('guest analytics render the four available rankings into the current two-panel layout safely', () => {

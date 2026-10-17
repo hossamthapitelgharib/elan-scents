@@ -1,4 +1,4 @@
--- Run on a scratch database that has supabase/pending/20261015120000_guest_fingerprint_signals.sql applied.
+-- Run on a scratch database that has supabase/migrations/20261017011558_guest_fingerprint_signals.sql applied.
 -- Everything is rolled back. Test data is fake.
 begin;
 do $$

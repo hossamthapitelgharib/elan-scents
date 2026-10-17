@@ -149,30 +149,26 @@
         "archived": true
       },
       "hero": {
-        "media": {
-          "src": "https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/uploads/2026/f131f5dc5d3888717232.png",
-          "kind": "image"
+        "style": {
+          "media": "https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/uploads/2026/f131f5dc5d3888717232.png"
         }
       },
       "card:1dsn4im": {
-        "media": {
-          "src": "https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/uploads/2026/0dad190fc712b791dd4e.png",
-          "kind": "image"
+        "style": {
+          "media": "https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/uploads/2026/0dad190fc712b791dd4e.png"
         }
       },
       "footer:logo": {
         "archived": true
       },
       "card:17iwb3v": {
-        "media": {
-          "src": "https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/uploads/2026/f131f5dc5d3888717232.png",
-          "kind": "image"
+        "style": {
+          "media": "https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/uploads/2026/f131f5dc5d3888717232.png"
         }
       },
       "card:17iwb3u": {
-        "media": {
-          "src": "https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/uploads/2026/f131f5dc5d3888717232.png",
-          "kind": "image"
+        "style": {
+          "media": "https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/uploads/2026/f131f5dc5d3888717232.png"
         }
       }
     },

@@ -95,12 +95,23 @@ test('only GET and POST are accepted and unknown actions are refused', async () 
 });
 
 test('keeps editor state readable but refuses writes when GitHub is not configured', async () => {
-  const state = await run({ method: 'GET', env: { GITHUB_TOKEN: '' }, github: fakeGithub(EMPTY) });
+  const gh = fakeGithub(EMPTY);
+  const state = await run({ method: 'GET', env: { GITHUB_TOKEN: '' }, github: gh });
   assert.equal(state.res.statusCode, 200);
   assert.equal(state.res.body.readOnly, true);
-  const r = await run({ method: 'GET', query: { action: 'save' }, env: { GITHUB_TOKEN: '' }, github: fakeGithub(EMPTY) });
+  const deployed = fs.readFileSync(path.join(__dirname, '..', 'design/home.json'), 'utf8');
+  assert.equal(state.res.body.revision, gitBlobSha(deployed));
+  assert.deepEqual(state.res.body.design, ED.normalize(JSON.parse(deployed)).design);
+  const r = await run({ method: 'GET', query: { action: 'save' }, env: { GITHUB_TOKEN: '' }, github: gh });
   assert.equal(r.res.statusCode, 503);
   assert.equal(r.res.body.error, 'editor_not_configured');
+  assert.equal((await run({ body: saveBody(), env: { GITHUB_TOKEN: '' }, github: gh })).res.statusCode, 503);
+  assert.equal((await run({ method: 'GET', token: '', env: { GITHUB_TOKEN: '' }, github: gh })).res.statusCode, 401);
+  assert.equal((await run({ method: 'GET', role: 'customer', env: { GITHUB_TOKEN: '' }, github: gh })).res.statusCode, 403);
+  assert.equal((await run({ method: 'GET', env: { GITHUB_TOKEN: '', EDITOR_SITE_ORIGIN: '' }, github: gh })).res.statusCode, 503);
+  assert.equal(gh.calls.length, 0);
+  assert.equal(gh.puts.length, 0);
+  assert.equal(JSON.stringify(state.res.body).includes('ghp_'), false);
 });
 
 test('non-production environments cannot write main, while production targets main', async () => {

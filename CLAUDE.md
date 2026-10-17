@@ -75,4 +75,3 @@
 - ثبّت إصداراً محدداً، لا `latest`. لا تحمّلها من CDN وقت التشغيل: الملف يُقدَّم من نطاقنا فقط.
 - بعدها: `npm test` ثم `node scripts/bump-asset-version.js` ثم `git pull --rebase origin main` ثم `git push origin main`. لا ترفعها من المتصفح ("Add files via upload").
 - لو واجهة المكتبة تغيّرت وتوقف التوقيع الحالي، أبلغ حسام ولا تعدّل `guest-identity.js` بنفسك؛ هو يرجع تلقائياً للجامع المدمج.
-

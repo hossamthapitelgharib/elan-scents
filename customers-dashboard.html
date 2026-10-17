@@ -56,6 +56,19 @@
             <section class="guest-analytics-card"><h4>المنتجات الأكثر مشاهدة وبحثًا</h4><div id="registeredTopProducts" class="guest-analytics-list"></div></section>
             <section class="guest-analytics-card"><h4>المنتجات الأكثر إضافةً وحذفًا من السلة</h4><div id="registeredBasketProducts" class="guest-analytics-list"></div></section>
           </div>
+          <section class="guest-analytics-card best-sellers-card" aria-labelledby="registeredBestSellersTitle">
+            <div class="guest-analytics-heading"><div><small>العملاء المسجلون</small><h4 id="registeredBestSellersTitle">عطور الأكثر مبيعًا</h4></div>
+              <label class="guest-period">الفترة
+                <select id="registeredBestSellersPeriod" aria-label="فترة ترتيب العطور الأكثر مبيعًا">
+                  <option value="all">من بداية السجل</option><option value="today">اليوم</option><option value="week">آخر 7 أيام</option><option value="month">آخر 30 يومًا</option><option value="year">آخر 365 يومًا</option>
+                </select>
+              </label>
+            </div>
+            <p class="guest-analytics-note">الترتيب حسب الوحدات في طلبات العملاء المسجلين المكتملة والمطابقة أو المسلّمة دون تعارض، مع جمع الأحجام والمتاجر تحت العطر الأساسي. الفترة محسوبة من تاريخ إنشاء الطلب. لا توجد حاليًا بيانات موثقة للمرتجعات أو الاستردادات لخصمها من العدد.</p>
+            <p id="registeredBestSellersError" class="platform-error" hidden></p>
+            <div id="registeredBestSellersAudit" class="stats guest-analytics-stats" aria-live="polite"></div>
+            <div id="registeredBestSellersTable" class="guest-analytics-list" aria-live="polite"></div>
+          </section>
         </section>
         <section id="guestAnalytics" class="guest-analytics" aria-labelledby="guestAnalyticsTitle" hidden>
           <div class="guest-analytics-heading">
@@ -69,7 +82,7 @@
           <p id="guestAnalyticsRange" class="guest-analytics-range"></p>
           <p id="guestAnalyticsError" class="platform-error" hidden></p>
           <div id="guestAnalyticsStats" class="stats guest-analytics-stats"></div>
-          <p class="guest-analytics-note">تُرتّب المنتجات حسب المشاهدة وظهورها في نتائج البحث والإضافة إلى السلة أو حذفها/تقليلها. لا تُحفظ عبارات البحث نفسها.</p>
+          <p class="guest-analytics-note">تُرتّب المنتجات حسب المشاهدة وظهورها في نتائج البحث والإضافة إلى السلة أو حذفها/تقليلها. سجل عبارة البحث ونتائجها متاح للإدارة المخوّلة فقط، بما في ذلك عمليات البحث بلا نتائج.</p>
           <div class="guest-analytics-grid">
             <section class="guest-analytics-card"><h4>المنتجات الأكثر مشاهدة وبحثًا</h4><div id="guestTopProducts" class="guest-analytics-list"></div></section>
             <section class="guest-analytics-card"><h4>الأكثر إضافةً أو حذفًا من سلال الزوار</h4><div id="guestBasketProducts" class="guest-analytics-list"></div></section>
@@ -79,6 +92,6 @@
     </section>
   </main>
   <script src="/portal.js?v=20261017-05"></script>
-  <script src="/platform-dashboard.js?v=20261017-05"></script>
+  <script src="/customers-dashboard.js?v=20261017-05"></script>
 </body>
 </html>

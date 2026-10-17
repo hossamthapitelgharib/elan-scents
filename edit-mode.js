@@ -3,10 +3,14 @@
    asks for the design (page.getState) and saves it through the server, which checks the admin again. */
 (function () {
   'use strict';
-  var layer = window.ElanDesignLayer, ED = window.ElanDesign, Bridge = window.ElanHostBridge, Geometry = window.ElanEditorGeometry;
-  if (!layer || !ED || !Bridge || !Geometry || window.parent === window) return;
+  var layer = window.ElanDesignLayer, ED = window.ElanDesign, Bridge = window.ElanHostBridge;
+  var Geometry = window.ElanEditorGeometry || {
+    move: function (rect, base, delta) { return { dx: Math.round(base.dx + delta.x), dy: Math.round(base.dy + delta.y) }; },
+    resize: function (width, height, dw, dh) { return { w: Math.max(40, Math.round(width + dw)), h: Math.max(30, Math.round(height + dh)) }; }
+  };
+  if (!layer || !ED || !Bridge || window.parent === window) return;
 
-  var work = null, baseJson = '', baseRevision = null, hostApi = null, selectedId = null, dirty = false, bridgeTicket = '';
+  var work = null, baseJson = '', baseRevision = null, hostApi = null, selectedId = null, dirty = false, bridgeTicket = '', readOnly = false;
   var undoStack = [], redoStack = [], editing = null, gesture = null, pendingMedia = null, touchPress = null, suppressContextUntil = 0;
   var SECTIONS_NAMES = { section: 1 };
 
@@ -28,19 +32,33 @@
   function checkDirty() { setDirty(JSON.stringify(work) !== baseJson); }
   function entries() { return layer.elements(); }
   function entryById(id) { var l = entries(); for (var i = 0; i < l.length; i++) if (l[i].id === id) return l[i]; return null; }
-  function bucket(dev) { work.edits = work.edits || {}; return (work.edits[dev] = work.edits[dev] || {}); }
-  function edit(dev, id) { var b = bucket(dev); return (b[id] = b[id] || {}); }
-  function tidy() {
-    if (!work.edits) return;
-    Object.keys(work.edits).forEach(function (dev) {
-      Object.keys(work.edits[dev]).forEach(function (id) {
-        var e = work.edits[dev][id];
+  function scopes() { return [work].concat(Object.keys(work.pages || {}).map(function (key) { return work.pages[key]; })); }
+  function pageScope(id, create) {
+    var e = entryById(id), view = document.getElementById('view'), key = layer.pageKey();
+    if (!e || !view || !view.contains(e.el) || !ED.isPageKey(key)) return work;
+    if (create) { work.pages = work.pages || {}; work.pages[key] = work.pages[key] || { blocks: [] }; }
+    return work.pages && work.pages[key];
+  }
+  function edit(dev, id) {
+    var scope = pageScope(id, true); scope.edits = scope.edits || {};
+    var b = scope.edits[dev] = scope.edits[dev] || {}; return (b[id] = b[id] || {});
+  }
+  function tidyScope(scope) {
+    if (!scope.edits) return;
+    Object.keys(scope.edits).forEach(function (dev) {
+      Object.keys(scope.edits[dev]).forEach(function (id) {
+        var e = scope.edits[dev][id];
         if (e.style && !Object.keys(e.style).length) delete e.style;
-        if (!Object.keys(e).length) delete work.edits[dev][id];
+        if (!Object.keys(e).length) delete scope.edits[dev][id];
       });
-      if (!Object.keys(work.edits[dev]).length) delete work.edits[dev];
+      if (!Object.keys(scope.edits[dev]).length) delete scope.edits[dev];
     });
-    if (!Object.keys(work.edits).length) delete work.edits;
+    if (!Object.keys(scope.edits).length) delete scope.edits;
+  }
+  function tidy() {
+    scopes().forEach(tidyScope);
+    Object.keys(work.pages || {}).forEach(function (key) { var pg = work.pages[key]; if (!(pg.blocks || []).length && !pg.edits) delete work.pages[key]; });
+    if (work.pages && !Object.keys(work.pages).length) delete work.pages;
   }
 
   function mutate(fn) {
@@ -128,7 +146,10 @@
     if (!m) return '#000000';
     return '#' + [m[1], m[2], m[3]].map(function (n) { return ('0' + (+n).toString(16)).slice(-2); }).join('');
   }
-  function cur(id) { return ED.editFor(work, device(), id) || {}; }
+  function cur(id) {
+    var global = ED.editFor(work, device(), id) || {}, local = ED.editFor(pageScope(id, false), device(), id);
+    return local ? Object.assign({}, global, local, { style: Object.assign({}, global.style, local.style) }) : global;
+  }
   /* What the editor needs to know about an element: the original editor's type names plus its current look. */
   var TYPE_OF = { section: 'section', title: 'text', 'hero-text': 'text', hero: 'section', 'hero-counters': 'text', card: 'card', block: 'block', 'text-area': 'text', group: 'section', 'image-el': 'image' };
   function info(e) {
@@ -166,7 +187,7 @@
     if (i < 0 || j < 0 || j >= seq.length) return;
     mutate(function (d) { seq.splice(i, 1); seq.splice(j, 0, key); d.order = seq; });
   }
-  function resetElement(id) { mutate(function (d) { if (d.edits) Object.keys(d.edits).forEach(function (dev) { delete d.edits[dev][id]; }); }); }
+  function resetElement(id) { mutate(function () { scopes().forEach(function (d) { if (d.edits) Object.keys(d.edits).forEach(function (dev) { delete d.edits[dev][id]; }); }); }); }
   function archive(id) { mutate(function () { edit('all', id).archived = true; }); selectedId = null; reselect(); say('اتحط في الأرشيف. تقدر ترجّعه من الأرشيف.'); }
 
   /* ---------- picking, drag, resize, text ---------- */
@@ -522,7 +543,7 @@
   }
 
   function mediaPrompt(forId) {
-    return ask('رابط الصورة', 'لازم يبدأ بـ /assets/ أو برابط مكتبة سابابيس (site-media).', '/assets/').then(function (v) {
+    return ask('رابط الصورة', 'لازم يبدأ بـ /assets/ أو برابط صورة من مكتبة سابابيس (site-media).', '/assets/').then(function (v) {
       if (!v) throw new Error('اتلغى');
       return v;
     });
@@ -532,12 +553,11 @@
     var b = work.blocks.filter(function (x) { return x.id === id; })[0];
     if (!b) {
       var en = entryById(id);
-      if (en && !(en.kind !== 'hero' && en.kind !== 'card' && en.kind !== 'section' && en.kind !== 'image-el')) {
-        var kind = /\.(mp4|webm)(\?|$)/i.test(src) ? 'video' : 'image';
-        if (kind === 'video' && (en.kind === 'card' || en.kind === 'image-el')) throw new Error('الكارت بيقبل صورة بس.');
-        var probe2 = { version: ED.VERSION, edits: { all: {} } }; probe2.edits.all[id] = { media: { src: src, kind: kind } };
-        if (!ED.normalize(probe2, { strict: true }).ok) throw new Error('رابط الميديا مش مسموح.');
-        mutate(function () { edit('all', id).media = { src: src, kind: kind }; });
+      if (en) {
+        if (['hero', 'card', 'section', 'image-el'].indexOf(en.kind) === -1) throw new Error('تغيير الصورة غير متاح لهذا العنصر.');
+        var probe2 = { version: ED.VERSION, edits: { all: {} } }; probe2.edits.all[id] = { style: { media: src } };
+        if (!ED.normalize(probe2, { strict: true }).ok) throw new Error('رابط الصورة مش مسموح.');
+        mutate(function () { var e = edit('all', id); e.style = e.style || {}; e.style.media = src; });
         return;
       }
     }
@@ -633,10 +653,10 @@
   registerTool({ id: 'go_home', label: 'رجوع للصفحة الرئيسية', when: inner, run: function () { goHome(); return null; } });
   [['create_section', 'إنشاء سيكشن'], ['create_brand', 'إنشاء كارت براند'], ['create_store', 'إنشاء كارت متجر'], ['create_perfume', 'إنشاء كارت عطر'], ['create_occasion', 'إنشاء مناسبة'], ['create_note', 'إنشاء نوتة عطر']].forEach(function (x) { registerTool({ id: x[0], label: x[1], run: function (c) { return createSmart(x[0].replace('create_', ''), c); } }); });
   registerTool({ id: 'create_text_block', label: 'إنشاء كتلة نصية', run: function (c) { return createBlock('text_block', { at: c.at }); } });
-  registerTool({ id: 'create_banner', label: 'إنشاء بانر صورة أو فيديو', ui: 'media_new', run: function (c) { return createBlock('banner', { at: c.at, image: c.src }); } });
+  registerTool({ id: 'create_banner', label: 'إنشاء بانر صورة', ui: 'media_new', run: function (c) { return createBlock('banner', { at: c.at, image: c.src }); } });
   registerTool({ id: 'create_image', label: 'إنشاء صورة', ui: 'media_new', run: function (c) { if (!c.src) throw new Error('اختاري صورة الأول.'); return createBlock('image', { at: c.at, src: c.src }); } });
   registerTool({ id: 'create_text', label: 'إنشاء نص', run: function (c) { return createBlock('text_block', { at: c.at }); } });
-  registerTool({ id: 'media', label: 'رفع صورة أو فيديو داخل العناصر أو الهيرو', ui: 'media', when: function (i) { return !!i && ['text', 'text_block'].indexOf(i.type) === -1; }, run: function (c) { return mediaPrompt().then(function (src) { setMedia(c.id, src); return null; }); } });
+  registerTool({ id: 'media', label: 'تغيير صورة العنصر أو الواجهة', ui: 'media', when: function (i) { return !!i && ['text', 'text_block'].indexOf(i.type) === -1; }, run: function (c) { return mediaPrompt().then(function (src) { setMedia(c.id, src); return null; }); } });
   registerTool({ id: 'media_delete', label: 'حذف ميديا العنصر إلى الأرشيف', when: function (i) { return !!i && !!i.media; }, run: deleteMedia });
   registerTool({ id: 'edit_text', label: 'تعديل النص بالكيبورد', when: hasText, run: function (c) { startText(c.id); return null; } });
   registerTool({ id: 'copy', label: 'نسخ العنصر', when: has, run: function (c) { return execute('element.duplicate', { elementId: c.id }, {}); } });
@@ -647,18 +667,19 @@
 
   /* ---------- commands from the editor ---------- */
   function archiveList() {
-    var out = [], e = (work.edits && work.edits.all) || {};
+    var key = layer.pageKey(), scope = ED.isPageKey(key) && work.pages && work.pages[key] ? work.pages[key] : work;
+    var out = [], e = (scope.edits && scope.edits.all) || {};
     Object.keys(e).forEach(function (id) { if (e[id].archived) out.push({ id: id, name: (entryById(id) || { name: id }).name }); });
     return out;
   }
-  function snapshot() { return { revision: baseRevision, design: clone(work), device: device(), dirty: dirty, archive: archiveList(), selected: info(selectedId && entryById(selectedId)) }; }
+  function snapshot() { return { revision: baseRevision, design: clone(work), device: device(), dirty: dirty, readOnly: readOnly, archive: archiveList(), selected: info(selectedId && entryById(selectedId)) }; }
   function need(id) { var e = id && entryById(id); if (!e) throw new Error('اختاري عنصر الأول.'); return e; }
 
   async function execute(action, p, meta) {
     p = p || {};
     switch (action) {
       case 'page.getState': return snapshot();
-      case 'page.markSaved': baseRevision = p.revision; undoStack = []; redoStack = []; baseJson = JSON.stringify(work); dirty = true; setDirty(false); if (hostApi) hostApi.revision(baseRevision); return snapshot();
+      case 'page.markSaved': if (readOnly) throw new Error('هذا الإصدار للقراءة فقط ولا يمكن تأكيد حفظه.'); baseRevision = p.revision; undoStack = []; redoStack = []; baseJson = JSON.stringify(work); dirty = true; setDirty(false); if (hostApi) hostApi.revision(baseRevision); return snapshot();
       case 'element.select': select(need(p.elementId).id); return { selected: selectedId };
       case 'element.move': { var e1 = need(p.elementId || selectedId); mutate(function () { var t = edit(device(), e1.id); t.dx = Math.round(+p.dx || 0); t.dy = Math.round(+p.dy || 0); }); return null; }
       case 'element.resize': { var e2 = need(p.elementId || selectedId); mutate(function () { var t = edit(device(), e2.id); if (p.w) t.w = Math.round(p.w); if (p.h) t.h = Math.round(p.h); }); return null; }
@@ -691,10 +712,10 @@
       case 'element.edit': { var e9 = need(p.elementId || selectedId); startText(e9.id); return null; }
       case 'element.archive': archive(need(p.elementId || selectedId).id); return null;
       case 'archive.restore': {
-        var archiveId = String(p.elementId || ''), edits = work.edits || {};
+        var archiveId = String(p.elementId || ''), archiveScope = pageScope(archiveId, false) || work, edits = archiveScope.edits || {};
         if (!archiveId) throw new Error('معرّف العنصر المؤرشف مطلوب.');
         var archivedHere = Object.keys(edits).some(function (dev) { return edits[dev] && edits[dev][archiveId] && edits[dev][archiveId].archived; });
-        if (archivedHere) mutate(function (d) { Object.keys(d.edits || {}).forEach(function (dev) { if (d.edits[dev][archiveId]) delete d.edits[dev][archiveId].archived; }); });
+        if (archivedHere) mutate(function () { var scope = pageScope(archiveId, true); Object.keys(scope.edits || {}).forEach(function (dev) { if (scope.edits[dev][archiveId]) delete scope.edits[dev][archiveId].archived; }); });
         else insertLibraryPayload(p.payload, archiveId);
         select(archiveId); return snapshot();
       }
@@ -724,6 +745,7 @@
       var e = new Error('state'); e.userMessage = why; throw e;
     }
     baseRevision = j.revision === null || j.revision === undefined ? 'initial' : j.revision;
+    readOnly = j.readOnly === true;
     work = ED.normalize(j.design || { version: ED.VERSION }, { strict: false }).design;
     undoStack = []; redoStack = []; dirty = false; baseJson = JSON.stringify(work);
     repaint();
