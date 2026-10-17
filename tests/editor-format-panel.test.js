@@ -86,3 +86,13 @@ test('the library button opens the archive and image library in live mode', asyn
   assert.equal(failed.open, true, 'a refused replacement must not look successful');
   assert.match(failed.textContent, /لم يتم تأكيد استبدال الصورة/);
 });
+
+test('a click only selects; the open chip enters a page and coming back restores the spot', () => {
+  const edit = read('edit-mode.js');
+  assert.match(edit, /class="eo-open"/);
+  assert.match(edit, /if \(!g\.moved\) return;/);
+  assert.match(edit, /Geometry\.move\(g\.r, g\.b/);
+  assert.match(edit, /trail\.push\(\{ y: Math\.round\(scrollY\), id: e\.id, depth: depthNow\(\) \}\)/);
+  assert.match(edit, /function restoreFrom\(point\)/);
+  assert.match(edit, /tagEl\.textContent = e\.name \|\| e\.id/);
+});

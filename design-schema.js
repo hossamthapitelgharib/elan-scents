@@ -30,12 +30,11 @@
   var DEVICES = ['all', 'desktop', 'tablet', 'mobile'];
   var EDIT_ID_RE = /^[a-z0-9:_-]{1,60}$/;
   var WEIGHTS = [400, 500, 600, 700];
-  var FONTS = [
-    'Cairo', 'Tajawal', 'Almarai', 'Amiri', 'Changa', 'El Messiri', 'Noto Kufi Arabic', 'Noto Naskh Arabic', 'Noto Sans Arabic', 'Reem Kufi', 'IBM Plex Sans Arabic',
-    'Inter', 'Roboto', 'Open Sans', 'Lato', 'Montserrat', 'Poppins', 'Playfair Display', 'Cormorant Garamond', 'Libre Baskerville', 'Merriweather',
-    'Tahoma', 'Arial', 'Georgia', 'Times New Roman', 'Verdana', 'Trebuchet MS', 'Courier New', 'system-ui'
-  ];
-  var WEB_FONTS = FONTS.slice(0, 21);                       // served by Google Fonts; the rest are installed on the device
+  /* Device fonts, the fonts the site already ships, and the extra Arabic/English families the editor offers. */
+  var DEVICE_FONTS = ['Tahoma', 'Arial', 'Georgia', 'Times New Roman', 'Verdana', 'Trebuchet MS', 'Courier New', 'system-ui'];
+  var LOCAL_FONTS = ['El Messiri', 'IBM Plex Sans Arabic', 'Playfair Display'];
+  var WEB_FONTS = ['Cairo', 'Tajawal', 'Almarai', 'Amiri', 'Changa', 'Noto Kufi Arabic', 'Noto Naskh Arabic', 'Noto Sans Arabic', 'Reem Kufi', 'Inter', 'Roboto', 'Open Sans', 'Lato', 'Montserrat', 'Poppins', 'Cormorant Garamond', 'Libre Baskerville', 'Merriweather'];
+  var FONTS = DEVICE_FONTS.concat(LOCAL_FONTS, WEB_FONTS);
   var EFFECTS = ['none', 'soft', 'gold', 'deep'];
   var EDIT_LIMITS = { ids: 400, offset: 4000, size: 4000, minSize: 16, font: [8, 120], radius: 80 };
   var BREAKPOINTS = { mobile: 640, tablet: 1024 };
@@ -144,6 +143,8 @@
         if (v === true) out.hidden = true; else if (v !== false) errors.push(where + '.hidden: invalid');
       } else if (k === 'archived') {
         if (v === true) out.archived = true; else if (v !== false) errors.push(where + '.archived: invalid');
+      } else if (k === 'media') {
+        errors.push(where + '.media: unsupported; use style.media for an image');
       } else if (k === 'text') {
         var t = loc(v, LIMITS.text);
         if (t.ar || t.en) out.text = t;
@@ -264,8 +265,7 @@
       keys.slice(0, MAX_PAGES).forEach(function (key) {
         if (!PAGE_KEY_RE.test(key)) { errors.push('pages.' + key + ': unknown page'); return; }
         var pg = input.pages[key];
-        if (!isObj(pg)) { errors.push('pages.' + key + ': not an object'); return; }
-        if (pg.blocks !== undefined && !Array.isArray(pg.blocks)) { errors.push('pages.' + key + ': blocks must be an array'); return; }
+        if (!isObj(pg) || (pg.blocks !== undefined && !Array.isArray(pg.blocks))) { errors.push('pages.' + key + ': blocks must be an array'); return; }
         var list = [];
         (pg.blocks || []).forEach(function (raw, i) {
           var b = blockOf(raw, errors, 'pages.' + key + '[' + i + ']');
@@ -274,10 +274,10 @@
           seen[b.id] = true; b.slot = isObj(raw) && raw.slot === 'bottom' ? 'bottom' : 'top';
           list.push(b);
         });
-        var pe = pg.edits === undefined ? {} : editsOf(pg.edits, errors);
-        if (list.length || Object.keys(pe).length) {
+        var pageEdits = pg.edits !== undefined ? editsOf(pg.edits, errors) : {};
+        if (list.length || Object.keys(pageEdits).length) {
           design.pages = design.pages || {}; design.pages[key] = { blocks: list };
-          if (Object.keys(pe).length) design.pages[key].edits = pe;
+          if (Object.keys(pageEdits).length) design.pages[key].edits = pageEdits;
         }
       });
       var total = design.blocks.length + Object.keys(design.pages || {}).reduce(function (n, k) { return n + design.pages[k].blocks.length; }, 0);
@@ -368,7 +368,7 @@
 
   return {
     VERSION: VERSION, BUILTIN: BUILTIN, TEXT_KEYS: TEXT_KEYS, LIMITS: LIMITS,
-    DEVICES: DEVICES, FONTS: FONTS, WEB_FONTS: WEB_FONTS, EFFECTS: EFFECTS, BREAKPOINTS: BREAKPOINTS, EDIT_ID_RE: EDIT_ID_RE,
+    DEVICES: DEVICES, FONTS: FONTS, DEVICE_FONTS: DEVICE_FONTS, LOCAL_FONTS: LOCAL_FONTS, WEB_FONTS: WEB_FONTS, EFFECTS: EFFECTS, BREAKPOINTS: BREAKPOINTS, EDIT_ID_RE: EDIT_ID_RE,
     normalize: normalize, isEmpty: isEmpty, serialize: serialize, plan: plan, applyTexts: applyTexts,
     deviceOf: deviceOf, editFor: editFor,
     isRef: function (r) { return typeof r === 'string' && REF_RE.test(r); },

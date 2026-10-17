@@ -8,6 +8,7 @@ const root = path.resolve(__dirname, '..');
 const SB = 'https://sb.example.test';
 function env() {
   process.env.SUPABASE_URL = SB; process.env.SUPABASE_ANON_KEY = 'anon'; process.env.SUPABASE_SERVICE_ROLE_KEY = 'service';
+  process.env.EDITOR_SITE_ORIGIN = 'https://storefront.example.test/';
 }
 function start() {
   const server = require('../railway/server.js');
@@ -30,6 +31,18 @@ function fakeSupabase(role) {
 const url = (s, p) => 'http://127.0.0.1:' + s.address().port + p;
 const post = (s, p, body, headers) => fetch(url(s, p), { method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, headers || {}), body: JSON.stringify(body) });
 const cookieOf = (r) => (r.headers.get('set-cookie') || '').split(';')[0];
+
+test('the editor preview never defaults to the editor service itself as the storefront', () => {
+  const host = require('../railway/editor-host.js');
+  const previous = { origin: process.env.EDITOR_SITE_ORIGIN, domain: process.env.RAILWAY_PUBLIC_DOMAIN };
+  process.env.EDITOR_SITE_ORIGIN = 'https://editor.example.test';
+  process.env.RAILWAY_PUBLIC_DOMAIN = 'editor.example.test';
+  try { assert.equal(host.editorSiteOrigin(), 'https://elan-site-production.up.railway.app'); }
+  finally {
+    if (previous.origin === undefined) delete process.env.EDITOR_SITE_ORIGIN; else process.env.EDITOR_SITE_ORIGIN = previous.origin;
+    if (previous.domain === undefined) delete process.env.RAILWAY_PUBLIC_DOMAIN; else process.env.RAILWAY_PUBLIC_DOMAIN = previous.domain;
+  }
+});
 
 test('the owner editor page is private: anonymous visitors only ever get the login page', async () => {
   env(); const s = await start();
@@ -65,10 +78,24 @@ test('only an admin can log in; the session is a browser-session cookie and logo
     const page = await fetch(url(s, '/editor'), { headers: { cookie } });
     const html = await page.text();
     assert.match(html, /elan-editor-bridge/);
+    assert.match(html, /ELAN_EDITOR_SITE_ORIGIN="https:\/\/storefront\.example\.test"/);
     const csp = page.headers.get('content-security-policy');
-    assert.match(csp, /frame-src 'self'/); assert.match(csp, /frame-ancestors 'none'/);
+    assert.match(csp, /frame-src 'self' https:\/\/storefront\.example\.test/); assert.match(csp, /frame-ancestors 'none'/);
     assert.doesNotMatch(csp, /unsafe-eval|script-src[^;]*'unsafe-inline'/);
     assert.equal((await fetch(url(s, '/api/editor-session'), { headers: { cookie } })).status, 200);
+
+    const ticketResponse = await post(s, '/api/editor-bridge-ticket', {}, { cookie });
+    const issued = await ticketResponse.json();
+    assert.equal(ticketResponse.status, 200);
+    assert.equal(issued.ok, true);
+    assert.ok(issued.ticket);
+    const bridgeClaims = require('../railway/editor-bridge-ticket.js').verify(issued.ticket);
+    assert.equal(bridgeClaims.aud, 'https://storefront.example.test');
+    assert.equal(bridgeClaims.role, 'platform_admin');
+    assert.equal((await fetch(url(s, '/api/editor-session'), { headers: { 'x-elan-editor-ticket': issued.ticket } })).status, 200);
+    assert.equal((await fetch(url(s, '/api/editor?action=state'), { headers: { 'x-elan-editor-ticket': issued.ticket } })).status, 200);
+    assert.equal((await fetch(url(s, '/api/editor-upload'), { headers: { 'x-elan-editor-ticket': issued.ticket } })).status, 401);
+    assert.equal((await post(s, '/api/editor-bridge-ticket', {}, { cookie, Origin: 'https://evil.example' })).status, 403);
 
     assert.equal((await post(s, '/api/editor-logout', {}, { cookie })).status, 200);
     assert.equal((await fetch(url(s, '/api/editor-session'), { headers: { cookie } })).status, 401);
@@ -88,7 +115,8 @@ test('edit mode only loads inside the editor window and never talks to customers
   assert.match(boot, /elan_editor/);
   assert.match(boot, /edit-mode\.js/);
   const edit = fs.readFileSync(path.join(root, 'edit-mode.js'), 'utf8');
-  assert.match(edit, /allowedEditorOrigins: \[location\.origin\]/);
+  assert.match(edit, /function editorParentOrigin\(\)/);
+  assert.match(edit, /allowedEditorOrigins: \[editorParentOrigin\(\)\]/);
   assert.doesNotMatch(edit, /localStorage|sessionStorage|document\.cookie|eval\(|new Function/);
   const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
   assert.doesNotMatch(html, /edit-mode|elan-host-bridge/);
@@ -133,7 +161,7 @@ test('the editor page wires the original context menu, format dialog and header 
 test('the menu is built from a tool registry so new capabilities are one register() call', () => {
   const edit = fs.readFileSync(path.join(root, 'edit-mode.js'), 'utf8');
   assert.match(edit, /window\.ElanEditTools = \{ register: registerTool/);
-  for (const label of ['تحريك العنصر', 'تنسيق النص: الخط • اللون • الحجم • 3D', 'إنشاء نص', 'نسخ العنصر']) assert.ok(edit.includes(label), label);
+  for (const label of ['تنسيق النص: الخط • اللون • الحجم • 3D', 'إنشاء نص', 'نسخ العنصر']) assert.ok(edit.includes(label), label);
   assert.match(edit, /function registerTool\(t\)/);
   assert.match(edit, /case 'tool\.run'/);
   const html = fs.readFileSync(path.join(root, 'editor', 'elan-editor.html'), 'utf8');
@@ -149,14 +177,15 @@ test('the menu is built from a tool registry so new capabilities are one registe
   buttons[0].click();
   assert.deepEqual(plain(ui.calls[0]), ['tool.run', { id: 'move', elementId: 'hero', at: { x: 12, y: 34 } }]);
   const bridge = fs.readFileSync(path.join(root, 'elan-host-bridge.js'), 'utf8');
-  for (const action of ['tool.run', 'element.nudge', 'page.markSaved']) assert.ok(bridge.includes(action), action);
+  for (const action of ['tool.run', 'element.nudge', 'page.getState', 'element.select', 'element.edit', 'page.markSaved']) assert.ok(bridge.includes(action), action);
 });
 
-test('moving is a one-shot tool chosen from the menu: no drag without it, no arrow keys, it ends on release', () => {
+test('moving is a direct pointer drag with no separate move tool or arrow controls', () => {
   const edit = fs.readFileSync(path.join(root, 'edit-mode.js'), 'utf8');
-  assert.match(edit, /function armMove/);
-  assert.match(edit, /function disarm\(\)/);
-  assert.match(edit, /if \(g\.mode === 'move'\) \{ disarm\(\)/);
+  assert.match(edit, /var e, mode = 'move'/);
+  assert.match(edit, /Geometry\.move\(g\.r, g\.b/);
+  assert.match(edit, /if \(!g\.moved\) return;/);
+  assert.doesNotMatch(edit, /registerTool\(\{ id: 'move'/);
   assert.match(edit, /window\.addEventListener\('pointerup'/);
   assert.doesNotMatch(edit, /Arrow(Left|Right|Up|Down)/);
   const html = fs.readFileSync(path.join(root, 'editor', 'elan-editor.html'), 'utf8');
@@ -192,7 +221,7 @@ test('inner pages keep their own edits, separate from the home page', async () =
   assert.equal(title.el.style.transform, '', 'undo must restore the unedited page');
 });
 
-test('edit mode lets a plain click enter a dynamic page and tracks which page is being edited', () => {
+test('edit mode selects on a click, enters a dynamic page from its open chip or the menu, and tracks which page is being edited', () => {
   const edit = fs.readFileSync(path.join(root, 'edit-mode.js'), 'utf8');
   assert.match(edit, /function dynamicTarget\(e\)/);
   assert.match(edit, /function enterPage\(e\)/);

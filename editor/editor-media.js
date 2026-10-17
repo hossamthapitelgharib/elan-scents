@@ -22,7 +22,7 @@
       var dlg = el('dialog', '', { id: 'elanMediaDlg' }), done = false;
       function finish(v) { if (done) return; done = true; try { dlg.close(); } catch (_) { /* closed */ } dlg.remove(); resolve(v || null); }
       dlg.addEventListener('cancel', function () { finish(null); }); dlg.addEventListener('close', function () { finish(null); });
-      dlg.appendChild(el('b', 'اختيار صورة'));
+      dlg.appendChild(el('b', opts.video ? 'اختيار صورة أو فيديو' : 'اختيار صورة'));
       var tabs = el('div', '', { className: 'tabs' }), bLib = el('button', 'المكتبة'), bUp = el('button', 'رفع من الجهاز'), bAi = el('button', 'توليد بالذكاء الاصطناعي');
       tabs.append(bLib, bUp, bAi); dlg.appendChild(tabs);
       var body = el('div'), note = el('div', '', { className: 'note' });
@@ -48,11 +48,11 @@
       }
       function showUpload() {
         mark(bUp); body.textContent = '';
-        var f = el('input', '', { type: 'file', accept: 'image/jpeg,image/png,image/webp,image/gif,image/avif' });
-        note.textContent = 'صور فقط (JPG, PNG, WebP, GIF, AVIF) لحد 10 ميجا.'; body.append(f, note);
+        var f = el('input', '', { type: 'file', accept: 'image/jpeg,image/png,image/webp,image/gif,image/avif' + (opts.video ? ',video/mp4,video/webm' : '') });
+        note.textContent = opts.video ? 'صور (JPG, PNG, WebP, GIF, AVIF) لحد 10 ميجا، أو فيديو MP4/WebM لحد 50 ميجا.' : 'صور فقط (JPG, PNG, WebP, GIF, AVIF) لحد 10 ميجا.'; body.append(f, note);
         f.onchange = async function () {
           var file = f.files[0]; if (!file) return;
-          if (file.size > 10 * 1024 * 1024) { note.textContent = 'الصورة أكبر من 10 ميجا.'; return; }
+          if (file.size > (/^video\//.test(file.type) ? 50 : 10) * 1024 * 1024) { note.textContent = /^video\//.test(file.type) ? 'الفيديو أكبر من 50 ميجا.' : 'الصورة أكبر من 10 ميجا.'; return; }
           note.textContent = 'بيترفع...';
           try {
             var r = await fetch('/api/editor-upload', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': file.type, 'X-File-Name': encodeURIComponent(file.name) }, body: file });
@@ -69,8 +69,8 @@
   };
 
   // Menu tool: put a picked image into the selected element.
-  window.elanLiveMedia = async function (element) {
-    var url = await window.elanPickMedia();
+  window.elanLiveMedia = async function (element, tool) {
+    var url = await window.elanPickMedia({ video: !!(tool && tool.video) || !!(element && (element.kind === 'hero' || element.kind === 'section')) });
     if (url && typeof runLive === 'function') runLive('element.setMedia', { elementId: element && element.id, src: url });
   };
   // Menu tool: create something (a banner or an image) with an image, at the pointer.

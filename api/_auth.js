@@ -1,7 +1,9 @@
-async function getContext(req, options = {}) {
+async function getContext(req) {
   const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY;
   if (!supabaseUrl || !serviceRoleKey) return { error: 'supabase_service_configuration_missing', status: 503, missing: [!supabaseUrl ? 'SUPABASE_URL' : null, !serviceRoleKey ? 'SUPABASE_SERVICE_ROLE_KEY' : null].filter(Boolean) };
+  /* Set only by railway/editor-host.js for an owner who opened the temporary access-key link. */
+  if (req.__editorKeyAdmin === true) return { supabaseUrl, serviceRoleKey, token: serviceRoleKey, user: { id: 'editor-access-key', email: 'access-key' }, profile: { id: 'editor-access-key', role: 'platform_admin' } };
   const auth = req.headers.authorization || '';
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
   if (!token) return { error: 'unauthorized', status: 401 };
@@ -9,8 +11,10 @@ async function getContext(req, options = {}) {
   if (!userResponse.ok) return { error: 'unauthorized', status: 401 };
   const user = await userResponse.json();
   const profileResponse = await fetch(`${supabaseUrl}/rest/v1/profiles?select=id,full_name,phone,role&id=eq.${encodeURIComponent(user.id)}&limit=1`, { headers: { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}` } });
-  if (options.strictProfile && !profileResponse.ok) return { error: 'role_check_failed', status: 502 };
-  const profiles = profileResponse.ok ? await profileResponse.json() : [];
+  if (!profileResponse.ok) return { error: 'role_check_failed', status: 502 };
+  let profiles;
+  try { profiles = await profileResponse.json(); } catch (_) { return { error: 'role_check_failed', status: 502 }; }
+  if (!Array.isArray(profiles)) return { error: 'role_check_failed', status: 502 };
   return { supabaseUrl, serviceRoleKey, token, user, profile: profiles[0] || { id: user.id, role: 'customer' } };
 }
 

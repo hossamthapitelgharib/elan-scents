@@ -23,18 +23,22 @@ function lockBodyScroll(lock){
   }
 }
 function syncBodyScroll(){
+  var body=document.body;
+  if(!body)return;
   var sheet=document.getElementById('sheet');
   var menu=document.getElementById('menu');
-  lockBodyScroll(!!((sheet&&!sheet.hasAttribute('hidden'))||(menu&&menu.classList.contains('open'))));
+  var shouldLock=!!((sheet&&!sheet.hasAttribute('hidden'))||(menu&&menu.classList.contains('open')));
+  lockBodyScroll(shouldLock);
 }
 function watchSheet(){
   var sheet=document.getElementById('sheet');
   var menu=document.getElementById('menu');
+  if(!sheet&&!menu)return;
   var sync=syncBodyScroll;
   sync();
   try{
     var mo=new MutationObserver(sync);
-    [sheet,menu].forEach(function(node){if(node)mo.observe(node,{attributes:true,attributeFilter:['hidden','style','class']});});
+    [menu,sheet].forEach(function(node){if(node)mo.observe(node,{attributes:true,attributeFilter:['hidden','style','class']});});
   }catch(e){}
   // also catch programmatic toggles via clicks on cart/fav/notif buttons
   document.addEventListener('click',function(){
@@ -42,6 +46,14 @@ function watchSheet(){
     setTimeout(sync,50);
     setTimeout(sync,200);
   },true);
+}
+function watchMenu(){
+  var menu=document.getElementById('menu');
+  if(!menu)return;
+  syncBodyScroll();
+  try{var mo=new MutationObserver(syncBodyScroll);mo.observe(menu,{attributes:true,attributeFilter:['class']});}catch(e){}
+  var toggle=document.getElementById('mb');
+  if(toggle)toggle.addEventListener('click',function(){setTimeout(syncBodyScroll,0);setTimeout(syncBodyScroll,50);});
 }
 function applyArtAndHero(){
   window.playHeroVideo=function(){
@@ -93,7 +105,8 @@ function applyArtAndHero(){
   });
   if(typeof render==='function'){try{render();}catch(e){}}
   watchSheet();
+  watchMenu();
 }
-var CORE='/app-core.js?v=20261016-02';
+var CORE='/app-core.js?v=20261016-04';
 loadScript(CORE, applyArtAndHero);
 })();

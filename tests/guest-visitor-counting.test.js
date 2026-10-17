@@ -1,0 +1,187 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+
+const source = fs.readFileSync(path.join(__dirname, '..', 'guest-identity.js'), 'utf8');
+const KEY = 'elan_guest_browser_key_v2';
+const VISIT = 'elan_visit_v1';
+let counter = 0;
+const uuid = () => { counter += 1; return `00000000-0000-4000-8000-${String(counter).padStart(12, '0')}`; };
+
+function shared(opts = {}) {
+  const values = new Map();
+  return {
+    values, cookies: new Map(),
+    blocked: !!opts.blocked
+  };
+}
+// One call = one tab. Tabs of the same browser share `browser` (storage + cookies).
+function openTab(browser, now = () => Date.now(), respond = null) {
+  const requests = [], listeners = {};
+  const localStorage = {
+    getItem(k) { if (browser.blocked) throw new Error('blocked'); return browser.values.has(k) ? browser.values.get(k) : null; },
+    setItem(k, v) { if (browser.blocked) throw new Error('blocked'); browser.values.set(k, String(v)); },
+    removeItem(k) { if (browser.blocked) throw new Error('blocked'); browser.values.delete(k); }
+  };
+  const document = {
+    visibilityState: 'visible', addEventListener() {},
+    get cookie() { return [...browser.cookies].map(([k, v]) => `${k}=${v}`).join('; '); },
+    set cookie(line) {
+      const [pair] = String(line).split(';'); const i = pair.indexOf('=');
+      const k = pair.slice(0, i).trim(), v = pair.slice(i + 1).trim();
+      if (/max-age=0/i.test(line)) browser.cookies.delete(k); else browser.cookies.set(k, v);
+    }
+  };
+  const window = { location: { search: '', protocol: 'https:' }, crypto: { randomUUID: uuid }, addEventListener(type, fn) { listeners[type] = fn; } };
+  window.parent = window;
+  const realNow = Date.now;
+  const context = {
+    window, document, localStorage, URLSearchParams, Date: Object.assign(function () { return new Date(now()); }, { now }),
+    fetch: async (url, options = {}) => {
+      const body = JSON.parse(options.body || '{}'); requests.push({ url: String(url), body });
+      const custom = respond && respond(String(url), body);
+      return { ok: true, json: async () => custom || (String(url) === '/api/guest-cart' ? { ok: true, visitorId: 'v', cart: [] } : { ok: true, tracked: true }) };
+    },
+    setTimeout() { return 0; }, setInterval() { return 0; }
+  };
+  vm.runInNewContext(source, context, { filename: 'guest-identity.js' });
+  return { identity: window.GuestIdentity, requests, listeners, restore: () => { Date.now = realNow; } };
+}
+
+test('two tabs opened on a first visit share one visitor key and one visit', async () => {
+  const browser = shared();
+  const a = openTab(browser), b = openTab(browser);
+  await a.identity.resolve(); await b.identity.resolve();
+  await a.identity.startSession(); await b.identity.startSession();
+  const keys = new Set([...a.requests, ...b.requests].map((r) => r.body.visitorKey));
+  assert.equal(keys.size, 1);
+  const visits = new Set([...a.requests, ...b.requests].filter((r) => r.url === '/api/customer-activity').map((r) => r.body.sessionId));
+  assert.equal(visits.size, 1);
+});
+
+test('blocked storage falls back to a cookie, so a reload is not a new visitor', async () => {
+  const browser = shared({ blocked: true });
+  const first = openTab(browser); await first.identity.resolve();
+  const reload = openTab(browser); await reload.identity.resolve();
+  assert.equal(first.requests[0].body.visitorKey, reload.requests[0].body.visitorKey);
+  assert.ok(browser.cookies.get('elan_vk'));
+});
+
+test('a visit continues for 29 idle minutes and a new one starts after 31', async () => {
+  const browser = shared(); let t = 1_800_000_000_000;
+  const tab = openTab(browser, () => t);
+  await tab.identity.startSession();
+  const first = tab.requests.filter((r) => r.url === '/api/customer-activity')[0].body.sessionId;
+  t += 29 * 60000;
+  assert.equal(tab.identity.sessionId(true), first);
+  t += 31 * 60000;
+  assert.notEqual(tab.identity.sessionId(true), first);
+});
+
+test('the same product viewed twice within 30 seconds is one view', async () => {
+  const browser = shared(); let t = 1_800_000_000_000;
+  const tab = openTab(browser, () => t);
+  const product = '245a6e52-46c6-42e9-a730-9e5bec3dd203';
+  await tab.identity.track('view', product); await tab.identity.track('view', product);
+  t += 31000; await tab.identity.track('view', product);
+  assert.equal(tab.requests.filter((r) => r.body.eventType === 'view').length, 2);
+});
+
+test('closing one tab does not end the visit other tabs still use', async () => {
+  const browser = shared();
+  const tab = openTab(browser);
+  await tab.identity.startSession();
+  tab.listeners.pointerdown();
+  await new Promise((r) => setImmediate(r));
+  tab.requests.length = 0;
+  tab.listeners.pagehide();
+  await new Promise((r) => setImmediate(r));
+  const sent = tab.requests.filter((r) => r.url === '/api/customer-activity').map((r) => r.body.sessionAction);
+  assert.deepEqual(sent, ['heartbeat']);
+});
+
+test('an idle page adds no active time: the last heartbeat is skipped and a return re-opens the visit without a heartbeat', async () => {
+  const browser = shared(); let t = 1_800_000_000_000;
+  const tab = openTab(browser, () => t);
+  await tab.identity.startSession();
+  tab.listeners.pointerdown();            // first touch
+  await new Promise((r) => setImmediate(r)); tab.requests.length = 0;
+  t += 120000;                            // two quiet minutes
+  tab.listeners.pagehide();               // leaving while idle must not add idle time
+  await new Promise((r) => setImmediate(r));
+  assert.equal(tab.requests.filter((r) => r.url === '/api/customer-activity').length, 0);
+  tab.listeners.pointerdown();            // coming back
+  await new Promise((r) => setImmediate(r));
+  const sent = tab.requests.filter((r) => r.url === '/api/customer-activity').map((r) => r.body.sessionAction);
+  assert.deepEqual(sent, ['start']);
+});
+
+test('automated browsers (webdriver) are never tracked', async () => {
+  const sent = [];
+  const context = {
+    window: { location: { search: '' }, crypto: { randomUUID: uuid }, addEventListener() {} }, navigator: { webdriver: true },
+    document: { visibilityState: 'visible', addEventListener() {} }, localStorage: { getItem() { return null; }, setItem() {}, removeItem() {} },
+    URLSearchParams, fetch: async (...a) => { sent.push(a); return { ok: true, json: async () => ({}) }; }, setTimeout() {}, setInterval() {}
+  };
+  context.window.parent = context.window;
+  vm.runInNewContext(source, context, { filename: 'guest-identity.js' });
+  assert.equal(context.window.GuestIdentity.enabled(), false);
+  await context.window.GuestIdentity.track('view', '245a6e52-46c6-42e9-a730-9e5bec3dd203');
+  assert.equal(sent.length, 0);
+});
+
+test('the browser adopts the key the server merged it into', async () => {
+  const browser = shared(); const canonical = '77777777-7777-4777-8777-777777777777';
+  const tab = openTab(browser, () => Date.now(), (url) => url === '/api/guest-cart' ? { ok: true, visitorId: 'v', cart: [], visitorKey: canonical } : null);
+  await tab.identity.resolve();
+  assert.equal(browser.values.get(KEY), canonical);
+  assert.equal(browser.cookies.get('elan_vk'), canonical);
+  await tab.identity.track('view', '245a6e52-46c6-42e9-a730-9e5bec3dd203');
+  assert.equal(tab.requests.at(-1).body.visitorKey, canonical);
+});
+
+test('"not your basket" gives the next person a new guest key and the server cookie follows', async () => {
+  const browser = shared();
+  const tab = openTab(browser);
+  await tab.identity.resolve();
+  const before = browser.values.get(KEY);
+  await tab.identity.startFresh();
+  const after = browser.values.get(KEY);
+  assert.notEqual(before, after);
+  assert.equal(browser.cookies.get('elan_vk'), after);
+  const last = tab.requests.filter((r) => r.url === '/api/guest-cart').at(-1).body;
+  assert.equal(last.fresh, true); assert.equal(last.visitorKey, after);
+});
+
+test('identify runs once per visit, only after real use, and sends signals plus behaviour', async () => {
+  const browser = shared(); let t = 1_800_000_000_000;
+  const tab = openTab(browser, () => t);
+  await tab.identity.startSession();
+  tab.listeners.pointerdown();
+  await new Promise((r) => setImmediate(r));
+  assert.equal(tab.requests.some((r) => r.body.action === 'identify'), false, 'one touch is not enough');
+  t += 3000; tab.listeners.pointerdown(); t += 3000; tab.listeners.pointerdown();
+  await new Promise((r) => setTimeout(r, 20));
+  const sent = tab.requests.filter((r) => r.body.action === 'identify');
+  assert.equal(sent.length, 1);
+  assert.match(sent[0].body.fp, /^[a-f0-9]{16,64}$/);
+  assert.ok(sent[0].body.behavior.interactions >= 3 && sent[0].body.behavior.activeSeconds >= 5);
+  assert.equal(typeof sent[0].body.parts, 'object');
+  t += 3000; tab.listeners.pointerdown();
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(tab.requests.filter((r) => r.body.action === 'identify').length, 1, 'not repeated in the same visit');
+});
+
+test('identify never sends the raw basket or any personal value', async () => {
+  const browser = shared(); let t = 1_800_000_000_000;
+  const tab = openTab(browser, () => t);
+  await tab.identity.save([{ sid: '245a6e52-46c6-42e9-a730-9e5bec3dd203', q: 2 }]);
+  await tab.identity.startSession();
+  tab.listeners.pointerdown(); t += 3000; tab.listeners.pointerdown(); t += 3000; tab.listeners.pointerdown();
+  await new Promise((r) => setTimeout(r, 20));
+  const body = tab.requests.find((r) => r.body.action === 'identify').body;
+  assert.match(body.cartSig, /^[a-f0-9]{16,64}$/);
+  assert.equal(JSON.stringify(body).includes('245a6e52'), false);
+});

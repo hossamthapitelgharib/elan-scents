@@ -48,18 +48,29 @@
   var smartCache = {};
   window.ElanPendingSections = window.ElanPendingSections || {};   // edit mode only: drafts not saved yet
   function perfumeBy(id) { try { return PERFUMES.filter(function (x) { return String(x.id) === String(id); })[0] || null; } catch (e) { return null; } }
+  function sameCatalogName(value, filter) {
+    var actual = String(value == null ? '' : value), wanted = String(filter == null ? '' : filter);
+    if (actual === wanted) return true;
+    try { return typeof esc === 'function' && actual === esc(wanted); } catch (e) { return false; }
+  }
   function autoList(f) {
     f = f || {};
     var l = [];
-    try { l = PERFUMES.map(function (p) { return { p: p, b: best(p) }; }).filter(function (x) { return x.b; }); } catch (e) { return []; }
+    try {
+      l = PERFUMES.map(function (p) {
+        var offers = (p.offers || []).filter(function (o) {
+          return o && o.avail && (!f.store || sameCatalogName(o.store, f.store)) && (!f.flag || (o.flags || []).indexOf(f.flag) > -1);
+        });
+        offers.sort(function (a, b) { return a.price - b.price; });
+        return { p: p, b: offers[0] || null };
+      }).filter(function (x) { return x.b; });
+    } catch (e) { return []; }
     l = l.filter(function (x) {
       var p = x.p;
-      if (f.brand && p.brand !== f.brand) return false;
+      if (f.brand && !sameCatalogName(p.brand, f.brand)) return false;
       if (f.cat && !(p.cats || []).some(function (i) { return nmOf('cats', i) === f.cat; })) return false;
       if (f.occ && !(p.occs || []).some(function (i) { return nmOf('occ', i) === f.occ; })) return false;
       if (f.note && !(p.notes || []).some(function (i) { return nmOf('notes', i) === f.note; })) return false;
-      if (f.store && !p.offers.some(function (o) { return o.store === f.store; })) return false;
-      if (f.flag && !p.offers.some(function (o) { return (o.flags || []).indexOf(f.flag) > -1; })) return false;
       if (f.min !== undefined && f.min !== '' && x.b.price < +f.min) return false;
       if (f.max !== undefined && f.max !== '' && x.b.price > +f.max) return false;
       return true;
@@ -139,15 +150,6 @@
   function hash(str) { var h = 5381, i; for (i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) >>> 0; return h.toString(36); }
 
   /* Every element the editor can touch, with a stable id that does not change between renders. */
-  var SERIF = { 'Amiri': 1, 'Noto Naskh Arabic': 1, 'Playfair Display': 1, 'Cormorant Garamond': 1, 'Libre Baskerville': 1, 'Merriweather': 1, 'Georgia': 1, 'Times New Roman': 1 };
-  var loadedFonts = {};
-  function loadFont(name) {                       // adds one Google Fonts stylesheet per web font that is actually used
-    if (loadedFonts[name] || ED.WEB_FONTS.indexOf(name) === -1) return;
-    loadedFonts[name] = 1;
-    var l = document.createElement('link'); l.rel = 'stylesheet';
-    l.href = 'https://fonts.googleapis.com/css2?family=' + name.replace(/ /g, '+') + ':wght@400;700&display=swap';
-    document.head.appendChild(l);
-  }
   function elements() {
     var out = [], seen = {};
     function add(id, el, kind, name) { if (!el || seen[id]) return; seen[id] = 1; out.push({ id: id, el: el, kind: kind, name: name }); }
@@ -169,6 +171,30 @@
         add(id, card, 'card', 'كارت ' + ((h4 && h4.textContent.trim().slice(0, 24)) || (i + 1)));
       });
     }
+    /* The parts of the page below the sections: about, contact and every part of the footer. */
+    if (!document.body.classList.contains('inner')) {
+      add('about', document.getElementById('about'), 'section', 'قسم عن إيلان سينتس');
+      Array.prototype.slice.call(document.querySelectorAll('#abIn p')).forEach(function (p, i) {
+        add('about:p' + (i || ''), p, 'text-area', 'فقرة عن إيلان سينتس ' + (i + 1));
+      });
+      add('about:logo', document.querySelector('#about .alogo'), 'section', 'شعار عن إيلان سينتس');
+      var ct = document.getElementById('contact');
+      add('contact', ct, 'section', 'قسم تواصل معنا');
+      add('contact:title', ct && ct.querySelector('h3'), 'title', 'عنوان تواصل معنا');
+    }
+    var ft = document.querySelector('footer');
+    if (ft) {
+      add('footer', ft, 'section', 'الفوتر');
+      add('footer:logo', ft.querySelector('.footer-logo'), 'image-el', 'شعار الفوتر');
+      add('footer:cols', document.getElementById('fcols'), 'group', 'روابط الفوتر');
+      add('footer:channels', document.getElementById('fch'), 'group', 'قنوات التواصل');
+      add('footer:phones', document.getElementById('fph'), 'group', 'أرقام الفوتر');
+      add('footer:bar', document.getElementById('fbar'), 'group', 'شريط الفوتر');
+      add('footer:credit', document.getElementById('fcr'), 'text-area', 'حقوق الفوتر');
+      Array.prototype.slice.call(ft.querySelectorAll('#fcols h5')).forEach(function (h, i) { add('footer:h' + (i || ''), h, 'text-area', 'عنوان في الفوتر ' + (i + 1)); });
+      Array.prototype.slice.call(ft.querySelectorAll('#fcols a')).forEach(function (l, i) { add('footer:l' + (i || ''), l, 'text-area', 'رابط في الفوتر: ' + l.textContent.trim().slice(0, 20)); });
+      Array.prototype.slice.call(ft.querySelectorAll('#fbar span')).forEach(function (sp, i) { add('footer:b' + (i || ''), sp, 'text-area', 'نص شريط الفوتر ' + (i + 1)); });
+    }
     var main = document.getElementById('main');
     if (!main) return out;
     Array.prototype.slice.call(main.children).forEach(function (c) {
@@ -184,24 +210,6 @@
         add(id, card, 'card', 'كارت ' + ((h4 && h4.textContent.trim().slice(0, 24)) || (i + 1)));
       });
     });
-    var about = document.getElementById('about'), ab = document.getElementById('abIn');
-    add('about', about, 'group', 'عن إيلان');
-    if (ab) Array.prototype.slice.call(ab.querySelectorAll('p')).forEach(function (p, i) { add('about:p' + (i || ''), p, 'text-area', 'نص النبذة ' + (i + 1)); });
-    var footer = document.querySelector('footer');
-    add('footer', footer, 'group', 'التذييل');
-    add('footer:logo', footer && footer.querySelector('.footer-logo, .footer-background'), 'image-el', 'صورة التذييل');
-    add('footer:cols', document.getElementById('fcols'), 'group', 'أعمدة التذييل');
-    add('footer:bar', document.getElementById('fbar'), 'group', 'شريط التذييل');
-    add('footer:credit', document.getElementById('fcr'), 'text-area', 'حقوق التذييل');
-    if (footer) {
-      Array.prototype.slice.call(footer.querySelectorAll('h5')).forEach(function (n, i) { add('footer:h' + (i || ''), n, 'title', 'عنوان التذييل ' + (i + 1)); });
-      Array.prototype.slice.call(footer.querySelectorAll('a')).forEach(function (n, i) { add('footer:l' + (i || ''), n, 'text-area', 'رابط التذييل ' + (i + 1)); });
-      var bar = document.getElementById('fbar');
-      if (bar) Array.prototype.slice.call(bar.querySelectorAll('span')).forEach(function (n, i) { add('footer:b' + (i || ''), n, 'text-area', 'نص الشريط ' + (i + 1)); });
-      var channels = document.getElementById('fch');
-      if (channels) Array.prototype.slice.call(channels.querySelectorAll('b, span')).forEach(function (n, i) { add('footer:channel' + i, n, 'text-area', 'قناة التواصل ' + (i + 1)); });
-    }
-    add('contact:title', document.querySelector('#contact h3'), 'title', 'عنوان التواصل');
     return out;
   }
 
@@ -218,49 +226,82 @@
       if (el.__elanBase) el.setAttribute('style', el.__elanBase); else el.removeAttribute('style');
       delete el.__elanBase; el.removeAttribute('data-elan-edited');
     }
+    if (el.__elanMedia) { el.__elanMedia.forEach(function (u) { try { u(); } catch (_) { /* keep going */ } }); delete el.__elanMedia; }
     if (el.__elanText) {
-      var t = el.__elanText; t.node.textContent = t.children.length ? '' : t.value;
-      t.children.forEach(function (child) { t.node.appendChild(child); }); delete el.__elanText;
+      var t = el.__elanText; t.node.textContent = t.children && t.children.length ? '' : t.value;
+      (t.children || []).forEach(function (child) { t.node.appendChild(child); }); delete el.__elanText;
     }
     if (el.__elanStrip) { var st = el.__elanStrip; if (st.base) st.node.setAttribute('style', st.base); else st.node.removeAttribute('style'); delete el.__elanStrip; }
-    if (el.__elanMedia) {
-      var m = el.__elanMedia;
-      if (m.node) {
-        if (m.src === null) m.node.removeAttribute('src'); else m.node.setAttribute('src', m.src);
-        if (m.style) m.node.setAttribute('style', m.style); else m.node.removeAttribute('style');
-        if (m.node.tagName === 'VIDEO') {
-          m.node.__elanHeroVisible = m.visible;
-          if (m.visible !== false && !document.hidden) { var p = m.node.play(); if (p && p.catch) p.catch(function () {}); }
-        }
-      }
-      if (m.button) { if (m.buttonStyle) m.button.setAttribute('style', m.buttonStyle); else m.button.removeAttribute('style'); }
-      delete el.__elanMedia;
-    }
   }
 
-  function paintMedia(entry, src) {
-    var host = entry.el, node = entry.kind === 'image-el' ? host : host.querySelector('video, img');
-    if (entry.kind === 'hero') node = host.querySelector('#heroVideo');
-    var state = { node: node, src: node && node.getAttribute('src'), style: node && node.getAttribute('style'), visible: node && node.__elanHeroVisible };
-    host.__elanMedia = state;
-    if (node && node.tagName === 'IMG') { node.setAttribute('src', src); return; }
-    if (node && node.tagName === 'VIDEO') {
-      node.__elanHeroVisible = false; node.style.display = 'none'; node.pause();
-      state.button = host.querySelector('#heroPlay');
-      if (state.button) { state.buttonStyle = state.button.getAttribute('style'); state.button.style.display = 'none'; }
+  /* Replace the picture or video of an element: the hero video, a card picture, or a section background. Reversible. */
+  function paintMedia(entry, m) {
+    if (typeof m === 'string') m = { src: m, kind: 'image' };
+    var el = entry.el, undo = el.__elanMedia = el.__elanMedia || [];
+    var video = entry.kind === 'hero' ? el.querySelector('#heroVideo, video') : null;
+    if (video) {
+      var prev = { src: video.getAttribute('src'), poster: video.getAttribute('poster'), display: video.style.display, srcs: Array.prototype.map.call(video.querySelectorAll('source'), function (n) { return [n, n.getAttribute('src')]; }) };
+      undo.push(function () {
+        video.style.display = prev.display;
+        if (prev.poster !== null) video.setAttribute('poster', prev.poster);
+        prev.srcs.forEach(function (p) { p[0].setAttribute('src', p[1]); });
+        if (prev.src === null) video.removeAttribute('src'); else video.setAttribute('src', prev.src);
+        try { video.load(); var pl = video.play(); if (pl && pl.catch) pl.catch(function () {}); } catch (_) { /* optional */ }
+      });
+      if (m.kind === 'video') {
+        prev.srcs.forEach(function (p) { p[0].setAttribute('src', m.src); });
+        video.setAttribute('src', m.src); video.removeAttribute('poster');
+        try { video.load(); var p2 = video.play(); if (p2 && p2.catch) p2.catch(function () {}); } catch (_) { /* optional */ }
+      } else {
+        try { video.pause(); } catch (_) { /* optional */ }
+        video.style.display = 'none';
+        var base = el.getAttribute('style') || '';
+        undo.push(function () { /* hero style is restored by unpaint */ });
+        el.style.backgroundImage = 'url("' + m.src + '")'; el.style.backgroundSize = 'cover'; el.style.backgroundPosition = 'center';
+      }
+      return;
     }
-    host.style.backgroundImage = 'url("' + src + '")';
-    host.style.backgroundSize = 'cover'; host.style.backgroundPosition = 'center'; host.style.backgroundRepeat = 'no-repeat';
+    var img = el.tagName === 'IMG' ? el : el.querySelector('.artbg img, img');
+    if (img && m.kind !== 'video') {
+      var old = { src: img.getAttribute('src'), srcset: img.getAttribute('srcset') };
+      undo.push(function () { img.setAttribute('src', old.src); if (old.srcset === null) img.removeAttribute('srcset'); else img.setAttribute('srcset', old.srcset); });
+      img.removeAttribute('srcset'); img.setAttribute('src', m.src);
+      return;
+    }
+    if (m.kind === 'video') {
+      var v = document.createElement('video');
+      v.src = m.src; v.muted = true; v.loop = true; v.autoplay = true; v.setAttribute('playsinline', '');
+      v.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;pointer-events:none';
+      if (!el.style.position) el.style.position = 'relative';
+      el.insertBefore(v, el.firstChild);
+      undo.push(function () { v.remove(); });
+      try { var p3 = v.play(); if (p3 && p3.catch) p3.catch(function () {}); } catch (_) { /* optional */ }
+      return;
+    }
+    el.style.setProperty('background-image', 'url("' + m.src + '")', 'important');
+    el.style.setProperty('background-size', 'cover', 'important');
+    el.style.setProperty('background-position', 'center', 'important');
+  }
+
+  /* Extra web fonts load only when a saved design really uses one; device and shipped fonts need nothing. */
+  var loadedFonts = {};
+  function loadFont(name) {
+    if (!ED.WEB_FONTS || ED.WEB_FONTS.indexOf(name) === -1 || loadedFonts[name]) return;
+    loadedFonts[name] = true;
+    var l = document.createElement('link');
+    l.rel = 'stylesheet';
+    l.href = 'https://fonts.googleapis.com/css2?family=' + encodeURIComponent(name).replace(/%20/g, '+') + ':wght@400;700&display=swap';
+    document.head.appendChild(l);
   }
 
   function paint(entry, ed) {
     var el = entry.el, st = ed.style || {};
     el.__elanBase = el.getAttribute('style') || '';
     el.setAttribute('data-elan-edited', '1');
-    if (ed.hidden || ed.archived) { el.style.display = 'none'; return; }
+    if (ed.hidden || ed.archived) { el.style.setProperty('display', 'none', 'important'); return; }
     if (ed.dx || ed.dy) {
       el.style.transform = 'translate(' + (ed.dx || 0) + 'px,' + (ed.dy || 0) + 'px)';
-      el.style.position = el.style.position || 'relative';
+      if (!el.style.position && getComputedStyle(el).position === 'static') el.style.position = 'relative';
       el.style.zIndex = '3';
       var strip = entry.kind === 'card' && el.closest('.strip');
       if (strip && !el.__elanStrip) { el.__elanStrip = { node: strip, base: strip.getAttribute('style') || '' }; strip.style.overflow = 'visible'; }
@@ -274,11 +315,12 @@
     if (st.weight) el.style.fontWeight = String(st.weight);
     if (st.radius !== undefined) el.style.borderRadius = st.radius + 'px';
     if (st.align) el.style.textAlign = ({ start: 'start', end: 'end', center: 'center', left: 'left', right: 'right' })[st.align] || 'center';
-    if (st.fontFamily) { loadFont(st.fontFamily); el.style.fontFamily = '"' + st.fontFamily + '", ' + (SERIF[st.fontFamily] ? 'serif' : 'sans-serif'); }
+    if (st.fontFamily) { loadFont(st.fontFamily); el.style.fontFamily = st.fontFamily === 'system-ui' ? 'system-ui, sans-serif' : '"' + st.fontFamily + '", sans-serif'; }
     if (st.effect === 'soft') { el.style.textShadow = '0 1px 0 #fff,0 3px 4px rgba(0,0,0,.22)'; el.style.boxShadow = '0 7px 18px rgba(0,0,0,.14)'; }
     if (st.effect === 'gold') { el.style.color = st.color || '#ae852e'; el.style.textShadow = '0 1px 0 #fceab1,0 2px 0 #77541e,0 4px 6px rgba(80,52,0,.3)'; el.style.boxShadow = '0 2px 0 #d6bc79,0 9px 22px rgba(101,72,18,.22)'; }
     if (st.effect === 'deep') { el.style.textShadow = '1px 1px 0 rgba(255,255,255,.6),2px 3px 3px rgba(0,0,0,.3)'; el.style.boxShadow = '0 4px 0 rgba(0,0,0,.13),0 14px 26px rgba(0,0,0,.2)'; }
     if (st.opacity !== undefined) el.style.opacity = String(st.opacity);
+    if (ed.media && ed.media.src) paintMedia(entry, ed.media);
     if (ed.text) {
       var node = textTarget(entry), t = ed.text[lang()] || ed.text.ar || ed.text.en;
       if (node && t) { el.__elanText = { node: node, value: node.textContent, children: Array.prototype.slice.call(node.childNodes) }; node.textContent = t; }
@@ -289,14 +331,14 @@
   function applyEdits() {
     touched.forEach(unpaint);
     touched = [];
-    if (!design) return;
+    if (!design || (!design.edits && !design.pages)) return;
     var dev = ED.deviceOf(window.innerWidth);
     var key = pageKey(), pg = design.pages && design.pages[key], view = document.getElementById('view');
     elements().forEach(function (entry) {
       var ed = ED.editFor(design, dev, entry.id);
       if (pg && view && view.contains(entry.el)) {
-        var pe = ED.editFor(pg, dev, entry.id);
-        if (pe) ed = Object.assign({}, ed || {}, pe, { style: Object.assign({}, ed && ed.style, pe.style) });
+        var local = ED.editFor(pg, dev, entry.id);
+        if (local) ed = Object.assign({}, ed || {}, local, { style: Object.assign({}, ed && ed.style, local.style) });
       }
       if (!ed) return;
       paint(entry, ed);

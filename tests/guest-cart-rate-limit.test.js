@@ -35,17 +35,17 @@ test('clientIp prefers the proxy header and never throws on missing data', () =>
   assert.equal(clientIp({}), 'unknown');
 });
 
-test('guest-cart answers 429 with Retry-After after 30 resolves from one address and still serves others', async () => {
+test('guest-cart answers 429 with Retry-After after 30 resolves from one browser and still serves other browsers, even on the same address', async () => {
   process.env.SUPABASE_URL = 'https://test.supabase.co'; process.env.SUPABASE_SERVICE_ROLE_KEY = 'unit-test-server-secret';
   global.fetch = async () => reply({ visitorId: visitorKey, status: 'guest', cart: [] });
-  const call = async (ip) => {
+  const call = async (ip, key = visitorKey) => {
     const res = recorder();
-    await handler({ method: 'POST', headers: { 'x-forwarded-for': ip }, body: { action: 'resolve', visitorKey } }, res);
+    await handler({ method: 'POST', headers: { 'x-forwarded-for': ip }, body: { action: 'resolve', visitorKey: key } }, res);
     return res.out;
   };
   for (let i = 0; i < 30; i += 1) assert.equal((await call('192.0.2.50')).status, 200, `request ${i + 1}`);
   const blocked = await call('192.0.2.50');
   assert.equal(blocked.status, 429); assert.equal(blocked.body.error, 'too_many_requests');
   assert.ok(Number(blocked.headers['Retry-After']) >= 1);
-  assert.equal((await call('192.0.2.51')).status, 200, 'a different address is unaffected');
+  assert.equal((await call('192.0.2.50', '9ac7c4ab-02f0-4c2c-9cde-b29151ee7799')).status, 200, 'another browser on the same address is unaffected');
 });

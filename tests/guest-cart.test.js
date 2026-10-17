@@ -70,7 +70,10 @@ test('guest capture is automatic, browser-local, and its migration keeps only is
   assert.match(identity, /localStorage\.getItem\(STORAGE_KEY\)/);
   assert.match(identity, /randomUUID/);
   assert.match(identity, /setTimeout\(function \(\) \{ startSession\(\)/);
-  assert.doesNotMatch(identity, /navigator\.userAgent|screenWidth|fingerprint\(\)/);
+  // Owner decision (2026-10-15): coarse device signals are collected for counting people only. The raw
+  // user-agent string is still never read in the browser, and nothing here may move a basket.
+  assert.doesNotMatch(identity, /navigator\.userAgent(?!Data)|screenWidth/);
+  assert.doesNotMatch(identity, /request\('(?:save|claim)'[^;]*parts/);
   assert.match(identity, /track: track/);
   assert.match(core, /GuestIdentity\.claim/);
   assert.match(core, /trackGuestProduct\('cart_add'/);
@@ -80,4 +83,11 @@ test('guest capture is automatic, browser-local, and its migration keeps only is
   assert.match(migration, /guest_product_analytics/);
   assert.match(migration, /delete from public\.guest_visitors/i);
   assert.match(migration, /guest_analytics_summary/);
+});
+
+test('the vendor folder for the ThumbmarkJS build exists and CLAUDE.md tells Manus how to fill it', () => {
+  const root = path.join(__dirname, '..');
+  assert.ok(fs.existsSync(path.join(root, 'vendor')));
+  assert.match(fs.readFileSync(path.join(root, 'CLAUDE.md'), 'utf8'), /vendor\/thumbmark\.js/);
+  assert.match(fs.readFileSync(path.join(root, 'guest-identity.js'), 'utf8'), /\/vendor\/thumbmark\.js/);
 });

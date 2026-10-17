@@ -132,7 +132,7 @@
         "style": {
           "fontSize": 20,
           "align": "center",
-          "color": "#b8860b",
+          "color": "#e8dcc4",
           "fontFamily": "Reem Kufi",
           "effect": "none"
         }
@@ -147,6 +147,29 @@
       },
       "x-52jbo": {
         "archived": true
+      },
+      "hero": {
+        "style": {
+          "media": "https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/uploads/2026/f131f5dc5d3888717232.png"
+        }
+      },
+      "card:1dsn4im": {
+        "style": {
+          "media": "https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/uploads/2026/0dad190fc712b791dd4e.png"
+        }
+      },
+      "footer:logo": {
+        "archived": true
+      },
+      "card:17iwb3v": {
+        "style": {
+          "media": "https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/uploads/2026/f131f5dc5d3888717232.png"
+        }
+      },
+      "card:17iwb3u": {
+        "style": {
+          "media": "https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/uploads/2026/f131f5dc5d3888717232.png"
+        }
       }
     },
     "mobile": {

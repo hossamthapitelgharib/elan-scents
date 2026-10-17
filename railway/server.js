@@ -22,10 +22,10 @@ const MIME = {
 };
 
 // Never serve server-side or repo-internal files.
-// Full editor UI stays private (served only via editor-host). These scripts are loaded by the
-// storefront iframe when ?elan_editor=1 — they must be publicly readable.
+// Full editor UI stays private (served only via editor-host); only explicitly allow-listed,
+// browser-safe editor/store scripts may be fetched directly.
 const BLOCKED_TOP = new Set(['api', 'tests', 'supabase', 'railway', 'node_modules', 'src', 'lib', 'scripts', 'reports', '.github', '.git']);
-const EDITOR_PUBLIC_FILES = new Set(['edit-boot.js', 'edit-mode.js', 'edit-model.js', 'elan-host-bridge.js', 'editor-data-bridge.js']);
+const EDITOR_PUBLIC_FILES = new Set(['edit-boot.js', 'edit-mode.js', 'edit-model.js', 'elan-host-bridge.js', 'editor-data-bridge.js', 'editor-geometry.js', 'editor-live-library.js']);
 const BLOCKED_FILES = new Set(['package.json', 'package-lock.json', 'vercel.json', 'claude.md', 'readme.md']);
 
 function compile(rules, key) {
@@ -105,7 +105,10 @@ function loadHandler(name) {
 }
 
 async function handleApi(req, res, url, pathname) {
-  if (pathname === '/api/editor' || pathname === '/api/editor-data') await editorHost.attachSession(req);
+  if (pathname === '/api/editor' || pathname === '/api/editor-data') {
+    await editorHost.attachSession(req);
+    editorHost.attachBridgeTicket(req);
+  }
   const name = pathname.replace(/^\/api\//, '').replace(/\/$/, '');
   const handler = loadHandler(name);
   if (!handler) return sendJson(res, 404, { error: 'not_found' });

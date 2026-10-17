@@ -2,8 +2,8 @@
    Admin only. Writes exactly one file (design/home.json) with one commit per save.
    Repo, path and branch come from server configuration, never from the request. */
 const crypto = require('crypto');
-const fs = require('node:fs/promises');
-const path = require('node:path');
+const fs = require('fs');
+const path = require('path');
 const { getContext, requireRoles } = require('../api/_auth');
 const ED = require('../design-schema.js');
 
@@ -31,7 +31,9 @@ function config(env) {
   const repo = env.GITHUB_REPO || DEFAULT_REPO;
   const branch = env.EDITOR_TARGET_BRANCH || (isProd ? 'main' : env.EDITOR_BRANCH);
   const host = env.RAILWAY_PUBLIC_DOMAIN;
-  const origin = env.EDITOR_SITE_ORIGIN || (host ? 'https://' + host : '');
+  let origin = env.EDITOR_SITE_ORIGIN || (host ? 'https://' + host : '');
+  const selfOrigin = host ? ('https://' + String(host).replace(/^https?:\/\//, '').replace(/\/+$/, '')) : '';
+  if (isProd && selfOrigin && origin.replace(/\/+$/, '') === selfOrigin) origin = 'https://elan-site-production.up.railway.app';
   const missing = [];
   if (!token) missing.push('GITHUB_TOKEN');
   if (!branch) missing.push('EDITOR_TARGET_BRANCH');
@@ -42,6 +44,18 @@ function config(env) {
   if (missing.length) return { error: 'editor_not_configured', missing };
   if (branch === 'main' && !isProd && env.EDITOR_ALLOW_MAIN_FROM_NONPROD !== '1') return { error: 'main_branch_requires_production', missing: ['EDITOR_ENV=production'] };
   return { token, repo, branch, origin: origin.replace(/\/+$/, ''), isProd };
+}
+
+function localDesign() {
+  const file = path.resolve(__dirname, '..', DESIGN_PATH);
+  try {
+    const text = fs.readFileSync(file, 'utf8');
+    const parsed = JSON.parse(text);
+    const n = ED.normalize(parsed, { strict: false });
+    return { text, design: n.design, warnings: n.ok && !n.errors.length ? undefined : n.errors.slice(0, 5) };
+  } catch (_) {
+    return { text: ED.serialize({ version: ED.VERSION }), design: ED.normalize({ version: ED.VERSION }).design };
+  }
 }
 
 async function github(cfg, method, path, body) {
@@ -79,6 +93,12 @@ function parseBody(req) {
 }
 
 async function actionState(cfg) {
+  if (cfg.readOnly) {
+    const local = localDesign();
+    const body = { ok: true, revision: gitBlobSha(local.text), design: local.design, branch: cfg.branch || 'main', readOnly: true };
+    if (local.warnings) body.warnings = local.warnings;
+    return { status: 200, body };
+  }
   const file = await readDesignFile(cfg);
   if (!file.exists) return { status: 200, body: { ok: true, revision: null, design: ED.normalize({ version: ED.VERSION }).design, branch: cfg.branch } };
   let parsed = null;
@@ -87,15 +107,6 @@ async function actionState(cfg) {
   const body = { ok: true, revision: file.sha, design: n.design, branch: cfg.branch };
   if (!n.ok || n.errors.length) body.warnings = n.errors.slice(0, 5);
   return { status: 200, body };
-}
-
-async function readOnlyState(missing) {
-  // Read the deployed snapshot only. A missing GitHub token must not trigger any GitHub request.
-  const text = await fs.readFile(path.resolve(__dirname, '..', DESIGN_PATH), 'utf8');
-  const n = ED.normalize(JSON.parse(text), { strict: false });
-  if (!n.ok) throw new Error('invalid_deployed_design');
-  return { status: 200, body: { ok: true, readOnly: true, revision: gitBlobSha(text), design: n.design,
-    missing, warnings: ['GitHub is not configured; this is the deployed read-only snapshot.'].concat(n.errors.slice(0, 5)) } };
 }
 
 async function actionSave(cfg, body) {
@@ -162,74 +173,28 @@ async function actionStatus(cfg, body) {
   return { status: 200, body: { ok: true, published: live === body.revision, revision: body.revision, liveRevision: live } };
 }
 
-
-/* Finds out exactly why saving is refused. Only reads, plus one harmless write test: it creates a throw-away
-   branch pointer and deletes it again, so no file in the repository is ever changed. */
-async function actionDiagnose(cfg) {
-  const steps = [];
-  const note = (ok, label, status, detail) => steps.push({ ok, label, status, detail: detail || '' });
-  const msg = (r) => (r.json && typeof r.json.message === 'string' ? r.json.message.slice(0, 160) : '');
-
-  const repo = await github(cfg, 'GET', '');
-  if (repo.status === 200) note(true, 'المفتاح شايف المستودع ' + cfg.repo, 200);
-  else note(false, 'المفتاح مش شايف المستودع ' + cfg.repo, repo.status, msg(repo));
-
-  let head = null, protectedBranch = false;
-  const br = repo.status === 200 ? await github(cfg, 'GET', '/branches/' + encodeURIComponent(cfg.branch)) : { status: 0 };
-  if (br.status === 200) { head = br.json && br.json.commit && br.json.commit.sha; protectedBranch = !!(br.json && br.json.protected); note(true, 'الفرع ' + cfg.branch + ' موجود' + (protectedBranch ? ' (ومحمي)' : ''), 200); }
-  else if (repo.status === 200) note(false, 'الفرع ' + cfg.branch + ' مش موجود أو مش مرئي', br.status, msg(br));
-
-  let canRead = false, canWrite = false;
-  if (head) {
-    const rd = await github(cfg, 'GET', '/contents/' + DESIGN_PATH + '?ref=' + encodeURIComponent(cfg.branch));
-    canRead = rd.status === 200 || rd.status === 404;
-    note(canRead, 'قراءة الملفات (Contents: Read)', rd.status, canRead ? '' : msg(rd));
-    const ref = 'editor-write-test-' + Date.now().toString(36);
-    const mk = await github(cfg, 'POST', '/git/refs', { ref: 'refs/heads/' + ref, sha: head });
-    if (mk.status === 201) {
-      canWrite = true;
-      const del = await github(cfg, 'DELETE', '/git/refs/heads/' + ref);
-      note(true, 'الكتابة على المستودع (Contents: Read and write)', 201, del.status === 204 ? 'اتجربت واتمسحت من غير ما تغيّر أي ملف' : 'اتعمل فرع تجريبي اسمه ' + ref + ' ومسحه فشل، امسحيه من GitHub');
-    } else note(false, 'الكتابة على المستودع (محتاج Contents: Read and write)', mk.status, msg(mk));
-  }
-
-  let verdict;
-  if (repo.status === 401) verdict = 'مفتاح GitHub غلط أو منتهي. اعملي مفتاح جديد وحطيه في GITHUB_TOKEN.';
-  else if (repo.status === 404 || repo.status === 403) verdict = 'المفتاح مش شايف مستودع ' + cfg.repo + '. لما تعملي المفتاح اختاري المستودع ده بالذات (Only select repositories).';
-  else if (head === null && repo.status === 200) verdict = 'الفرع ' + cfg.branch + ' مش موجود. صححي EDITOR_TARGET_BRANCH.';
-  else if (!canWrite) verdict = 'المفتاح بيقرا بس ومعندوش صلاحية الكتابة. من إعدادات المفتاح على GitHub خلي Contents = Read and write.';
-  else if (protectedBranch) verdict = 'المفتاح سليم وبيكتب. بس الفرع ' + cfg.branch + ' محمي، فلو الحفظ لسه بيفشل شيلي الحماية أو اسمحي للمفتاح بالتجاوز (Branch protection).';
-  else verdict = 'المفتاح سليم وبيكتب على ' + cfg.repo + ' / ' + cfg.branch + '. لو الحفظ لسه بيفشل ابعتي الرسالة اللي بتظهر.';
-  return { status: 200, body: { ok: true, verdict, steps, repo: cfg.repo, branch: cfg.branch } };
-}
-
 module.exports = async function editor(req, res) {
   if (req.method !== 'GET' && req.method !== 'POST') return reply(res, 405, { ok: false, error: 'method_not_allowed' });
   try {
     const context = requireRoles(await getContext(req), ['platform_admin']);
     if (context.error) return reply(res, context.status, { ok: false, error: context.error, missing: context.missing || [] });
-    const cfg = config();
-    if (cfg.error) {
-      const stateRequest = req.method === 'GET' && (!req.query || !req.query.action || req.query.action === 'state');
-      if (stateRequest && cfg.error === 'editor_not_configured' && cfg.missing.length === 1 && cfg.missing[0] === 'GITHUB_TOKEN') {
-        const result = await readOnlyState(cfg.missing);
-        return reply(res, result.status, result.body);
-      }
-      return reply(res, 503, { ok: false, error: cfg.error, missing: cfg.missing || [] });
-    }
-
     let body = {};
     if (req.method === 'POST') {
       body = parseBody(req);
       if (!body) return reply(res, 400, { ok: false, error: 'invalid_request' });
     }
     const action = req.method === 'GET' ? ((req.query && req.query.action) || 'state') : body.action;
+    let cfg = config();
+    const readOnlyState = req.method === 'GET' && action === 'state' && cfg.error === 'editor_not_configured' && Array.isArray(cfg.missing) && cfg.missing.includes('GITHUB_TOKEN') && !cfg.missing.includes('EDITOR_SITE_ORIGIN') && cfg.missing.every((key) => key === 'GITHUB_TOKEN' || key === 'EDITOR_TARGET_BRANCH');
+    if (readOnlyState) {
+      cfg = { branch: process.env.EDITOR_TARGET_BRANCH || 'main', readOnly: true };
+    }
+    if (cfg.error) return reply(res, 503, { ok: false, error: cfg.error, missing: cfg.missing || [] });
 
     let result;
     if (action === 'state') result = await actionState(cfg);
     else if (action === 'save' && req.method === 'POST') result = await actionSave(cfg, body);
     else if (action === 'status' && req.method === 'POST') result = await actionStatus(cfg, body);
-    else if (action === 'diagnose' && req.method === 'GET') result = await actionDiagnose(cfg);
     else return reply(res, 400, { ok: false, error: 'unknown_action' });
     reply(res, result.status, result.body);
   } catch (e) {
@@ -237,4 +202,4 @@ module.exports = async function editor(req, res) {
   }
 };
 
-module.exports.internals = { config, gitBlobSha, DESIGN_PATH, actionDiagnose };
+module.exports.internals = { config, gitBlobSha, DESIGN_PATH };

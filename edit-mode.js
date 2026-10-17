@@ -4,16 +4,27 @@
 (function () {
   'use strict';
   var layer = window.ElanDesignLayer, ED = window.ElanDesign, Bridge = window.ElanHostBridge;
+  var Geometry = window.ElanEditorGeometry || {
+    move: function (rect, base, delta) { return { dx: Math.round(base.dx + delta.x), dy: Math.round(base.dy + delta.y) }; },
+    resize: function (width, height, dw, dh) { return { w: Math.max(40, Math.round(width + dw)), h: Math.max(30, Math.round(height + dh)) }; }
+  };
   if (!layer || !ED || !Bridge || window.parent === window) return;
 
-  var work = null, baseJson = '', baseRevision = null, hostApi = null, selectedId = null, dirty = false, readOnly = false;
-  var undoStack = [], redoStack = [], editing = null, gesture = null, pendingMedia = null, moveArm = null;
+  var work = null, baseJson = '', baseRevision = null, hostApi = null, selectedId = null, dirty = false, bridgeTicket = '', readOnly = false;
+  var undoStack = [], redoStack = [], editing = null, gesture = null, pendingMedia = null;
   var SECTIONS_NAMES = { section: 1 };
 
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
   function lang() { return document.documentElement.lang === 'en' ? 'en' : 'ar'; }
   function device() { return ED.deviceOf(window.innerWidth); }
   function rid() { var a = new Uint8Array(5); crypto.getRandomValues(a); return Array.prototype.map.call(a, function (b) { return (b % 36).toString(36); }).join(''); }
+  function editorFetch(url, options) {
+    options = options || {};
+    options.headers = Object.assign({}, options.headers || {});
+    if (bridgeTicket) options.headers['X-Elan-Editor-Ticket'] = bridgeTicket;
+    options.credentials = 'same-origin'; options.cache = 'no-store';
+    return fetch(url, options);
+  }
 
   /* ---------- working design ---------- */
   function emptyDesign() { return ED.normalize({ version: ED.VERSION }).design; }
@@ -86,17 +97,19 @@
     '#elan-eo-root *{box-sizing:border-box}' +
     '.eo-box{position:fixed;outline:2px solid #c8962a;background:rgba(200,150,42,.06);display:none}' +
     '.eo-h{position:absolute;width:13px;height:13px;right:-6px;bottom:-6px;background:#c8962a;border-radius:3px;cursor:nwse-resize;pointer-events:auto;touch-action:none}' +
-    'body.eo-armed,body.eo-armed *{cursor:move!important}.eo-armed-box{outline:2px dashed #1f7a3d!important;background:rgba(31,122,61,.08)!important}' +
     '.eo-msg{position:fixed;bottom:12px;left:50%;transform:translateX(-50%);background:#29251c;color:#fff;padding:8px 14px;border-radius:9px;font-size:13px;display:none;max-width:90vw;pointer-events:none}' +
     '.eo-dlg{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.35);pointer-events:auto}' +
     '.eo-dlg>div{background:#fffaf0;border:1px solid #c2a66a;border-radius:12px;padding:16px;width:min(420px,92vw);font-size:13px}' +
     '.eo-dlg input[type=text]{width:100%;padding:7px;border:1px solid #c2a66a;border-radius:7px;direction:ltr;margin:8px 0}' +
     '.eo-dlg button{font:inherit;padding:6px 12px;border:1px solid #c2a66a;border-radius:7px;background:#fff;cursor:pointer;margin-inline-end:6px}' +
+    '.eo-tag{position:absolute;top:-24px;right:-2px;background:#c8962a;color:#fff;font-size:11px;padding:2px 8px;border-radius:5px 5px 0 0;white-space:nowrap;pointer-events:none}' +
+    '.eo-open{position:absolute;bottom:-26px;right:-2px;background:#29251c;color:#fff;font-size:12px;padding:3px 10px;border-radius:0 0 6px 6px;white-space:nowrap;cursor:pointer;pointer-events:auto;display:none;user-select:none}.eo-open:hover{background:#c8962a}' +
     '[contenteditable]{outline:2px dashed #c8962a;outline-offset:2px}' +
-    '</style><div class="eo-box"><i class="eo-h" data-h="se"></i></div><div class="eo-msg"></div>' +
+    '</style><div class="eo-box"><span class="eo-tag"></span><span class="eo-open">فتح الصفحة ⤢</span><i class="eo-h" data-h="se"></i></div><div class="eo-msg"></div>' +
     '<div class="eo-dlg"><div><b class="eo-dt"></b><input type="text" class="eo-di" dir="ltr"><p class="eo-dh" style="margin:0 0 8px;color:#7a6a52"></p><button class="eo-ok">تأكيد</button><button class="eo-no">إلغاء</button></div></div>';
   document.body.appendChild(root);
 
+  var tagEl = root.querySelector('.eo-tag'), openEl = root.querySelector('.eo-open');
   var box = root.querySelector('.eo-box'), msgEl = root.querySelector('.eo-msg'), dlg = root.querySelector('.eo-dlg');
 
   var msgTimer = null;
@@ -120,6 +133,11 @@
     var r = e.el.getBoundingClientRect();
     box.style.display = 'block';
     box.style.left = r.left + 'px'; box.style.top = r.top + 'px'; box.style.width = r.width + 'px'; box.style.height = r.height + 'px';
+    tagEl.textContent = e.name || e.id;
+    tagEl.style.top = r.top < 30 ? '2px' : '-24px';
+    var dyn = !!dynamicTarget(e);
+    openEl.style.display = dyn ? 'block' : 'none';
+    openEl.style.bottom = r.bottom > innerHeight - 34 ? '2px' : '-26px';
   }
   function rgbToHex(c) {
     var m = /rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(c || '');
@@ -131,8 +149,7 @@
     return local ? Object.assign({}, global, local, { style: Object.assign({}, global.style, local.style) }) : global;
   }
   /* What the editor needs to know about an element: the original editor's type names plus its current look. */
-  var TYPE_OF = { section: 'section', title: 'text', 'text-area': 'text', group: 'section', 'image-el': 'image', 'hero-text': 'text', hero: 'section', 'hero-counters': 'text', card: 'card', block: 'block' };
-  function solidBackground(c) { var m = /^rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)$/.exec(c || ''); return !m || (m[4] !== undefined && parseFloat(m[4]) === 0) ? '' : rgbToHex(c); }
+  var TYPE_OF = { section: 'section', title: 'text', 'hero-text': 'text', hero: 'section', 'hero-counters': 'text', card: 'card', block: 'block', 'text-area': 'text', group: 'section', 'image-el': 'image' };
   function info(e) {
     if (!e) return null;
     var node = layer.textTarget(e) || e.el, cs = getComputedStyle(node), st = cur(e.id).style || {};
@@ -143,7 +160,7 @@
       style: {
         fontFamily: st.fontFamily || (cs.fontFamily || '').split(',')[0].replace(/["']/g, '').trim(),
         fontSize: st.fontSize || Math.round(parseFloat(cs.fontSize) || 16),
-        color: st.color || rgbToHex(cs.color), background: st.background || solidBackground(getComputedStyle(e.el).backgroundColor),
+        color: st.color || rgbToHex(cs.color), background: st.background || (function (c) { return !c || c === 'transparent' || /,\s*0\)$/.test(c) ? '' : rgbToHex(c); })(getComputedStyle(e.el).backgroundColor),
         align: st.align || ({ start: 'right', end: 'left', center: 'center', left: 'left', right: 'right' })[cs.textAlign] || 'right',
         effect: st.effect || 'none'
       }
@@ -181,44 +198,47 @@
 
   function base(id) { var e = cur(id); return { dx: e.dx || 0, dy: e.dy || 0 }; }
 
-  /* Move works in one step: right-click an element, choose "تحريك العنصر", then hold the left button on THAT element and
-     drag it anywhere. When the button is released the move ends; to move another element, repeat from the right-click. */
-  function armMove(id) {
-    var e = entryById(id); if (!e) throw new Error('اختاري عنصر الأول.');
-    moveArm = { id: id }; select(id);
-    document.body.classList.add('eo-armed'); box.classList.add('eo-armed-box');
-    say('اضغطي على العنصر بالشمال واسحبيه. لما تفكي الضغط التحريك بيخلص.');
-  }
-  function disarm() { if (!moveArm) return; moveArm = null; document.body.classList.remove('eo-armed'); box.classList.remove('eo-armed-box'); }
-
-  /* Left click on a dynamic element (it opens another page for visitors) enters that page: the editor treats it as a separate page. */
+  /* The open chip explicitly enters a dynamic page; a normal left click remains a selection/drag gesture. */
   function dynamicTarget(e) { return e && layer.goTargetOf ? layer.goTargetOf(e.el) : null; }
   function pageName() { var h = document.querySelector('#view h3'); return (h && h.textContent.trim()) || ''; }
   function inner() { return document.body.classList.contains('inner'); }
-  function goHome() { disarm(); selectedId = null; document.body.classList.remove('inner'); scrollTo(0, 0); reselect(); }
-  function goBack() { disarm(); selectedId = null; try { if (typeof P !== 'undefined' && P.length > 2) { P = P.slice(0, -1); openP(); } else goHome(); } catch (_) { goHome(); } reselect(); }
+  /* Where the owner was before entering each page, so coming back lands on the same spot with the same element selected. */
+  var trail = [];
+  function depthNow() { try { return inner() ? (typeof P !== 'undefined' && P.length ? P.length : 2) : 1; } catch (_) { return 1; } }
+  function restoreFrom(point) { setTimeout(function () { try { scrollTo(0, point.y); } catch (_) { /* optional */ } if (point.id && entryById(point.id)) select(point.id); else reselect(); }, 60); }
+  function returnedTo(depth) {
+    var at = -1; for (var i = trail.length - 1; i >= 0; i--) if (trail[i].depth === depth) { at = i; break; }
+    if (at < 0) return null;
+    var point = trail[at]; trail = trail.slice(0, at); return point;
+  }
+  function goHome() { selectedId = null; var first = returnedTo(1); trail = []; document.body.classList.remove('inner'); scrollTo(0, 0); reselect(); if (first) restoreFrom(first); }
+  function goBack() {
+    selectedId = null;
+    try { if (typeof P !== 'undefined' && P.length > 2) { P = P.slice(0, -1); openP(); } else { document.body.classList.remove('inner'); scrollTo(0, 0); } } catch (_) { goHome(); return; }
+    var point = returnedTo(depthNow());
+    reselect(); if (point) restoreFrom(point);
+  }
   function enterPage(e) {
     var g = dynamicTarget(e); if (!g || typeof window.go !== 'function') return false;
     if (editing) commitText();
-    disarm(); selectedId = null;
+    trail.push({ y: Math.round(scrollY), id: e.id, depth: depthNow() }); selectedId = null;
     window.go(g);
     setTimeout(function () { reselect(); say('دخلتي صفحة جديدة' + (pageName() ? ': ' + pageName() : '') + '. كليك يمين فيها للأدوات، ومن القايمة ترجعي.'); }, 60);
     return true;
   }
 
+  openEl.addEventListener('pointerdown', function (ev) { ev.preventDefault(); ev.stopPropagation(); if (selectedId) enterPage(entryById(selectedId)); });
   window.addEventListener('pointerdown', function (ev) {
     if (inUi(ev.target) && !ev.target.classList.contains('eo-h')) return;
     if (editing) { if (editing.node.contains(ev.target)) return; commitText(); }
     var handle = ev.target.classList && ev.target.classList.contains('eo-h') ? ev.target.getAttribute('data-h') : null;
     ev.preventDefault(); ev.stopPropagation();
     if (ev.button !== undefined && ev.button !== 0) return;
-    var e, mode = 'click';
+    var e, mode = 'move';
     if (handle) { e = entryById(selectedId); mode = 'resize'; }
     else {
       e = pick(ev.clientX, ev.clientY);
-      var armed = moveArm && entryById(moveArm.id);
-      if (armed && document.elementsFromPoint(ev.clientX, ev.clientY).indexOf(armed.el) !== -1) { e = armed; mode = 'move'; select(e.id); }
-      else { if (moveArm) disarm(); if (e) select(e.id); else { select(null); return; } }
+      if (e) select(e.id); else { select(null); return; }
     }
     if (!e) return;
     var r = e.el.getBoundingClientRect(), b = base(e.id);
@@ -228,19 +248,20 @@
 
   window.addEventListener('pointermove', function (ev) {
     if (!gesture) return;
-    if (gesture.mode === 'click') { if (Math.abs(ev.clientX - gesture.sx) + Math.abs(ev.clientY - gesture.sy) >= 6) gesture.moved = true; return; }
     var g = gesture, ddx = ev.clientX - g.sx, ddy = ev.clientY - g.sy;
     if (!g.moved && Math.abs(ddx) + Math.abs(ddy) < 3) return;
     g.moved = true; ev.preventDefault();
     g.el.style.position = g.el.style.position || 'relative'; g.el.style.zIndex = '3';
     if (g.mode === 'move') {
-      g.dx = Math.round(g.b.dx + ddx); g.dy = Math.round(g.b.dy + ddy);
+      var next = Geometry.move(g.r, g.b, { x: ddx, y: ddy });
+      g.dx = next.dx; g.dy = next.dy;
       g.el.style.transform = 'translate(' + g.dx + 'px,' + g.dy + 'px)';
     } else {
       var h = g.handle, w = g.r.width, hh = g.r.height;
       if (h.indexOf('e') !== -1) w = g.r.width + ddx; if (h.indexOf('w') !== -1) w = g.r.width - ddx;
       if (h.indexOf('s') !== -1) hh = g.r.height + ddy; if (h.indexOf('n') !== -1) hh = g.r.height - ddy;
-      w = Math.max(16, Math.round(w)); hh = Math.max(16, Math.round(hh));
+      var size = Geometry.resize(g.r.width, g.r.height, w - g.r.width, hh - g.r.height);
+      w = size.w; hh = size.h;
       if (h.length === 2 || h === 'e' || h === 'w') { g.el.style.width = w + 'px'; g.el.style.maxWidth = 'none'; g.el.style.flex = '0 0 auto'; g.w = w; }
       if (h.length === 2 || h === 'n' || h === 's') { g.el.style.height = hh + 'px'; g.h = hh; }
       // keep the opposite edge where it was, whatever the page direction is
@@ -256,8 +277,7 @@
   window.addEventListener('pointerup', function (ev) {
     if (!gesture) return;
     var g = gesture; gesture = null;
-    if (g.mode === 'click') { if (!g.moved) enterPage(entryById(g.id)); return; }
-    if (!g.moved) return;                      // pressed without dragging: a move stays armed until the element is dragged
+    if (!g.moved) return;                      // A plain click selects; only a drag commits offsets.
     ev.preventDefault();
     mutate(function () {
       var e = edit(device(), g.id);
@@ -266,7 +286,6 @@
       if (g.w) e.w = g.w;
       if (g.h) e.h = g.h;
     });
-    if (g.mode === 'move') { disarm(); say('خلص التحريك. لتحريك عنصر تاني اضغطي كليك يمين عليه واختاري تحريك العنصر.'); }
   }, true);
 
   // Nothing on the page may act while editing: no links, no cart, no forms.
@@ -280,7 +299,6 @@
     if (inUi(ev.target)) return;
     ev.preventDefault(); ev.stopPropagation();
     if (editing) commitText();
-    disarm();
     var e = pick(ev.clientX, ev.clientY);
     select(e ? e.id : null);
     if (hostApi) hostApi.context({ x: ev.clientX, y: ev.clientY, element: info(e), tools: toolList(info(e)) });
@@ -300,7 +318,7 @@
     if (!editing) return;
     var ed = editing; editing = null;
     ed.node.removeAttribute('contenteditable');
-    var text = ed.node.textContent.replace(/\s+/g, ' ').trim();
+    var text = ed.node.textContent.replace(/\r\n?/g, '\n').trim();
     if (!text || text === ed.before) { ed.node.textContent = ed.before; return; }
     mutate(function () {
       var e = edit('all', ed.id); e.text = e.text || {};
@@ -323,7 +341,6 @@
     if (mod && !ev.shiftKey && ev.key.toLowerCase() === 'z') { ev.preventDefault(); undo(); }
     else if (mod && (ev.key.toLowerCase() === 'y' || (ev.shiftKey && ev.key.toLowerCase() === 'z'))) { ev.preventDefault(); redo(); }
     else if (selectedId && ev.key === 'Delete') { ev.preventDefault(); archive(selectedId); }
-    else if (ev.key === 'Escape' && moveArm) { disarm(); say('اتلغى التحريك.'); }
   }, true);
   window.addEventListener('scroll', placeBox, true);
   window.addEventListener('resize', function () { placeBox(); });
@@ -346,12 +363,54 @@
     seq.splice(i === -1 ? 0 : i + 1, 0, blockId);
     return seq;
   }
-  async function createSmart(kind, c) {
-    var name = String(prompt('اسم العنصر الجديد') || '').trim();
-    if (!name) throw new Error('اكتبي اسم العنصر قبل الإنشاء.');
-    var r = await fetch('/api/editor-data', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'section.create', section: { name: name, purpose: kind, selection_mode: 'manual', filters: {} } }) });
+  async function editorData(action, payload) {
+    var r = await editorFetch('/api/editor-data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ action: action }, payload || {})) });
     var j = await r.json().catch(function () { return {}; });
-    if (!r.ok || !j.ok || !j.ref) throw new Error(j.error || 'تعذر إنشاء القسم المركزي.');
+    if (!r.ok || !j.ok) throw new Error(j.error || 'تعذر تحميل بيانات الكتالوج.');
+    return j;
+  }
+  function chooseCatalogOption(title, rows, labelOf) {
+    rows = Array.isArray(rows) ? rows.filter(function (x) { return x && x.name; }).slice(0, 40) : [];
+    if (!rows.length) throw new Error('لا توجد عناصر نشطة من هذا النوع في الكتالوج.');
+    var list = rows.map(function (x, i) { return (i + 1) + '. ' + (labelOf ? labelOf(x) : x.name); }).join('\n');
+    var choice = prompt(title + '\n\n' + list + (rows.length === 40 ? '\n\nتُعرض أول 40 نتيجة فقط؛ استخدمي بحثًا أضيق إذا لم يظهر المطلوب.' : '') + '\n\nاكتبي رقم الاختيار');
+    if (choice === null || !String(choice).trim()) throw new Error('اتلغى');
+    var index = Number(choice);
+    if (!Number.isInteger(index) || index < 1 || index > rows.length) throw new Error('رقم الاختيار غير صحيح.');
+    return rows[index - 1];
+  }
+  async function createSmart(kind, c) {
+    var filters = {}, selectionMode = 'auto', productSizeIds = [], defaultName = 'قسم عطور جديد';
+    var filterKinds = {
+      brand: { key: 'brand', list: 'brands', label: 'اختاري براندًا نشطًا من الكتالوج' },
+      store: { key: 'store', list: 'stores', label: 'اختاري متجرًا نشطًا من الكتالوج' },
+      occasion: { key: 'occ', list: 'occasions', label: 'اختاري مناسبة موجودة في الكتالوج' },
+      note: { key: 'note', list: 'notes', label: 'اختاري نوتة عطر موجودة في الكتالوج' }
+    };
+    if (filterKinds[kind]) {
+      var options = await editorData('options');
+      var spec = filterKinds[kind];
+      var selected = chooseCatalogOption(spec.label, options.options && options.options[spec.list]);
+      filters[spec.key] = String(selected.name);
+      defaultName = String(selected.name);
+    } else if (kind === 'perfume') {
+      var search = prompt('اكتبي جزءًا من اسم عطر منشور للبحث في الكتالوج');
+      if (search === null || !String(search).trim()) throw new Error('اتلغى');
+      var found = await editorData('perfumes', { filters: { search: String(search).trim() } });
+      var product = chooseCatalogOption('اختاري العطر والحجم المطلوبين', found.rows, function (x) { return x.name + (x.size_label ? ' — ' + x.size_label : ''); });
+      if (!product.product_size_id) throw new Error('معرّف حجم المنتج غير متاح.');
+      selectionMode = 'manual';
+      productSizeIds = [product.product_size_id];
+      defaultName = String(product.name || 'عطر محفوظ');
+    } else if (kind !== 'section') {
+      throw new Error('نوع إنشاء غير مدعوم.');
+    }
+    var name = String(prompt('اسم القسم الذي سيظهر في المتجر', defaultName) || '').trim();
+    if (!name) throw new Error('اكتبي اسمًا للقسم قبل الإنشاء.');
+    var elementId = 'x-' + rid();
+    if (!validBlock({ id: 'x-' + rid(), type: 'smart', ref: elementId, style: { align: 'center', size: 'md' } })) throw new Error('تعذر تجهيز البلوك الجديد.');
+    var j = await editorData('section.create', { section: { element_id: elementId, name: name, purpose: kind, selection_mode: selectionMode, filters: filters, product_size_ids: productSizeIds } });
+    if (!j.ref || j.ref !== elementId) throw new Error('لم يتم تأكيد إنشاء القسم المركزي.');
     return createBlock('smart', { ref: j.ref, semanticKind: kind, at: c && c.at });
   }
 
@@ -373,18 +432,24 @@
   }
 
   function mediaPrompt(forId) {
-    return ask('رابط الصورة', 'لازم يبدأ بـ /assets/ أو برابط مكتبة سابابيس (site-media).', '/assets/').then(function (v) {
+    return ask('رابط الصورة', 'لازم يبدأ بـ /assets/ أو برابط صورة من مكتبة سابابيس (site-media).', '/assets/').then(function (v) {
       if (!v) throw new Error('اتلغى');
       return v;
     });
   }
 
   function setMedia(id, src) {
-    var en = entryById(id);
-    if (!en || ['hero', 'card', 'section', 'image-el', 'group', 'block'].indexOf(en.kind) === -1) throw new Error('العنصر لا يدعم الصور.');
-    var candidate = {}; candidate[id] = { style: { media: src } };
-    if (!ED.normalize({ version: ED.VERSION, edits: { all: candidate } }, { strict: true }).ok) throw new Error('رابط الصورة مش مسموح.');
     var b = work.blocks.filter(function (x) { return x.id === id; })[0];
+    if (!b) {
+      var en = entryById(id);
+      if (en) {
+        if (['hero', 'card', 'section', 'image-el'].indexOf(en.kind) === -1) throw new Error('تغيير الصورة غير متاح لهذا العنصر.');
+        var probe2 = { version: ED.VERSION, edits: { all: {} } }; probe2.edits.all[id] = { style: { media: src } };
+        if (!ED.normalize(probe2, { strict: true }).ok) throw new Error('رابط الصورة مش مسموح.');
+        mutate(function () { var e = edit('all', id); e.style = e.style || {}; e.style.media = src; });
+        return;
+      }
+    }
     if (b) {
       var probe = clone(b);
       if (b.type === 'image') probe.src = src;
@@ -408,13 +473,13 @@
     return clone(b || c.info || { id: c.id, type: 'element' });
   }
   async function saveToLibrary(c) {
-    var read = await fetch('/api/editor-data?action=library', { credentials: 'same-origin', cache: 'no-store' });
+    var read = await editorFetch('/api/editor-data?action=library');
     var current = await read.json().catch(function () { return {}; });
     if (!read.ok || !current.ok || !current.library) throw new Error('تعذر قراءة المكتبة المركزية.');
     var element = libraryElement(c), item = { name: element.name || element.id || 'عنصر', kind: element.kind || element.type || 'element', category: element.kind || element.type || 'general', payload: element };
     var saved = Array.isArray(current.library.savedElements) ? current.library.savedElements.slice() : [];
     saved.push(item);
-    var write = await fetch('/api/editor-data', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'library.save', library: { archive: current.library.archive || [], savedElements: saved } }) });
+    var write = await editorFetch('/api/editor-data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'library.save', expectedRevision: current.library.revision, library: { archive: current.library.archive || [], savedElements: saved } }) });
     var result = await write.json().catch(function () { return {}; });
     if (!write.ok || !result.ok) throw new Error(result.error || 'تعذر حفظ العنصر في المكتبة.');
     return { saved: true };
@@ -424,6 +489,22 @@
     var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'elan-element.json'; a.click();
     setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
     return { downloaded: true };
+  }
+  function insertLibraryPayload(payload, restoreId) {
+    var candidate = payload && payload.format === 'elan-element-v1' ? payload.element : payload;
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate) || ['text', 'banner', 'image', 'smart'].indexOf(candidate.type) === -1) throw new Error('العنصر المحفوظ ليس بلوكًا قابلًا للإدراج.');
+    var normalized = ED.normalize({ version: ED.VERSION, blocks: [candidate] }, { strict: true });
+    if (!normalized.ok || !normalized.design.blocks || normalized.design.blocks.length !== 1) throw new Error('تعريف العنصر المحفوظ غير صالح لهذا التصميم.');
+    var block = clone(normalized.design.blocks[0]);
+    var id = restoreId || ('x-' + rid());
+    if (restoreId && block.id !== restoreId) throw new Error('معرّف العنصر المؤرشف لا يطابق تعريفه.');
+    if (work.blocks.some(function (existing) { return existing.id === id; })) throw new Error('العنصر موجود بالفعل في الصفحة.');
+    block.id = id;
+    if (!validBlock(block)) throw new Error('العنصر المحفوظ لا يجتاز مخطط التصميم.');
+    var order = insertAfterSelected(id);
+    mutate(function (design) { design.blocks.push(block); design.order = order; });
+    select(id);
+    return { elementId: id };
   }
   function deleteMedia(c) {
     if (c.info && c.info.media) mutate(function () { var e = edit('all', c.id); if (e.style) delete e.style.media; });
@@ -441,16 +522,15 @@
   function has(i) { return !!i; }
   function hasText(i) { return !!(i && i.canText); }
   registerTool({ id: 'format', label: 'تنسيق النص: الخط • اللون • الحجم • 3D', ui: 'format', when: has });
-  registerTool({ id: 'move', label: 'تحريك العنصر', when: has, run: function (c) { armMove(c.id); return null; } });
   registerTool({ id: 'open', label: 'فتح العنصر (الدخول لصفحته)', when: function (i) { return !!(i && i.dynamic); }, run: function (c) { enterPage(entryById(c.id)); return null; } });
   registerTool({ id: 'go_back', label: 'رجوع للصفحة السابقة', when: inner, run: function () { goBack(); return null; } });
   registerTool({ id: 'go_home', label: 'رجوع للصفحة الرئيسية', when: inner, run: function () { goHome(); return null; } });
   [['create_section', 'إنشاء سيكشن'], ['create_brand', 'إنشاء كارت براند'], ['create_store', 'إنشاء كارت متجر'], ['create_perfume', 'إنشاء كارت عطر'], ['create_occasion', 'إنشاء مناسبة'], ['create_note', 'إنشاء نوتة عطر']].forEach(function (x) { registerTool({ id: x[0], label: x[1], run: function (c) { return createSmart(x[0].replace('create_', ''), c); } }); });
   registerTool({ id: 'create_text_block', label: 'إنشاء كتلة نصية', run: function (c) { return createBlock('text_block', { at: c.at }); } });
-  registerTool({ id: 'create_banner', label: 'إنشاء بانر صورة أو فيديو', ui: 'media_new', run: function (c) { return createBlock('banner', { at: c.at, image: c.src }); } });
+  registerTool({ id: 'create_banner', label: 'إنشاء بانر صورة', ui: 'media_new', run: function (c) { return createBlock('banner', { at: c.at, image: c.src }); } });
   registerTool({ id: 'create_image', label: 'إنشاء صورة', ui: 'media_new', run: function (c) { if (!c.src) throw new Error('اختاري صورة الأول.'); return createBlock('image', { at: c.at, src: c.src }); } });
   registerTool({ id: 'create_text', label: 'إنشاء نص', run: function (c) { return createBlock('text_block', { at: c.at }); } });
-  registerTool({ id: 'media', label: 'رفع صورة أو فيديو داخل العناصر أو الهيرو', ui: 'media', when: function (i) { return !!i && ['text', 'text_block'].indexOf(i.type) === -1; }, run: function (c) { return mediaPrompt().then(function (src) { setMedia(c.id, src); return null; }); } });
+  registerTool({ id: 'media', label: 'تغيير صورة العنصر أو الواجهة', ui: 'media', when: function (i) { return !!i && ['text', 'text_block'].indexOf(i.type) === -1; }, run: function (c) { return mediaPrompt().then(function (src) { setMedia(c.id, src); return null; }); } });
   registerTool({ id: 'media_delete', label: 'حذف ميديا العنصر إلى الأرشيف', when: function (i) { return !!i && !!i.media; }, run: deleteMedia });
   registerTool({ id: 'edit_text', label: 'تعديل النص بالكيبورد', when: hasText, run: function (c) { startText(c.id); return null; } });
   registerTool({ id: 'copy', label: 'نسخ العنصر', when: has, run: function (c) { return execute('element.duplicate', { elementId: c.id }, {}); } });
@@ -461,19 +541,19 @@
 
   /* ---------- commands from the editor ---------- */
   function archiveList() {
-    var scope = (layer.pageKey() !== 'home' && work.pages && work.pages[layer.pageKey()]) || work;
+    var key = layer.pageKey(), scope = ED.isPageKey(key) && work.pages && work.pages[key] ? work.pages[key] : work;
     var out = [], e = (scope.edits && scope.edits.all) || {};
     Object.keys(e).forEach(function (id) { if (e[id].archived) out.push({ id: id, name: (entryById(id) || { name: id }).name }); });
     return out;
   }
-  function snapshot() { return { revision: baseRevision, readOnly: readOnly, design: clone(work), device: device(), dirty: dirty, archive: archiveList(), selected: info(selectedId && entryById(selectedId)) }; }
+  function snapshot() { return { revision: baseRevision, design: clone(work), device: device(), dirty: dirty, readOnly: readOnly, archive: archiveList(), selected: info(selectedId && entryById(selectedId)) }; }
   function need(id) { var e = id && entryById(id); if (!e) throw new Error('اختاري عنصر الأول.'); return e; }
 
   async function execute(action, p, meta) {
     p = p || {};
     switch (action) {
       case 'page.getState': return snapshot();
-      case 'page.markSaved': baseRevision = p.revision; undoStack = []; redoStack = []; baseJson = JSON.stringify(work); dirty = true; setDirty(false); if (hostApi) hostApi.revision(baseRevision); return snapshot();
+      case 'page.markSaved': if (readOnly) throw new Error('هذا الإصدار للقراءة فقط ولا يمكن تأكيد حفظه.'); baseRevision = p.revision; undoStack = []; redoStack = []; baseJson = JSON.stringify(work); dirty = true; setDirty(false); if (hostApi) hostApi.revision(baseRevision); return snapshot();
       case 'element.select': select(need(p.elementId).id); return { selected: selectedId };
       case 'element.move': { var e1 = need(p.elementId || selectedId); mutate(function () { var t = edit(device(), e1.id); t.dx = Math.round(+p.dx || 0); t.dy = Math.round(+p.dy || 0); }); return null; }
       case 'element.resize': { var e2 = need(p.elementId || selectedId); mutate(function () { var t = edit(device(), e2.id); if (p.w) t.w = Math.round(p.w); if (p.h) t.h = Math.round(p.h); }); return null; }
@@ -505,7 +585,15 @@
       }
       case 'element.edit': { var e9 = need(p.elementId || selectedId); startText(e9.id); return null; }
       case 'element.archive': archive(need(p.elementId || selectedId).id); return null;
-      case 'archive.restore': mutate(function () { scopes().forEach(function (d) { if (d.edits) Object.keys(d.edits).forEach(function (dev) { if (d.edits[dev][p.elementId]) delete d.edits[dev][p.elementId].archived; }); }); }); return snapshot();
+      case 'archive.restore': {
+        var archiveId = String(p.elementId || ''), archiveScope = pageScope(archiveId, false) || work, edits = archiveScope.edits || {};
+        if (!archiveId) throw new Error('معرّف العنصر المؤرشف مطلوب.');
+        var archivedHere = Object.keys(edits).some(function (dev) { return edits[dev] && edits[dev][archiveId] && edits[dev][archiveId].archived; });
+        if (archivedHere) mutate(function () { var scope = pageScope(archiveId, true); Object.keys(scope.edits || {}).forEach(function (dev) { if (scope.edits[dev][archiveId]) delete scope.edits[dev][archiveId].archived; }); });
+        else insertLibraryPayload(p.payload, archiveId);
+        select(archiveId); return snapshot();
+      }
+      case 'library.insert': return insertLibraryPayload(p.payload, null);
       case 'history.undo': return { ok: undo() };
       case 'history.redo': return { ok: redo() };
       case 'ui.openFormatPanel': if (p.elementId) select(need(p.elementId).id); if (!selectedId) throw new Error('اضغطي على عنصر في الصفحة الأول.'); return null;
@@ -522,7 +610,7 @@
   }
 
   async function loadBase() {
-    var r = await fetch('/api/editor?action=state', { credentials: 'same-origin', cache: 'no-store' });
+    var r = await editorFetch('/api/editor?action=state');
     var j = await r.json().catch(function () { return {}; });
     if (!r.ok || !j.ok) {
       var why = r.status === 503 ? 'إعدادات الإديتور ناقصة على السيرفر' + (j.missing && j.missing.length ? ': ' + j.missing.join('، ') : '') + '.'
@@ -538,11 +626,27 @@
     return { revision: baseRevision, design: clone(work) };
   }
 
+  function editorParentOrigin() {
+    var raw = new URLSearchParams(location.search).get('elan_editor_origin');
+    if (!raw || raw.length > 300) return location.origin;
+    try {
+      var u = new URL(raw);
+      var localHttp = u.protocol === 'http:' && (u.hostname === 'localhost' || u.hostname === '127.0.0.1');
+      var productionEditor = 'https://elan-editor-production-dc4e.up.railway.app';
+      if (u.username || u.password || u.pathname !== '/' || u.search || u.hash || u.origin !== raw) return location.origin;
+      if (u.origin === productionEditor || (localHttp && u.origin === raw)) return u.origin;
+      return location.origin;
+    } catch (_) { return location.origin; }
+  }
+
   hostApi = Bridge.install({
-    allowedEditorOrigins: [location.origin],
-    authorize: async function () {
-      try { var r = await fetch('/api/editor-session', { credentials: 'same-origin', cache: 'no-store' }); return r.ok; } catch (_) { return false; }
+    allowedEditorOrigins: [editorParentOrigin()],
+    authorize: async function (context) {
+      bridgeTicket = context && typeof context.ticket === 'string' ? context.ticket : bridgeTicket;
+      if (!bridgeTicket) return false;
+      try { var r = await editorFetch('/api/editor-session'); return r.ok; } catch (_) { return false; }
     },
+    onTicket: function (ticket) { bridgeTicket = ticket; },
     getState: async function () { if (!work) await loadBase(); return snapshot(); },
     execute: execute
   });

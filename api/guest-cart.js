@@ -1,13 +1,26 @@
 const { createHmac } = require('node:crypto');
 const { createLimiter, clientIp } = require('../lib/rate-limit');
+const match = require('../lib/guest-match');
 
 // Per client address and per minute. Creating a visitor row (resolve) and claiming are the expensive actions.
+// Mobile carriers and offices share one address between many shoppers, so the per-address cap is
+// generous and the strict cap is per browser key. A busy network must not lose real visitors.
 const LIMITS = {
   resolve: createLimiter({ max: 30, windowMs: 60000 }),
+  identify: createLimiter({ max: 12, windowMs: 60000 }),
   claim: createLimiter({ max: 30, windowMs: 60000 }),
   save: createLimiter({ max: 120, windowMs: 60000 }),
   track: createLimiter({ max: 300, windowMs: 60000 })
 };
+const NETWORK_LIMITS = {
+  resolve: createLimiter({ max: 600, windowMs: 60000 }),
+  identify: createLimiter({ max: 240, windowMs: 60000 }),
+  claim: createLimiter({ max: 300, windowMs: 60000 }),
+  save: createLimiter({ max: 2400, windowMs: 60000 }),
+  track: createLimiter({ max: 6000, windowMs: 60000 })
+};
+// Crawlers and monitors run scripts too; they must not be counted as shoppers.
+const BOT_AGENT = /bot\b|crawl|spider|slurp|headless|lighthouse|pagespeed|preview|monitor|uptime|curl\/|wget|python-requests|node-fetch|axios/i;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const json = (res, status, body) => res.status(status).json(body);
@@ -32,8 +45,77 @@ function createAdminClient(url, key) {
   });
 }
 
+function cookieKey(req) {
+  const m = String((req.headers && req.headers.cookie) || '').match(/(?:^|;\s*)elan_gid=([^;]+)/);
+  return m && UUID.test(m[1]) ? m[1] : null;
+}
+function setKeyCookie(req, res, key) {
+  const secure = String((req.headers && req.headers['x-forwarded-proto']) || '').includes('https') ? '; Secure' : '';
+  res.setHeader('Set-Cookie', `elan_gid=${key}; Max-Age=34560000; Path=/; HttpOnly; SameSite=Lax${secure}`);
+}
+
+// Server-side signals are stored only as keyed hashes. IPv4 keeps its /24, IPv6 its /48 prefix.
+function ipPrefix(ip) {
+  const v4 = /^(\d{1,3}\.\d{1,3}\.\d{1,3})\.\d{1,3}$/.exec(ip);
+  if (v4) return v4[1];
+  if (ip.includes(':')) return ip.split(':').slice(0, 3).join(':');
+  return '';
+}
+
 function hmac(secret, purpose, visitorKey) {
   return createHmac('sha256', secret).update(`${purpose}:${visitorKey}`).digest('hex');
+}
+
+const HEXFP = /^[a-f0-9]{16,64}$/;
+
+// Stores this browser's signals and links it to other guests only when the strict rules say so.
+// A failure here never affects the shopper: the answer is simply "not identified".
+async function identify({ req, body, admin, serviceKey, analyticsUse, ip }) {
+  try {
+    const parts = match.cleanParts(body.parts);
+    const fp = HEXFP.test(String(body.fp || '')) ? String(body.fp) : '';
+    if (!fp || Object.keys(parts).length < 4) return { ok: true, identified: false };
+    const b = body.behavior && typeof body.behavior === 'object' ? body.behavior : {};
+    const behavior = {
+      interactions: Math.max(0, Math.min(100000, Math.trunc(Number(b.interactions) || 0))),
+      activeSeconds: Math.max(0, Math.min(86400, Math.trunc(Number(b.activeSeconds) || 0))),
+      pages: Math.max(0, Math.min(10000, Math.trunc(Number(b.pages) || 0)))
+    };
+    const headers = req.headers || {};
+    const h = (purpose, value) => (value ? hmac(serviceKey, purpose, value) : null);
+    const cartSig = typeof body.cartSig === 'string' && /^[a-f0-9]{8,64}$/.test(body.cartSig) ? body.cartSig : '';
+    const own = {
+      parts, fp, behavior,
+      ipHash: h('guest-ip', ip), ipPrefixHash: h('guest-ip-prefix', ipPrefix(ip)),
+      cartHash: cartSig ? h('guest-cart-sig', cartSig) : ''
+    };
+
+    const stored = await admin('rpc/guest_signal_store', {
+      p_analytics_hash: analyticsUse, p_fp_hash: fp, p_parts: parts,
+      p_ip_hash: own.ipHash, p_ip_prefix_hash: own.ipPrefixHash,
+      p_ua_hash: h('guest-ua', String(headers['user-agent'] || '')), p_lang_hash: h('guest-lang', String(headers['accept-language'] || '')),
+      p_cart_hash: own.cartHash || null,
+      p_interactions: behavior.interactions, p_active_seconds: behavior.activeSeconds, p_pages: behavior.pages
+    });
+    if (!stored.ok) return { ok: true, identified: false };
+
+    let linked = 0;
+    if (match.trustedBehavior(behavior)) {
+      const found = await admin('rpc/guest_signal_candidates', { p_analytics_hash: analyticsUse, p_fp_hash: fp, p_gpu: parts.gpu || null, p_screen: parts.screen || null });
+      const candidates = found.ok ? await found.json() : [];
+      for (const c of Array.isArray(candidates) ? candidates : []) {
+        const verdict = match.decide(own, c, Number(c.popularity) || 1);
+        if (!verdict.link) continue;
+        const done = await admin('rpc/guest_identity_link', { p_a: analyticsUse, p_b: c.analyticsHash, p_score: verdict.score, p_reasons: verdict.reasons });
+        if (done.ok && (await done.json()) === true) linked += 1;
+      }
+    }
+    const finalRes = await admin('rpc/guest_final_id', { p_hash: analyticsUse });
+    const finalHash = finalRes.ok ? await finalRes.json() : analyticsUse;
+    return { ok: true, identified: true, linked, finalVisitorId: hmac(serviceKey, 'final-visitor', String(finalHash || analyticsUse)).slice(0, 32) };
+  } catch (_) {
+    return { ok: true, identified: false };
+  }
 }
 
 module.exports = async (req, res) => {
@@ -41,12 +123,17 @@ module.exports = async (req, res) => {
   if (req.method !== 'POST') return json(res, 405, { error: 'method_not_allowed' });
   if (Buffer.byteLength(JSON.stringify(req.body || {})) > 24000) return json(res, 413, { error: 'payload_too_large' });
 
+  if (String((req.headers && req.headers['sec-fetch-site']) || '') === 'cross-site') return json(res, 403, { error: 'cross_site_not_allowed' });
   const body = req.body || {};
   const action = String(body.action || 'resolve');
-  const visitorKey = String(body.visitorKey || '');
+  let visitorKey = String(body.visitorKey || '');
   if (!UUID.test(visitorKey)) return json(res, 400, { error: 'invalid_browser_key' });
-  if (!['resolve', 'save', 'claim', 'track'].includes(action)) return json(res, 400, { error: 'unsupported_action' });
-  const limit = LIMITS[action](`${clientIp(req)}:${action}`);
+  if (!['resolve', 'save', 'claim', 'track', 'identify'].includes(action)) return json(res, 400, { error: 'unsupported_action' });
+  const ip = clientIp(req);
+  const limit = [LIMITS[action](`${visitorKey}:${action}`), NETWORK_LIMITS[action](`${ip}:${action}`)].find((l) => !l.allowed) || { allowed: true };
+  if (action !== 'claim' && BOT_AGENT.test(String((req.headers && req.headers['user-agent']) || ''))) {
+    return json(res, 200, { ok: true, tracked: false, bot: true, cart: [] });
+  }
   if (!limit.allowed) {
     res.setHeader('Retry-After', String(limit.retryAfter));
     return json(res, 429, { error: 'too_many_requests' });
@@ -60,15 +147,36 @@ module.exports = async (req, res) => {
   const admin = createAdminClient(supabaseUrl, serviceKey);
 
   try {
+    // The server cookie outlives script-set storage (Safari clears that after a week without a visit).
+    // If this browser arrives with a different key than the one the server already gave it, the two
+    // records are merged into the cookie's key, so one browser is never two visitors.
+    let canonicalKey = null;
+    if (action === 'resolve') {
+      const known = cookieKey(req);
+      if (!known || body.fresh === true) setKeyCookie(req, res, visitorKey);
+      else if (known !== visitorKey) {
+        const merge = await admin('rpc/merge_guest_browser', {
+          p_from_fingerprint: fingerprintHash, p_to_fingerprint: hmac(serviceKey, 'guest-browser', known),
+          p_from_analytics: analyticsHash, p_to_analytics: hmac(serviceKey, 'guest-analytics', known)
+        }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+        if (merge && merge.merged === true) { canonicalKey = known; visitorKey = known; }
+      }
+    }
+    const fingerprintUse = canonicalKey ? hmac(serviceKey, 'guest-browser', canonicalKey) : fingerprintHash;
+    const analyticsUse = canonicalKey ? hmac(serviceKey, 'guest-analytics', canonicalKey) : analyticsHash;
+    if (action === 'identify') {
+      return json(res, 200, await identify({ req, body, admin, serviceKey, analyticsUse, ip }));
+    }
+
     if (action === 'resolve' || action === 'save') {
       const cart = action === 'save' ? cleanCart(body.items) : undefined;
       const rpc = action === 'resolve' ? 'resolve_guest_browser' : 'save_guest_browser_cart';
-      const payload = { p_fingerprint_hash: fingerprintHash, p_analytics_hash: analyticsHash };
+      const payload = { p_fingerprint_hash: fingerprintUse, p_analytics_hash: analyticsUse };
       if (action === 'save') payload.p_cart_snapshot = cart;
       const response = await admin(`rpc/${rpc}`, payload);
       if (!response.ok) return json(res, 502, { error: 'guest_profile_unavailable' });
       const profile = await response.json();
-      return json(res, 200, { ok: true, visitorId: profile.visitorId, status: profile.status, cart: cleanCart(profile.cart || []) });
+      return json(res, 200, { ok: true, visitorId: profile.visitorId, status: profile.status, cart: cleanCart(profile.cart || []), ...(canonicalKey ? { visitorKey: canonicalKey } : {}) });
     }
 
     if (action === 'track') {
@@ -97,11 +205,16 @@ module.exports = async (req, res) => {
     const user = await userResponse.json();
     if (!UUID.test(String(user.id || ''))) return json(res, 401, { error: 'login_required' });
 
-    const response = await admin('rpc/claim_guest_browser_cart', {
+    // The newer function also removes this browser's guest analytics, so the same person is not
+    // counted as a guest and as a customer. Until that migration is applied the old one is used.
+    let response = await admin('rpc/claim_guest_browser_cart', {
       p_fingerprint_hash: fingerprintHash,
-      p_analytics_hash: analyticsHash,
-      p_user_id: user.id
+      p_user_id: user.id,
+      p_analytics_hash: analyticsHash
     });
+    if (response.status === 404 || response.status === 400) {
+      response = await admin('rpc/claim_guest_browser_cart', { p_fingerprint_hash: fingerprintHash, p_user_id: user.id });
+    }
     if (!response.ok) return json(res, 502, { error: 'cart_transfer_failed' });
     const result = await response.json();
     return json(res, 200, { ok: true, claimed: !!result.claimed, cart: Number(result.cart) || 0 });

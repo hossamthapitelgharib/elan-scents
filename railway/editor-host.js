@@ -6,17 +6,33 @@ const path = require('path');
 const crypto = require('crypto');
 const sessions = require('./editor-session.js');
 const media = require('./editor-media.js');
+const bridgeTickets = require('./editor-bridge-ticket.js');
 
 const ROOT = path.resolve(__dirname, '..');
 const COOKIE = 'elan_sess';
 const LOGIN_FILES = { '/editor-login.js': 'text/javascript; charset=utf-8', '/editor-login.css': 'text/css; charset=utf-8', '/editor-guard.js': 'text/javascript; charset=utf-8', '/editor-media.js': 'text/javascript; charset=utf-8' };
+
+function editorSiteOrigin() {
+  let selfOrigin = '';
+  try {
+    const host = String(process.env.RAILWAY_PUBLIC_DOMAIN || '').trim();
+    if (host) selfOrigin = new URL(host.includes('://') ? host : 'https://' + host).origin;
+  } catch (_) { selfOrigin = ''; }
+  try {
+    const u = new URL(String(process.env.EDITOR_SITE_ORIGIN || ''));
+    if (u.protocol === 'https:' && !u.username && !u.password && u.pathname === '/' && !u.search && !u.hash && (!selfOrigin || u.origin !== selfOrigin)) return u.origin;
+  } catch (_) { /* use the known production storefront */ }
+  return 'https://elan-site-production.up.railway.app';
+}
 
 function sha(s) { return "'sha256-" + crypto.createHash('sha256').update(s, 'utf8').digest('base64') + "'"; }
 
 let PAGE = null;
 function buildPage() {
   let html = fs.readFileSync(path.join(ROOT, 'editor', 'elan-editor.html'), 'utf8');
-  html = html.replace('</body>', '<script src="/editor-guard.js"></script><script src="/editor-media.js"></script></body>');
+  const siteOrigin = editorSiteOrigin();
+  html = html.replace('</head>', '<script>window.ELAN_EDITOR_SITE_ORIGIN=' + JSON.stringify(siteOrigin) + ';</script></head>');
+  html = html.replace('</body>', '<script src="/editor-guard.js"></script><script src="/editor-media.js"></script><script src="/editor/editor-live-library.js?v=20261016-01"></script></body>');
   const hashes = [];
   html.replace(/<script>([\s\S]*?)<\/script>/g, (_, code) => { hashes.push(sha(code)); return ''; });
   const handlers = [];
@@ -29,7 +45,7 @@ function buildPage() {
     "img-src 'self' data: blob: https:",
     "media-src 'self' blob: https:",
     "connect-src 'self'",
-    "frame-src 'self'",
+    "frame-src 'self' " + siteOrigin,
     "frame-ancestors 'none'", "base-uri 'none'", "form-action 'self'", "object-src 'none'"
   ].join('; ');
   return { html, csp };
@@ -79,7 +95,14 @@ function readRaw(req, limit) {
 async function attachSession(req) {
   const s = await sessions.get(sessions.parseCookie(req.headers.cookie, COOKIE));
   if (s) req.headers.authorization = 'Bearer ' + s.token;
+  if (s && s.bypass === true) req.__editorKeyAdmin = true; // server-side flag only; never read from the client
   return !!s;
+}
+
+function attachBridgeTicket(req) {
+  if (!bridgeTickets.verify(req.headers['x-elan-editor-ticket'])) return false;
+  req.__editorKeyAdmin = true; // set only after verifying the server signature, origin, audience and expiry
+  return true;
 }
 
 /* Returns true when the request was handled here. */
@@ -112,7 +135,7 @@ async function handle(req, res, pathname) {
     if (!s) return json(res, 401, { ok: false, error: 'unauthorized' }), true;
     if (req.method !== 'POST' || !sameOrigin(req)) return json(res, 403, { ok: false, error: 'forbidden' }), true;
     const type = String(req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
-    const buf = await readRaw(req, media.MAX_BYTES + 1);
+    const buf = await readRaw(req, media.MAX_VIDEO_BYTES + 1);
     if (!buf) return json(res, 413, { ok: false, error: 'file_too_large' }), true;
     let name = ''; try { name = decodeURIComponent(String(req.headers['x-file-name'] || '')); } catch (_) { name = ''; }
     const r = await media.upload(s, buf, type, name);
@@ -120,11 +143,30 @@ async function handle(req, res, pathname) {
   }
   if (pathname === '/api/editor-session') {
     const s = await sessions.get(sid);
-    return (s ? json(res, 200, { ok: true }) : json(res, 401, { ok: false, error: 'unauthorized' })), true;
+    const delegated = bridgeTickets.verify(req.headers['x-elan-editor-ticket']);
+    return (s || delegated ? json(res, 200, { ok: true }) : json(res, 401, { ok: false, error: 'unauthorized' })), true;
+  }
+  if (pathname === '/api/editor-bridge-ticket') {
+    if (req.method !== 'POST' || !sameOrigin(req)) return json(res, 403, { ok: false, error: 'forbidden' }), true;
+    const s = await sessions.get(sid);
+    if (!s) return json(res, 401, { ok: false, error: 'unauthorized' }), true;
+    const ticket = bridgeTickets.issue(editorSiteOrigin());
+    if (!ticket) return json(res, 503, { ok: false, error: 'bridge_ticket_unavailable' }), true;
+    return json(res, 200, { ok: true, ticket, expiresIn: bridgeTickets.TTL_SECONDS }), true;
   }
 
   if (pathname === '/editor' || pathname === '/editor/') {
     if (req.method !== 'GET' && req.method !== 'HEAD') return false;
+    const keyGiven = new URL(req.url, 'http://x').searchParams.get('key');
+    if (keyGiven !== null && sessions.accessKeyEnabled()) {
+      const r = sessions.keyLogin(keyGiven, ip(req));
+      if (!r.error) {
+        setCookie(req, res, r.id, false);
+        res.statusCode = 302; res.setHeader('Location', '/editor'); res.setHeader('Cache-Control', 'no-store'); res.setHeader('Referrer-Policy', 'no-referrer');
+        res.end();
+        return true;
+      }
+    }
     const s = await sessions.get(sid);
     if (s) {
       PAGE = PAGE || buildPage();
@@ -151,4 +193,4 @@ async function handle(req, res, pathname) {
   return false;
 }
 
-module.exports = { handle, attachSession, buildPage };
+module.exports = { handle, attachSession, attachBridgeTicket, buildPage, editorSiteOrigin, bridgeTickets };

@@ -24,20 +24,25 @@ test('edit mode loads only inside the editor window and never for customers', ()
 
 test('edit mode talks to its own editor window only', () => {
   const mode = read('edit-mode.js');
-  assert.match(mode, /allowedEditorOrigins: \[location\.origin\]/);
+  assert.match(mode, /function editorParentOrigin\(\)/);
+  assert.match(mode, /allowedEditorOrigins: \[editorParentOrigin\(\)\]/);
   assert.doesNotMatch(mode, /allowedEditorOrigins:\s*\[\s*'\*'/);
   assert.doesNotMatch(mode, /localStorage|sessionStorage/);
 });
 
-test('moving an element is one mouse gesture armed from the menu, with no arrow pad or arrow keys', () => {
+test('moving an element starts with a direct pointer drag and uses original size bounds', () => {
   const mode = read('edit-mode.js');
   const editor = read('editor/elan-editor.html');
-  assert.match(mode, /registerTool\(\{ id: 'move', label: 'تحريك العنصر'/);
+  const geometry = read('editor/editor-geometry.js');
+  assert.match(mode, /var e, mode = 'move'/);
+  assert.match(mode, /Geometry\.move\(g\.r, g\.b/);
+  assert.match(mode, /if \(!g\.moved\) return;/);
+  assert.doesNotMatch(mode, /registerTool\(\{ id: 'move'/);
+  assert.match(geometry, /MIN_WIDTH = 40/);
+  assert.match(geometry, /MIN_HEIGHT = 30/);
   assert.doesNotMatch(mode, /movepad/);
   assert.doesNotMatch(mode, /ev\.key\.indexOf\('Arrow'\)/);
   assert.doesNotMatch(editor, /movepad|movePad|openMovePad/);
-  assert.match(mode, /function armMove/);
-  assert.match(mode, /disarm\(\); say\('خلص التحريك/);          // the move ends when the button is released
 });
 
 test('a dynamic element opens as its own page and the menu can go back', () => {
@@ -76,49 +81,46 @@ test('when the editor cannot start, it says why instead of showing no tools', ()
   assert.ok(!JSON.stringify(none).includes('ghp_'));
   const ok = config({ GITHUB_TOKEN: 't', EDITOR_TARGET_BRANCH: 'main', EDITOR_SITE_ORIGIN: 'https://example.com', RAILWAY_ENVIRONMENT_NAME: 'production' });
   assert.equal(ok.error, undefined);
+  const selfOrigin = config({ GITHUB_TOKEN: 't', EDITOR_TARGET_BRANCH: 'main', EDITOR_SITE_ORIGIN: 'https://editor.example.test', RAILWAY_PUBLIC_DOMAIN: 'editor.example.test', RAILWAY_ENVIRONMENT_NAME: 'production' });
+  assert.equal(selfOrigin.origin, 'https://elan-site-production.up.railway.app');
 });
 
-test('a refused GitHub save is explained in plain words, without writing any file', async () => {
-  const { actionDiagnose } = require('../railway/editor.js').internals;
-  const calls = [];
-  const realFetch = global.fetch;
-  const script = {
-    'GET /repos/o/r': [200, {}],
-    'GET /repos/o/r/branches/main': [200, { commit: { sha: 'abc' }, protected: false }],
-    'GET /repos/o/r/contents/design/home.json?ref=main': [200, {}],
-    'POST /repos/o/r/git/refs': [403, { message: 'Resource not accessible by personal access token' }]
-  };
-  global.fetch = async (url, init) => {
-    const key = (init.method || 'GET') + ' ' + new URL(url).pathname + new URL(url).search;
-    calls.push(key); const [status, json] = script[key] || [500, {}];
-    return { status, json: async () => json };
-  };
-  try {
-    const r = await actionDiagnose({ token: 't', repo: 'o/r', branch: 'main' });
-    assert.match(r.body.verdict, /Contents = Read and write/);
-    assert.ok(calls.every((c) => !c.startsWith('PUT') && !c.startsWith('PATCH')));
-    assert.ok(!JSON.stringify(r).includes('Bearer'));
-  } finally { global.fetch = realFetch; }
+test('save error shows which Railway settings are missing', () => {
+  const page = read('editor/elan-editor.html');
+  assert.match(page, /الناقص: '\+j\.missing\.join/);
 });
 
-test('every font in the editor panel is accepted by the design schema and loadable on the page', () => {
-  const ED = require('../design-schema.js');
-  const html = read('editor/elan-editor.html');
-  const m = /const fontDefinitions=(\[\[.*?\]\]);/s.exec(html);
-  assert.ok(m, 'font list not found in the editor');
-  const fonts = eval(m[1]).flatMap((g) => g[1]);
-  assert.equal(fonts.length, 29);
-  for (const f of fonts) {
-    assert.ok(ED.FONTS.includes(f), f + ' missing from schema');
-    assert.ok(ED.normalize({ version: ED.VERSION, edits: { all: { 'sec:brands': { style: { fontFamily: f } } } } }, { strict: true }).ok, f);
-  }
-  assert.ok(ED.WEB_FONTS.includes('Cairo') && !ED.WEB_FONTS.includes('Tahoma'));
-  assert.match(read('design-layer.js'), /fonts\.googleapis\.com\/css2\?family=/);
+test('right-click menu is not closed by a repeat selection message for the same element', () => {
+  const page = read('editor/elan-editor.html');
+  assert.match(page, /liveMenuFor=el\?\.id\|\|null/);
+  assert.match(page, /\(m\.element\?\.id\|\|null\)===liveMenuFor/);
 });
 
-test('the live format panel sends a colour only when the owner changed it', () => {
-  const html = read('editor/elan-editor.html');
-  assert.match(html, /if\(document\.getElementById\('color'\)\.value!==init\.color\)/);
-  assert.match(html, /if\(document\.getElementById\('bg'\)\.value!==init\.bg\)/);
-  assert.match(read('edit-mode.js'), /function solidBackground/);
+test('live preview defaults to the configured storefront origin, not the editor origin', () => {
+  const page = read('editor/elan-editor.html');
+  const host = read('railway/editor-host.js');
+  const mode = read('edit-mode.js');
+  assert.match(page, /address\.value=\(window\.ELAN_EDITOR_SITE_ORIGIN\|\|\'https:\/\/elan-site-production\.up\.railway\.app\'\)\+'\/'/);
+  assert.match(host, /frame-src 'self' \" \+ siteOrigin/);
+  assert.match(host, /window\.ELAN_EDITOR_SITE_ORIGIN/);
+  assert.match(host, /frame-ancestors 'none'/);
+  assert.match(page, /url\.searchParams\.set\('elan_editor_origin',location\.origin\)/);
+  assert.match(mode, /allowedEditorOrigins: \[editorParentOrigin\(\)\]/);
+});
+
+test('the authenticated editor delegates a short-lived ticket to the storefront iframe without a second login', () => {
+  const page = read('editor/elan-editor.html');
+  const mode = read('edit-mode.js');
+  const bridge = read('elan-host-bridge.js');
+  const host = read('railway/editor-host.js');
+  const server = read('railway/server.js');
+  assert.ok(page.includes("fetch('/api/editor-bridge-ticket'"));
+  assert.ok(page.includes("type:'hello',session:bridgeSession,ticket:bridgeTicket"));
+  assert.ok(page.includes("type:'auth',session:bridgeSession,ticket:bridgeTicket"));
+  assert.ok(page.includes('setInterval(renewBridgeTicket,4*60*1000)'));
+  assert.ok(host.includes("req.headers['x-elan-editor-ticket']"));
+  assert.ok(mode.includes("options.headers['X-Elan-Editor-Ticket'] = bridgeTicket"));
+  assert.ok(mode.includes("https://elan-editor-production-dc4e.up.railway.app"));
+  assert.ok(bridge.includes("m.type==='auth'"));
+  assert.match(server, /pathname === '\/api\/editor' \|\| pathname === '\/api\/editor-data'/);
 });

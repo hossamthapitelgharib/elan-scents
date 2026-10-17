@@ -70,6 +70,25 @@ async function login(email, password, ip) {
   return { status: 200, id: persistent || id };
 }
 
+/* TEMPORARY owner access without email/password, only while the owner turns it on in Railway:
+   EDITOR_AUTH_BYPASS=1 AND a secret phrase in EDITOR_ACCESS_KEY (at least 16 characters).
+   The owner opens /editor?key=<phrase> once. The session lives in server memory only. */
+function accessKeyEnabled() { return process.env.EDITOR_AUTH_BYPASS === '1' && String(process.env.EDITOR_ACCESS_KEY || '').length >= 16; }
+function keyLogin(given, ip) {
+  if (!accessKeyEnabled()) return { status: 404, error: 'not_enabled' };
+  if (tooManyAttempts(ip)) return { status: 429, error: 'too_many_attempts' };
+  noteAttempt(ip);
+  const a = crypto.createHash('sha256').update(String(given || '')).digest();
+  const b = crypto.createHash('sha256').update(String(process.env.EDITOR_ACCESS_KEY)).digest();
+  if (!crypto.timingSafeEqual(a, b)) return { status: 401, error: 'invalid_key' };
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || '';
+  if (!serviceKey) return { status: 503, error: 'supabase_service_configuration_missing' };
+  const id = crypto.randomBytes(32).toString('hex');
+  const now = Date.now();
+  sessions.set(id, { token: serviceKey, bypass: true, expiresAt: now + ABSOLUTE_MS, created: now, last: now, email: 'access-key' });
+  return { status: 200, id };
+}
+
 async function get(id) {
   if (id && revoked.has(id)) return null;
   const s = id && (sessions.get(id) || unseal(id));
@@ -97,4 +116,4 @@ function parseCookie(header, name) {
 }
 function size() { return sessions.size; }
 
-module.exports = { login, get, destroy, parseCookie, size };
+module.exports = { login, keyLogin, accessKeyEnabled, get, destroy, parseCookie, size };
