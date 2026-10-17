@@ -65,6 +65,9 @@
   var playButton=document.getElementById('heroPlay');
   if(!v)return;
   v.__elanHeroVisible=true;
+  v.classList.remove('is-ready');
+  v.addEventListener('loadeddata',function(){v.classList.add('is-ready');},{once:true});
+  v.addEventListener('playing',function(){v.classList.add('is-ready');});
   v.muted=true;
   v.defaultMuted=true;
   v.autoplay=true;
