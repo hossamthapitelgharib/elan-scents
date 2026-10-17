@@ -548,7 +548,6 @@ function showLoadedStage(){setStages(0);const c=chipLoad;c.style.color='#d7f2c4'
 status.after(stageBox);status.style.display='none';
 const logoutBtn=document.createElement('button');logoutBtn.id='editorLogout';logoutBtn.textContent='⎋';logoutBtn.title='خروج';logoutBtn.setAttribute('aria-label','خروج');logoutBtn.style.cssText='background:#302b23;border:1px solid #685b41;color:#efe4cc;border-radius:7px;padding:5px 9px;min-width:34px;min-height:45px;font-size:18px;line-height:1';logoutBtn.onclick=async()=>{if(bridgeDirty&&!confirm('في تعديلات لسه ما اتحفظتش. تخرجي برضه؟'))return;try{await fetch('/api/editor-logout',{method:'POST'});}catch(_){}document.body.textContent='';location.replace('/editor');};
 const header=document.querySelector('header');
-const syncLiveFrameHeight=()=>{const h=Math.ceil(header.getBoundingClientRect().height);liveFrame.style.height=`calc(100vh - ${h}px)`;};syncLiveFrameHeight();window.addEventListener('resize',syncLiveFrameHeight,{passive:true});
 const headerActions=document.createElement('span');headerActions.id='editorHeaderActions';headerActions.style.cssText='display:flex;align-items:center;gap:10px;flex-wrap:nowrap;white-space:nowrap';
 [document.getElementById('undo'),document.getElementById('redo'),document.getElementById('save'),document.getElementById('library'),logoutBtn].forEach(b=>headerActions.appendChild(b));
 header.insertBefore(headerActions,status);
