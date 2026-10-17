@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const migration = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'migrations', '20261017020000_expire_editor_sections.sql'), 'utf8');
+const migration = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'migrations', '20261017014836_expire_editor_sections.sql'), 'utf8');
 
 test('section expiry archives existing rows and preserves manual product items', () => {
   assert.match(migration, /create or replace function public\.expire_editor_sections\(\)/i);
