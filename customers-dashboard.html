@@ -35,6 +35,7 @@
         <div id="customerTabs" class="customer-tabs" role="tablist" aria-label="أقسام العملاء">
           <button id="registeredTab" type="button" role="tab" aria-selected="true" aria-controls="registeredCustomers" data-customer-tab="registered">العملاء المسجلون <b id="registeredCount">0</b></button>
           <button id="visitorsTab" type="button" role="tab" aria-selected="false" aria-controls="guestCustomers" data-customer-tab="visitors">العملاء الزوار <b id="visitorCount">0</b></button>
+          <button id="allTab" type="button" role="tab" aria-selected="false" aria-controls="allAnalytics" data-customer-tab="all">الإجمالي</button>
         </div>
         <div id="registeredCustomers" class="customer-list" role="tabpanel" aria-labelledby="registeredTab"></div>
         <div id="registeredPagination" class="customer-pagination" role="navigation" aria-label="صفحات العملاء المسجلين"></div>
@@ -86,6 +87,24 @@
           <div class="guest-analytics-grid">
             <section class="guest-analytics-card"><h4>المنتجات الأكثر مشاهدة وبحثًا</h4><div id="guestTopProducts" class="guest-analytics-list"></div></section>
             <section class="guest-analytics-card"><h4>الأكثر إضافةً أو حذفًا من سلال الزوار</h4><div id="guestBasketProducts" class="guest-analytics-list"></div></section>
+          </div>
+        </section>
+        <section id="allAnalytics" class="guest-analytics" aria-labelledby="allAnalyticsTitle" hidden>
+          <div class="guest-analytics-heading">
+            <div><small>Total insights</small><h3 id="allAnalyticsTitle">إجمالي الزوار والعملاء المسجلين</h3></div>
+            <label class="guest-period">الفترة
+              <select id="allAnalyticsPeriod" aria-label="فترة الإجمالي">
+                <option value="today">اليوم</option><option value="week">آخر 7 أيام</option><option value="month">آخر 30 يومًا</option><option value="year">آخر 365 يومًا</option>
+              </select>
+            </label>
+          </div>
+          <p id="allAnalyticsRange" class="guest-analytics-range"></p>
+          <p id="allAnalyticsError" class="platform-error" hidden></p>
+          <div id="allAnalyticsStats" class="stats guest-analytics-stats"></div>
+          <p class="guest-analytics-note">الإجمالي = الزوار + العملاء المسجلون. عندما يسجّل الزائر تنتقل كل عملياته إلى حسابه بتواريخها الأصلية وتُحذف بصمته، فلا يُحسب أي شخص مرتين.</p>
+          <div class="guest-analytics-grid">
+            <section class="guest-analytics-card"><h4>المنتجات الأكثر مشاهدة وبحثًا</h4><div id="allTopProducts" class="guest-analytics-list"></div></section>
+            <section class="guest-analytics-card"><h4>المنتجات الأكثر إضافةً وحذفًا من السلة</h4><div id="allBasketProducts" class="guest-analytics-list"></div></section>
           </div>
         </section>
       </section>

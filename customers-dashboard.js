@@ -90,7 +90,7 @@ function renderCustomers(data) {
   document.querySelector('#guestCustomers').innerHTML = visitors.length ? visitors.map(visitor => {
     const hash = String(visitor.fingerprint_hash || ''), target = `activity-guest-${escP(visitor.id)}`;
     return `<article class="customer-row customer-row-expanded"><div class="customer-row-main"><strong>زائر · <code title="${escP(hash)}">${escP(hash.slice(0, 16))}${hash.length > 16 ? '…' : ''}</code></strong><small>أول زيارة: ${escP(dateP(visitor.first_seen_at))} · آخر نشاط: ${escP(dateP(visitor.last_seen_at))}</small><button type="button" class="ghost activity-open" data-load-activity data-kind="guest" data-id="${escP(visitor.id)}" data-target="${target}">عرض السلة وسجل النشاط</button></div><div class="customer-cart"><b>${Number(visitor.cart_items_count || 0)} صنف</b><small>${Number(visitor.cart_units || 0)} قطعة في السلة</small></div><div id="${target}" class="customer-activity-panel" hidden></div></article>`;
-  }).join('') : '<div class="empty">لا يوجد زوار نشطون</div>';
+  }).join('') : '<div class="empty">لا يوجد زوار نشطاء</div>';
   const pagination = data.pagination || {};
   if (pagination.registered) {
     customerOffsets.registered = Number(pagination.registered.offset) || 0;
@@ -113,12 +113,15 @@ function renderCustomerPagination(type, page) {
 
 const periodsP = { today: 'اليوم', week: 'آخر 7 أيام', month: 'آخر 30 يومًا', year: 'آخر 365 يومًا' };
 const rankingKeysP = { topViewed: 'view', topSearched: 'search', topCartAdded: 'cart_add', topCartRemoved: 'cart_remove' };
-const analyticsStateP = { guest: null, customer: null };
-const analyticsRequestP = { guest: 0, customer: 0 };
-const analyticsInflightP = { guest: null, customer: null };
+const analyticsActorsP = ['guest', 'customer', 'all'];
+const analyticsStateP = { guest: null, customer: null, all: null };
+const analyticsRequestP = { guest: 0, customer: 0, all: 0 };
+const analyticsInflightP = { guest: null, customer: null, all: null };
 let activeCustomerTabP = 'registered';
+function analyticsPrefix(actor) { return actor === 'guest' ? 'guest' : actor === 'all' ? 'all' : 'registered'; }
+function setHiddenIfPresent(selector, hidden) { const node = document.querySelector(selector); if (node) node.hidden = hidden; }
 function renderRankTable(rows, actor, key, page) {
-  const peopleLabel = actor === 'guest' ? 'عدد الزوار' : 'عدد العملاء';
+  const peopleLabel = actor === 'guest' ? 'عدد الزوار' : actor === 'all' ? 'عدد الأشخاص' : 'عدد العملاء';
   const table = Array.isArray(rows) && rows.length
     ? `<div class="activity-table-wrap"><table class="activity-table rank-table"><thead><tr><th>العطر وبياناته</th><th>مرات العملية</th><th>${peopleLabel}</th></tr></thead><tbody>${rows.map(row => `<tr><td class="activity-product-cell">${productSummary(row.product)}</td><td>${numberP(row.operations)}</td><td>${numberP(row.people)}</td></tr>`).join('')}</tbody></table></div>`
     : '<div class="empty">لا توجد بيانات في هذه الفترة</div>';
@@ -127,9 +130,9 @@ function renderRankTable(rows, actor, key, page) {
   return `${table}<div class="rank-pagination"><span>عرض ${numberP((rows || []).length)} من ${numberP(page.total)}</span>${more}</div>`;
 }
 function renderAnalytics(actor, data) {
-  if (!['guest', 'customer'].includes(actor)) return;
-  const prefix = actor === 'guest' ? 'guest' : 'registered';
-  const personLabel = actor === 'guest' ? 'زوار لديهم نشاط' : 'عملاء مسجلون لديهم نشاط';
+  if (!analyticsActorsP.includes(actor)) return;
+  const prefix = analyticsPrefix(actor);
+  const personLabel = actor === 'guest' ? 'زوار لديهم نشاط' : actor === 'all' ? 'زوار وعملاء لديهم نشاط' : 'عملاء مسجلون لديهم نشاط';
   const range = document.querySelector(`#${prefix}AnalyticsRange`);
   const statsBox = document.querySelector(`#${prefix}AnalyticsStats`);
   const topProducts = document.querySelector(`#${prefix}TopProducts`);
@@ -150,9 +153,9 @@ async function requestProductRanking(actor, period, eventType, offset) {
   return result;
 }
 async function loadAnalytics(actor) {
-  if (!['guest', 'customer'].includes(actor) || !Portal.session()) return;
+  if (!analyticsActorsP.includes(actor) || !Portal.session()) return;
   const requestId = ++analyticsRequestP[actor];
-  const prefix = actor === 'guest' ? 'guest' : 'registered';
+  const prefix = analyticsPrefix(actor);
   const period = document.querySelector(`#${prefix}AnalyticsPeriod`).value || 'today';
   const response = await fetch(`/api/guest-analytics?period=${encodeURIComponent(period)}&actor=${encodeURIComponent(actor)}`, { headers: Portal.auth() }), result = await response.json();
   if (!response.ok) throw Error(result.error || 'تعذر تحميل التحليلات');
@@ -169,8 +172,8 @@ async function loadAnalytics(actor) {
   renderAnalytics(actor, analytics);
 }
 function ensureAnalytics(actor, force = false) {
-  if (!['guest', 'customer'].includes(actor) || !Portal.session()) return Promise.resolve();
-  const prefix = actor === 'guest' ? 'guest' : 'registered';
+  if (!analyticsActorsP.includes(actor) || !Portal.session()) return Promise.resolve();
+  const prefix = analyticsPrefix(actor);
   const period = document.querySelector(`#${prefix}AnalyticsPeriod`).value || 'today';
   if (!force && analyticsStateP[actor] && analyticsStateP[actor].period === period) return Promise.resolve(analyticsStateP[actor]);
   const inFlight = analyticsInflightP[actor];
@@ -183,9 +186,9 @@ function ensureAnalytics(actor, force = false) {
 }
 async function loadMoreProductRanking(button) {
   const actor = button.dataset.rankActor, key = button.dataset.rankKey;
-  if (!['guest', 'customer'].includes(actor) || !Object.prototype.hasOwnProperty.call(rankingKeysP, key)) return;
+  if (!analyticsActorsP.includes(actor) || !Object.prototype.hasOwnProperty.call(rankingKeysP, key)) return;
   const analytics = analyticsStateP[actor], page = analytics && analytics.rankings && analytics.rankings[key];
-  const prefix = actor === 'guest' ? 'guest' : 'registered';
+  const prefix = analyticsPrefix(actor);
   const currentPeriod = document.querySelector(`#${prefix}AnalyticsPeriod`).value || 'today';
   if (!page || !page.hasMore || page.period !== currentPeriod) return;
   button.disabled = true;
@@ -202,7 +205,7 @@ async function loadMoreProductRanking(button) {
   } finally { button.disabled = false; }
 }
 function showAnalyticsError(actor, error) {
-  const prefix = actor === 'guest' ? 'guest' : 'registered';
+  const prefix = analyticsPrefix(actor);
   const box = document.querySelector(`#${prefix}AnalyticsError`);
   if (!box) return;
   box.textContent = error && error.message ? error.message : 'تعذر تحميل التحليلات'; box.hidden = false;
@@ -290,20 +293,25 @@ function activateCustomerTabs() {
   const tabs = document.querySelector('#customerTabs'); if (!tabs) return;
   document.querySelector('#registeredAnalytics').hidden = false;
   document.querySelector('#guestAnalytics').hidden = true;
+  setHiddenIfPresent('#allAnalytics', true);
   tabs.addEventListener('click', event => {
     const button = event.target.closest('[data-customer-tab]'); if (!button) return;
-    const guests = button.dataset.customerTab === 'visitors';
-    activeCustomerTabP = guests ? 'visitors' : 'registered';
-    document.querySelector('#registeredTab').setAttribute('aria-selected', String(!guests));
+    const tab = ['visitors', 'all'].includes(button.dataset.customerTab) ? button.dataset.customerTab : 'registered';
+    const guests = tab === 'visitors', everyone = tab === 'all';
+    activeCustomerTabP = tab;
+    document.querySelector('#registeredTab').setAttribute('aria-selected', String(tab === 'registered'));
     document.querySelector('#visitorsTab').setAttribute('aria-selected', String(guests));
-    document.querySelector('#registeredCustomers').hidden = guests;
+    const allTab = document.querySelector('#allTab'); if (allTab) allTab.setAttribute('aria-selected', String(everyone));
+    document.querySelector('#registeredCustomers').hidden = guests || everyone;
     document.querySelector('#guestCustomers').hidden = !guests;
-    document.querySelector('#registeredPagination').hidden = guests;
+    document.querySelector('#registeredPagination').hidden = guests || everyone;
     document.querySelector('#visitorPagination').hidden = !guests;
-    document.querySelector('#registeredAnalytics').hidden = guests;
+    document.querySelector('#registeredAnalytics').hidden = guests || everyone;
     document.querySelector('#guestAnalytics').hidden = !guests;
-    ensureAnalytics(guests ? 'guest' : 'customer').catch(error => showAnalyticsError(guests ? 'guest' : 'customer', error));
-    if (!guests) ensureBestSellers().catch(showBestSellerError);
+    setHiddenIfPresent('#allAnalytics', !everyone);
+    const actor = guests ? 'guest' : everyone ? 'all' : 'customer';
+    ensureAnalytics(actor).catch(error => showAnalyticsError(actor, error));
+    if (actor === 'customer') ensureBestSellers().catch(showBestSellerError);
   });
 }
 async function loadCustomersDashboard(loadInsights = true) {
@@ -316,7 +324,7 @@ async function loadCustomersDashboard(loadInsights = true) {
   document.querySelector('#stats').innerHTML = [['العملاء المسجلون', data.counts.registered], ['العملاء الزوار', data.counts.visitors]].map(item => `<div class="stat"><small>${item[0]}</small><b>${numberP(item[1])}</b></div>`).join('');
   renderCustomers(data);
   if (loadInsights) {
-    const actor = activeCustomerTabP === 'visitors' ? 'guest' : 'customer';
+    const actor = activeCustomerTabP === 'visitors' ? 'guest' : activeCustomerTabP === 'all' ? 'all' : 'customer';
     ensureAnalytics(actor, true).catch(error => showAnalyticsError(actor, error));
     if (actor === 'customer') ensureBestSellers().catch(showBestSellerError);
   }
@@ -328,6 +336,8 @@ const guestAnalyticsPeriod = document.querySelector('#guestAnalyticsPeriod');
 if (guestAnalyticsPeriod) guestAnalyticsPeriod.addEventListener('change', () => loadAnalytics('guest').catch(error => showAnalyticsError('guest', error)));
 const registeredAnalyticsPeriod = document.querySelector('#registeredAnalyticsPeriod');
 if (registeredAnalyticsPeriod) registeredAnalyticsPeriod.addEventListener('change', () => loadAnalytics('customer').catch(error => showAnalyticsError('customer', error)));
+const allAnalyticsPeriod = document.querySelector('#allAnalyticsPeriod');
+if (allAnalyticsPeriod) allAnalyticsPeriod.addEventListener('change', () => loadAnalytics('all').catch(error => showAnalyticsError('all', error)));
 const registeredBestSellersPeriod = document.querySelector('#registeredBestSellersPeriod');
 if (registeredBestSellersPeriod) registeredBestSellersPeriod.addEventListener('change', () => ensureBestSellers(true).catch(showBestSellerError));
 document.addEventListener('click', event => {

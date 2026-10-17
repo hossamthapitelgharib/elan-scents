@@ -15,7 +15,7 @@ module.exports = async function guestAnalytics(req, res) {
     if (!['today', 'week', 'month', 'year'].includes(period)) {
       return reply(res, 400, { ok: false, error: 'invalid_period' });
     }
-    if (!['guest', 'customer'].includes(actor)) return reply(res, 400, { ok: false, error: 'invalid_actor' });
+    if (!['guest', 'customer', 'all'].includes(actor)) return reply(res, 400, { ok: false, error: 'invalid_actor' });
     const headers = {
       apikey: context.serviceRoleKey,
       Authorization: `Bearer ${context.serviceRoleKey}`,
