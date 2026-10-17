@@ -96,6 +96,30 @@ test('dynamic section creation only accepts safe filters and currently published
       assert.equal(unsafeFilter.body.error, 'invalid_section_filter');
       assert.equal(calls.filter((call) => call.table === 'editor_sections' && call.method === 'POST').length, before);
     });
+
+    await t.test('window and duration timers persist validated dates and invalid timers never write', async () => {
+      const before = sections.length;
+      const starts = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
+      const ends = new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString();
+      const windowTimer = await invoke({ name: 'Window', purpose: 'section', selection_mode: 'auto', filters: {}, timer: { mode: 'window', starts_at: starts, ends_at: ends } });
+      assert.equal(windowTimer.statusCode, 200);
+      assert.equal(sections[before].timer_mode, 'window');
+      assert.equal(sections[before].starts_at, starts);
+      assert.equal(sections[before].ends_at, ends);
+
+      const now = Date.now();
+      const durationTimer = await invoke({ name: 'Duration', purpose: 'section', selection_mode: 'auto', filters: {}, timer: { mode: 'duration', duration_hours: 36 } });
+      assert.equal(durationTimer.statusCode, 200);
+      assert.equal(sections[before + 1].timer_mode, 'duration');
+      assert.equal(sections[before + 1].duration_hours, 36);
+      assert.ok(new Date(sections[before + 1].ends_at).getTime() >= now + 36 * 60 * 60 * 1000);
+      assert.equal(sections[before + 1].starts_at, null);
+
+      const badTimer = await invoke({ name: 'Bad timer', purpose: 'section', selection_mode: 'auto', filters: {}, timer: { mode: 'window', starts_at: ends, ends_at: starts } });
+      assert.equal(badTimer.statusCode, 400);
+      assert.equal(badTimer.body.error, 'invalid_section_timer');
+      assert.equal(sections.length, before + 2);
+    });
   } finally {
     global.fetch = previousFetch;
     if (previousUrl === undefined) delete process.env.SUPABASE_URL; else process.env.SUPABASE_URL = previousUrl;
@@ -116,6 +140,8 @@ test('visual editor card tools match or create catalog records and the left-clic
   assert.match(editMode, /ev\.key === 'Enter'.*done\(input\.value\.trim\(\)\)/);
   assert.match(editMode, /ev\.key === 'Escape'.*done\(null\)/);
   assert.match(editMode, /filters\[filterKinds\[kind\]\.key\] = String\(catalog\.record\.name\)/);
+  assert.match(editMode, /async function askSectionTimer\(\)/);
+  assert.match(editMode, /timer: timer/);
   assert.match(editMode, /product_size_ids: productSizeIds/);
   assert.match(editMode, /selectionMode = 'auto'/);
   assert.match(editMode, /case 'library\.insert'/);

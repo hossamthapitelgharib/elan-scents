@@ -381,6 +381,29 @@
     if (!Number.isInteger(index) || index < 1 || index > rows.length) throw new Error('رقم الاختيار غير صحيح.');
     return rows[index - 1];
   }
+  async function askSectionTimer() {
+    var choice = await ask('مؤقت القسم', 'اكتبي none بلا مؤقت، window لتاريخي بداية ونهاية، أو duration لمدة بالساعات.', 'none');
+    if (choice === null) return null;
+    var mode = String(choice).trim().toLowerCase();
+    if (mode === 'none') return { mode: 'none' };
+    if (mode === 'window') {
+      var startText = await ask('بداية المؤقت', 'أدخلي التاريخ والوقت بصيغة يفهمها المتصفح، مثل 2026-10-20T09:00.');
+      if (startText === null) return null;
+      var endText = await ask('نهاية المؤقت', 'أدخلي تاريخًا ووقتًا بعد وقت البداية.');
+      if (endText === null) return null;
+      var start = new Date(startText), end = new Date(endText);
+      if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || end <= start) throw new Error('فترة المؤقت غير صحيحة.');
+      return { mode: 'window', starts_at: start.toISOString(), ends_at: end.toISOString() };
+    }
+    if (mode === 'duration') {
+      var hoursText = await ask('مدة المؤقت بالساعات', 'يبدأ العد من أول حفظ. يوم واحد = 24 ساعة.');
+      if (hoursText === null) return null;
+      var hours = Number(String(hoursText).trim());
+      if (!Number.isSafeInteger(hours) || hours < 1) throw new Error('أدخلي عدد ساعات صحيحًا أكبر من صفر.');
+      return { mode: 'duration', duration_hours: hours };
+    }
+    throw new Error('اختاري none أو window أو duration.');
+  }
   async function createSmart(kind, c) {
     var filters = {}, selectionMode = 'auto', productSizeIds = [], defaultName = 'قسم عطور جديد', catalogName = null;
     var filterKinds = {
@@ -411,6 +434,8 @@
     }
     var name = String(prompt('اسم القسم الذي سيظهر في المتجر', defaultName) || '').trim();
     if (!name) throw new Error('اكتبي اسمًا للقسم قبل الإنشاء.');
+    var timer = await askSectionTimer();
+    if (!timer) throw new Error('اتلغى');
     if (catalogName !== null) {
       var catalog = await editorData('catalog.create', { kind: kind, name: catalogName });
       if (!catalog.record || !catalog.record.id || !catalog.record.name) throw new Error('لم يتم تأكيد مطابقة أو إنشاء سجل الكتالوج.');
@@ -418,7 +443,7 @@
     }
     var elementId = 'x-' + rid();
     if (!validBlock({ id: 'x-' + rid(), type: 'smart', ref: elementId, style: { align: 'center', size: 'md' } })) throw new Error('تعذر تجهيز البلوك الجديد.');
-    var j = await editorData('section.create', { section: { element_id: elementId, name: name, purpose: kind, selection_mode: selectionMode, filters: filters, product_size_ids: productSizeIds } });
+    var j = await editorData('section.create', { section: { element_id: elementId, name: name, purpose: kind, selection_mode: selectionMode, filters: filters, product_size_ids: productSizeIds, timer: timer } });
     if (!j.ref || j.ref !== elementId) throw new Error('لم يتم تأكيد إنشاء القسم المركزي.');
     return createBlock('smart', { ref: j.ref, semanticKind: kind, at: c && c.at });
   }

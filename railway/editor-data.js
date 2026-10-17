@@ -267,6 +267,27 @@ async function saveLibrary(ctx, input) {
   return { ok: true, revision: (await library(ctx)).revision };
 }
 
+function normalizeSectionTimer(value) {
+  if (value == null) return { timer_mode: 'none', starts_at: null, ends_at: null, duration_hours: null };
+  if (typeof value !== 'object' || Array.isArray(value)) throw Object.assign(new Error('invalid_section_timer'), { status: 400 });
+  const mode = value.mode == null ? 'none' : value.mode;
+  if (mode === 'none') return { timer_mode: 'none', starts_at: null, ends_at: null, duration_hours: null };
+  if (mode === 'window') {
+    const start = typeof value.starts_at === 'string' ? new Date(value.starts_at) : null;
+    const end = typeof value.ends_at === 'string' ? new Date(value.ends_at) : null;
+    if (!start || !end || !Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || end <= start) throw Object.assign(new Error('invalid_section_timer'), { status: 400 });
+    return { timer_mode: 'window', starts_at: start.toISOString(), ends_at: end.toISOString(), duration_hours: null };
+  }
+  if (mode === 'duration') {
+    const hours = Number(value.duration_hours);
+    if (!Number.isSafeInteger(hours) || hours < 1 || hours > 2147483647) throw Object.assign(new Error('invalid_section_timer'), { status: 400 });
+    const end = new Date(Date.now() + hours * 60 * 60 * 1000);
+    if (!Number.isFinite(end.getTime())) throw Object.assign(new Error('invalid_section_timer'), { status: 400 });
+    return { timer_mode: 'duration', starts_at: null, ends_at: end.toISOString(), duration_hours: hours };
+  }
+  throw Object.assign(new Error('invalid_section_timer'), { status: 400 });
+}
+
 async function createSection(ctx, input) {
   const section = input && input.section;
   const name = String(section && section.name || '').trim().slice(0, 200);
@@ -276,6 +297,7 @@ async function createSection(ctx, input) {
   const elementId = requestedId || ('x-' + crypto.randomUUID().replace(/-/g, ''));
   const mode = section.selection_mode == null ? 'auto' : section.selection_mode;
   if (!['auto', 'manual'].includes(mode)) throw Object.assign(new Error('invalid_section_selection_mode'), { status: 400 });
+  const timer = normalizeSectionTimer(section.timer);
   const purpose = bounded(section.purpose, '', 80);
   if (!['section', 'brand', 'store', 'perfume', 'occasion', 'note'].includes(purpose)) throw Object.assign(new Error('invalid_section_purpose'), { status: 400 });
   const filters = normalizeSectionFilters(section.filters);
@@ -293,7 +315,7 @@ async function createSection(ctx, input) {
     purpose,
     selection_mode: mode,
     filters,
-    timer_mode: 'none',
+    ...timer,
     status: 'active'
   }]);
   const created = Array.isArray(rows) ? rows[0] : null;
