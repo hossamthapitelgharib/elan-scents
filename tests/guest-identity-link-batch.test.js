@@ -5,7 +5,7 @@ const path = require('node:path');
 
 const root = path.join(__dirname, '..');
 const api = fs.readFileSync(path.join(root, 'api', 'guest-cart.js'), 'utf8');
-const migration = fs.readFileSync(path.join(root, 'supabase', 'pending', '20261017024500_batch_guest_identity_links.sql'), 'utf8');
+const migration = fs.readFileSync(path.join(root, 'supabase', 'migrations', '20261017030354_batch_guest_identity_links.sql'), 'utf8');
 const sqlTest = fs.readFileSync(path.join(__dirname, 'guest-identity-link-batch.sql'), 'utf8');
 
 test('guest identify batches accepted links and preserves a pre-migration fallback', () => {
