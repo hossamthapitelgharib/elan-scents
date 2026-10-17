@@ -71,10 +71,10 @@ test('dynamic section creation only accepts safe filters and currently published
 
       const automatic = await invoke({
         element_id: 'x-brand1', name: 'Atelier Rose', purpose: 'brand', selection_mode: 'auto',
-        filters: { brand: 'Atelier Rose', limit: 12 }
+        filters: { brand: 'Atelier Rose', size_ml: 100 }
       });
       assert.equal(automatic.statusCode, 200);
-      assert.deepEqual(sections[1].filters, { brand: 'Atelier Rose', limit: 12 });
+      assert.deepEqual(sections[1].filters, { brand: 'Atelier Rose', size_ml: 100 });
       assert.equal(automatic.body.itemCount, 0);
     });
 
@@ -94,6 +94,19 @@ test('dynamic section creation only accepts safe filters and currently published
       });
       assert.equal(unsafeFilter.statusCode, 400);
       assert.equal(unsafeFilter.body.error, 'invalid_section_filter');
+      assert.equal(calls.filter((call) => call.table === 'editor_sections' && call.method === 'POST').length, before);
+
+      const unsafeSize = await invoke({ name: 'Bad size', purpose: 'section', selection_mode: 'auto', filters: { size_ml: 0 } });
+      assert.equal(unsafeSize.statusCode, 400);
+      assert.equal(unsafeSize.body.error, 'invalid_section_filter');
+      assert.equal(calls.filter((call) => call.table === 'editor_sections' && call.method === 'POST').length, before);
+
+      const tooManyItems = await invoke({
+        name: 'Too many items', purpose: 'section', selection_mode: 'manual', filters: {},
+        product_size_ids: Array.from({ length: 2001 }, (_, i) => '40000000-0000-4000-8000-' + String(i).padStart(12, '0'))
+      });
+      assert.equal(tooManyItems.statusCode, 400);
+      assert.equal(tooManyItems.body.error, 'invalid_section_items');
       assert.equal(calls.filter((call) => call.table === 'editor_sections' && call.method === 'POST').length, before);
     });
 
@@ -144,6 +157,9 @@ test('visual editor card tools match or create catalog records and the left-clic
   assert.match(editMode, /timer: timer/);
   assert.match(editMode, /product_size_ids: productSizeIds/);
   assert.match(editMode, /selectionMode = 'auto'/);
+  assert.match(editMode, /طريقة اختيار العطور/);
+  assert.match(editMode, /فلتر الحجم بالملليلتر/);
+  assert.match(editMode, /productSizeIds\.indexOf\(product\.product_size_id\) !== -1/);
   assert.match(editMode, /case 'library\.insert'/);
   assert.match(hostBridge, /'library\.insert'/);
   assert.match(designLayer, /sameCatalogName\(o\.store, f\.store\)/);

@@ -155,11 +155,15 @@ async function createCatalogRecord(ctx, input) {
 function normalizeSectionFilters(value) {
   if (value == null) return {};
   if (typeof value !== 'object' || Array.isArray(value)) throw Object.assign(new Error('invalid_section_filters'), { status: 400 });
-  const allowed = new Set(['brand', 'store', 'cat', 'occ', 'note', 'flag', 'min', 'max', 'sort', 'limit']);
+  const allowed = new Set(['brand', 'store', 'cat', 'occ', 'note', 'flag', 'size_ml', 'min', 'max', 'sort', 'limit']);
   const out = {};
   for (const [key, raw] of Object.entries(value)) {
     if (!allowed.has(key)) throw Object.assign(new Error('invalid_section_filter'), { status: 400 });
-    if (key === 'min' || key === 'max') {
+    if (key === 'size_ml') {
+      const number = Number(raw);
+      if (!Number.isInteger(number) || number < 1 || number > 10000) throw Object.assign(new Error('invalid_section_filter'), { status: 400 });
+      out[key] = number;
+    } else if (key === 'min' || key === 'max') {
       if (raw === '' || raw == null) continue;
       const number = Number(raw);
       if (!Number.isFinite(number) || number < 0 || number > 10000000) throw Object.assign(new Error('invalid_section_filter'), { status: 400 });
@@ -302,7 +306,7 @@ async function createSection(ctx, input) {
   if (!['section', 'brand', 'store', 'perfume', 'occasion', 'note'].includes(purpose)) throw Object.assign(new Error('invalid_section_purpose'), { status: 400 });
   const filters = normalizeSectionFilters(section.filters);
   const productSizeIds = Array.isArray(section.product_size_ids) ? Array.from(new Set(section.product_size_ids)) : [];
-  if (productSizeIds.length > 24 || productSizeIds.some((id) => typeof id !== 'string' || !UUID.test(id))) throw Object.assign(new Error('invalid_section_items'), { status: 400 });
+  if (productSizeIds.length > 2000 || productSizeIds.some((id) => typeof id !== 'string' || !UUID.test(id))) throw Object.assign(new Error('invalid_section_items'), { status: 400 });
   if (mode === 'manual' && !productSizeIds.length) throw Object.assign(new Error('manual_section_items_required'), { status: 400 });
   if (mode === 'auto' && productSizeIds.length) throw Object.assign(new Error('auto_section_cannot_have_manual_items'), { status: 400 });
   if (mode === 'manual') {

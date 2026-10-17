@@ -371,12 +371,24 @@
     if (!r.ok || !j.ok) throw new Error(j.error || 'تعذر تحميل بيانات الكتالوج.');
     return j;
   }
-  function chooseCatalogOption(title, rows, labelOf) {
-    rows = Array.isArray(rows) ? rows.filter(function (x) { return x && x.name; }).slice(0, 40) : [];
-    if (!rows.length) throw new Error('لا توجد عناصر نشطة من هذا النوع في الكتالوج.');
+  function chooseCatalogOption(title, rows, labelOf, optional) {
+    rows = Array.isArray(rows) ? rows.filter(function (x) { return x && (x.name || x.size_ml != null || x.value); }) : [];
+    if (!rows.length) { if (optional) return null; throw new Error('لا توجد عناصر نشطة من هذا النوع في الكتالوج.'); }
+    if (rows.length > 40) {
+      var query = prompt(title + '\nعدد الخيارات ' + rows.length + '. اكتبي كلمة بحث، أو اتركيه فارغًا لعرض أول 40.');
+      if (query === null) throw new Error('اتلغى');
+      if (String(query).trim()) {
+        var needle = String(query).trim().toLocaleLowerCase();
+        rows = rows.filter(function (x) { return String(x.name || x.value || x.size_ml || '').toLocaleLowerCase().indexOf(needle) !== -1; });
+      }
+      rows = rows.slice(0, 40);
+    }
+    if (!rows.length) throw new Error('لم يظهر خيار مطابق لبحثك.');
     var list = rows.map(function (x, i) { return (i + 1) + '. ' + (labelOf ? labelOf(x) : x.name); }).join('\n');
-    var choice = prompt(title + '\n\n' + list + (rows.length === 40 ? '\n\nتُعرض أول 40 نتيجة فقط؛ استخدمي بحثًا أضيق إذا لم يظهر المطلوب.' : '') + '\n\nاكتبي رقم الاختيار');
-    if (choice === null || !String(choice).trim()) throw new Error('اتلغى');
+    var choice = prompt(title + '\n\n' + list + (rows.length === 40 ? '\n\nتُعرض أول 40 نتيجة فقط؛ استخدمي بحثًا أضيق إذا لم يظهر المطلوب.' : '') + '\n\nاكتبي رقم الاختيار' + (optional ? ' أو اتركيه فارغًا لتخطي المرشح' : ''));
+    if (choice === null) throw new Error('اتلغى');
+    if (optional && !String(choice).trim()) return null;
+    if (!String(choice).trim()) throw new Error('اتلغى');
     var index = Number(choice);
     if (!Number.isInteger(index) || index < 1 || index > rows.length) throw new Error('رقم الاختيار غير صحيح.');
     return rows[index - 1];
@@ -421,16 +433,60 @@
       filters[spec.key] = catalogName;
       defaultName = catalogName;
     } else if (kind === 'perfume') {
-      var search = prompt('اكتبي جزءًا من اسم عطر منشور للبحث في الكتالوج');
-      if (search === null || !String(search).trim()) throw new Error('اتلغى');
-      var found = await editorData('perfumes', { filters: { search: String(search).trim() } });
-      var product = chooseCatalogOption('اختاري العطر والحجم المطلوبين', found.rows, function (x) { return x.name + (x.size_label ? ' — ' + x.size_label : ''); });
-      if (!product.product_size_id) throw new Error('معرّف حجم المنتج غير متاح.');
       selectionMode = 'manual';
-      productSizeIds = [product.product_size_id];
-      defaultName = String(product.name || 'عطر محفوظ');
-    } else if (kind !== 'section') {
+    } else if (kind === 'section') {
+      var chosenMode = await ask('طريقة اختيار العطور', 'اكتبي auto لإضافة كل النتائج المطابقة، أو manual لاختيار العطور والأحجام واحدًا واحدًا.', 'auto');
+      if (chosenMode === null) throw new Error('اتلغى');
+      selectionMode = String(chosenMode).trim().toLowerCase();
+      if (selectionMode !== 'auto' && selectionMode !== 'manual') throw new Error('اختاري auto أو manual.');
+      if (selectionMode === 'auto') {
+        var catalogOptions = await editorData('options');
+        var catalogLists = catalogOptions.options || {};
+        var pickFilter = function (key, title, rows) {
+          var item = chooseCatalogOption(title, rows, null, true);
+          if (item) filters[key] = String(item.value || item.name || item.size_ml);
+        };
+        pickFilter('brand', 'فلتر البراند', catalogLists.brands);
+        pickFilter('store', 'فلتر المتجر', catalogLists.stores);
+        pickFilter('cat', 'فلتر الفئة', catalogLists.categories);
+        pickFilter('occ', 'فلتر المناسبة', catalogLists.occasions);
+        pickFilter('note', 'فلتر النوتة', catalogLists.notes);
+        pickFilter('flag', 'فلتر العروض: new أو offers أو master', [
+          { name: 'وصول جديد', value: 'new' }, { name: 'عروض', value: 'offers' }, { name: 'الأكثر طلبًا', value: 'master' }
+        ]);
+        pickFilter('sort', 'ترتيب النتائج', [
+          { name: 'الأكثر صلة', value: 'relevance' }, { name: 'السعر من الأقل للأعلى', value: 'price_asc' }, { name: 'السعر من الأعلى للأقل', value: 'price_desc' }
+        ]);
+        var sizes = Array.from(new Set((catalogLists.sizes || []).map(function (row) { return Number(row.size_ml); }).filter(function (size) { return Number.isInteger(size) && size > 0; }))).map(function (size) { return { size_ml: size }; });
+        var selectedSize = chooseCatalogOption('فلتر الحجم بالملليلتر', sizes, function (row) { return row.size_ml + ' ml'; }, true);
+        if (selectedSize) filters.size_ml = Number(selectedSize.size_ml);
+        var hasPrice = String(prompt('هل تريدين وضع حدود سعر؟ اكتبي yes أو اتركيه فارغًا للتخطي') || '').trim().toLowerCase();
+        if (hasPrice === 'yes' || hasPrice === 'نعم') {
+          var minPrice = await ask('أقل سعر', 'اختياري؛ اتركيه فارغًا بلا حد أدنى.');
+          if (minPrice === null) throw new Error('اتلغى');
+          var maxPrice = await ask('أعلى سعر', 'اختياري؛ اتركيه فارغًا بلا حد أعلى.');
+          if (maxPrice === null) throw new Error('اتلغى');
+          if (String(minPrice).trim()) filters.min = String(minPrice).trim();
+          if (String(maxPrice).trim()) filters.max = String(maxPrice).trim();
+        }
+      }
+    } else {
       throw new Error('نوع إنشاء غير مدعوم.');
+    }
+    if (selectionMode === 'manual') {
+      var singlePerfume = kind === 'perfume';
+      while (productSizeIds.length < 2000) {
+        var search = prompt('اكتبي جزءًا من اسم عطر منشور للبحث. اتركيه فارغًا لإنهاء الاختيار.');
+        if (search === null) { if (productSizeIds.length) break; throw new Error('اتلغى'); }
+        if (!String(search).trim()) { if (productSizeIds.length) break; throw new Error('اختاري عطرًا واحدًا على الأقل.'); }
+        var found = await editorData('perfumes', { filters: { search: String(search).trim() } });
+        var product = chooseCatalogOption('اختاري العطر والحجم المطلوبين', found.rows, function (x) { return x.name + (x.size_label ? ' — ' + x.size_label : ''); });
+        if (!product.product_size_id) throw new Error('معرّف حجم المنتج غير متاح.');
+        if (productSizeIds.indexOf(product.product_size_id) !== -1) throw new Error('هذا العطر والحجم مضافان بالفعل.');
+        productSizeIds.push(product.product_size_id);
+        if (productSizeIds.length === 1) defaultName = String(product.name || 'عطور مختارة');
+        if (singlePerfume || productSizeIds.length >= 2000 || !confirm('تمت إضافة ' + (product.name || 'العطر') + (product.size_label ? ' · ' + product.size_label : '') + '. هل تريدين إضافة عطر وحجم آخر؟')) break;
+      }
     }
     var name = String(prompt('اسم القسم الذي سيظهر في المتجر', defaultName) || '').trim();
     if (!name) throw new Error('اكتبي اسمًا للقسم قبل الإنشاء.');
