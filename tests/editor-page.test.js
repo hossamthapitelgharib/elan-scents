@@ -51,7 +51,9 @@ test('a dynamic element opens as its own page and the menu can go back', () => {
   assert.match(mode, /id: 'open'/);
   assert.match(mode, /id: 'go_back'/);
   assert.match(mode, /id: 'go_home'/);
-  assert.match(read('design-layer.js'), /'pcard:'/);            // inner-page elements carry the page in their id
+  const layer = read('design-layer.js');
+  assert.match(layer, /'pcard:'/);                              // inner-page elements carry the page in their id
+  assert.match(layer, /x\.k === 'prod'\) return 'prod:' \+ x\.sid/);
 });
 
 test('inner-page element ids are accepted by the design schema so their edits can be saved', () => {

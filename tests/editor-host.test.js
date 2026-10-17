@@ -182,6 +182,16 @@ test('moving is a direct pointer drag with no separate move tool or arrow contro
   assert.doesNotMatch(html, /openMovePad|movePad/);
 });
 
+test('media deletion is enabled for source media and clears all device overrides', () => {
+  const edit = fs.readFileSync(path.join(root, 'edit-mode.js'), 'utf8');
+  assert.match(edit, /current\.media && current\.media\.src/);
+  assert.match(edit, /blk\.src \|\| blk\.image/);
+  assert.match(edit, /delete entry\.media/);
+  assert.match(edit, /delete entry\.style\.media/);
+  assert.match(edit, /delete entry\.style\.fit/);
+  assert.match(edit, /block\.type === 'image' \|\| block\.type === 'video'/);
+});
+
 test('inner pages keep their own edits, separate from the home page', () => {
   const ED = require('../design-schema.js');
   const r = ED.normalize({ version: 1, pages: { 'brand:AMOUAGE': { edits: { desktop: { 'pg:title': { dx: 90, dy: 50 } } } } } }, { strict: true });

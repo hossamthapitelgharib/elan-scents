@@ -382,6 +382,7 @@
       if (!x) return null;
       if (x.k === 'sec') return 'sec:' + x.id;
       if (x.k === 'col') return 'col:' + x.id + ':' + x.i;
+      if (x.k === 'prod') return 'prod:' + x.sid;
       if (x.k === 'brand') return 'brand:' + x.n;
       if (x.k === 'store') return 'store:' + x.n;
     } catch (e) { /* no page stack yet */ }

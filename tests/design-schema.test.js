@@ -152,6 +152,15 @@ test('inner pages accept blocks only for known page keys and keep ids unique acr
   assert.equal(ED.normalize({ version: 1 }, { strict: true }).design.pages, undefined);
 });
 
+test('product detail pages accept stable product-size identifiers and reject unsafe keys', () => {
+  const key = 'prod:123e4567-e89b-12d3-a456-426614174000';
+  const result = ED.normalize({ version: 1, pages: { [key]: { blocks: [{ id: 'x-product', type: 'text', text: { ar: 'تفاصيل المنتج' } }] } } }, { strict: true });
+  assert.equal(result.ok, true, JSON.stringify(result.errors));
+  assert.equal(ED.isPageKey(key), true);
+  assert.equal(ED.isPageKey('prod:../private'), false);
+  assert.equal(result.design.pages[key].blocks[0].text.ar, 'تفاصيل المنتج');
+});
+
 test('smart sections are stored as a reference only, never as prices or stock', () => {
   const ok = ED.normalize({ version: 1, blocks: [{ id: 'x-sm', type: 'smart', ref: 'sec-a1b2c3d4', price: 99, items: ['ps1'] }] }, { strict: true });
   assert.ok(ok.ok, JSON.stringify(ok.errors));

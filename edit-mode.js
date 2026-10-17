@@ -131,11 +131,12 @@
   var TYPE_OF = { section: 'section', title: 'text', 'hero-text': 'text', hero: 'section', 'hero-counters': 'text', card: 'card', block: 'block', 'text-area': 'text', group: 'section', 'image-el': 'image' };
   function info(e) {
     if (!e) return null;
-    var node = layer.textTarget(e) || e.el, cs = getComputedStyle(node), st = cur(e.id).style || {};
+    var node = layer.textTarget(e) || e.el, cs = getComputedStyle(node), current = cur(e.id), st = current.style || {};
     var blk = work.blocks.filter(function (b) { return b.id === e.id; })[0];
     var type = blk ? ({ text: 'text_block', banner: 'banner', image: 'image' })[blk.type] : (TYPE_OF[e.kind] || 'text');
+    var media = st.media || (current.media && current.media.src) || (blk && (blk.src || blk.image)) || '';
     return {
-      id: e.id, name: e.name, kind: e.kind, type: type, text: String(node.textContent || '').trim().slice(0, 120), media: st.media || '', canText: !!layer.textTarget(e), isBlock: !!blk, dynamic: !!dynamicTarget(e),
+      id: e.id, name: e.name, kind: e.kind, type: type, text: String(node.textContent || '').trim().slice(0, 120), media: media, canText: !!layer.textTarget(e), isBlock: !!blk, dynamic: !!dynamicTarget(e),
       style: {
         fontFamily: st.fontFamily || (cs.fontFamily || '').split(',')[0].replace(/["']/g, '').trim(),
         fontSize: st.fontSize || Math.round(parseFloat(cs.fontSize) || 16),
@@ -487,9 +488,24 @@
     return { elementId: id };
   }
   function deleteMedia(c) {
-    if (c.info && c.info.media) mutate(function () { var e = edit('all', c.id); if (e.style) delete e.style.media; });
-    else archive(c.id);
-    return { archived: true };
+    var block = work.blocks.filter(function (b) { return b.id === c.id; })[0];
+    if (!c.info || !c.info.media) { archive(c.id); return { archived: true }; }
+    if (block && (block.type === 'image' || block.type === 'video')) { archive(c.id); return { archived: true }; }
+    if (block && block.type === 'banner' && block.image) {
+      var candidate = clone(block); delete candidate.image;
+      if (!validBlock(candidate)) { archive(c.id); return { archived: true }; }
+      mutate(function (d) { var target = d.blocks.filter(function (b) { return b.id === c.id; })[0]; if (target) delete target.image; });
+      return { mediaRemoved: true };
+    }
+    mutate(function (d) {
+      Object.keys(d.edits || {}).forEach(function (dev) {
+        var entry = d.edits[dev] && d.edits[dev][c.id];
+        if (!entry) return;
+        delete entry.media;
+        if (entry.style) { delete entry.style.media; delete entry.style.fit; }
+      });
+    });
+    return { mediaRemoved: true };
   }
 
 
