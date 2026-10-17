@@ -46,6 +46,10 @@ Two earlier applied migrations on 2026-10-13 (`20261013014000_harden_anon_grants
 - Never reuse a migration name at a different version.
 - Real-database regression tests live in `tests/*.sql` and run inside `BEGIN ... ROLLBACK`.
 
+## تغييرات معلّقة
+
+- يضيف `pending/20261017024500_batch_guest_identity_links.sql` نقطة RPC مخصصة لـ`service_role` لإدخال حتى 50 رابط هوية سبق التحقق منه في طلب واحد. يحتفظ API بالاستدعاء القديم لكل رابط كمسار احتياطي حتى اعتماد الترحيل وتطبيقه. لا يُطبّق على المشروع الحي دون موافقة المالك الصريحة؛ ملف التراجع هو `rollback/20261017024500_batch_guest_identity_links.sql`.
+
 ## Known divergences
 
 These source files were authored as a different split of statements than the live history; later idempotent migrations re-apply the relevant statements. Keep their contents unchanged.

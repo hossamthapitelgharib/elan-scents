@@ -83,10 +83,11 @@ async function identify({ req, body, admin, serviceKey, analyticsUse, ip }) {
     };
     const headers = req.headers || {};
     const h = (purpose, value) => (value ? hmac(serviceKey, purpose, value) : null);
+    const ipSignal = typeof ip === 'string' && ip.trim() && ip.trim().toLowerCase() !== 'unknown' ? ip.trim() : '';
     const cartSig = typeof body.cartSig === 'string' && /^[a-f0-9]{8,64}$/.test(body.cartSig) ? body.cartSig : '';
     const own = {
       parts, fp, behavior,
-      ipHash: h('guest-ip', ip), ipPrefixHash: h('guest-ip-prefix', ipPrefix(ip)),
+      ipHash: h('guest-ip', ipSignal), ipPrefixHash: h('guest-ip-prefix', ipPrefix(ipSignal)),
       cartHash: cartSig ? h('guest-cart-sig', cartSig) : ''
     };
 
@@ -103,11 +104,24 @@ async function identify({ req, body, admin, serviceKey, analyticsUse, ip }) {
     if (match.trustedBehavior(behavior)) {
       const found = await admin('rpc/guest_signal_candidates', { p_analytics_hash: analyticsUse, p_fp_hash: fp, p_gpu: parts.gpu || null, p_screen: parts.screen || null });
       const candidates = found.ok ? await found.json() : [];
+      const links = [];
       for (const c of Array.isArray(candidates) ? candidates : []) {
         const verdict = match.decide(own, c, Number(c.popularity) || 1);
         if (!verdict.link) continue;
-        const done = await admin('rpc/guest_identity_link', { p_a: analyticsUse, p_b: c.analyticsHash, p_score: verdict.score, p_reasons: verdict.reasons });
-        if (done.ok && (await done.json()) === true) linked += 1;
+        links.push({ a: analyticsUse, b: c.analyticsHash, score: verdict.score, reasons: verdict.reasons });
+      }
+      if (links.length) {
+        const batch = await admin('rpc/guest_identity_link_many', { p_links: links });
+        if (batch.ok) {
+          const count = Number(await batch.json().catch(() => 0));
+          linked = Number.isFinite(count) ? Math.max(0, Math.min(links.length, Math.trunc(count))) : 0;
+        } else {
+          // تظل الدالة الحالية متوافقة حتى يوافق المالك على الترحيل المعلّق ويطبّقه.
+          for (const link of links) {
+            const done = await admin('rpc/guest_identity_link', { p_a: link.a, p_b: link.b, p_score: link.score, p_reasons: link.reasons });
+            if (done.ok && (await done.json()) === true) linked += 1;
+          }
+        }
       }
     }
     const finalRes = await admin('rpc/guest_final_id', { p_hash: analyticsUse });
