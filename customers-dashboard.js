@@ -90,7 +90,7 @@ function renderCustomers(data) {
   document.querySelector('#guestCustomers').innerHTML = visitors.length ? visitors.map(visitor => {
     const hash = String(visitor.fingerprint_hash || ''), target = `activity-guest-${escP(visitor.id)}`;
     return `<article class="customer-row customer-row-expanded"><div class="customer-row-main"><strong>زائر · <code title="${escP(hash)}">${escP(hash.slice(0, 16))}${hash.length > 16 ? '…' : ''}</code></strong><small>أول زيارة: ${escP(dateP(visitor.first_seen_at))} · آخر نشاط: ${escP(dateP(visitor.last_seen_at))}</small><button type="button" class="ghost activity-open" data-load-activity data-kind="guest" data-id="${escP(visitor.id)}" data-target="${target}">عرض السلة وسجل النشاط</button></div><div class="customer-cart"><b>${Number(visitor.cart_items_count || 0)} صنف</b><small>${Number(visitor.cart_units || 0)} قطعة في السلة</small></div><div id="${target}" class="customer-activity-panel" hidden></div></article>`;
-  }).join('') : '<div class="empty">لا يوجد زوار نشطاء</div>';
+  }).join('') : '<div class="empty">لا يوجد زوار نشطون</div>';
   const pagination = data.pagination || {};
   if (pagination.registered) {
     customerOffsets.registered = Number(pagination.registered.offset) || 0;
