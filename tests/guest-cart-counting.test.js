@@ -137,6 +137,7 @@ async function identifyRun(candidates, { storeOk = true, batchAvailable = true, 
   return { res: res.out, calls };
 }
 const sameIp = async () => { const { createHmac } = require('node:crypto'); return createHmac('sha256', 'service-key').update('guest-ip:41.2.3.4').digest('hex'); };
+const samePrefix = async () => { const { createHmac } = require('node:crypto'); return createHmac('sha256', 'service-key').update('guest-ip-prefix:41.2.3').digest('hex'); };
 
 test('identify stores hashed signals and links a very similar guest on the same network', async () => {
   const ipHash = await sameIp();
@@ -150,8 +151,10 @@ test('identify stores hashed signals and links a very similar guest on the same 
 });
 
 test('identify batches several accepted links into one RPC instead of one request per candidate', async () => {
-  const ipHash = await sameIp();
-  const candidate = (digit) => ({ analyticsHash: hex(digit), fp: hex('1', 32), parts: partsBody, ipHash, ipPrefixHash: hex('0'), cartHash: null, lastSeenAt: new Date().toISOString(), popularity: 1, convertedUserIds: [] });
+  // Two look-alike guests on the SAME exact address would now count as a crowded address and prove nothing,
+  // so the two candidates sit on different addresses inside the caller's /24 prefix (not crowded: fewer than 4).
+  const ipPrefixHash = await samePrefix();
+  const candidate = (digit) => ({ analyticsHash: hex(digit), fp: hex('1', 32), parts: partsBody, ipHash: hex(digit === 'b' ? 'd' : 'e'), ipPrefixHash, cartHash: null, lastSeenAt: new Date().toISOString(), popularity: 1, convertedUserIds: [] });
   const { res, calls } = await identifyRun([candidate('b'), candidate('c')]);
   const batchCalls = calls.filter((c) => c.u.endsWith('/rpc/guest_identity_link_many'));
   assert.equal(res.body.linked, 2);
