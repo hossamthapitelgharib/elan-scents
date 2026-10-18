@@ -26,6 +26,7 @@ window.Portal = {
         await Promise.race([identity.prepareLogout(), new Promise(resolve => setTimeout(resolve, 1500))]);
       }
     } catch (_) {}
+    try { if (window.ElanAuth) await window.ElanAuth.signOut(); } catch (_) {}
     localStorage.removeItem('elan_auth_session');
     location.reload();
   },
@@ -117,5 +118,9 @@ Portal.startNotifications = async () => {
 
 document.addEventListener('click', event => {
   if (event.target.id === 'logout') Portal.logout();
+});
+window.addEventListener('elan-auth-expired', () => {
+  Portal.toast('انتهت جلسة الدخول، سجّل الدخول من جديد', 'warning');
+  setTimeout(() => location.reload(), 2500);
 });
 document.addEventListener('DOMContentLoaded', () => Portal.startNotifications());
