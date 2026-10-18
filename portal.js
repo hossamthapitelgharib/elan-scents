@@ -113,7 +113,7 @@ Portal.startNotifications = async () => {
   });
   await Portal.refreshNotifications();
   if (Portal.notifications.timer) clearInterval(Portal.notifications.timer);
-  Portal.notifications.timer = setInterval(() => Portal.refreshNotifications(true), 30000);
+  Portal.notifications.timer = setInterval(() => { if (!document.hidden) Portal.refreshNotifications(true); }, 30000);
 };
 
 document.addEventListener('click', event => {
