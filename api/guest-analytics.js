@@ -26,6 +26,21 @@ module.exports = async function guestAnalytics(req, res) {
     });
     if (!response.ok) return reply(res, 502, { ok: false, error: 'guest_analytics_unavailable' });
     const analytics = await response.json();
+    if (actor === 'guest' && analytics && typeof analytics === 'object') {
+      // Guests whose browsers the strict matcher linked are counted once. It is an estimate and
+      // never blocks the rest of the numbers.
+      try {
+        const people = await fetch(`${context.supabaseUrl}/rest/v1/rpc/guest_unique_people`, {
+          method: 'POST', headers, body: JSON.stringify({ p_period: period })
+        });
+        if (people.ok) {
+          const value = await people.json();
+          if (value && typeof value === 'object') {
+            analytics.uniquePeople = { browsers: Math.max(0, Number(value.browsers) || 0), people: Math.max(0, Number(value.people) || 0) };
+          }
+        }
+      } catch (_) {}
+    }
     return reply(res, 200, { ok: true, analytics });
   } catch (_) {
     return reply(res, 502, { ok: false, error: 'guest_analytics_unavailable' });
