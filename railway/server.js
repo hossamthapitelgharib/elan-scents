@@ -106,7 +106,7 @@ function loadHandler(name) {
 
 async function handleApi(req, res, url, pathname) {
   if (pathname === '/api/editor' || pathname === '/api/editor-data') {
-    await editorHost.attachSession(req);
+    await editorHost.attachSession(req, res);
     editorHost.attachBridgeTicket(req);
   }
   const name = pathname.replace(/^\/api\//, '').replace(/\/$/, '');
