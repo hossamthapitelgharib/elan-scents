@@ -25,7 +25,7 @@ const MIME = {
 // Never serve server-side or repo-internal files.
 // Full editor UI stays private (served only via editor-host); only explicitly allow-listed,
 // browser-safe editor/store scripts may be fetched directly.
-const BLOCKED_TOP = new Set(['api', 'tests', 'supabase', 'railway', 'node_modules', 'src', 'lib', 'scripts', 'reports', '.github', '.git']);
+const BLOCKED_TOP = new Set(['api', 'tests', 'supabase', 'railway', 'node_modules', 'src', 'lib', 'scripts', 'reports', 'docs', '.github', '.git']);
 const EDITOR_PUBLIC_FILES = new Set(['edit-model.js', 'editor-data-bridge.js', 'editor-geometry.js', 'editor-live-library.js']);
 const BLOCKED_FILES = new Set(['package.json', 'package-lock.json', 'vercel.json', 'claude.md', 'readme.md']);
 
@@ -133,7 +133,7 @@ function resolveStatic(pathname) {
   if (top === 'editor') {
     // Allow only the site-side edit tools; never the HTML/login/guard.
     if (parts.length !== 2 || !EDITOR_PUBLIC_FILES.has(parts[1])) return null;
-  } else if (BLOCKED_TOP.has(top) || top.startsWith('elan-editor') || top.startsWith('elan-scents') || (parts.length === 1 && BLOCKED_FILES.has(parts[0].toLowerCase()))) {
+  } else if (BLOCKED_TOP.has(top) || top.startsWith('elan-editor') || top.startsWith('elan-scents') || (parts.length === 1 && (BLOCKED_FILES.has(parts[0].toLowerCase()) || parts[0].toLowerCase().endsWith('.sql')))) {
     return null;
   }
   const file = path.join(ROOT, ...parts);
