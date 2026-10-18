@@ -12,7 +12,7 @@ The live editor runs **on the same Railway service as the storefront** (`elan-sc
 | `editor/elan-editor.html` | Editor UI (only after admin session) |
 | `editor/editor-guard.js` | Logout + session check inside the editor page |
 | `railway/editor-host.js` | Gates `/editor`, login assets, CSP |
-| `railway/editor-session.js` | In-memory admin sessions |
+| `railway/editor-session.js` | Admin sessions: encrypted browser-session cookie (sliding idle timeout, renewed on use) |
 | `railway/editor.js` | `/api/editor` — reads/writes `design/home.json` on GitHub |
 
 ## Storefront design layer (customers + iframe preview)

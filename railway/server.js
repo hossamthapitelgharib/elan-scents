@@ -25,7 +25,7 @@ const MIME = {
 // Full editor UI stays private (served only via editor-host); only explicitly allow-listed,
 // browser-safe editor/store scripts may be fetched directly.
 const BLOCKED_TOP = new Set(['api', 'tests', 'supabase', 'railway', 'node_modules', 'src', 'lib', 'scripts', 'reports', '.github', '.git']);
-const EDITOR_PUBLIC_FILES = new Set(['edit-boot.js', 'edit-mode.js', 'edit-model.js', 'elan-host-bridge.js', 'editor-data-bridge.js', 'editor-geometry.js', 'editor-live-library.js']);
+const EDITOR_PUBLIC_FILES = new Set(['edit-model.js', 'editor-data-bridge.js', 'editor-geometry.js', 'editor-live-library.js']);
 const BLOCKED_FILES = new Set(['package.json', 'package-lock.json', 'vercel.json', 'claude.md', 'readme.md']);
 
 function compile(rules, key) {
