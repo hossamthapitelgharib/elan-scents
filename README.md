@@ -17,8 +17,8 @@ npm test           # node --test tests/*.test.js
 |--------|--------|
 | `index.html` + `app.js` / `app-core.js` | واجهة المتجر |
 | `design/` + `design-schema.js` + `design-layer.js` | طبقة التصميم المنشورة |
-| `editor/edit-boot.js` / `editor/edit-mode.js` / `editor/elan-host-bridge.js` | وضع التحرير داخل iframe فقط (`?elan_editor=1`) |
-| `editor/` | صفحة الإديتور + دخول المالكة (تُخدم عبر `railway/editor-host.js`) |
+| `edit-boot.js` / `edit-mode.js` / `elan-host-bridge.js` (الجذر) | وضع التحرير داخل iframe فقط (`?elan_editor=1`) |
+| `editor/` | صفحة الإديتور + دخول المالكة (تُخدّم عبر `railway/editor-host.js`) |
 | `api/*` | واجهات المتجر والطلبات |
 | `railway/server.js` | الخادم الوحيد (ملفات ثابتة + `/api/*` + الإديتور) |
 | `vercel.json` | قواعد الـ rewrites والـ headers (يقرأها خادم Railway أيضاً) |

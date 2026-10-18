@@ -27,6 +27,8 @@ The live editor runs **on the same Railway service as the storefront** (`elan-sc
 | `elan-host-bridge.js` | postMessage bridge parent ↔ iframe |
 | `edit-model.js` | Pure draft model (undo/redo); used by tests / editor logic |
 
+> `edit-boot.js`, `edit-mode.js` and `elan-host-bridge.js` are loaded from the **repo root**. Older copies of the same names under `editor/` are not loaded by anything; do not edit them.
+
 ## Removed from repo root (do not reintroduce)
 
 - `editor.html` — localStorage prototype, not production
