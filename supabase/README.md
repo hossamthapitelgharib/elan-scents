@@ -1,6 +1,6 @@
 # Supabase migrations
 
-`migrations/` contains **57** tracked SQL source files for the live Supabase project. The live ledger currently contains **59** records. The two-record difference is the documented historical source gap below. Migration files are kept in ascending version order, and `tests/migrations-consistency.test.js` checks local naming and ordering.
+`migrations/` contains **60** tracked SQL source files for the live Supabase project. The live ledger (`supabase_migrations.schema_migrations`, checked read-only on 2026-10-17) contains **62** records. The two-record difference is the documented historical source gap below. Migration files are kept in ascending version order, and `tests/migrations-consistency.test.js` checks local naming and ordering.
 
 ## Live-history gaps
 
@@ -36,6 +36,9 @@ The customer, store, and platform access changes applied to the live project inc
 - `20261017011533_merge_duplicate_guest_browsers`
 - `20261017011558_guest_fingerprint_signals`
 - `20261017014836_expire_editor_sections`
+- `20261017023202_registered_customer_best_sellers_view` (applied live without a tracked source; the file here is the statement text recovered verbatim from the live ledger, 3473 characters)
+- `20261017030354_batch_guest_identity_links` (written as `pending/20261017024500_…`, then applied live as this version)
+- `20261017062830_customer_activity_totals_and_guest_cleanup_on_claim`
 
 Two earlier applied migrations on 2026-10-13 (`20261013014000_harden_anon_grants_rls_initplan_and_order_pricing` and `20261013014023_guest_analytics_explicit_deny`) are also tracked locally. The live ledger is authoritative for version prefixes. Historical `PENDING` comments in immutable migration files are intentionally preserved.
 
@@ -48,7 +51,7 @@ Two earlier applied migrations on 2026-10-13 (`20261013014000_harden_anon_grants
 
 ## تغييرات معلّقة
 
-- يضيف `pending/20261017024500_batch_guest_identity_links.sql` نقطة RPC مخصصة لـ`service_role` لإدخال حتى 50 رابط هوية سبق التحقق منه في طلب واحد. يحتفظ API بالاستدعاء القديم لكل رابط كمسار احتياطي حتى اعتماد الترحيل وتطبيقه. لا يُطبّق على المشروع الحي دون موافقة المالك الصريحة؛ ملف التراجع هو `rollback/20261017024500_batch_guest_identity_links.sql`.
+لا توجد ترحيلات معلّقة حاليًا؛ مجلد `pending/` فارغ. كان `pending/20261017024500_batch_guest_identity_links.sql` قد طُبّق على المشروع الحي بالإصدار `20261017030354` (نص مطابق حرفيًا للملف المعلّق، 1674 حرفًا)، فنُقل ملفه وملف التراجع المقابل إلى `migrations/` و`rollback/` بهذا الإصدار. يحافظ `api/guest-cart.js` على استدعاء `guest_identity_link` الفردي كمسار احتياطي ويمكن إزالته في تغيير لاحق بعد قياس `guest_identity_link_many` على بيانات حقيقية.
 
 ## Known divergences
 
@@ -59,6 +62,16 @@ These source files were authored as a different split of statements than the liv
 | `20261007032046_checkout_sessions_and_dashboard_permissions.sql` | 3184 | 2851 | Also contains the status-constraint extension applied live as `20261007032140` |
 | `20261007032332_link_store_requests_to_checkout_sessions.sql` | 2720 | 2699 | Small wording difference in the function body |
 | `20261008024644_extend_notifications_for_dashboard_realtime.sql` | 7041 | 6869 | Also contains the `order_initial` branch applied live as `20261008024719` |
+
+## Filename differs from the live name
+
+Same version and same statements; only the descriptive part of the file name differs from the name Supabase recorded. The live ledger records `store_integrations_normalized` twice (`20261014102728` and `20261014102847`), so the second file keeps a distinct suffix to satisfy the one-name-one-version rule.
+
+| Version | File name | Live name |
+| --- | --- | --- |
+| `20261007030744` | `store_cancellation_and_cart_restoration` | `add_store_cancellation_and_cart_restoration` |
+| `20261007032046` | `checkout_sessions_and_dashboard_permissions` | `add_checkout_sessions_and_dashboard_permissions` |
+| `20261014102847` | `store_integrations_normalized_idempotent_retry` | `store_integrations_normalized` |
 
 ## Not covered
 
