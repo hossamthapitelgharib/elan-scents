@@ -140,6 +140,7 @@ function renderAnalytics(actor, data) {
   if (!range || !statsBox || !topProducts || !basketProducts) return;
   range.textContent = `${periodsP[data.period] || periodsP.today} · ${data.startDate || '—'} – ${data.endDate || '—'}`;
   const stats = [[personLabel, data.people], ['جلسات نشطة الآن', data.activeSessions], ['عدد الزيارات', data.visitCount], ['الوقت النشط', durationP(data.activeSeconds)], ['مشاهدات المنتجات', data.productViews], ['نتائج بحث المنتجات', data.productSearches], ['إضافات للسلة', data.cartAdds], ['حذف/تقليل من السلة', data.cartRemoves]];
+  if (actor === 'guest' && data.uniquePeople && Number.isFinite(Number(data.uniquePeople.people))) stats.splice(1, 0, ['تقدير الأشخاص بعد ربط المتصفحات المتشابهة', data.uniquePeople.people]);
   statsBox.innerHTML = stats.map((item, index) => `<div class="stat ${index === 0 ? 'gold' : ''}"><small>${item[0]}</small><b>${typeof item[1] === 'string' ? escP(item[1]) : numberP(item[1])}</b></div>`).join('');
   const rankings = data.rankings || {};
   topProducts.innerHTML = `<h5>الأكثر مشاهدة</h5>${renderRankTable(data.topViewed, actor, 'topViewed', rankings.topViewed)}<h5>الأكثر ظهورًا في نتائج البحث</h5>${renderRankTable(data.topSearched, actor, 'topSearched', rankings.topSearched)}`;

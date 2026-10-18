@@ -104,9 +104,14 @@ async function identify({ req, body, admin, serviceKey, analyticsUse, ip }) {
     if (match.trustedBehavior(behavior)) {
       const found = await admin('rpc/guest_signal_candidates', { p_analytics_hash: analyticsUse, p_fp_hash: fp, p_gpu: parts.gpu || null, p_screen: parts.screen || null });
       const candidates = found.ok ? await found.json() : [];
+      const list = Array.isArray(candidates) ? candidates : [];
+      // How many OTHER look-alike guests already share this address: a crowded address (carrier NAT,
+      // an office, a campaign through one carrier) is not evidence that two guests are one person.
+      const distinct = (key, value) => (value ? new Set(list.filter((c) => c[key] === value).map((c) => c.analyticsHash)).size : 0);
+      const crowd = { ip: distinct('ipHash', own.ipHash), prefix: distinct('ipPrefixHash', own.ipPrefixHash) };
       const links = [];
-      for (const c of Array.isArray(candidates) ? candidates : []) {
-        const verdict = match.decide(own, c, Number(c.popularity) || 1);
+      for (const c of list) {
+        const verdict = match.decide(own, c, Number(c.popularity) || 1, Date.now(), { crowd });
         if (!verdict.link) continue;
         links.push({ a: analyticsUse, b: c.analyticsHash, score: verdict.score, reasons: verdict.reasons });
       }
