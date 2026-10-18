@@ -55,6 +55,7 @@
 - **Railway هو مضيف المشروع الوحيد**؛ خدمة الموقع تبدأ بـ `npm start` (`node railway/server.js`) وتنشر فرع `main`.
 - `railway/server.js` يقدّم الملفات وواجهات `/api/*`، ويقرأ حاليًا `vercel.json` كمصدر مشترك لقواعد المسارات البديلة ورؤوس الكاش؛ لا تحذف الملف أو تنقل القواعد منه دون تحديث الخادم والاختبارات.
 - متغيرات البيئة المطلوبة على خدمة الموقع: `SUPABASE_URL` و`SUPABASE_ANON_KEY` و`SUPABASE_SERVICE_ROLE_KEY` و`STORE_ORDER_WEBHOOK_SECRET` (وإلا ترد webhooks بـ 503) و`DASHBOARD_TOKEN` (وإلا ترد لوحات الإدارة بـ 503).
+- متغير اختياري `GUEST_HASH_SECRET` (16 حرفاً فأكثر): مفتاح تشفير هوية الضيوف (بصمة المتصفح والـ IP). إن لم يُضبط يُستخدم `SUPABASE_SERVICE_ROLE_KEY` كما كان، فلا يتغير شيء. لحفظ سجل الضيوف الحالي اضبطه على القيمة الحالية لمفتاح service-role قبل تدوير ذلك المفتاح؛ أي قيمة أخرى تبدأ كل ضيف من الصفر. ضبطه عملية على الإنتاج وتحتاج موافقة صاحب المشروع.
 - محرر الموقع يحتاج `GITHUB_TOKEN` و`EDITOR_TARGET_BRANCH=main` و`EDITOR_SITE_ORIGIN` الذي يشير إلى النطاق العام لخدمة الموقع. يحدد `RAILWAY_ENVIRONMENT_NAME=production` بيئة الإنتاج.
 - حد الطلبات في `lib/rate-limit.js` يعمل داخل ذاكرة العملية، ومع نسخة Railway الواحدة يكون فعّالاً.
 

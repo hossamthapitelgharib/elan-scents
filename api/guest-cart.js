@@ -1,4 +1,5 @@
 const { createHmac } = require('node:crypto');
+const { guestHashSecret } = require('../lib/guest-hash-secret.js');
 const { createLimiter, clientIp } = require('../lib/rate-limit');
 const match = require('../lib/guest-match');
 
@@ -70,7 +71,7 @@ const HEXFP = /^[a-f0-9]{16,64}$/;
 
 // Stores this browser's signals and links it to other guests only when the strict rules say so.
 // A failure here never affects the shopper: the answer is simply "not identified".
-async function identify({ req, body, admin, serviceKey, analyticsUse, ip }) {
+async function identify({ req, body, admin, hashSecret, analyticsUse, ip }) {
   try {
     const parts = match.cleanParts(body.parts);
     const fp = HEXFP.test(String(body.fp || '')) ? String(body.fp) : '';
@@ -82,7 +83,7 @@ async function identify({ req, body, admin, serviceKey, analyticsUse, ip }) {
       pages: Math.max(0, Math.min(10000, Math.trunc(Number(b.pages) || 0)))
     };
     const headers = req.headers || {};
-    const h = (purpose, value) => (value ? hmac(serviceKey, purpose, value) : null);
+    const h = (purpose, value) => (value ? hmac(hashSecret, purpose, value) : null);
     const ipSignal = typeof ip === 'string' && ip.trim() && ip.trim().toLowerCase() !== 'unknown' ? ip.trim() : '';
     const cartSig = typeof body.cartSig === 'string' && /^[a-f0-9]{8,64}$/.test(body.cartSig) ? body.cartSig : '';
     const own = {
@@ -131,7 +132,7 @@ async function identify({ req, body, admin, serviceKey, analyticsUse, ip }) {
     }
     const finalRes = await admin('rpc/guest_final_id', { p_hash: analyticsUse });
     const finalHash = finalRes.ok ? await finalRes.json() : analyticsUse;
-    return { ok: true, identified: true, linked, finalVisitorId: hmac(serviceKey, 'final-visitor', String(finalHash || analyticsUse)).slice(0, 32) };
+    return { ok: true, identified: true, linked, finalVisitorId: hmac(hashSecret, 'final-visitor', String(finalHash || analyticsUse)).slice(0, 32) };
   } catch (_) {
     return { ok: true, identified: false };
   }
@@ -160,9 +161,10 @@ module.exports = async (req, res) => {
 
   const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY;
-  if (!supabaseUrl || !serviceKey) return json(res, 503, { error: 'guest_sync_unavailable' });
-  const fingerprintHash = hmac(serviceKey, 'guest-browser', visitorKey);
-  const analyticsHash = hmac(serviceKey, 'guest-analytics', visitorKey);
+  const hashSecret = guestHashSecret();
+  if (!supabaseUrl || !serviceKey || !hashSecret) return json(res, 503, { error: 'guest_sync_unavailable' });
+  const fingerprintHash = hmac(hashSecret, 'guest-browser', visitorKey);
+  const analyticsHash = hmac(hashSecret, 'guest-analytics', visitorKey);
   const admin = createAdminClient(supabaseUrl, serviceKey);
 
   try {
@@ -175,16 +177,16 @@ module.exports = async (req, res) => {
       if (!known || body.fresh === true) setKeyCookie(req, res, visitorKey);
       else if (known !== visitorKey) {
         const merge = await admin('rpc/merge_guest_browser', {
-          p_from_fingerprint: fingerprintHash, p_to_fingerprint: hmac(serviceKey, 'guest-browser', known),
-          p_from_analytics: analyticsHash, p_to_analytics: hmac(serviceKey, 'guest-analytics', known)
+          p_from_fingerprint: fingerprintHash, p_to_fingerprint: hmac(hashSecret, 'guest-browser', known),
+          p_from_analytics: analyticsHash, p_to_analytics: hmac(hashSecret, 'guest-analytics', known)
         }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
         if (merge && merge.merged === true) { canonicalKey = known; visitorKey = known; }
       }
     }
-    const fingerprintUse = canonicalKey ? hmac(serviceKey, 'guest-browser', canonicalKey) : fingerprintHash;
-    const analyticsUse = canonicalKey ? hmac(serviceKey, 'guest-analytics', canonicalKey) : analyticsHash;
+    const fingerprintUse = canonicalKey ? hmac(hashSecret, 'guest-browser', canonicalKey) : fingerprintHash;
+    const analyticsUse = canonicalKey ? hmac(hashSecret, 'guest-analytics', canonicalKey) : analyticsHash;
     if (action === 'identify') {
-      return json(res, 200, await identify({ req, body, admin, serviceKey, analyticsUse, ip }));
+      return json(res, 200, await identify({ req, body, admin, hashSecret, analyticsUse, ip }));
     }
 
     if (action === 'resolve' || action === 'save') {
