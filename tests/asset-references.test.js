@@ -20,8 +20,9 @@ test('no page, stylesheet or script points at an /assets file that does not exis
   assert.deepEqual(missing, [], 'every page load would send a request that returns 404');
 });
 
-test('the footer artwork is the one background image, with no separate logo image left behind', () => {
+test('the footer logo element stays for the editor (footer:logo) but is a placeholder that requests no file', () => {
   const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-  assert.match(html, /class="footer-background" src="\/assets\/footer-background\.webp"/);
-  assert.doesNotMatch(html, /class="footer-logo"/);
+  assert.match(html, /class="footer-background" src="\/assets\/footer-background\.webp"/, 'the footer artwork is the one background image');
+  assert.match(html, /<img class="footer-logo" src="data:image\/gif;base64,/, 'design-layer.js registers .footer-logo, so the element must exist');
+  assert.doesNotMatch(html, /elan-scents-logo/);
 });
