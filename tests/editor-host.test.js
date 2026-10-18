@@ -9,6 +9,8 @@ const SB = 'https://sb.example.test';
 function env() {
   process.env.SUPABASE_URL = SB; process.env.SUPABASE_ANON_KEY = 'anon'; process.env.SUPABASE_SERVICE_ROLE_KEY = 'service';
   process.env.EDITOR_SITE_ORIGIN = 'https://storefront.example.test/';
+  // The editor reads these when deciding read-only vs. writable; an ambient value on a developer or CI machine must not change the result.
+  delete process.env.GITHUB_TOKEN; delete process.env.EDITOR_TARGET_BRANCH;
 }
 function start() {
   const server = require('../railway/server.js');
