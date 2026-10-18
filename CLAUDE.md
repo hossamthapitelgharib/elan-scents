@@ -55,11 +55,12 @@
 - **Railway هو مضيف المشروع الوحيد**؛ خدمة الموقع تبدأ بـ `npm start` (`node railway/server.js`) وتنشر فرع `main`.
 - `railway/server.js` يقدّم الملفات وواجهات `/api/*`، ويقرأ حاليًا `vercel.json` كمصدر مشترك لقواعد المسارات البديلة ورؤوس الكاش؛ لا تحذف الملف أو تنقل القواعد منه دون تحديث الخادم والاختبارات.
 - متغيرات البيئة المطلوبة على خدمة الموقع: `SUPABASE_URL` و`SUPABASE_ANON_KEY` و`SUPABASE_SERVICE_ROLE_KEY` و`STORE_ORDER_WEBHOOK_SECRET` (وإلا ترد webhooks بـ 503) و`DASHBOARD_TOKEN` (وإلا ترد لوحات الإدارة بـ 503).
+- متغير اختياري `GUEST_HASH_SECRET` (16 حرفاً فأكثر): مفتاح تشفير هوية الضيوف (بصمة المتصفح والـ IP). إن لم يُضبط يُستخدم `SUPABASE_SERVICE_ROLE_KEY` كما كان، فلا يتغير شيء. لحفظ سجل الضيوف الحالي اضبطه على القيمة الحالية لمفتاح service-role قبل تدوير ذلك المفتاح؛ أي قيمة أخرى تبدأ كل ضيف من الصفر. ضبطه عملية على الإنتاج وتحتاج موافقة صاحب المشروع.
 - محرر الموقع يحتاج `GITHUB_TOKEN` و`EDITOR_TARGET_BRANCH=main` و`EDITOR_SITE_ORIGIN` الذي يشير إلى النطاق العام لخدمة الموقع. يحدد `RAILWAY_ENVIRONMENT_NAME=production` بيئة الإنتاج.
 - حد الطلبات في `lib/rate-limit.js` يعمل داخل ذاكرة العملية، ومع نسخة Railway الواحدة يكون فعّالاً.
 
 ## المحرر (مصدر واحد فقط)
-- المحرر المعتمد هو الموجود في هذا المستودع: `editor/elan-editor.html` مع `editor/edit-mode.js` و`editor/edit-model.js` و`editor/edit-boot.js` و`editor/elan-host-bridge.js`. ويستخدم ملفات التصميم المشتركة في الجذر `design-layer.js` و`design-schema.js`. يقدّمه `railway/editor-host.js` على `/editor` بتسجيل دخول المالك. لا نسخة أخرى معتمدة.
+- المحرر المعتمد هو الموجود في هذا المستودع: `editor/elan-editor.html` (صفحة المحرر) مع `editor/edit-model.js` و`editor/editor-*.js`، أما وضع التحرير داخل الـ iframe فملفاته في **الجذر**: `edit-boot.js` و`edit-mode.js` و`elan-host-bridge.js` (يحمّلها `index.html` عند `?elan_editor=1` فقط). ويستخدم ملفات التصميم المشتركة في الجذر `design-layer.js` و`design-schema.js`. لا توجد نسخ من `edit-boot.js` أو `edit-mode.js` أو `elan-host-bridge.js` داخل `editor/`؛ كانت نسخًا قديمة لا يحمّلها أحد وحُذفت، فلا تُعدّل أو تُنشئ نسخًا موازية. يقدّمه `railway/editor-host.js` على `/editor` بتسجيل دخول المالك. لا نسخة أخرى معتمدة.
 - النسخ التاريخية للمحرر محفوظة للرجوع فقط في `.archive/legacy-editor-snapshots/` ولا تُقدَّم للعامة. لا تُنشأ نسخ موازية؛ أي تطوير جديد يُدمج في الملفات أعلاه مباشرة، وتبقى الاختبارات في `tests/editor-host.test.js`.
 - أي مجلد أو ملف يبدأ اسمه بـ `elan-editor` لا يُقدَّم للعامة أبداً (محجوب في `railway/server.js`).
 - لا ترفع ملفات يدوياً من المتصفح ("Add files via upload") فوق ملفات يعمل عليها الوكلاء؛ اطلب من Claude الدمج حتى لا تُستبدل تعديلات الآخرين.

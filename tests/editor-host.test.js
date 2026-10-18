@@ -7,6 +7,8 @@ const root = path.resolve(__dirname, '..');
 
 const SB = 'https://sb.example.test';
 function env() {
+  // These tests describe an editor that is NOT configured for GitHub; a developer's real GITHUB_TOKEN (or a CI one) must not leak in.
+  for (const name of ['GITHUB_TOKEN', 'GH_TOKEN', 'EDITOR_TARGET_BRANCH', 'EDITOR_BRANCH', 'RAILWAY_ENVIRONMENT_NAME', 'EDITOR_ENV']) delete process.env[name];
   process.env.SUPABASE_URL = SB; process.env.SUPABASE_ANON_KEY = 'anon'; process.env.SUPABASE_SERVICE_ROLE_KEY = 'service';
   process.env.EDITOR_SITE_ORIGIN = 'https://storefront.example.test/';
 }

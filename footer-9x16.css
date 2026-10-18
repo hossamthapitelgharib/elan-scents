@@ -4,7 +4,7 @@ footer {
   width: 100% !important;
   max-width: 540px !important;
   margin: 0 auto !important;
-  /* Match assets/footer-background.png exactly to prevent cropping. */
+  /* Match assets/footer-background.webp exactly to prevent cropping. */
   aspect-ratio: 940 / 1672 !important;
   height: auto !important;
   min-height: 0 !important;

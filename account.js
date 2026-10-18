@@ -119,4 +119,11 @@ document.querySelector('#archiveForm').addEventListener('submit', event => loadA
 document.querySelector('#loadMoreOrders').addEventListener('click', () => loadAccount(true).catch(error => { document.querySelector('#message').textContent = error.message; }));
 document.querySelector('#loadMoreArchive').addEventListener('click', () => loadArchive(null, true).catch(error => { document.querySelector('#message').textContent = error.message; }));
 if (Portal.session()) loadAccount().catch(error => { document.querySelector('#message').textContent = error.message; });
-setInterval(() => { if (Portal.session()) loadAccount().catch(() => {}); }, 30000);
+// A hidden tab does not poll; coming back to it after a while refreshes once.
+let accountHiddenAt = 0;
+setInterval(() => { if (!document.hidden && Portal.session()) loadAccount().catch(() => {}); }, 30000);
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { accountHiddenAt = Date.now(); return; }
+  if (accountHiddenAt && Date.now() - accountHiddenAt > 30000 && Portal.session()) loadAccount().catch(() => {});
+  accountHiddenAt = 0;
+});

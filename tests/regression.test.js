@@ -45,13 +45,14 @@ test('main menu routes to the customer dashboard and footer artwork is configure
   const styles = fs.readFileSync(path.join(root, 'style.css'), 'utf8');
   assert.match(storefront, /<footer>/);
   assert.match(storefront, /class="footer-background"/);
-  assert.ok(fs.existsSync(path.join(root, 'assets/footer-background.png')));
+  assert.ok(fs.existsSync(path.join(root, 'assets/footer-background.webp')));
+  assert.ok(fs.statSync(path.join(root, 'assets/footer-background.webp')).size < 200 * 1024, 'the footer image stays light (the PNG original was 1.6MB)');
   const footerCss = fs.readFileSync(path.join(root, 'footer-9x16.css'), 'utf8');
   // Keep the footer surface at the source artwork's exact 940x1672 ratio.
   assert.match(footerCss, /aspect-ratio:\s*940\s*\/\s*1672\b/);
   assert.match(footerCss, /object-fit:\s*cover/);
   assert.doesNotMatch(styles, /url\('\/assets\/footer-emblem\.png'\)/);
-  assert.match(storefront, /class="footer-background" src="\/assets\/footer-background\.png"/);
+  assert.match(storefront, /class="footer-background" src="\/assets\/footer-background\.webp"/);
   assert.match(styles, /@import url\('\/footer-9x16\.css\?v=[0-9A-Za-z-]+'\)/);
   assert.ok(fs.existsSync(path.join(root, 'footer-9x16.css')));
   assert.match(core, /fcr.*growthmark-img/);
@@ -219,7 +220,17 @@ test('notification UI refreshes through the sanitized API instead of subscribing
   const portal = fs.readFileSync(path.join(root, 'portal.js'), 'utf8');
   assert.doesNotMatch(portal, /postgres_changes|loadRealtime|createClient/);
   assert.match(portal, /fetch\('\/api\/notifications\?limit=50'/);
-  assert.match(portal, /setInterval\(\(\) => Portal\.refreshNotifications\(true\), 30000\)/);
+  assert.match(portal, /setInterval\(\(\) => \{ if \(!document\.hidden\) Portal\.refreshNotifications\(true\); \}, 30000\)/, 'polls every 30s, but not while the tab is hidden');
+});
+
+test('polling timers skip hidden tabs and catch up once when the tab comes back', () => {
+  const core = fs.readFileSync(path.join(root, 'app-core.js'), 'utf8');
+  const account = fs.readFileSync(path.join(root, 'account.js'), 'utf8');
+  assert.match(core, /setInterval\(function\(\)\{if\(!document\.hidden\)loadData\(\)\},60000\)/);
+  assert.doesNotMatch(core, /setInterval\(loadData,60000\)/);
+  assert.match(core, /addEventListener\('visibilitychange'/);
+  assert.match(account, /setInterval\(\(\) => \{ if \(!document\.hidden && Portal\.session\(\)\) loadAccount\(\)/);
+  assert.match(account, /addEventListener\('visibilitychange'/);
 });
 
 test('customer UI keeps the previous basket identity and mobile entry point', () => {

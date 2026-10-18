@@ -209,7 +209,10 @@ if(window.ELAN_EDITOR_PREVIEW){
   persistOrderToSupabase=function(){};sendStoreOrder=function(){};authSubmit=function(){};
   sendMsg=function(event){if(event)event.preventDefault();return false;};
 }
-hero();setInterval(function(){hi++;hero()},8000);render();cartBadge();loadData();setInterval(function(){if(AUTH&&!document.hidden){if(CART_LOCAL_DIRTY)pushCartToCloud();else syncCartFromCloud(!CART_FIRST_SYNC_DONE)}},5000);setTimeout(restoreCancelledStoreItemsFromToken,1200);setInterval(loadData,60000);
+window.addEventListener('elan-auth-refreshed',function(e){if(AUTH&&e.detail)AUTH=e.detail});
+window.addEventListener('elan-auth-expired',function(){if(!AUTH)return;AUTH=null;try{toast('انتهت جلسة الدخول، سجّل الدخول من جديد')}catch(e){}});
+window.addEventListener('storage',function(e){if(e.key!=='elan_auth_session'||window.ELAN_EDITOR_PREVIEW)return;try{AUTH=JSON.parse(e.newValue||'null')}catch(_){AUTH=null}});
+hero();setInterval(function(){hi++;hero()},8000);render();cartBadge();loadData();setInterval(function(){if(AUTH&&!document.hidden){if(CART_LOCAL_DIRTY)pushCartToCloud();else syncCartFromCloud(!CART_FIRST_SYNC_DONE)}},5000);setTimeout(restoreCancelledStoreItemsFromToken,1200);var HIDDEN_AT=0;setInterval(function(){if(!document.hidden)loadData()},60000);document.addEventListener('visibilitychange',function(){if(document.hidden){HIDDEN_AT=Date.now()}else if(HIDDEN_AT&&Date.now()-HIDDEN_AT>60000){HIDDEN_AT=0;loadData()}});
 
 /* Follow Us text links removed; social icons kept */
 (function () {

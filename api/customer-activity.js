@@ -1,4 +1,5 @@
 const { createHmac } = require('node:crypto');
+const { guestHashSecret } = require('../lib/guest-hash-secret.js');
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function reply(res, status, body) {
@@ -22,7 +23,8 @@ module.exports = async function customerActivity(req, res) {
   if (Buffer.byteLength(JSON.stringify(body)) > 8000) return reply(res, 413, { ok: false, error: 'payload_too_large' });
   const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY;
-  if (!supabaseUrl || !serviceKey) return reply(res, 503, { ok: false, error: 'activity_unavailable' });
+  const hashSecret = guestHashSecret();
+  if (!supabaseUrl || !serviceKey || !hashSecret) return reply(res, 503, { ok: false, error: 'activity_unavailable' });
 
   if (!(req.headers && req.headers.authorization) && BOT_AGENT.test(String((req.headers && req.headers['user-agent']) || ''))) {
     return reply(res, 200, { ok: true, tracked: false, bot: true });
@@ -51,8 +53,8 @@ module.exports = async function customerActivity(req, res) {
     if (!userId) {
       const browserKey = String(body.visitorKey || '');
       if (!UUID.test(browserKey)) return reply(res, 400, { ok: false, error: 'invalid_browser_key' });
-      fingerprintHash = hmac(serviceKey, 'guest-browser', browserKey);
-      analyticsHash = hmac(serviceKey, 'guest-analytics', browserKey);
+      fingerprintHash = hmac(hashSecret, 'guest-browser', browserKey);
+      analyticsHash = hmac(hashSecret, 'guest-analytics', browserKey);
     }
 
     const rpc = client(supabaseUrl, serviceKey);

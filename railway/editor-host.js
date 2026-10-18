@@ -58,6 +58,10 @@ function setCookie(req, res, value, clear) {
   if (clear) parts.push('Max-Age=0'); // otherwise a browser-session cookie: no "remember me"
   res.setHeader('Set-Cookie', parts.join('; '));
 }
+/* When the session handed back a renewed cookie (rotated Supabase tokens, new "last used" time), send it on this response. */
+function renewCookie(req, res, session) {
+  if (session && session.renewed && !res.headersSent) setCookie(req, res, session.renewed, false);
+}
 function sameOrigin(req) {
   const o = req.headers.origin;
   if (!o) return true;
@@ -92,8 +96,9 @@ function readRaw(req, limit) {
 }
 
 /* Lets the existing /api/editor handler see the admin as signed in when the browser holds a valid session. */
-async function attachSession(req) {
+async function attachSession(req, res) {
   const s = await sessions.get(sessions.parseCookie(req.headers.cookie, COOKIE));
+  if (res) renewCookie(req, res, s);
   if (s) req.headers.authorization = 'Bearer ' + s.token;
   if (s && s.bypass === true) req.__editorKeyAdmin = true; // server-side flag only; never read from the client
   return !!s;
@@ -126,6 +131,7 @@ async function handle(req, res, pathname) {
   if (pathname === '/api/editor-media') {
     const s = await sessions.get(sid);
     if (!s) return json(res, 401, { ok: false, error: 'unauthorized' }), true;
+    renewCookie(req, res, s);
     if (req.method !== 'GET') return json(res, 405, { ok: false, error: 'method_not_allowed' }), true;
     const r = await media.list(s, new URL(req.url, 'http://x').searchParams.get('offset'));
     return (r.error ? json(res, r.status, { ok: false, error: r.error }) : json(res, 200, { ok: true, items: r.items })), true;
@@ -133,6 +139,7 @@ async function handle(req, res, pathname) {
   if (pathname === '/api/editor-upload') {
     const s = await sessions.get(sid);
     if (!s) return json(res, 401, { ok: false, error: 'unauthorized' }), true;
+    renewCookie(req, res, s);
     if (req.method !== 'POST' || !sameOrigin(req)) return json(res, 403, { ok: false, error: 'forbidden' }), true;
     const type = String(req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
     const buf = await readRaw(req, media.MAX_VIDEO_BYTES + 1);
@@ -144,12 +151,14 @@ async function handle(req, res, pathname) {
   if (pathname === '/api/editor-session') {
     const s = await sessions.get(sid);
     const delegated = bridgeTickets.verify(req.headers['x-elan-editor-ticket']);
+    renewCookie(req, res, s);
     return (s || delegated ? json(res, 200, { ok: true }) : json(res, 401, { ok: false, error: 'unauthorized' })), true;
   }
   if (pathname === '/api/editor-bridge-ticket') {
     if (req.method !== 'POST' || !sameOrigin(req)) return json(res, 403, { ok: false, error: 'forbidden' }), true;
     const s = await sessions.get(sid);
     if (!s) return json(res, 401, { ok: false, error: 'unauthorized' }), true;
+    renewCookie(req, res, s);
     const ticket = bridgeTickets.issue(editorSiteOrigin());
     if (!ticket) return json(res, 503, { ok: false, error: 'bridge_ticket_unavailable' }), true;
     return json(res, 200, { ok: true, ticket, expiresIn: bridgeTickets.TTL_SECONDS }), true;
@@ -169,6 +178,7 @@ async function handle(req, res, pathname) {
     }
     const s = await sessions.get(sid);
     if (s) {
+      renewCookie(req, res, s);
       PAGE = PAGE || buildPage();
       res.statusCode = 200;
       res.setHeader('Content-Type', 'text/html; charset=utf-8');

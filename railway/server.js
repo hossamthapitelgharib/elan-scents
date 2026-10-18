@@ -5,6 +5,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const zlib = require('zlib');
 const editorHost = require('./editor-host.js');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -25,7 +26,7 @@ const MIME = {
 // Full editor UI stays private (served only via editor-host); only explicitly allow-listed,
 // browser-safe editor/store scripts may be fetched directly.
 const BLOCKED_TOP = new Set(['api', 'tests', 'supabase', 'railway', 'node_modules', 'src', 'lib', 'scripts', 'reports', '.github', '.git']);
-const EDITOR_PUBLIC_FILES = new Set(['edit-boot.js', 'edit-mode.js', 'edit-model.js', 'elan-host-bridge.js', 'editor-data-bridge.js', 'editor-geometry.js', 'editor-live-library.js']);
+const EDITOR_PUBLIC_FILES = new Set(['edit-model.js', 'editor-data-bridge.js', 'editor-geometry.js', 'editor-live-library.js']);
 const BLOCKED_FILES = new Set(['package.json', 'package-lock.json', 'vercel.json', 'claude.md', 'readme.md']);
 
 function compile(rules, key) {
@@ -106,7 +107,7 @@ function loadHandler(name) {
 
 async function handleApi(req, res, url, pathname) {
   if (pathname === '/api/editor' || pathname === '/api/editor-data') {
-    await editorHost.attachSession(req);
+    await editorHost.attachSession(req, res);
     editorHost.attachBridgeTicket(req);
   }
   const name = pathname.replace(/^\/api\//, '').replace(/\/$/, '');
@@ -141,18 +142,69 @@ function resolveStatic(pathname) {
   return file;
 }
 
+/* Text files are compressed once per file version and kept in memory (a few hundred KB in total). */
+const COMPRESSIBLE = new Set(['.html', '.js', '.css', '.json', '.svg', '.txt', '.md']);
+const encodedCache = new Map();
+function pickEncoding(header) {
+  const h = String(header || '').toLowerCase();
+  if (/(^|[\s,])br\s*(;|,|$)/.test(h)) return 'br';
+  if (/(^|[\s,])gzip\s*(;|,|$)/.test(h)) return 'gzip';
+  return null;
+}
+function encodedBody(file, stat, encoding) {
+  const key = encoding + '|' + file + '|' + stat.size + '|' + stat.mtimeMs;
+  let body = encodedCache.get(key);
+  if (!body) {
+    const raw = fs.readFileSync(file);
+    body = encoding === 'br'
+      ? zlib.brotliCompressSync(raw, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 6, [zlib.constants.BROTLI_PARAM_SIZE_HINT]: raw.length } })
+      : zlib.gzipSync(raw, { level: 6 });
+    if (encodedCache.size >= 300) encodedCache.delete(encodedCache.keys().next().value);
+    encodedCache.set(key, body);
+  }
+  return body;
+}
+function notModified(req, etag, stat) {
+  const none = req.headers['if-none-match'];
+  if (none) {
+    const weak = (v) => v.trim().replace(/^W\//, '');
+    return none.trim() === '*' || none.split(',').some((v) => weak(v) === weak(etag));
+  }
+  const since = Date.parse(req.headers['if-modified-since'] || '');
+  return Number.isFinite(since) && Math.floor(stat.mtimeMs / 1000) * 1000 <= since;
+}
+
 function serveStatic(req, res, file) {
   const stat = fs.statSync(file);
-  const type = MIME[path.extname(file).toLowerCase()] || 'application/octet-stream';
+  const ext = path.extname(file).toLowerCase();
+  const type = MIME[ext] || 'application/octet-stream';
   if (!res.getHeader('Content-Type')) res.setHeader('Content-Type', type);
   res.setHeader('Accept-Ranges', 'bytes');
+  // A file with no cache rule is revalidated every time: without this, validators below would let browsers guess a freshness lifetime.
+  if (!res.getHeader('Cache-Control')) res.setHeader('Cache-Control', 'no-cache');
+  // Validators let browsers ask "has it changed?" and get a tiny 304 instead of the whole file again.
+  const etag = 'W/"' + stat.size.toString(16) + '-' + Math.floor(stat.mtimeMs).toString(16) + '"';
+  res.setHeader('ETag', etag);
+  res.setHeader('Last-Modified', new Date(stat.mtimeMs).toUTCString());
+  const compressible = COMPRESSIBLE.has(ext) && stat.size >= 1024;
+  if (compressible) res.setHeader('Vary', 'Accept-Encoding');
   let start = 0; let end = stat.size - 1; let status = 200;
   const range = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || '');
+  if (!range && notModified(req, etag, stat)) { res.statusCode = 304; return res.end(); }
   if (range && (range[1] || range[2])) {
     if (range[1]) { start = Number(range[1]); if (range[2]) end = Math.min(Number(range[2]), end); }
     else { start = Math.max(0, stat.size - Number(range[2])); }
     if (start > end || start >= stat.size) { res.statusCode = 416; res.setHeader('Content-Range', 'bytes */' + stat.size); return res.end(); }
     status = 206; res.setHeader('Content-Range', 'bytes ' + start + '-' + end + '/' + stat.size);
+  } else if (compressible) {
+    const encoding = pickEncoding(req.headers['accept-encoding']);
+    if (encoding) {
+      const body = encodedBody(file, stat, encoding);
+      res.statusCode = 200;
+      res.setHeader('Content-Encoding', encoding);
+      res.setHeader('Content-Length', body.length);
+      return res.end(req.method === 'HEAD' ? undefined : body);
+    }
   }
   res.statusCode = status;
   res.setHeader('Content-Length', end - start + 1);
