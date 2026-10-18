@@ -53,6 +53,8 @@ Two earlier applied migrations on 2026-10-13 (`20261013014000_harden_anon_grants
 
 لا توجد ترحيلات معلّقة حاليًا؛ مجلد `pending/` فارغ. كان `pending/20261017024500_batch_guest_identity_links.sql` قد طُبّق على المشروع الحي بالإصدار `20261017030354` (نص مطابق حرفيًا للملف المعلّق، 1674 حرفًا)، فنُقل ملفه وملف التراجع المقابل إلى `migrations/` و`rollback/` بهذا الإصدار. يحافظ `api/guest-cart.js` على استدعاء `guest_identity_link` الفردي كمسار احتياطي ويمكن إزالته في تغيير لاحق بعد قياس `guest_identity_link_many` على بيانات حقيقية.
 
+- يضيف `pending/20261019000100_guest_fingerprint_retention_400_days.sql` مسحاً يومياً (pg_cron، الساعة 03:41 UTC) لبيانات بصمة الضيوف بعد **400 يوماً** من آخر ظهور، تنفيذاً لقرار المالك بتاريخ 2026-10-18 وبما يطابق عمر كوكي `elan_gid`: `guest_fingerprints` و`guest_identity_links` وصفوف `guest_visitors` بحالة `guest` فقط (وتُحذف بحثاتهم معها). لا يمسّ عدّادات التحليلات المجمّعة (`guest_analytics_visits` و`guest_product_analytics`) ولا `guest_conversions`؛ إبقاؤها أطول قرار منفصل للمالك. لا يُطبّق على المشروع الحي دون موافقة المالك الصريحة؛ ملف التراجع `rollback/20261019000100_guest_fingerprint_retention_400_days.sql` (لا يستعيد صفوفاً حُذفت بالفعل)، واختبار قاعدة البيانات `tests/guest-fingerprint-retention.test.sql` يُشغَّل على قاعدة تجريبية ثم يتراجع.
+
 ## Known divergences
 
 These source files were authored as a different split of statements than the live history; later idempotent migrations re-apply the relevant statements. Keep their contents unchanged.
