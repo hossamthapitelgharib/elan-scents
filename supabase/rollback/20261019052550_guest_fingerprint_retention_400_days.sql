@@ -1,4 +1,4 @@
--- Rolls back pending/20261019000100_guest_fingerprint_retention_400_days.sql.
+-- Rolls back migrations/20261019052550_guest_fingerprint_retention_400_days.sql.
 -- Rows the job already deleted are not restored; this only stops any further deletion.
 begin;
 
