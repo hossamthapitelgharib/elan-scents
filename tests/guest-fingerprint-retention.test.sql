@@ -1,5 +1,7 @@
--- Run on a scratch database that has supabase/pending/20261019000100_guest_fingerprint_retention_400_days.sql applied
--- (or on the live project only after the owner approved applying it). Everything is rolled back. Test data is fake.
+-- Real-database test for the guest fingerprint retention job.
+-- Run on a scratch database that has supabase/migrations/20261019052550_guest_fingerprint_retention_400_days.sql and
+-- supabase/migrations/20261019105404_guest_fingerprint_retention_fix_owner_rows.sql applied (the live project has both).
+-- Everything is rolled back. Test data is fake.
 begin;
 do $$
 declare
