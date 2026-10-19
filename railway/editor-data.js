@@ -46,34 +46,9 @@ async function sb(ctx, table, query, method = 'GET', payload, prefer) {
   return data;
 }
 
-async function options(ctx) {
-  const [brands, stores, categories, occasions, notes] = await Promise.all([
-    sb(ctx, 'brands', '?select=id,name&is_active=eq.true&order=name.asc&limit=500'),
-    sb(ctx, 'stores', '?select=id,name&status=eq.active&order=name.asc&limit=500'),
-    sb(ctx, 'categories', '?select=id,name&order=name.asc&limit=500'),
-    sb(ctx, 'occasions', '?select=id,name&order=name.asc&limit=500'),
-    sb(ctx, 'aromatic_notes', '?select=id,name&order=name.asc&limit=500')
-  ]);
-  const sizes = await sb(ctx, 'product_sizes', '?select=size_ml&size_ml=not.is.null&order=size_ml.asc&limit=500');
-  return { brands, stores, categories, occasions, notes, sizes: sizes.filter((x) => x.size_ml != null) };
-}
-
-async function perfumes(ctx, filters) {
-  const products = await sb(ctx, 'products', '?select=id,name,brand_id,status,is_active&status=eq.published&is_active=eq.true&order=name.asc&limit=1000');
-  const sizes = await sb(ctx, 'product_sizes', '?select=id,product_id,size_ml,size_label&order=size_ml.asc&limit=2000');
-  const rows = [];
-  const brand = filters && filters.brand_id ? String(filters.brand_id) : null;
-  const size = filters && filters.size_ml != null ? Number(filters.size_ml) : null;
-  const search = String(filters && filters.search || '').trim().toLocaleLowerCase();
-  const byId = new Map(products.filter((p) => !brand || p.brand_id === brand).map((p) => [String(p.id), p]));
-  for (const s of sizes) {
-    const p = byId.get(String(s.product_id));
-    if (!p || (search && !String(p.name || '').toLocaleLowerCase().includes(search))) continue;
-    if (size != null && s.size_ml !== size) continue;
-    rows.push({ product_id: p.id, product_size_id: s.id, name: p.name, size_label: s.size_label || (s.size_ml ? String(s.size_ml) + ' ml' : null) });
-  }
-  return rows.slice(0, 2000);
-}
+/* Option lists and perfume lookups for the creation panels live in editor-catalog.js:
+   every filter of the approved panels is applied against the real catalogue tables. */
+const { options, perfumes } = require('./editor-catalog.js')(sb);
 
 async function library(ctx) {
   const [media, archive, saved] = await Promise.all([
@@ -302,8 +277,9 @@ async function createSection(ctx, input) {
   const mode = section.selection_mode == null ? 'auto' : section.selection_mode;
   if (!['auto', 'manual'].includes(mode)) throw Object.assign(new Error('invalid_section_selection_mode'), { status: 400 });
   const timer = normalizeSectionTimer(section.timer);
+  // The purpose is the short label the owner types ("الغرض من السيكشن"); the brand/store/perfume/occasion/note tools send their own kind.
   const purpose = bounded(section.purpose, '', 80);
-  if (!['section', 'brand', 'store', 'perfume', 'occasion', 'note'].includes(purpose)) throw Object.assign(new Error('invalid_section_purpose'), { status: 400 });
+  if (!purpose || /[\u0000-\u001f\u007f]/.test(purpose)) throw Object.assign(new Error('invalid_section_purpose'), { status: 400 });
   const filters = normalizeSectionFilters(section.filters);
   const productSizeIds = Array.isArray(section.product_size_ids) ? Array.from(new Set(section.product_size_ids)) : [];
   if (productSizeIds.length > 2000 || productSizeIds.some((id) => typeof id !== 'string' || !UUID.test(id))) throw Object.assign(new Error('invalid_section_items'), { status: 400 });
