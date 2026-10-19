@@ -1,6 +1,6 @@
 # Supabase migrations
 
-`migrations/` contains **61** tracked SQL source files for the live Supabase project. The live ledger (`supabase_migrations.schema_migrations`, checked read-only on 2026-10-17) contains **62** records. The two-record difference is the documented historical source gap below. Migration files are kept in ascending version order, and `tests/migrations-consistency.test.js` checks local naming and ordering.
+`migrations/` contains **68** tracked SQL source files for the live Supabase project. The live ledger (`supabase_migrations.schema_migrations`, checked read-only on 2026-10-19) contains **70** records. The two-record difference is the documented historical source gap below. Migration files are kept in ascending version order, and `tests/migrations-consistency.test.js` checks local naming and ordering.
 
 ## Live-history gaps
 
@@ -40,6 +40,18 @@ The customer, store, and platform access changes applied to the live project inc
 - `20261017030354_batch_guest_identity_links` (written as `pending/20261017024500_…`, then applied live as this version)
 - `20261017062830_customer_activity_totals_and_guest_cleanup_on_claim`
 - `20261019052550_guest_fingerprint_retention_400_days` (written as `pending/20261019000100_…`, then applied live as this version)
+
+Seven more migrations were applied live without a tracked source file. Each file here is the statement text recovered verbatim from the live ledger (read-only). The md5 of every file equals the md5 of the ledger statement; the six files from 2026-10-18 have one trailing newline added, which is removed before comparing:
+
+- `20261018214524_add_registered_customer_best_seller_indexes` (647 characters)
+- `20261018215138_track_order_returns_refunds_in_best_sellers` (10917 characters)
+- `20261018215203_harden_order_adjustment_quantity_integrity` (1868 characters)
+- `20261018215356_create_store_order_request_from_cart` (4210 characters)
+- `20261018215409_preserve_cart_item_source_on_order_items` (334 characters)
+- `20261018220530_add_store_webhook_inventory_application` (6486 characters)
+- `20261019105404_guest_fingerprint_retention_fix_owner_rows` (4916 characters; replaces `purge_expired_guest_fingerprints` so the purge deletes a guest's sessions and product events before the guest row)
+
+Applying a migration to the live project without first writing it under `pending/` breaks the rules below; the next live change should follow the pending-first flow.
 
 Two earlier applied migrations on 2026-10-13 (`20261013014000_harden_anon_grants_rls_initplan_and_order_pricing` and `20261013014023_guest_analytics_explicit_deny`) are also tracked locally. The live ledger is authoritative for version prefixes. Historical `PENDING` comments in immutable migration files are intentionally preserved.
 
