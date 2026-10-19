@@ -1,0 +1,277 @@
+TABLE order_reconciliation_checks  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
+  id uuid NOT NULL DEFAULT gen_random_uuid()
+  request_id uuid NOT NULL
+  notification_id uuid
+  tracking_number text NOT NULL
+  event_type text NOT NULL
+  initial_payload jsonb NOT NULL DEFAULT '{}'::jsonb
+  store_payload jsonb NOT NULL DEFAULT '{}'::jsonb
+  mismatch_fields jsonb NOT NULL DEFAULT '[]'::jsonb
+  match_status text NOT NULL DEFAULT 'pending'::text
+  checked_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT order_reconciliation_checks_pkey PRIMARY KEY (id)
+  CONSTRAINT order_reconciliation_checks_notification_id_fkey FOREIGN KEY (notification_id) REFERENCES store_order_notifications(id) ON DELETE SET NULL
+  CONSTRAINT order_reconciliation_checks_request_id_fkey FOREIGN KEY (request_id) REFERENCES store_order_requests(id) ON DELETE CASCADE
+  CONSTRAINT order_reconciliation_checks_match_status_check CHECK ((match_status = ANY (ARRAY['pending'::text, 'matched'::text, 'mismatched'::text])))
+  CREATE INDEX order_reconciliation_checks_notification_idx ON order_reconciliation_checks USING btree (notification_id, checked_at DESC)
+  CREATE INDEX order_reconciliation_checks_request_idx ON order_reconciliation_checks USING btree (request_id, checked_at DESC)
+  CREATE INDEX order_reconciliation_checks_tracking_idx ON order_reconciliation_checks USING btree (tracking_number, checked_at DESC)
+  POLICY order_reconciliation_checks_internal_read PERMISSIVE FOR SELECT TO authenticated USING ((private.is_platform_admin() OR (EXISTS ( SELECT 1 FROM store_order_requests r WHERE ((r.id = order_reconciliation_checks.request_id) AND private.is_store_member(r.store_id))))))
+
+TABLE orders  rls=on  grants: anon=- authenticated=awd service_role=rawdDxt
+  id uuid NOT NULL DEFAULT gen_random_uuid()
+  user_id uuid NOT NULL
+  status text NOT NULL DEFAULT 'pending'::text
+  subtotal numeric(12,2) NOT NULL DEFAULT 0
+  tax_amount numeric(12,2) NOT NULL DEFAULT 0
+  shipping_amount numeric(12,2) NOT NULL DEFAULT 0
+  total_amount numeric(12,2) NOT NULL DEFAULT 0
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT orders_pkey PRIMARY KEY (id)
+  CONSTRAINT orders_user_id_fkey FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE RESTRICT
+  CONSTRAINT orders_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'confirmed'::text, 'shipped'::text, 'delivered'::text, 'cancelled'::text])))
+  CREATE INDEX idx_orders_user_id ON orders USING btree (user_id)
+  POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
+  POLICY own_insert PERMISSIVE FOR INSERT TO authenticated WITH CHECK (((user_id = ( SELECT auth.uid() AS uid)) AND (status = 'pending'::text)))
+  POLICY own_read PERMISSIVE FOR SELECT TO authenticated USING ((user_id = ( SELECT auth.uid() AS uid)))
+  CREATE TRIGGER set_updated_at BEFORE UPDATE ON orders FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
+
+TABLE product_categories  rls=on  grants: anon=r authenticated=rawd service_role=rawdDxt
+  product_id uuid NOT NULL
+  category_id uuid NOT NULL
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT product_categories_pkey PRIMARY KEY (product_id, category_id)
+  CONSTRAINT product_categories_category_id_fkey FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
+  CONSTRAINT product_categories_product_id_fkey FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+  CREATE INDEX idx_product_categories_category_id ON product_categories USING btree (category_id)
+  POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
+  POLICY public_read PERMISSIVE FOR SELECT TO anon,authenticated USING (private.product_is_available(product_id))
+  CREATE TRIGGER set_updated_at BEFORE UPDATE ON product_categories FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
+
+TABLE product_images  rls=on  grants: anon=r authenticated=rawd service_role=rawdDxt
+  id uuid NOT NULL DEFAULT gen_random_uuid()
+  product_id uuid NOT NULL
+  product_size_id uuid
+  image_url text NOT NULL
+  alt_text text
+  sort_order integer NOT NULL DEFAULT 0
+  is_primary boolean NOT NULL DEFAULT false
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT product_images_pkey PRIMARY KEY (id)
+  CONSTRAINT product_images_product_id_fkey FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+  CONSTRAINT product_images_product_size_id_fkey FOREIGN KEY (product_size_id) REFERENCES product_sizes(id) ON DELETE CASCADE
+  CREATE INDEX idx_product_images_product_id ON product_images USING btree (product_id)
+  CREATE INDEX idx_product_images_product_size_id ON product_images USING btree (product_size_id)
+  POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
+  POLICY public_read PERMISSIVE FOR SELECT TO anon,authenticated USING (private.product_is_available(product_id))
+  CREATE TRIGGER set_updated_at BEFORE UPDATE ON product_images FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
+
+TABLE product_notes  rls=on  grants: anon=r authenticated=rawd service_role=rawdDxt
+  product_id uuid NOT NULL
+  note_id uuid NOT NULL
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT product_notes_pkey PRIMARY KEY (product_id, note_id)
+  CONSTRAINT product_notes_note_id_fkey FOREIGN KEY (note_id) REFERENCES aromatic_notes(id) ON DELETE CASCADE
+  CONSTRAINT product_notes_product_id_fkey FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+  CREATE INDEX idx_product_notes_note_id ON product_notes USING btree (note_id)
+  POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
+  POLICY public_read PERMISSIVE FOR SELECT TO anon,authenticated USING (private.product_is_available(product_id))
+  CREATE TRIGGER set_updated_at BEFORE UPDATE ON product_notes FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
+
+TABLE product_occasions  rls=on  grants: anon=r authenticated=rawd service_role=rawdDxt
+  product_id uuid NOT NULL
+  occasion_id uuid NOT NULL
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT product_occasions_pkey PRIMARY KEY (product_id, occasion_id)
+  CONSTRAINT product_occasions_occasion_id_fkey FOREIGN KEY (occasion_id) REFERENCES occasions(id) ON DELETE CASCADE
+  CONSTRAINT product_occasions_product_id_fkey FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+  CREATE INDEX idx_product_occasions_occasion_id ON product_occasions USING btree (occasion_id)
+  POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
+  POLICY public_read PERMISSIVE FOR SELECT TO anon,authenticated USING (private.product_is_available(product_id))
+  CREATE TRIGGER set_updated_at BEFORE UPDATE ON product_occasions FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
+
+TABLE product_sizes  rls=on  grants: anon=r authenticated=rawd service_role=rawdDxt
+  id uuid NOT NULL DEFAULT gen_random_uuid()
+  product_id uuid NOT NULL
+  size_ml integer
+  size_label text NOT NULL
+  sku text
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT product_sizes_pkey PRIMARY KEY (id)
+  CONSTRAINT product_sizes_product_id_size_label_key UNIQUE (product_id, size_label)
+  CONSTRAINT product_sizes_product_id_fkey FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+  CONSTRAINT product_sizes_size_ml_check CHECK ((size_ml > 0))
+  CREATE INDEX idx_product_sizes_product_id ON product_sizes USING btree (product_id)
+  POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
+  POLICY public_read PERMISSIVE FOR SELECT TO anon,authenticated USING (private.size_is_available(id))
+  CREATE TRIGGER set_updated_at BEFORE UPDATE ON product_sizes FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
+
+TABLE product_stats  rls=on  grants: anon=r authenticated=rawd service_role=rawdDxt
+  product_id uuid NOT NULL
+  views_count integer NOT NULL DEFAULT 0
+  sales_count integer NOT NULL DEFAULT 0
+  search_count integer NOT NULL DEFAULT 0
+  request_count integer NOT NULL DEFAULT 0
+  average_rating numeric(3,2)
+  reviews_count integer NOT NULL DEFAULT 0
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+  distinctiveness_score numeric(5,2)
+  CONSTRAINT product_stats_pkey PRIMARY KEY (product_id)
+  CONSTRAINT product_stats_product_id_fkey FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+  CONSTRAINT product_stats_distinctiveness_score_check CHECK (((distinctiveness_score IS NULL) OR ((distinctiveness_score >= (0)::numeric) AND (distinctiveness_score <= (100)::numeric))))
+  POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
+  POLICY public_read PERMISSIVE FOR SELECT TO anon,authenticated USING (private.product_is_available(product_id))
+  CREATE TRIGGER set_updated_at BEFORE UPDATE ON product_stats FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
+
+TABLE products  rls=on  grants: anon=r authenticated=rawd service_role=rawdDxt
+  id uuid NOT NULL DEFAULT gen_random_uuid()
+  brand_id uuid NOT NULL
+  name text NOT NULL
+  slug text NOT NULL
+  short_description text
+  official_description text
+  composition text
+  gender text
+  notes_source text
+  content_source text
+  status text NOT NULL DEFAULT 'draft'::text
+  meta_title text
+  meta_description text
+  is_active boolean NOT NULL DEFAULT true
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT products_pkey PRIMARY KEY (id)
+  CONSTRAINT products_slug_key UNIQUE (slug)
+  CONSTRAINT products_brand_id_fkey FOREIGN KEY (brand_id) REFERENCES brands(id) ON DELETE RESTRICT
+  CONSTRAINT products_gender_check CHECK ((gender = ANY (ARRAY['men'::text, 'women'::text, 'unisex'::text])))
+  CONSTRAINT products_notes_source_check CHECK ((notes_source = ANY (ARRAY['brand_official'::text, 'store_catalog'::text, 'mixed'::text])))
+  CONSTRAINT products_status_check CHECK ((status = ANY (ARRAY['draft'::text, 'published'::text, 'archived'::text])))
+  CREATE INDEX idx_products_brand_id ON products USING btree (brand_id)
+  CREATE INDEX idx_products_status ON products USING btree (status) WHERE is_active
+  POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
+  POLICY public_read PERMISSIVE FOR SELECT TO anon,authenticated USING (((status = 'published'::text) AND is_active AND private.product_is_available(id)))
+  CREATE TRIGGER products_create_stats AFTER INSERT ON products FOR EACH ROW EXECUTE FUNCTION private.create_product_stats()
+  CREATE TRIGGER set_updated_at BEFORE UPDATE ON products FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
+
+TABLE profiles  rls=on  grants: anon=- authenticated=rawd service_role=rawdDxt
+  id uuid NOT NULL
+  full_name text
+  phone text
+  avatar_url text
+  role text NOT NULL DEFAULT 'customer'::text
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT profiles_pkey PRIMARY KEY (id)
+  CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE
+  CONSTRAINT profiles_role_check CHECK ((role = ANY (ARRAY['customer'::text, 'store_admin'::text, 'platform_admin'::text])))
+  POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
+  POLICY own_read PERMISSIVE FOR SELECT TO authenticated USING ((id = ( SELECT auth.uid() AS uid)))
+  POLICY own_update PERMISSIVE FOR UPDATE TO authenticated USING ((id = ( SELECT auth.uid() AS uid))) WITH CHECK ((id = ( SELECT auth.uid() AS uid)))
+  CREATE TRIGGER protect_profile_role BEFORE UPDATE ON profiles FOR EACH ROW EXECUTE FUNCTION private.protect_profile_role()
+  CREATE TRIGGER set_updated_at BEFORE UPDATE ON profiles FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
+
+TABLE reviews  rls=on  grants: anon=r authenticated=rawd service_role=rawdDxt
+  id uuid NOT NULL DEFAULT gen_random_uuid()
+  user_id uuid NOT NULL
+  product_id uuid NOT NULL
+  rating integer NOT NULL
+  comment text
+  is_approved boolean NOT NULL DEFAULT false
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT reviews_pkey PRIMARY KEY (id)
+  CONSTRAINT reviews_user_id_product_id_key UNIQUE (user_id, product_id)
+  CONSTRAINT reviews_product_id_fkey FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+  CONSTRAINT reviews_user_id_fkey FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE
+  CONSTRAINT reviews_rating_check CHECK (((rating >= 1) AND (rating <= 5)))
+  CREATE INDEX idx_reviews_product_id ON reviews USING btree (product_id)
+  POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
+  POLICY own_delete PERMISSIVE FOR DELETE TO authenticated USING ((user_id = ( SELECT auth.uid() AS uid)))
+  POLICY own_insert PERMISSIVE FOR INSERT TO authenticated WITH CHECK (((user_id = ( SELECT auth.uid() AS uid)) AND (is_approved = false)))
+  POLICY own_read PERMISSIVE FOR SELECT TO authenticated USING ((user_id = ( SELECT auth.uid() AS uid)))
+  POLICY own_update PERMISSIVE FOR UPDATE TO authenticated USING ((user_id = ( SELECT auth.uid() AS uid))) WITH CHECK (((user_id = ( SELECT auth.uid() AS uid)) AND (is_approved = false)))
+  POLICY public_read PERMISSIVE FOR SELECT TO anon,authenticated USING (is_approved)
+  CREATE TRIGGER reviews_refresh_rating AFTER INSERT OR DELETE OR UPDATE ON reviews FOR EACH ROW EXECUTE FUNCTION private.refresh_product_rating()
+  CREATE TRIGGER set_updated_at BEFORE UPDATE ON reviews FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
+
+TABLE site_settings  rls=on  grants: anon=r authenticated=rawd service_role=rawdDxt
+  key text NOT NULL
+  value text
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT site_settings_pkey PRIMARY KEY (key)
+  POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
+  POLICY public_read PERMISSIVE FOR SELECT TO anon,authenticated USING (true)
+  CREATE TRIGGER set_updated_at BEFORE UPDATE ON site_settings FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
+
+TABLE store_accounts  rls=on  grants: anon=- authenticated=awd service_role=rawdDxt
+  id uuid NOT NULL DEFAULT gen_random_uuid()
+  store_id uuid NOT NULL
+  user_id uuid NOT NULL
+  role text NOT NULL DEFAULT 'store_admin'::text
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT store_accounts_pkey PRIMARY KEY (id)
+  CONSTRAINT store_accounts_store_id_user_id_key UNIQUE (store_id, user_id)
+  CONSTRAINT store_accounts_store_id_fkey FOREIGN KEY (store_id) REFERENCES stores(id) ON DELETE CASCADE
+  CONSTRAINT store_accounts_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+  CREATE INDEX idx_store_accounts_user_id ON store_accounts USING btree (user_id)
+  POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
+  POLICY own_read PERMISSIVE FOR SELECT TO authenticated USING ((user_id = ( SELECT auth.uid() AS uid)))
+  CREATE TRIGGER set_updated_at BEFORE UPDATE ON store_accounts FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
+
+TABLE store_integrations  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
+  id uuid NOT NULL DEFAULT gen_random_uuid()
+  store_id uuid NOT NULL
+  enabled boolean NOT NULL DEFAULT true
+  base_url text NOT NULL DEFAULT ''::text
+  cart_url text NOT NULL DEFAULT ''::text
+  api_base_url text NOT NULL DEFAULT ''::text
+  catalog_endpoint text NOT NULL DEFAULT ''::text
+  api_key text NOT NULL DEFAULT ''::text
+  webhook_secret text NOT NULL DEFAULT ''::text
+  notes text NOT NULL DEFAULT ''::text
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT store_integrations_pkey PRIMARY KEY (id)
+  CONSTRAINT store_integrations_store_id_key UNIQUE (store_id)
+  CONSTRAINT store_integrations_store_id_fkey FOREIGN KEY (store_id) REFERENCES stores(id) ON DELETE CASCADE
+  CONSTRAINT store_integrations_api_base_url_length CHECK ((char_length(api_base_url) <= 2048))
+  CONSTRAINT store_integrations_api_key_length CHECK ((char_length(api_key) <= 4096))
+  CONSTRAINT store_integrations_base_url_length CHECK ((char_length(base_url) <= 2048))
+  CONSTRAINT store_integrations_cart_url_length CHECK ((char_length(cart_url) <= 2048))
+  CONSTRAINT store_integrations_catalog_endpoint_length CHECK ((char_length(catalog_endpoint) <= 2048))
+  CONSTRAINT store_integrations_notes_length CHECK ((char_length(notes) <= 10000))
+  CONSTRAINT store_integrations_webhook_secret_length CHECK ((char_length(webhook_secret) <= 4096))
+
+TABLE store_order_cart_restorations  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
+  id uuid NOT NULL DEFAULT gen_random_uuid()
+  request_id uuid NOT NULL
+  restore_token uuid NOT NULL DEFAULT gen_random_uuid()
+  tracking_number text NOT NULL
+  user_id uuid
+  customer_phone text
+  customer_email text
+  items jsonb NOT NULL DEFAULT '[]'::jsonb
+  reason text
+  status text NOT NULL DEFAULT 'pending'::text
+  restored_at timestamp with time zone
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT store_order_cart_restorations_pkey PRIMARY KEY (id)
+  CONSTRAINT store_order_cart_restorations_request_id_key UNIQUE (request_id)
+  CONSTRAINT store_order_cart_restorations_restore_token_key UNIQUE (restore_token)
+  CONSTRAINT store_order_cart_restorations_request_id_fkey FOREIGN KEY (request_id) REFERENCES store_order_requests(id) ON DELETE CASCADE
+  CONSTRAINT store_order_cart_restorations_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+  CONSTRAINT store_order_cart_restorations_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'restored'::text, 'expired'::text])))
+  CREATE INDEX store_order_cart_restorations_tracking_idx ON store_order_cart_restorations USING btree (tracking_number, created_at DESC)
+  CREATE INDEX store_order_cart_restorations_user_id_idx ON store_order_cart_restorations USING btree (user_id)
+  POLICY store_order_cart_restorations_admin_all PERMISSIVE FOR ALL TO authenticated USING (private.is_platform_admin()) WITH CHECK (private.is_platform_admin())
+  POLICY store_order_cart_restorations_owner_read PERMISSIVE FOR SELECT TO authenticated USING ((user_id = ( SELECT auth.uid() AS uid)))
+  CREATE TRIGGER restoration_notifications_realtime_trigger AFTER UPDATE ON store_order_cart_restorations FOR EACH ROW EXECUTE FUNCTION notifications_on_restoration_change()
