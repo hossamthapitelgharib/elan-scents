@@ -1,0 +1,288 @@
+TABLE analytics_events  rls=on  grants: anon=a authenticated=rawd service_role=rawdDxt
+  id uuid NOT NULL DEFAULT gen_random_uuid()
+  event_type text NOT NULL
+  product_id uuid
+  product_size_id uuid
+  user_id uuid
+  metadata jsonb NOT NULL DEFAULT '{}'::jsonb
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT analytics_events_pkey PRIMARY KEY (id)
+  CONSTRAINT analytics_events_product_id_fkey FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL
+  CONSTRAINT analytics_events_product_size_id_fkey FOREIGN KEY (product_size_id) REFERENCES product_sizes(id) ON DELETE SET NULL
+  CONSTRAINT analytics_events_user_id_fkey FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE SET NULL
+  CONSTRAINT analytics_events_event_type_check CHECK ((event_type = ANY (ARRAY['view'::text, 'search'::text, 'add_to_cart'::text, 'request'::text])))
+  CREATE INDEX idx_analytics_created_at ON analytics_events USING btree (created_at)
+  CREATE INDEX idx_analytics_product_id ON analytics_events USING btree (product_id)
+  CREATE INDEX idx_analytics_product_size_id ON analytics_events USING btree (product_size_id)
+  CREATE INDEX idx_analytics_user_id ON analytics_events USING btree (user_id)
+  POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
+  POLICY event_insert PERMISSIVE FOR INSERT TO anon,authenticated WITH CHECK (((user_id IS NULL) OR (user_id = ( SELECT auth.uid() AS uid))))
+  CREATE TRIGGER set_updated_at BEFORE UPDATE ON analytics_events FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
+
+TABLE aromatic_notes  rls=on  grants: anon=r authenticated=rawd service_role=rawdDxt
+  id uuid NOT NULL DEFAULT gen_random_uuid()
+  name text NOT NULL
+  image_url text
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT aromatic_notes_pkey PRIMARY KEY (id)
+  CONSTRAINT aromatic_notes_name_key UNIQUE (name)
+  POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
+  POLICY public_read PERMISSIVE FOR SELECT TO anon,authenticated USING (true)
+  CREATE TRIGGER set_updated_at BEFORE UPDATE ON aromatic_notes FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
+
+TABLE brands  rls=on  grants: anon=- authenticated=awd service_role=rawdDxt
+  id uuid NOT NULL DEFAULT gen_random_uuid()
+  name text NOT NULL
+  slug text NOT NULL
+  official_logo_url text
+  description text
+  official_website_url text
+  is_active boolean NOT NULL DEFAULT true
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT brands_pkey PRIMARY KEY (id)
+  CONSTRAINT brands_slug_key UNIQUE (slug)
+  COLUMN GRANTS anon=select,authenticated=select: id,name,slug,official_logo_url,description,is_active,created_at,updated_at
+  POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
+  POLICY public_read PERMISSIVE FOR SELECT TO anon,authenticated USING (is_active)
+  CREATE TRIGGER set_updated_at BEFORE UPDATE ON brands FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
+
+TABLE cart_items  rls=on  grants: anon=- authenticated=d service_role=rawdDxt
+  id uuid NOT NULL DEFAULT gen_random_uuid()
+  user_id uuid NOT NULL
+  store_product_id uuid NOT NULL
+  quantity integer NOT NULL DEFAULT 1
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+  product_snapshot jsonb NOT NULL DEFAULT '{}'::jsonb
+  CONSTRAINT cart_items_pkey PRIMARY KEY (id)
+  CONSTRAINT cart_items_user_id_store_product_id_key UNIQUE (user_id, store_product_id)
+  CONSTRAINT cart_items_store_product_id_fkey FOREIGN KEY (store_product_id) REFERENCES store_products(id) ON DELETE CASCADE
+  CONSTRAINT cart_items_user_id_fkey FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE
+  CONSTRAINT cart_items_quantity_check CHECK ((quantity > 0))
+  CREATE INDEX idx_cart_items_store_product_id ON cart_items USING btree (store_product_id)
+  COLUMN GRANTS authenticated=insert,authenticated=select: user_id
+  COLUMN GRANTS authenticated=insert,authenticated=select,authenticated=update: store_product_id,quantity
+  POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
+  POLICY own_all PERMISSIVE FOR ALL TO authenticated USING ((user_id = ( SELECT auth.uid() AS uid))) WITH CHECK ((user_id = ( SELECT auth.uid() AS uid)))
+  CREATE TRIGGER cart_items_product_snapshot BEFORE INSERT OR UPDATE OF store_product_id, quantity ON cart_items FOR EACH ROW EXECUTE FUNCTION populate_cart_item_product_snapshot()
+  CREATE TRIGGER set_updated_at BEFORE UPDATE ON cart_items FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
+
+TABLE categories  rls=on  grants: anon=r authenticated=rawd service_role=rawdDxt
+  id uuid NOT NULL DEFAULT gen_random_uuid()
+  name text NOT NULL
+  image_url text
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT categories_pkey PRIMARY KEY (id)
+  CONSTRAINT categories_name_key UNIQUE (name)
+  POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
+  POLICY public_read PERMISSIVE FOR SELECT TO anon,authenticated USING (true)
+  CREATE TRIGGER set_updated_at BEFORE UPDATE ON categories FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
+
+TABLE checkout_sessions  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
+  id uuid NOT NULL DEFAULT gen_random_uuid()
+  tracking_number text NOT NULL
+  user_id uuid
+  customer_name text NOT NULL
+  customer_phone text NOT NULL
+  customer_email text
+  customer_address text NOT NULL
+  status text NOT NULL DEFAULT 'open'::text
+  currency text NOT NULL DEFAULT 'EGP'::text
+  subtotal numeric(12,2) NOT NULL DEFAULT 0
+  shipping_amount numeric(12,2)
+  total_amount numeric(12,2)
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT checkout_sessions_pkey PRIMARY KEY (id)
+  CONSTRAINT checkout_sessions_tracking_number_key UNIQUE (tracking_number)
+  CONSTRAINT checkout_sessions_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+  CONSTRAINT checkout_sessions_status_check CHECK ((status = ANY (ARRAY['open'::text, 'transferred'::text, 'partially_cancelled'::text, 'completed'::text, 'closed'::text, 'needs_review'::text])))
+  CONSTRAINT checkout_sessions_subtotal_check CHECK ((subtotal >= (0)::numeric))
+  CREATE INDEX checkout_sessions_user_idx ON checkout_sessions USING btree (user_id, created_at DESC)
+  POLICY checkout_sessions_admin_all PERMISSIVE FOR ALL TO authenticated USING (private.is_platform_admin()) WITH CHECK (private.is_platform_admin())
+  POLICY checkout_sessions_owner_read PERMISSIVE FOR SELECT TO authenticated USING ((user_id = ( SELECT auth.uid() AS uid)))
+
+TABLE commissions  rls=on  grants: anon=- authenticated=awd service_role=rawdDxt
+  id uuid NOT NULL DEFAULT gen_random_uuid()
+  store_id uuid NOT NULL
+  order_item_id uuid NOT NULL
+  rate numeric(5,2) NOT NULL
+  amount numeric(12,2) NOT NULL
+  status text NOT NULL DEFAULT 'pending'::text
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT commissions_pkey PRIMARY KEY (id)
+  CONSTRAINT commissions_order_item_id_fkey FOREIGN KEY (order_item_id) REFERENCES order_items(id) ON DELETE CASCADE
+  CONSTRAINT commissions_store_id_fkey FOREIGN KEY (store_id) REFERENCES stores(id) ON DELETE RESTRICT
+  CONSTRAINT commissions_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'payable'::text, 'paid'::text])))
+  CREATE INDEX idx_commissions_order_item_id ON commissions USING btree (order_item_id)
+  CREATE INDEX idx_commissions_store_id ON commissions USING btree (store_id)
+  POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
+  POLICY member_read PERMISSIVE FOR SELECT TO authenticated USING (private.is_store_member(store_id))
+  CREATE TRIGGER set_updated_at BEFORE UPDATE ON commissions FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
+
+TABLE contact_messages  rls=on  grants: anon=- authenticated=rawd service_role=rawdDxt
+  id uuid NOT NULL DEFAULT gen_random_uuid()
+  name text
+  email text
+  phone text
+  message text NOT NULL
+  is_read boolean NOT NULL DEFAULT false
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT contact_messages_pkey PRIMARY KEY (id)
+  POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
+  POLICY auth_insert PERMISSIVE FOR INSERT TO authenticated WITH CHECK ((( SELECT auth.uid() AS uid) IS NOT NULL))
+  CREATE TRIGGER set_updated_at BEFORE UPDATE ON contact_messages FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
+
+TABLE customer_product_events  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
+  id uuid NOT NULL DEFAULT gen_random_uuid()
+  guest_id uuid
+  user_id uuid
+  session_id uuid
+  event_type text NOT NULL
+  product_id uuid NOT NULL
+  product_size_id uuid
+  store_product_id uuid
+  quantity integer
+  occurred_at timestamp with time zone NOT NULL DEFAULT now()
+  product_snapshot jsonb NOT NULL DEFAULT '{}'::jsonb
+  CONSTRAINT customer_product_events_pkey PRIMARY KEY (id)
+  CONSTRAINT customer_product_events_guest_id_fkey FOREIGN KEY (guest_id) REFERENCES guest_visitors(id) ON DELETE SET NULL
+  CONSTRAINT customer_product_events_product_size_id_fkey FOREIGN KEY (product_size_id) REFERENCES product_sizes(id) ON DELETE SET NULL
+  CONSTRAINT customer_product_events_session_id_fkey FOREIGN KEY (session_id) REFERENCES customer_sessions(session_id) ON DELETE SET NULL
+  CONSTRAINT customer_product_events_store_product_id_fkey FOREIGN KEY (store_product_id) REFERENCES store_products(id) ON DELETE SET NULL
+  CONSTRAINT customer_product_events_user_id_fkey FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE
+  CONSTRAINT customer_product_events_event_type_check CHECK ((event_type = ANY (ARRAY['view'::text, 'search'::text, 'cart_add'::text, 'cart_remove'::text])))
+  CONSTRAINT customer_product_events_exactly_one_actor CHECK (((guest_id IS NOT NULL) <> (user_id IS NOT NULL)))
+  CONSTRAINT customer_product_events_quantity_check CHECK (((quantity IS NULL) OR ((quantity >= 1) AND (quantity <= 99))))
+  CREATE INDEX customer_product_events_guest_time_idx ON customer_product_events USING btree (guest_id, occurred_at DESC) WHERE (guest_id IS NOT NULL)
+  CREATE INDEX customer_product_events_product_type_time_idx ON customer_product_events USING btree (product_id, event_type, occurred_at DESC)
+  CREATE INDEX customer_product_events_user_time_idx ON customer_product_events USING btree (user_id, occurred_at DESC) WHERE (user_id IS NOT NULL)
+
+TABLE customer_searches  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
+  id uuid NOT NULL DEFAULT gen_random_uuid()
+  guest_id uuid
+  user_id uuid
+  session_id uuid
+  search_text text NOT NULL
+  result_products jsonb NOT NULL DEFAULT '[]'::jsonb
+  result_count integer NOT NULL DEFAULT 0
+  occurred_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT customer_searches_pkey PRIMARY KEY (id)
+  CONSTRAINT customer_searches_guest_id_fkey FOREIGN KEY (guest_id) REFERENCES guest_visitors(id) ON DELETE CASCADE
+  CONSTRAINT customer_searches_session_id_fkey FOREIGN KEY (session_id) REFERENCES customer_sessions(session_id) ON DELETE SET NULL
+  CONSTRAINT customer_searches_user_id_fkey FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE
+  CONSTRAINT customer_searches_exactly_one_actor CHECK (((guest_id IS NOT NULL) <> (user_id IS NOT NULL)))
+  CONSTRAINT customer_searches_result_count_check CHECK (((result_count >= 0) AND (result_count <= 10)))
+  CONSTRAINT customer_searches_result_products_check CHECK (((jsonb_typeof(result_products) = 'array'::text) AND (jsonb_array_length(result_products) <= 10)))
+  CONSTRAINT customer_searches_search_text_check CHECK (((char_length(btrim(search_text)) >= 1) AND (char_length(btrim(search_text)) <= 200)))
+  CREATE INDEX customer_searches_guest_time_idx ON customer_searches USING btree (guest_id, occurred_at DESC) WHERE (guest_id IS NOT NULL)
+  CREATE INDEX customer_searches_occurred_at_idx ON customer_searches USING btree (occurred_at)
+  CREATE INDEX customer_searches_user_time_idx ON customer_searches USING btree (user_id, occurred_at DESC) WHERE (user_id IS NOT NULL)
+
+TABLE customer_sessions  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
+  session_id uuid NOT NULL
+  guest_id uuid
+  user_id uuid
+  started_at timestamp with time zone NOT NULL DEFAULT now()
+  last_seen_at timestamp with time zone NOT NULL DEFAULT now()
+  ended_at timestamp with time zone
+  active_seconds integer NOT NULL DEFAULT 0
+  CONSTRAINT customer_sessions_pkey PRIMARY KEY (session_id)
+  CONSTRAINT customer_sessions_guest_id_fkey FOREIGN KEY (guest_id) REFERENCES guest_visitors(id) ON DELETE SET NULL
+  CONSTRAINT customer_sessions_user_id_fkey FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE
+  CONSTRAINT customer_sessions_active_seconds_check CHECK ((active_seconds >= 0))
+  CONSTRAINT customer_sessions_exactly_one_actor CHECK (((guest_id IS NOT NULL) <> (user_id IS NOT NULL)))
+  CREATE INDEX customer_sessions_guest_started_idx ON customer_sessions USING btree (guest_id, started_at DESC) WHERE (guest_id IS NOT NULL)
+  CREATE INDEX customer_sessions_user_started_idx ON customer_sessions USING btree (user_id, started_at DESC) WHERE (user_id IS NOT NULL)
+
+TABLE editor_archive  rls=on  grants: anon=- authenticated=rawd service_role=rawdDxt
+  id uuid NOT NULL DEFAULT gen_random_uuid()
+  element_id text NOT NULL
+  kind text NOT NULL
+  name text
+  payload jsonb NOT NULL
+  archived_reason text
+  archived_at timestamp with time zone NOT NULL DEFAULT now()
+  restored_at timestamp with time zone
+  created_by uuid DEFAULT auth.uid()
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT editor_archive_pkey PRIMARY KEY (id)
+  CONSTRAINT editor_archive_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id) ON DELETE SET NULL
+  CONSTRAINT editor_archive_archived_reason_check CHECK (((archived_reason IS NULL) OR (archived_reason = ANY (ARRAY['manual'::text, 'timer_expired'::text]))))
+  CONSTRAINT editor_archive_kind_check CHECK ((length(btrim(kind)) > 0))
+  CONSTRAINT editor_archive_payload_check CHECK (((jsonb_typeof(payload) = 'object'::text) AND (pg_column_size(payload) <= 1048576)))
+  CREATE INDEX idx_editor_archive_archived_at ON editor_archive USING btree (archived_at DESC)
+  CREATE INDEX idx_editor_archive_created_by ON editor_archive USING btree (created_by)
+  CREATE INDEX idx_editor_archive_element ON editor_archive USING btree (element_id)
+  POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
+  CREATE TRIGGER set_updated_at BEFORE UPDATE ON editor_archive FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
+
+TABLE editor_saved_elements  rls=on  grants: anon=- authenticated=rawd service_role=rawdDxt
+  id uuid NOT NULL DEFAULT gen_random_uuid()
+  name text NOT NULL
+  kind text NOT NULL
+  category text
+  payload jsonb NOT NULL
+  created_by uuid DEFAULT auth.uid()
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT editor_saved_elements_pkey PRIMARY KEY (id)
+  CONSTRAINT editor_saved_elements_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id) ON DELETE SET NULL
+  CONSTRAINT editor_saved_elements_kind_check CHECK ((length(btrim(kind)) > 0))
+  CONSTRAINT editor_saved_elements_name_check CHECK ((length(btrim(name)) > 0))
+  CONSTRAINT editor_saved_elements_payload_check CHECK (((jsonb_typeof(payload) = 'object'::text) AND (pg_column_size(payload) <= 1048576)))
+  CREATE INDEX idx_editor_saved_created_by ON editor_saved_elements USING btree (created_by)
+  CREATE INDEX idx_editor_saved_kind_created ON editor_saved_elements USING btree (kind, created_at DESC)
+  POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
+  CREATE TRIGGER set_updated_at BEFORE UPDATE ON editor_saved_elements FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
+
+TABLE editor_section_items  rls=on  grants: anon=r authenticated=rawd service_role=rawdDxt
+  section_id uuid NOT NULL
+  product_size_id uuid NOT NULL
+  sort_order integer NOT NULL DEFAULT 0
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT editor_section_items_pkey PRIMARY KEY (section_id, product_size_id)
+  CONSTRAINT editor_section_items_product_size_id_fkey FOREIGN KEY (product_size_id) REFERENCES product_sizes(id) ON DELETE CASCADE
+  CONSTRAINT editor_section_items_section_id_fkey FOREIGN KEY (section_id) REFERENCES editor_sections(id) ON DELETE CASCADE
+  CREATE INDEX idx_editor_section_items_size ON editor_section_items USING btree (product_size_id)
+  POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
+  POLICY public_read PERMISSIVE FOR SELECT TO anon,authenticated USING ((EXISTS ( SELECT 1 FROM editor_sections s WHERE (s.id = editor_section_items.section_id))))
+
+TABLE editor_sections  rls=on  grants: anon=r authenticated=rawd service_role=rawdDxt
+  id uuid NOT NULL DEFAULT gen_random_uuid()
+  element_id text NOT NULL
+  name text NOT NULL
+  purpose text
+  selection_mode text NOT NULL DEFAULT 'manual'::text
+  filters jsonb NOT NULL DEFAULT '{}'::jsonb
+  timer_mode text NOT NULL DEFAULT 'none'::text
+  starts_at timestamp with time zone
+  ends_at timestamp with time zone
+  duration_hours integer
+  status text NOT NULL DEFAULT 'active'::text
+  archived_at timestamp with time zone
+  archive_reason text
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT editor_sections_pkey PRIMARY KEY (id)
+  CONSTRAINT editor_sections_element_id_key UNIQUE (element_id)
+  CONSTRAINT editor_sections_archive_reason_check CHECK (((archive_reason IS NULL) OR (archive_reason = ANY (ARRAY['manual'::text, 'timer_expired'::text]))))
+  CONSTRAINT editor_sections_archive_valid CHECK (((status = 'archived'::text) = (archived_at IS NOT NULL)))
+  CONSTRAINT editor_sections_duration_hours_check CHECK (((duration_hours IS NULL) OR (duration_hours > 0)))
+  CONSTRAINT editor_sections_filters_check CHECK ((jsonb_typeof(filters) = 'object'::text))
+  CONSTRAINT editor_sections_name_check CHECK ((length(btrim(name)) > 0))
+  CONSTRAINT editor_sections_selection_mode_check CHECK ((selection_mode = ANY (ARRAY['manual'::text, 'auto'::text])))
+  CONSTRAINT editor_sections_status_check CHECK ((status = ANY (ARRAY['active'::text, 'archived'::text])))
+  CONSTRAINT editor_sections_timer_mode_check CHECK ((timer_mode = ANY (ARRAY['none'::text, 'window'::text, 'duration'::text])))
+  CONSTRAINT editor_sections_timer_valid CHECK (((timer_mode = 'none'::text) OR ((timer_mode = 'window'::text) AND (starts_at IS NOT NULL) AND (ends_at IS NOT NULL) AND (ends_at > starts_at)) OR ((timer_mode = 'duration'::text) AND (duration_hours IS NOT NULL) AND (ends_at IS NOT NULL))))
+  CREATE INDEX idx_editor_sections_status_ends ON editor_sections USING btree (status, ends_at)
+  POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
+  POLICY public_read PERMISSIVE FOR SELECT TO anon,authenticated USING (((status = 'active'::text) AND ((starts_at IS NULL) OR (starts_at <= now())) AND ((ends_at IS NULL) OR (ends_at > now()))))
+  CREATE TRIGGER set_updated_at BEFORE UPDATE ON editor_sections FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
