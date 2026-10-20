@@ -74,6 +74,7 @@ module.exports = async function customerBestSellers(req, res) {
         rankedUnits: nonnegative(result.audit.rankedUnits),
         unlinkedEligibleUnits: nonnegative(result.audit.unlinkedEligibleUnits),
         unlinkedEligibleLines: nonnegative(result.audit.unlinkedEligibleLines),
+        reversedUnits: nonnegative(result.audit.reversedUnits),
         excludedCancelledUnits: nonnegative(result.audit.excludedCancelledUnits),
         excludedInProgressUnits: nonnegative(result.audit.excludedInProgressUnits),
         excludedReviewOrMismatchUnits: nonnegative(result.audit.excludedReviewOrMismatchUnits),
