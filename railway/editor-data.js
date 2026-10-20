@@ -50,6 +50,9 @@ async function sb(ctx, table, query, method = 'GET', payload, prefer) {
    every filter of the approved panels is applied against the real catalogue tables. */
 const { options, perfumes } = require('./editor-catalog.js')(sb);
 
+/* AI image generation for the media library (railway/editor-ai.js): off until OPENAI_API_KEY is configured. */
+const ai = require('./editor-ai.js')(sb);
+
 async function library(ctx) {
   const [media, archive, saved] = await Promise.all([
     sb(ctx, 'media_library', '?select=id,file_url,file_type,title,category,source,alt_text,created_at&order=created_at.desc,id.asc&limit=1000'),
@@ -321,6 +324,8 @@ module.exports = async function editorData(req, res) {
     const action = input.action || 'library';
     if (action === 'options') return reply(res, 200, { ok: true, options: await options(ctx) });
     if (action === 'perfumes') return reply(res, 200, { ok: true, rows: await perfumes(ctx, input.filters || {}) });
+    if (action === 'ai.status') return reply(res, 200, { ok: true, ai: await ai.status(ctx) });
+    if (action === 'ai.generate' && req.method === 'POST') return reply(res, 200, { ok: true, item: await ai.generate(ctx, input) });
     if (action === 'library' && req.method === 'GET') return reply(res, 200, { ok: true, library: await library(ctx) });
     if (action === 'library.save' && req.method === 'POST') return reply(res, 200, await saveLibrary(ctx, input));
     if (action === 'catalog.create' && req.method === 'POST') return reply(res, 200, await createCatalogRecord(ctx, input));
