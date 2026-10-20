@@ -1,6 +1,6 @@
 # Supabase migrations
 
-`migrations/` contains **68** tracked SQL source files for the live Supabase project. The live ledger (`supabase_migrations.schema_migrations`, checked read-only on 2026-10-19) contains **70** records. The two-record difference is the documented historical source gap below. Migration files are kept in ascending version order, and `tests/migrations-consistency.test.js` checks local naming and ordering.
+`migrations/` contains **70** tracked SQL source files for the live Supabase project. The live ledger (`supabase_migrations.schema_migrations`, checked read-only on 2026-10-20) contains **72** records. The two-record difference is the documented historical source gap below. Migration files are kept in ascending version order, and `tests/migrations-consistency.test.js` checks local naming and ordering.
 
 ## Live-history gaps
 
@@ -41,7 +41,7 @@ The customer, store, and platform access changes applied to the live project inc
 - `20261017062830_customer_activity_totals_and_guest_cleanup_on_claim`
 - `20261019052550_guest_fingerprint_retention_400_days` (written as `pending/20261019000100_…`, then applied live as this version)
 
-Seven more migrations were applied live without a tracked source file. Each file here is the statement text recovered verbatim from the live ledger (read-only). The md5 of every file equals the md5 of the ledger statement; the six files from 2026-10-18 have one trailing newline added, which is removed before comparing:
+Nine more migrations were applied live without a tracked source file. Each file here is the statement text recovered verbatim from the live ledger (read-only). The md5 of every file equals the md5 of the ledger statement; the files from 2026-10-18 and the two editor-section files from 2026-10-19 have one trailing newline added, which is removed before comparing:
 
 - `20261018214524_add_registered_customer_best_seller_indexes` (647 characters)
 - `20261018215138_track_order_returns_refunds_in_best_sellers` (10917 characters)
@@ -50,6 +50,8 @@ Seven more migrations were applied live without a tracked source file. Each file
 - `20261018215409_preserve_cart_item_source_on_order_items` (334 characters)
 - `20261018220530_add_store_webhook_inventory_application` (6486 characters)
 - `20261019105404_guest_fingerprint_retention_fix_owner_rows` (4916 characters; replaces `purge_expired_guest_fingerprints` so the purge deletes a guest's sessions and product events before the guest row)
+- `20261019163540_archive_expired_editor_sections` (1228 characters; added `private.archive_expired_editor_sections()` and the cron job `archive-expired-editor-sections`, a duplicate of the existing `expire-editor-sections`)
+- `20261019222030_remove_duplicate_archive_expired_editor_sections` (590 characters; removes only that duplicate cron job and function again, leaving `20261017014836_expire_editor_sections` in charge)
 
 Applying a migration to the live project without first writing it under `pending/` breaks the rules below; the next live change should follow the pending-first flow.
 
