@@ -48,6 +48,25 @@
     return list;
   }
 
+  /* Messages for the codes /api/editor-data answers with when image generation is refused or fails. */
+  const AI_MESSAGES = {
+    ai_not_configured: 'التوليد غير مُفعّل: لم يُضبط مفتاح الخدمة على الخادم.',
+    cost_confirmation_required: 'وافقي على احتساب التكلفة أولًا.',
+    invalid_ai_prompt: 'الوصف غير صالح (من 3 إلى 1000 حرف).',
+    invalid_ai_size: 'مقاس الصورة غير مدعوم.',
+    ai_daily_limit_reached: 'تم الوصول إلى الحد الأقصى لعدد الصور خلال 24 ساعة.',
+    ai_rate_limited: 'خدمة التوليد مشغولة الآن. حاولي بعد قليل.',
+    ai_prompt_rejected: 'رفضت الخدمة هذا الوصف. غيّريه وحاولي مرة أخرى.',
+    ai_not_authorized: 'مفتاح خدمة التوليد المضبوط على الخادم غير صالح.',
+    ai_provider_unreachable: 'تعذر الاتصال بخدمة التوليد.',
+    ai_provider_failed: 'لم تُرجع خدمة التوليد صورة صالحة.',
+    ai_invalid_response: 'استجابة التوليد غير صالحة؛ لم تُضف صورة.',
+    upload_failed: 'تعذر حفظ الصورة المولّدة في المكتبة.',
+    storage_unreachable: 'تعذر حفظ الصورة المولّدة في المكتبة.',
+    library_record_failed: 'تعذر تسجيل الصورة المولّدة في المكتبة.',
+    data_provider_failed: 'تعذر الاتصال بقاعدة البيانات.'
+  };
+
   window.connectElanLibrary = async function (provider) {
     const selectedProvider = provider || window.elanLibraryDataProvider;
     if (!selectedProvider || typeof selectedProvider.getLibrary !== 'function' || typeof selectedProvider.saveLibrary !== 'function') {
@@ -143,6 +162,72 @@
       };
       picker.onclick = function () { mediaInput.click(); };
       mediaList.append(mediaInput);
+
+      /* AI image generation. Off until the server has a key; every image needs the owner's explicit cost
+         confirmation; the result only lands in the library, it is never applied to the page automatically. */
+      const aiBox = document.createElement('div');
+      aiBox.dataset.aiBox = 'true';
+      aiBox.style.cssText = 'display:grid;gap:8px;margin:10px 0;padding:10px;border:1px solid #e5dcc5;border-radius:8px';
+      const aiTitle = document.createElement('strong');
+      aiTitle.textContent = 'توليد صورة بالذكاء الاصطناعي';
+      /* A <span>, not <small>: the dialog's own note is found with dialog.querySelector('small'). */
+      const aiState = document.createElement('span');
+      aiState.style.cssText = 'font-size:11px;line-height:1.7;color:#846631';
+      aiState.textContent = 'جارٍ قراءة حالة الخدمة…';
+      const aiPrompt = document.createElement('textarea');
+      aiPrompt.rows = 3;
+      aiPrompt.maxLength = 1000;
+      aiPrompt.placeholder = 'صفي الصورة المطلوبة';
+      aiPrompt.setAttribute('aria-label', 'وصف الصورة المطلوبة');
+      aiPrompt.style.cssText = 'width:100%;box-sizing:border-box;padding:8px;border:1px solid #d9cfb7;border-radius:7px;font:inherit';
+      const aiConfirmLabel = document.createElement('label');
+      aiConfirmLabel.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:12px';
+      const aiConfirm = document.createElement('input');
+      aiConfirm.type = 'checkbox';
+      aiConfirmLabel.append(aiConfirm, 'أوافق على احتساب تكلفة هذه الصورة على حساب خدمة التوليد الخاص بالموقع');
+      const aiGo = document.createElement('button');
+      aiGo.textContent = 'توليد الصورة';
+      aiBox.append(aiTitle, aiState, aiPrompt, aiConfirmLabel, aiGo);
+      mediaList.insertBefore(aiBox, mediaInput);
+
+      function aiEnabled(on) { aiPrompt.disabled = !on; aiConfirm.disabled = !on; aiGo.disabled = !on; }
+      async function refreshAiStatus() {
+        aiEnabled(false);
+        const provider = window.elanLibraryDataProvider;
+        if (!provider || typeof provider.getAiStatus !== 'function' || typeof provider.generateImage !== 'function') {
+          aiState.textContent = 'توليد الصور غير متاح في هذه الجلسة.';
+          return;
+        }
+        try {
+          const status = await provider.getAiStatus();
+          if (!status || status.configured !== true) { aiState.textContent = 'التوليد غير مُفعّل: لم يُضبط مفتاح الخدمة على الخادم بعد.'; return; }
+          if (!(status.remaining > 0)) { aiState.textContent = 'تم الوصول إلى الحد الأقصى (' + status.dailyLimit + ' صورة كل 24 ساعة).'; return; }
+          aiState.textContent = 'المتاح الآن: ' + status.remaining + ' من ' + status.dailyLimit + ' صورة كل 24 ساعة.';
+          aiEnabled(true);
+        } catch (_) {
+          aiState.textContent = 'تعذر قراءة حالة توليد الصور.';
+        }
+      }
+      aiGo.onclick = async function () {
+        const prompt = aiPrompt.value.trim();
+        if (prompt.length < 3) { setCloudMessage(dialog, 'اكتبي وصفًا للصورة (3 أحرف على الأقل).'); return; }
+        if (!aiConfirm.checked) { setCloudMessage(dialog, AI_MESSAGES.cost_confirmation_required); return; }
+        aiEnabled(false);
+        setCloudMessage(dialog, 'جارٍ توليد الصورة… قد يستغرق ذلك حتى دقيقتين.');
+        try {
+          const item = await window.elanLibraryDataProvider.generateImage(prompt, { confirmCost: true });
+          if (!item || !safeMediaUrl(item.src) || !/^image(?:\/|$)/i.test(String(item.type || ''))) throw new Error('ai_invalid_response');
+          if (emptyMedia) emptyMedia.remove();
+          mediaList.insertBefore(renderMediaRow({ ...item, name: String(item.name || 'صورة مولّدة') }), aiBox.nextSibling);
+          aiConfirm.checked = false;
+          aiPrompt.value = '';
+          setCloudMessage(dialog, 'تم توليد الصورة وحفظها في المكتبة. لم تُطبّق على الصفحة ولم يُحفظ أو يُنشر التصميم.');
+        } catch (error) {
+          setCloudMessage(dialog, AI_MESSAGES[error && error.message] || 'تعذر توليد الصورة.');
+        }
+        refreshAiStatus();
+      };
+      refreshAiStatus();
 
       const selectedId = st && st.selected && st.selected.id || null;
       const mediaRows = Array.isArray(cloud.media) ? cloud.media.filter((item) => item && item.src) : [];
