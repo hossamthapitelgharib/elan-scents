@@ -8,10 +8,12 @@
 -- The ranking rules are unchanged: registered customers only; completed+matched or delivered+matched/pending orders;
 -- net units (ordered minus completed returns/refunds); grouped by base perfume; ordered by units, then purchases.
 --
--- Audit identity (units), checked by tests/customer-best-sellers.test.js and the dashboard:
+-- Audit identity (units) the function is written to satisfy:
 --   registeredUnits = eligibleUnits + reversedUnits + excludedCancelledUnits + excludedInProgressUnits
 --                   + excludedReviewOrMismatchUnits + excludedOtherUnits + ownerConflictUnits
 -- A completed or delivered order that is not yet reconciled as matched is counted as review (it used to fall in no bucket).
+-- tests/customer-best-sellers.test.js checks that every audit field the API reads is returned; the identity itself has
+-- NOT been run against a database yet, so run it on a scratch database (inside BEGIN ... ROLLBACK) before applying.
 --
 -- Same signature and return type as before, so existing grants stay; they are restated below.
 -- Rollback: supabase/rollback/20261020010000_restore_best_seller_audit_breakdown.sql
