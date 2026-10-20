@@ -19,6 +19,12 @@
     saveLibrary: async function (library, expectedRevision) {
       return call('library.save', { library: library, expectedRevision: expectedRevision || null });
     },
+    getAiStatus: async function () { return (await call('ai.status')).ai; },
+    /* Billed by the image generation service: the caller must pass the owner's explicit confirmation. */
+    generateImage: async function (prompt, options) {
+      if (!options || options.confirmCost !== true) throw Error('cost_confirmation_required');
+      return (await call('ai.generate', { prompt: prompt, confirmCost: true, size: options.size })).item;
+    },
     uploadMedia: async function (file, meta) {
       if (!file || !file.type || !/^image\/(jpeg|png|webp|gif|avif)$/.test(file.type)) throw Error('unsupported_type');
       const r = await fetch('/api/editor-upload', {
