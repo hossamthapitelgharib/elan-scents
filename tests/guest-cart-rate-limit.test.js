@@ -28,9 +28,11 @@ test('limiter memory is bounded', () => {
   assert.ok(check('fresh').allowed);
 });
 
-test('clientIp prefers the proxy header and never throws on missing data', () => {
+test('clientIp prefers the edge header, falls back to the forwarded chain, and never throws on missing data', () => {
   assert.equal(clientIp({ headers: { 'x-forwarded-for': '203.0.113.7, 10.0.0.1' } }), '203.0.113.7');
   assert.equal(clientIp({ headers: { 'x-real-ip': '198.51.100.2' } }), '198.51.100.2');
+  // A caller can put anything in X-Forwarded-For; the edge-set X-Real-IP must win so the limit cannot be dodged by rotating it.
+  assert.equal(clientIp({ headers: { 'x-real-ip': '198.51.100.2', 'x-forwarded-for': '1.2.3.4' } }), '198.51.100.2');
   assert.equal(clientIp({ headers: {}, socket: { remoteAddress: '::1' } }), '::1');
   assert.equal(clientIp({}), 'unknown');
 });

@@ -7,6 +7,7 @@ const crypto = require('crypto');
 const sessions = require('./editor-session.js');
 const media = require('./editor-media.js');
 const bridgeTickets = require('./editor-bridge-ticket.js');
+const { clientIp } = require('../lib/rate-limit.js');
 
 const ROOT = path.resolve(__dirname, '..');
 const COOKIE = 'elan_sess';
@@ -67,7 +68,7 @@ function sameOrigin(req) {
   if (!o) return true;
   try { return new URL(o).host === (req.headers['x-forwarded-host'] || req.headers.host); } catch (_) { return false; }
 }
-function ip(req) { return String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim() || 'unknown'; }
+function ip(req) { return clientIp(req); }
 function json(res, status, body) { res.statusCode = status; res.setHeader('Content-Type', 'application/json; charset=utf-8'); res.setHeader('Cache-Control', 'no-store'); res.end(JSON.stringify(body)); }
 function sendFile(res, file, type, extra) {
   fs.readFile(file, (err, data) => {
