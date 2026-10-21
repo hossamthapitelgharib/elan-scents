@@ -93,7 +93,7 @@ TABLE guest_product_analytics  rls=on  grants: anon=- authenticated=- service_ro
   first_seen_at timestamp with time zone NOT NULL DEFAULT now()
   last_seen_at timestamp with time zone NOT NULL DEFAULT now()
   product_snapshot jsonb NOT NULL DEFAULT '{}'::jsonb
-  CONSTRAINT guest_product_analytics_visitor_hash_product_id_activity_da_key UNIQUE (visitor_hash, product_id, activity_date, event_type)
+  CONSTRAINT guest_product_analytics_pkey PRIMARY KEY (visitor_hash, product_id, activity_date, event_type)
   CONSTRAINT guest_product_analytics_event_count_check CHECK (((event_count >= 1) AND (event_count <= 1000000)))
   CONSTRAINT guest_product_analytics_event_type_check CHECK ((event_type = ANY (ARRAY['view'::text, 'search'::text, 'cart_add'::text, 'cart_remove'::text])))
   CONSTRAINT guest_product_analytics_visitor_hash_check CHECK ((visitor_hash ~ '^[a-f0-9]{64}$'::text))
