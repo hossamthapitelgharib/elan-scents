@@ -39,6 +39,20 @@ function compile(rules, key) {
 const HEADER_RULES = compile(CONFIG.headers);
 const REWRITES = new Map((CONFIG.rewrites || []).map((r) => [r.source, r.destination]));
 
+/* Baseline headers for every response. They never block framing (the owner editor opens the site inside itself) and never
+   restrict scripts or styles (the pages use inline code), so they are safe for the whole site. The editor host sets stricter
+   values of its own (X-Frame-Options, CSP, Referrer-Policy) with setHeader afterwards, which replaces these. */
+const BASELINE_HEADERS = {
+  'X-Content-Type-Options': 'nosniff',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=()'
+};
+function applyBaselineHeaders(req, res) {
+  for (const key of Object.keys(BASELINE_HEADERS)) res.setHeader(key, BASELINE_HEADERS[key]);
+  // Railway terminates TLS and reports it in X-Forwarded-Proto; a plain local run does not get the header.
+  if (String(req.headers['x-forwarded-proto'] || '').toLowerCase() === 'https') res.setHeader('Strict-Transport-Security', 'max-age=15552000');
+}
+
 function applyHeaders(pathname, res) {
   for (const { re, rule } of HEADER_RULES) {
     if (re.test(pathname)) for (const h of rule.headers || []) res.setHeader(h.key, h.value);
@@ -213,6 +227,7 @@ function serveStatic(req, res, file) {
 }
 
 const server = http.createServer(async (req, res) => {
+  applyBaselineHeaders(req, res);
   const url = new URL(req.url, 'http://localhost');
   let pathname = url.pathname;
   if (pathname === '/health') { res.setHeader('Content-Type', 'text/plain'); return res.end('ok'); }
@@ -233,4 +248,5 @@ const server = http.createServer(async (req, res) => {
 });
 
 if (require.main === module) server.listen(PORT, () => console.log('elan-scents listening on ' + PORT));
+server.MIME = MIME; // read by tests/security-headers.test.js
 module.exports = server;
