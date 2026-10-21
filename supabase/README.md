@@ -56,20 +56,20 @@ Nine more migrations were applied live without a tracked source file. Each file 
 - `20261019163540_archive_expired_editor_sections` (1228 characters; added `private.archive_expired_editor_sections()` and the cron job `archive-expired-editor-sections`, a duplicate of the existing `expire-editor-sections`)
 - `20261019222030_remove_duplicate_archive_expired_editor_sections` (590 characters; removes only that duplicate cron job and function again, leaving `20261017014836_expire_editor_sections` in charge)
 
-Applying a migration to the live project without first writing it under `pending/` breaks the rules below. It happened for the nine files above, and once more with the owner's explicit approval for `20261020115120`; any other live change should follow the pending-first flow.
+Applying a migration to the live project without first writing it under `pending/` was against the rules that applied at the time. It happened for the nine files above, and once more with the owner's explicit approval for `20261020115120`. Since the owner's decision of 2026-10-20 (see the rules below) there is no pending-first step any more.
 
 Two earlier applied migrations on 2026-10-13 (`20261013014000_harden_anon_grants_rls_initplan_and_order_pricing` and `20261013014023_guest_analytics_explicit_deny`) are also tracked locally. The live ledger is authoritative for version prefixes. Historical `PENDING` comments in immutable migration files are intentionally preserved.
 
 ## Rules
 
 - Never edit the contents of an applied migration. A fix is a new migration.
-- Write a new migration under `pending/` first; after it is applied, move it to `migrations/` and use the exact version recorded by Supabase.
+- There are no pending migrations (owner decision of 2026-10-20): Claude applies a migration itself on the owner's behalf. It first tests it on the live project inside a transaction that is rolled back, then applies it with `apply_migration`, then adds its file to `migrations/` and its rollback to `rollback/` using the exact version Supabase recorded, and checks the result on the database. `supabase/pending/` is no longer used. Details and the few cases that still need an approval card are in `CLAUDE.md`.
 - Never reuse a migration name at a different version.
 - Real-database regression tests live in `tests/*.sql` and run inside `BEGIN ... ROLLBACK`.
 
 ## الترحيلات المعلّقة وقرارات المالك
 
-لا توجد ترحيلات معلّقة حاليًا (مجلد `supabase/pending/` غير موجود). كل ما كُتب معلّقًا طُبّق على المشروع الحي ونُقل مع ملف التراجع المقابل إلى `migrations/` و`rollback/` بالإصدار الذي سجّلته Supabase.
+لا توجد ترحيلات معلّقة حاليًا (مجلد `supabase/pending/` غير موجود). كل ما كُتب معلّقًا طُبّق على المشروع الحي ونُقل مع ملف التراجع المقابل إلى `migrations/` و`rollback/` بالإصدار الذي سجّلته Supabase. وبقرار المالك بتاريخ 2026-10-20 لا ترحيلات معلّقة مستقبلًا: يطبّق Claude الترحيلات بنفسه بعد اختبارها داخل معاملة مُلغاة على القاعدة الحية، ثم يسجّل ملفها وملف التراجع بالإصدار الذي سجّلته القاعدة (التفاصيل في `CLAUDE.md`).
 
 - `20261017030354_batch_guest_identity_links`: نص مطابق حرفيًا للملف المعلّق (1674 حرفًا). يحافظ `api/guest-cart.js` على استدعاء `guest_identity_link` الفردي كمسار احتياطي، ويمكن إزالته في تغيير لاحق بعد قياس `guest_identity_link_many` على بيانات حقيقية.
 - `20261019052550_guest_fingerprint_retention_400_days`: طُبّق بموافقة المالك الصريحة بتاريخ 2026-10-19 بنص الملف نفسه. يمسح يوميًا (pg_cron، الساعة 03:41 UTC) بيانات بصمة الضيوف بعد **400 يومًا** من آخر ظهور، تنفيذًا لقرار المالك بتاريخ 2026-10-18 وبما يطابق عمر كوكي `elan_gid`: `guest_fingerprints` و`guest_identity_links` وصفوف `guest_visitors` بحالة `guest` فقط (وتُحذف بحثاتهم معها). ملف التراجع `rollback/20261019052550_guest_fingerprint_retention_400_days.sql` يوقف المسح ولا يستعيد صفوفًا حُذفت، واختبار قاعدة البيانات `tests/guest-fingerprint-retention.test.sql` يُشغَّل على قاعدة تجريبية ثم يتراجع.
