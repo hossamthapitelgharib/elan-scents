@@ -103,7 +103,7 @@ test('cancellation API returns the tracking number and restoration token', async
 test('restore API is idempotent for a pending restoration', async () => {
   const handler = api('restore-store-order'); process.env.SUPABASE_URL = 'https://test.supabase.co'; process.env.SUPABASE_SERVICE_ROLE_KEY = 'service'; let patchCount = 0;
   global.fetch = async (url, options = {}) => { if (options.method === 'PATCH') { patchCount++; return jsonResponse({}, 200); } if (url.includes('store_order_cart_restorations?')) return jsonResponse([{ id: 'r1', request_id: 'q1', tracking_number: 'T-2', status: 'pending', items: [{ productSizeId: 'p1' }] }]); throw new Error(url); };
-  const result = await invoke(handler, { method: 'POST', body: { restoreToken: 'restore-1' } }); assert.equal(result.status, 200); assert.equal(result.body.status, 'restored'); assert.equal(patchCount, 1);
+  const result = await invoke(handler, { method: 'POST', body: { restoreToken: '8d3f2a54-6c1b-4a0e-9b7d-5e2c1f0a9b34' } }); assert.equal(result.status, 200); assert.equal(result.body.status, 'restored'); assert.equal(patchCount, 1);
 });
 
 test('platform, store and customer dashboard APIs enforce their scopes', async () => {
