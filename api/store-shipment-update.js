@@ -34,7 +34,9 @@ module.exports = async function storeShipmentUpdate(req, res) {
     const base = headers(context.serviceRoleKey);
     const requestResponse = await fetch(`${context.supabaseUrl}/rest/v1/store_order_requests?select=id,store_id,tracking_number,status&id=eq.${encodeURIComponent(requestId)}&limit=1`, { headers: base });
     const requests = await requestResponse.json();
-    if (!requestResponse.ok) return reply(res, 502, { ok: false, error: 'supabase_read_failed', details: requests });
+    // PostgREST answers 400 when the id is not a UUID; that is the caller's mistake, not a database failure.
+    if (requestResponse.status === 400) return reply(res, 400, { ok: false, error: 'invalid_request_id' });
+    if (!requestResponse.ok || !Array.isArray(requests)) return reply(res, 502, { ok: false, error: 'supabase_read_failed' });
     const request = requests[0];
     if (!request) return reply(res, 404, { ok: false, error: 'order_not_found' });
 
@@ -48,7 +50,11 @@ module.exports = async function storeShipmentUpdate(req, res) {
     if (['store_rejected', 'store_cancelled', 'restored'].includes(request.status)) return reply(res, 409, { ok: false, error: 'order_not_shippable', status: request.status });
 
     const currentResponse = await fetch(`${context.supabaseUrl}/rest/v1/store_shipments?select=*&request_id=eq.${encodeURIComponent(requestId)}&limit=1`, { headers: base });
-    const currentRows = currentResponse.ok ? await currentResponse.json() : [];
+    // Fail closed: if the saved shipment cannot be read, the transition check below would be skipped and an earlier status
+    // could be written over a later one, so a read failure stops the update instead of looking like "no shipment yet".
+    let currentRows = null;
+    try { currentRows = currentResponse.ok ? await currentResponse.json() : null; } catch (_) { currentRows = null; }
+    if (!Array.isArray(currentRows)) return reply(res, 502, { ok: false, error: 'shipment_read_failed' });
     const current = currentRows[0];
     if (current && !canShippingTransition(current.shipping_status, status)) return reply(res, 409, { ok: false, error: 'invalid_shipping_transition', from: current.shipping_status, to: status });
 
@@ -67,11 +73,19 @@ module.exports = async function storeShipmentUpdate(req, res) {
     };
     const saveResponse = await fetch(`${context.supabaseUrl}/rest/v1/store_shipments?on_conflict=request_id`, { method: 'POST', headers: { ...base, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=representation' }, body: JSON.stringify(patch) });
     const saved = await saveResponse.json();
-    if (!saveResponse.ok) return reply(res, 502, { ok: false, error: 'shipment_save_failed', details: saved });
+    if (!saveResponse.ok) {
+      console.error('store-shipment-update: save failed', saved && saved.code, saved && saved.message);
+      return reply(res, 502, { ok: false, error: 'shipment_save_failed' });
+    }
 
     const notification = { request_id: request.id, tracking_number: request.tracking_number, event_type: 'store_update', store_status: status, match_status: 'pending', payload: { type: 'shipping_update', ...patch, source: context.profile.role } };
-    await fetch(`${context.supabaseUrl}/rest/v1/store_order_notifications`, { method: 'POST', headers: { ...base, 'Content-Type': 'application/json' }, body: JSON.stringify(notification) });
-    reply(res, 200, { ok: true, shipment: saved[0] || patch });
+    // The shipment is already saved, so a failed notification is reported to the caller instead of being ignored.
+    let notificationQueued = false;
+    try {
+      const queued = await fetch(`${context.supabaseUrl}/rest/v1/store_order_notifications`, { method: 'POST', headers: { ...base, 'Content-Type': 'application/json' }, body: JSON.stringify(notification) });
+      notificationQueued = queued.ok;
+    } catch (_) { notificationQueued = false; }
+    reply(res, 200, { ok: true, shipment: saved[0] || patch, notificationQueued });
   } catch (_) {
     reply(res, 502, { ok: false, error: 'shipment_update_failed' });
   }
