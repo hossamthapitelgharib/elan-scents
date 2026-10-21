@@ -28,7 +28,7 @@ npm test           # node --test tests/*.test.js
 - `SUPABASE_URL` / `SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY`
 - `STORE_ORDER_WEBHOOK_SECRET` — سر webhooks المتاجر (بدونه ترد الـ webhooks بـ 503)
 - `GITHUB_TOKEN` — للحفظ من الإديتور على `design/home.json`
-- `EDITOR_TARGET_BRANCH` — في الإنتاج `main` (والقيمة الافتراضية في الكود `editor-staging`)
+- `EDITOR_TARGET_BRANCH` — فرع الحفظ؛ في الإنتاج (`RAILWAY_ENVIRONMENT_NAME=production`) الافتراضي `main`، وخارج الإنتاج لا بد من فرع معزول عبر `EDITOR_BRANCH` (`railway/editor.js`)
 - `EDITOR_SITE_ORIGIN` — أصل الموقع العام
 
 ## لينك المحرر
