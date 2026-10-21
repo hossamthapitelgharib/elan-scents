@@ -26,9 +26,15 @@ npm test           # node --test tests/*.test.js
 ## متغيرات البيئة (Railway)
 
 - `SUPABASE_URL` / `SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY`
+- `STORE_ORDER_WEBHOOK_SECRET` — سر webhooks المتاجر (بدونه ترد الـ webhooks بـ 503)
 - `GITHUB_TOKEN` — للحفظ من الإديتور على `design/home.json`
-- `EDITOR_TARGET_BRANCH` — افتراضي `editor-staging` (`main` يحتاج موافقة صريحة)
+- `EDITOR_TARGET_BRANCH` — في الإنتاج `main` (والقيمة الافتراضية في الكود `editor-staging`)
 - `EDITOR_SITE_ORIGIN` — أصل الموقع العام
+
+## لينك المحرر
+
+- المحرر يعمل على `https://elan-site-production.up.railway.app/editor`.
+- خدمة `elan-editor` في Railway تحوّل نطاقها إلى هذا اللينك، فتجد لينك المحرر الحديث داخل لوحة Railway وتفتحه من أي جهاز. التفاصيل في `CLAUDE.md`.
 
 ## صلاحيات Claude على المستودع
 
