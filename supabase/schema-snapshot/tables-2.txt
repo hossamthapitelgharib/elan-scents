@@ -1,0 +1,279 @@
+TABLE favorites  rls=on  grants: anon=- authenticated=rawd service_role=rawdDxt
+  id uuid NOT NULL DEFAULT gen_random_uuid()
+  user_id uuid NOT NULL
+  product_id uuid NOT NULL
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT favorites_pkey PRIMARY KEY (id)
+  CONSTRAINT favorites_user_id_product_id_key UNIQUE (user_id, product_id)
+  CONSTRAINT favorites_product_id_fkey FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+  CONSTRAINT favorites_user_id_fkey FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE
+  CREATE INDEX idx_favorites_product_id ON favorites USING btree (product_id)
+  POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
+  POLICY own_all PERMISSIVE FOR ALL TO authenticated USING ((user_id = ( SELECT auth.uid() AS uid))) WITH CHECK ((user_id = ( SELECT auth.uid() AS uid)))
+  CREATE TRIGGER set_updated_at BEFORE UPDATE ON favorites FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
+
+TABLE guest_analytics_visits  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
+  visitor_hash text NOT NULL
+  activity_date date NOT NULL
+  first_seen_at timestamp with time zone NOT NULL DEFAULT now()
+  last_seen_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT guest_analytics_visits_pkey PRIMARY KEY (visitor_hash, activity_date)
+  CONSTRAINT guest_analytics_visits_visitor_hash_check CHECK ((visitor_hash ~ '^[a-f0-9]{64}$'::text))
+  CREATE INDEX guest_analytics_visits_last_seen_idx ON guest_analytics_visits USING btree (last_seen_at)
+  POLICY guest_analytics_visits_no_client_access PERMISSIVE FOR ALL TO anon,authenticated USING (false) WITH CHECK (false)
+
+TABLE guest_conversions  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
+  visitor_hash text NOT NULL
+  user_id uuid NOT NULL
+  first_seen_date date NOT NULL
+  converted_on date NOT NULL
+  converted_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT guest_conversions_pkey PRIMARY KEY (visitor_hash, user_id)
+  CONSTRAINT guest_conversions_user_id_fkey FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE
+  CONSTRAINT guest_conversions_visitor_hash_check CHECK ((visitor_hash ~ '^[a-f0-9]{64}$'::text))
+  CREATE INDEX guest_conversions_dates_idx ON guest_conversions USING btree (first_seen_date, converted_on)
+  CREATE INDEX guest_conversions_user_idx ON guest_conversions USING btree (user_id)
+  POLICY guest_conversions_no_client_access PERMISSIVE FOR ALL TO anon,authenticated USING (false) WITH CHECK (false)
+
+TABLE guest_fingerprints  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
+  analytics_hash text NOT NULL
+  fp_hash text NOT NULL
+  parts jsonb NOT NULL DEFAULT '{}'::jsonb
+  ip_hash text
+  ip_prefix_hash text
+  ua_hash text
+  lang_hash text
+  cart_hash text
+  interactions integer NOT NULL DEFAULT 0
+  active_seconds integer NOT NULL DEFAULT 0
+  pages integer NOT NULL DEFAULT 0
+  seen_count integer NOT NULL DEFAULT 1
+  first_seen_at timestamp with time zone NOT NULL DEFAULT now()
+  last_seen_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT guest_fingerprints_pkey PRIMARY KEY (analytics_hash, fp_hash)
+  CONSTRAINT guest_fingerprints_active_seconds_check CHECK ((active_seconds >= 0))
+  CONSTRAINT guest_fingerprints_analytics_hash_check CHECK ((analytics_hash ~ '^[a-f0-9]{64}$'::text))
+  CONSTRAINT guest_fingerprints_cart_hash_check CHECK (((cart_hash IS NULL) OR (cart_hash ~ '^[a-f0-9]{64}$'::text)))
+  CONSTRAINT guest_fingerprints_fp_hash_check CHECK ((fp_hash ~ '^[a-f0-9]{16,64}$'::text))
+  CONSTRAINT guest_fingerprints_interactions_check CHECK ((interactions >= 0))
+  CONSTRAINT guest_fingerprints_ip_hash_check CHECK (((ip_hash IS NULL) OR (ip_hash ~ '^[a-f0-9]{64}$'::text)))
+  CONSTRAINT guest_fingerprints_ip_prefix_hash_check CHECK (((ip_prefix_hash IS NULL) OR (ip_prefix_hash ~ '^[a-f0-9]{64}$'::text)))
+  CONSTRAINT guest_fingerprints_lang_hash_check CHECK (((lang_hash IS NULL) OR (lang_hash ~ '^[a-f0-9]{64}$'::text)))
+  CONSTRAINT guest_fingerprints_pages_check CHECK ((pages >= 0))
+  CONSTRAINT guest_fingerprints_parts_check CHECK ((jsonb_typeof(parts) = 'object'::text))
+  CONSTRAINT guest_fingerprints_seen_count_check CHECK ((seen_count >= 1))
+  CONSTRAINT guest_fingerprints_ua_hash_check CHECK (((ua_hash IS NULL) OR (ua_hash ~ '^[a-f0-9]{64}$'::text)))
+  CREATE INDEX guest_fingerprints_device_idx ON guest_fingerprints USING btree (((parts ->> 'gpu'::text)), ((parts ->> 'screen'::text)))
+  CREATE INDEX guest_fingerprints_fp_idx ON guest_fingerprints USING btree (fp_hash)
+  CREATE INDEX guest_fingerprints_last_seen_idx ON guest_fingerprints USING btree (last_seen_at)
+  POLICY guest_fingerprints_no_client_access PERMISSIVE FOR ALL TO anon,authenticated USING (false) WITH CHECK (false)
+
+TABLE guest_identity_links  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
+  hash_a text NOT NULL
+  hash_b text NOT NULL
+  score numeric NOT NULL
+  reasons jsonb NOT NULL DEFAULT '[]'::jsonb
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  last_confirmed_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT guest_identity_links_pkey PRIMARY KEY (hash_a, hash_b)
+  CONSTRAINT guest_identity_links_check CHECK ((hash_a < hash_b))
+  CONSTRAINT guest_identity_links_hash_a_check CHECK ((hash_a ~ '^[a-f0-9]{64}$'::text))
+  CONSTRAINT guest_identity_links_hash_b_check CHECK ((hash_b ~ '^[a-f0-9]{64}$'::text))
+  CREATE INDEX guest_identity_links_b_idx ON guest_identity_links USING btree (hash_b)
+  CREATE INDEX guest_identity_links_last_confirmed_idx ON guest_identity_links USING btree (last_confirmed_at)
+  POLICY guest_identity_links_no_client_access PERMISSIVE FOR ALL TO anon,authenticated USING (false) WITH CHECK (false)
+
+TABLE guest_product_analytics  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
+  visitor_hash text NOT NULL
+  product_id uuid NOT NULL
+  activity_date date NOT NULL
+  event_type text NOT NULL
+  event_count integer NOT NULL DEFAULT 1
+  first_seen_at timestamp with time zone NOT NULL DEFAULT now()
+  last_seen_at timestamp with time zone NOT NULL DEFAULT now()
+  product_snapshot jsonb NOT NULL DEFAULT '{}'::jsonb
+  CONSTRAINT guest_product_analytics_visitor_hash_product_id_activity_da_key UNIQUE (visitor_hash, product_id, activity_date, event_type)
+  CONSTRAINT guest_product_analytics_event_count_check CHECK (((event_count >= 1) AND (event_count <= 1000000)))
+  CONSTRAINT guest_product_analytics_event_type_check CHECK ((event_type = ANY (ARRAY['view'::text, 'search'::text, 'cart_add'::text, 'cart_remove'::text])))
+  CONSTRAINT guest_product_analytics_visitor_hash_check CHECK ((visitor_hash ~ '^[a-f0-9]{64}$'::text))
+  CREATE INDEX guest_product_analytics_date_type_idx ON guest_product_analytics USING btree (activity_date DESC, event_type, product_id)
+  CREATE INDEX guest_product_analytics_last_seen_idx ON guest_product_analytics USING btree (last_seen_at)
+  CREATE INDEX guest_product_analytics_visitor_idx ON guest_product_analytics USING btree (visitor_hash, activity_date DESC)
+  POLICY guest_product_analytics_no_client_access PERMISSIVE FOR ALL TO anon,authenticated USING (false) WITH CHECK (false)
+
+TABLE guest_visitors  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
+  id uuid NOT NULL DEFAULT gen_random_uuid()
+  fingerprint_hash text
+  cart_snapshot jsonb NOT NULL DEFAULT '[]'::jsonb
+  status text NOT NULL DEFAULT 'guest'::text
+  captured_at timestamp with time zone NOT NULL DEFAULT now()
+  first_seen_at timestamp with time zone NOT NULL DEFAULT now()
+  last_seen_at timestamp with time zone NOT NULL DEFAULT now()
+  converted_user_id uuid
+  converted_at timestamp with time zone
+  identity_version smallint NOT NULL DEFAULT 1
+  CONSTRAINT guest_visitors_pkey PRIMARY KEY (id)
+  CONSTRAINT guest_visitors_fingerprint_hash_key UNIQUE (fingerprint_hash)
+  CONSTRAINT guest_visitors_converted_user_id_fkey FOREIGN KEY (converted_user_id) REFERENCES auth.users(id) ON DELETE SET NULL
+  CONSTRAINT guest_visitors_cart_snapshot_check CHECK ((jsonb_typeof(cart_snapshot) = 'array'::text))
+  CONSTRAINT guest_visitors_fingerprint_hash_format CHECK (((fingerprint_hash IS NULL) OR (fingerprint_hash ~ '^[a-f0-9]{64}$'::text)))
+  CONSTRAINT guest_visitors_status_check CHECK ((status = ANY (ARRAY['guest'::text, 'converted'::text])))
+  CREATE INDEX guest_visitors_active_identity_idx ON guest_visitors USING btree (identity_version, last_seen_at DESC) WHERE (status = 'guest'::text)
+  CREATE INDEX guest_visitors_converted_user_idx ON guest_visitors USING btree (converted_user_id) WHERE (converted_user_id IS NOT NULL)
+  CREATE INDEX guest_visitors_last_seen_idx ON guest_visitors USING btree (last_seen_at DESC)
+  POLICY guest_visitors_platform_admin_read PERMISSIVE FOR SELECT TO authenticated USING (private.is_platform_admin())
+
+TABLE marketing_phrases  rls=on  grants: anon=r authenticated=rawd service_role=rawdDxt
+  id uuid NOT NULL DEFAULT gen_random_uuid()
+  phrase_ar text NOT NULL
+  phrase_en text
+  category text
+  is_public boolean NOT NULL DEFAULT false
+  usage_scope text
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT marketing_phrases_pkey PRIMARY KEY (id)
+  CONSTRAINT marketing_phrases_category_check CHECK ((category = ANY (ARRAY['slogan'::text, 'section'::text, 'internal_reference'::text])))
+  POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
+  POLICY public_read PERMISSIVE FOR SELECT TO anon,authenticated USING (is_public)
+  CREATE TRIGGER set_updated_at BEFORE UPDATE ON marketing_phrases FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
+
+TABLE media_library  rls=on  grants: anon=r authenticated=rawd service_role=rawdDxt
+  id uuid NOT NULL DEFAULT gen_random_uuid()
+  file_url text NOT NULL
+  file_type text
+  source text
+  alt_text text
+  linked_entity_type text
+  linked_entity_id uuid
+  is_approved boolean NOT NULL DEFAULT false
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+  title text
+  category text
+  storage_path text
+  mime_type text
+  size_bytes bigint
+  CONSTRAINT media_library_pkey PRIMARY KEY (id)
+  CONSTRAINT media_library_file_type_check CHECK ((file_type = ANY (ARRAY['image'::text, 'video'::text])))
+  CONSTRAINT media_library_size_nonneg CHECK (((size_bytes IS NULL) OR (size_bytes >= 0)))
+  CONSTRAINT media_library_source_check CHECK ((source = ANY (ARRAY['device_upload'::text, 'ai_generated'::text, 'store_catalog'::text, 'brand_official'::text])))
+  CREATE INDEX idx_media_library_category_created ON media_library USING btree (category, created_at DESC)
+  CREATE INDEX idx_media_linked ON media_library USING btree (linked_entity_type, linked_entity_id)
+  CREATE UNIQUE INDEX uq_media_library_storage_path ON media_library USING btree (storage_path) WHERE (storage_path IS NOT NULL)
+  POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
+  POLICY public_read PERMISSIVE FOR SELECT TO anon,authenticated USING (is_approved)
+  CREATE TRIGGER set_updated_at BEFORE UPDATE ON media_library FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
+
+TABLE notifications  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
+  id uuid NOT NULL DEFAULT gen_random_uuid()
+  user_id uuid
+  title text NOT NULL
+  body text
+  is_read boolean NOT NULL DEFAULT false
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+  recipient_role text
+  store_id uuid
+  checkout_session_id uuid
+  request_id uuid
+  tracking_number text
+  type text
+  payload jsonb NOT NULL DEFAULT '{}'::jsonb
+  read_at timestamp with time zone
+  CONSTRAINT notifications_pkey PRIMARY KEY (id)
+  CONSTRAINT notifications_checkout_session_id_fkey FOREIGN KEY (checkout_session_id) REFERENCES checkout_sessions(id) ON DELETE CASCADE
+  CONSTRAINT notifications_request_id_fkey FOREIGN KEY (request_id) REFERENCES store_order_requests(id) ON DELETE CASCADE
+  CONSTRAINT notifications_store_id_fkey FOREIGN KEY (store_id) REFERENCES stores(id) ON DELETE CASCADE
+  CONSTRAINT notifications_user_id_fkey FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE
+  CONSTRAINT notifications_recipient_role_check CHECK (((recipient_role IS NULL) OR (recipient_role = ANY (ARRAY['customer'::text, 'store_admin'::text, 'platform_admin'::text]))))
+  CREATE INDEX idx_notifications_user_id ON notifications USING btree (user_id)
+  CREATE INDEX notifications_checkout_session_id_idx ON notifications USING btree (checkout_session_id)
+  CREATE INDEX notifications_request_created_idx ON notifications USING btree (request_id, created_at DESC)
+  CREATE INDEX notifications_store_created_idx ON notifications USING btree (store_id, created_at DESC)
+  CREATE INDEX notifications_user_created_idx ON notifications USING btree (user_id, created_at DESC)
+  POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
+  POLICY own_read PERMISSIVE FOR SELECT TO authenticated USING ((user_id = ( SELECT auth.uid() AS uid)))
+  CREATE TRIGGER set_updated_at BEFORE UPDATE ON notifications FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
+
+TABLE occasions  rls=on  grants: anon=r authenticated=rawd service_role=rawdDxt
+  id uuid NOT NULL DEFAULT gen_random_uuid()
+  name text NOT NULL
+  image_url text
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT occasions_pkey PRIMARY KEY (id)
+  CONSTRAINT occasions_name_key UNIQUE (name)
+  POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
+  POLICY public_read PERMISSIVE FOR SELECT TO anon,authenticated USING (true)
+  CREATE TRIGGER set_updated_at BEFORE UPDATE ON occasions FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
+
+TABLE offers  rls=on  grants: anon=- authenticated=awd service_role=rawdDxt
+  id uuid NOT NULL DEFAULT gen_random_uuid()
+  store_id uuid NOT NULL
+  product_size_id uuid
+  title text NOT NULL
+  description text
+  discount_type text
+  discount_value numeric(12,2)
+  start_date timestamp with time zone
+  end_date timestamp with time zone
+  is_active boolean NOT NULL DEFAULT true
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT offers_pkey PRIMARY KEY (id)
+  CONSTRAINT offers_product_size_id_fkey FOREIGN KEY (product_size_id) REFERENCES product_sizes(id) ON DELETE CASCADE
+  CONSTRAINT offers_store_id_fkey FOREIGN KEY (store_id) REFERENCES stores(id) ON DELETE CASCADE
+  CONSTRAINT offers_discount_type_check CHECK ((discount_type = ANY (ARRAY['percentage'::text, 'fixed'::text, 'package'::text])))
+  CREATE INDEX idx_offers_is_active ON offers USING btree (is_active) WHERE is_active
+  CREATE INDEX idx_offers_product_size_id ON offers USING btree (product_size_id)
+  CREATE INDEX idx_offers_store_id ON offers USING btree (store_id)
+  COLUMN GRANTS anon=select,authenticated=select: product_size_id
+  POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
+  POLICY member_all PERMISSIVE FOR ALL TO authenticated USING (private.is_store_member(store_id)) WITH CHECK (private.is_store_member(store_id))
+  POLICY public_read PERMISSIVE FOR SELECT TO anon,authenticated USING ((is_active AND ((start_date IS NULL) OR (start_date <= now())) AND ((end_date IS NULL) OR (end_date >= now())) AND private.store_is_active(store_id)))
+  CREATE TRIGGER set_updated_at BEFORE UPDATE ON offers FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
+
+TABLE order_items  rls=on  grants: anon=- authenticated=awd service_role=rawdDxt
+  id uuid NOT NULL DEFAULT gen_random_uuid()
+  order_id uuid NOT NULL
+  store_product_id uuid NOT NULL
+  quantity integer NOT NULL
+  price_at_time numeric(12,2) NOT NULL
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT order_items_pkey PRIMARY KEY (id)
+  CONSTRAINT order_items_order_id_fkey FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
+  CONSTRAINT order_items_store_product_id_fkey FOREIGN KEY (store_product_id) REFERENCES store_products(id) ON DELETE RESTRICT
+  CONSTRAINT order_items_quantity_check CHECK ((quantity > 0))
+  CREATE INDEX idx_order_items_order_id ON order_items USING btree (order_id)
+  CREATE INDEX idx_order_items_store_product_id ON order_items USING btree (store_product_id)
+  POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
+  POLICY member_read PERMISSIVE FOR SELECT TO authenticated USING (private.is_store_member(private.sp_store(store_product_id)))
+  POLICY own_insert PERMISSIVE FOR INSERT TO authenticated WITH CHECK ((EXISTS ( SELECT 1 FROM orders o WHERE ((o.id = order_items.order_id) AND (o.user_id = ( SELECT auth.uid() AS uid)) AND (o.status = 'pending'::text)))))
+  POLICY own_read PERMISSIVE FOR SELECT TO authenticated USING ((EXISTS ( SELECT 1 FROM orders o WHERE ((o.id = order_items.order_id) AND (o.user_id = ( SELECT auth.uid() AS uid))))))
+  CREATE TRIGGER order_item_price BEFORE INSERT ON order_items FOR EACH ROW EXECUTE FUNCTION private.order_item_price()
+  CREATE TRIGGER set_updated_at BEFORE UPDATE ON order_items FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
+
+TABLE order_operation_events  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
+  id uuid NOT NULL DEFAULT gen_random_uuid()
+  checkout_session_id uuid
+  request_id uuid
+  actor_user_id uuid
+  actor_role text NOT NULL DEFAULT 'system'::text
+  event_type text NOT NULL
+  source text NOT NULL DEFAULT 'system'::text
+  before_state jsonb
+  after_state jsonb
+  payload jsonb NOT NULL DEFAULT '{}'::jsonb
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT order_operation_events_pkey PRIMARY KEY (id)
+  CONSTRAINT order_operation_events_actor_user_id_fkey FOREIGN KEY (actor_user_id) REFERENCES profiles(id) ON DELETE SET NULL
+  CONSTRAINT order_operation_events_checkout_session_id_fkey FOREIGN KEY (checkout_session_id) REFERENCES checkout_sessions(id) ON DELETE SET NULL
+  CONSTRAINT order_operation_events_request_id_fkey FOREIGN KEY (request_id) REFERENCES store_order_requests(id) ON DELETE SET NULL
+  CREATE INDEX order_operation_events_actor_user_idx ON order_operation_events USING btree (actor_user_id, created_at DESC)
+  CREATE INDEX order_operation_events_request_idx ON order_operation_events USING btree (request_id, created_at DESC)
+  CREATE INDEX order_operation_events_session_idx ON order_operation_events USING btree (checkout_session_id, created_at DESC)
+  CREATE INDEX order_operation_events_type_idx ON order_operation_events USING btree (event_type, created_at DESC)
+  POLICY order_operation_events_internal_read PERMISSIVE FOR SELECT TO authenticated USING ((private.is_platform_admin() OR (EXISTS ( SELECT 1 FROM store_order_requests r WHERE ((r.id = order_operation_events.request_id) AND private.is_store_member(r.store_id))))))

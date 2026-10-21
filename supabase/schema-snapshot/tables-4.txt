@@ -1,0 +1,241 @@
+TABLE store_order_item_adjustments  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
+  id uuid NOT NULL DEFAULT gen_random_uuid()
+  request_id uuid NOT NULL
+  request_item_id uuid NOT NULL
+  adjustment_type text NOT NULL
+  status text NOT NULL DEFAULT 'pending'::text
+  quantity integer NOT NULL DEFAULT 0
+  amount numeric NOT NULL DEFAULT 0
+  currency text NOT NULL DEFAULT 'EGP'::text
+  reason text
+  external_reference text
+  created_by uuid
+  processed_at timestamp with time zone
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT store_order_item_adjustments_pkey PRIMARY KEY (id)
+  CONSTRAINT store_order_item_adjustments_created_by_fkey FOREIGN KEY (created_by) REFERENCES profiles(id) ON DELETE SET NULL
+  CONSTRAINT store_order_item_adjustments_item_request_fkey FOREIGN KEY (request_item_id, request_id) REFERENCES store_order_request_items(id, request_id) ON DELETE CASCADE
+  CONSTRAINT store_order_item_adjustments_request_id_fkey FOREIGN KEY (request_id) REFERENCES store_order_requests(id) ON DELETE CASCADE
+  CONSTRAINT store_order_item_adjustments_request_item_id_fkey FOREIGN KEY (request_item_id) REFERENCES store_order_request_items(id) ON DELETE CASCADE
+  CONSTRAINT store_order_item_adjustments_adjustment_type_check CHECK ((adjustment_type = ANY (ARRAY['return'::text, 'refund'::text])))
+  CONSTRAINT store_order_item_adjustments_amount_check CHECK ((amount >= (0)::numeric))
+  CONSTRAINT store_order_item_adjustments_positive_effect CHECK (((quantity > 0) OR (amount > (0)::numeric)))
+  CONSTRAINT store_order_item_adjustments_quantity_check CHECK ((quantity >= 0))
+  CONSTRAINT store_order_item_adjustments_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'approved'::text, 'completed'::text, 'rejected'::text, 'cancelled'::text])))
+  CREATE INDEX store_order_item_adjustments_created_by_idx ON store_order_item_adjustments USING btree (created_by)
+  CREATE INDEX store_order_item_adjustments_item_idx ON store_order_item_adjustments USING btree (request_item_id, status, adjustment_type)
+  CREATE INDEX store_order_item_adjustments_item_request_idx ON store_order_item_adjustments USING btree (request_item_id, request_id)
+  CREATE INDEX store_order_item_adjustments_request_idx ON store_order_item_adjustments USING btree (request_id, status)
+  CREATE TRIGGER validate_store_order_item_adjustment_trigger BEFORE INSERT OR UPDATE ON store_order_item_adjustments FOR EACH ROW EXECUTE FUNCTION validate_store_order_item_adjustment()
+
+TABLE store_order_notifications  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
+  id uuid NOT NULL DEFAULT gen_random_uuid()
+  request_id uuid
+  tracking_number text NOT NULL
+  event_type text NOT NULL
+  store_status text
+  match_status text NOT NULL DEFAULT 'pending'::text
+  mismatch_fields jsonb NOT NULL DEFAULT '[]'::jsonb
+  payload jsonb NOT NULL DEFAULT '{}'::jsonb
+  received_at timestamp with time zone NOT NULL DEFAULT now()
+  idempotency_key text
+  CONSTRAINT store_order_notifications_pkey PRIMARY KEY (id)
+  CONSTRAINT store_order_notifications_request_id_fkey FOREIGN KEY (request_id) REFERENCES store_order_requests(id) ON DELETE SET NULL
+  CONSTRAINT store_order_notifications_event_type_check CHECK ((event_type = ANY (ARRAY['initial_submitted'::text, 'store_completed'::text, 'store_rejected'::text, 'store_cancelled'::text, 'store_update'::text])))
+  CONSTRAINT store_order_notifications_match_status_check CHECK ((match_status = ANY (ARRAY['pending'::text, 'matched'::text, 'mismatched'::text, 'unmatched'::text])))
+  CREATE UNIQUE INDEX store_order_notifications_idempotency_uidx ON store_order_notifications USING btree (idempotency_key) WHERE (idempotency_key IS NOT NULL)
+  CREATE INDEX store_order_notifications_request_id_idx ON store_order_notifications USING btree (request_id)
+  CREATE INDEX store_order_notifications_tracking_idx ON store_order_notifications USING btree (tracking_number, received_at DESC)
+  POLICY store_order_notifications_admin_all PERMISSIVE FOR ALL TO authenticated USING (private.is_platform_admin()) WITH CHECK (private.is_platform_admin())
+  POLICY store_order_notifications_owner_read PERMISSIVE FOR SELECT TO authenticated USING ((EXISTS ( SELECT 1 FROM store_order_requests r WHERE ((r.id = store_order_notifications.request_id) AND (r.user_id = ( SELECT auth.uid() AS uid))))))
+  POLICY store_order_notifications_store_read PERMISSIVE FOR SELECT TO authenticated USING ((EXISTS ( SELECT 1 FROM store_order_requests r WHERE ((r.id = store_order_notifications.request_id) AND private.is_store_member(r.store_id)))))
+  CREATE TRIGGER store_order_notification_reconciliation_trigger AFTER INSERT ON store_order_notifications FOR EACH ROW EXECUTE FUNCTION record_order_reconciliation_check()
+
+TABLE store_order_request_items  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
+  id uuid NOT NULL DEFAULT gen_random_uuid()
+  request_id uuid NOT NULL
+  store_product_id uuid
+  product_size_id uuid
+  product_name text NOT NULL
+  brand_name text
+  size_label text
+  quantity integer NOT NULL
+  unit_price numeric(12,2) NOT NULL
+  line_total numeric(12,2) NOT NULL
+  currency text NOT NULL DEFAULT 'EGP'::text
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  product_id uuid
+  source_cart_item_id uuid
+  CONSTRAINT store_order_request_items_pkey PRIMARY KEY (id)
+  CONSTRAINT store_order_request_items_id_request_unique UNIQUE (id, request_id)
+  CONSTRAINT store_order_request_items_request_id_product_size_id_key UNIQUE (request_id, product_size_id)
+  CONSTRAINT store_order_request_items_product_size_id_fkey FOREIGN KEY (product_size_id) REFERENCES product_sizes(id)
+  CONSTRAINT store_order_request_items_request_id_fkey FOREIGN KEY (request_id) REFERENCES store_order_requests(id) ON DELETE CASCADE
+  CONSTRAINT store_order_request_items_store_product_id_fkey FOREIGN KEY (store_product_id) REFERENCES store_products(id)
+  CONSTRAINT store_order_request_items_line_total_check CHECK ((line_total >= (0)::numeric))
+  CONSTRAINT store_order_request_items_quantity_check CHECK ((quantity > 0))
+  CONSTRAINT store_order_request_items_unit_price_check CHECK ((unit_price >= (0)::numeric))
+  CREATE INDEX store_order_request_items_best_seller_join_idx ON store_order_request_items USING btree (request_id, product_id, size_label) INCLUDE (quantity, product_name, brand_name)
+  CREATE INDEX store_order_request_items_product_id_request_idx ON store_order_request_items USING btree (product_id, request_id)
+  CREATE INDEX store_order_request_items_product_size_id_idx ON store_order_request_items USING btree (product_size_id)
+  CREATE INDEX store_order_request_items_source_cart_idx ON store_order_request_items USING btree (source_cart_item_id)
+  CREATE INDEX store_order_request_items_store_product_id_idx ON store_order_request_items USING btree (store_product_id)
+  POLICY store_order_request_items_admin_all PERMISSIVE FOR ALL TO authenticated USING (private.is_platform_admin()) WITH CHECK (private.is_platform_admin())
+  POLICY store_order_request_items_owner_read PERMISSIVE FOR SELECT TO authenticated USING ((EXISTS ( SELECT 1 FROM store_order_requests r WHERE ((r.id = store_order_request_items.request_id) AND (r.user_id = ( SELECT auth.uid() AS uid))))))
+  POLICY store_order_request_items_store_read PERMISSIVE FOR SELECT TO authenticated USING ((EXISTS ( SELECT 1 FROM store_order_requests r WHERE ((r.id = store_order_request_items.request_id) AND private.is_store_member(r.store_id)))))
+
+TABLE store_order_requests  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
+  id uuid NOT NULL DEFAULT gen_random_uuid()
+  tracking_number text NOT NULL
+  store_id uuid NOT NULL
+  user_id uuid
+  customer_name text NOT NULL
+  customer_phone text NOT NULL
+  customer_email text
+  customer_address text NOT NULL
+  customer_notes text
+  status text NOT NULL DEFAULT 'awaiting_store_confirmation'::text
+  subtotal numeric(12,2) NOT NULL DEFAULT 0
+  shipping_amount numeric(12,2)
+  total_amount numeric(12,2)
+  currency text NOT NULL DEFAULT 'EGP'::text
+  store_order_reference text
+  failure_reason text
+  initial_payload jsonb NOT NULL DEFAULT '{}'::jsonb
+  latest_store_payload jsonb
+  reconciliation_status text NOT NULL DEFAULT 'pending'::text
+  mismatch_fields jsonb NOT NULL DEFAULT '[]'::jsonb
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+  checkout_tracking_number text
+  checkout_session_id uuid
+  inventory_applied_at timestamp with time zone
+  CONSTRAINT store_order_requests_pkey PRIMARY KEY (id)
+  CONSTRAINT store_order_requests_tracking_number_key UNIQUE (tracking_number)
+  CONSTRAINT store_order_requests_checkout_session_id_fkey FOREIGN KEY (checkout_session_id) REFERENCES checkout_sessions(id)
+  CONSTRAINT store_order_requests_store_id_fkey FOREIGN KEY (store_id) REFERENCES stores(id)
+  CONSTRAINT store_order_requests_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+  CONSTRAINT store_order_requests_reconciliation_status_check CHECK ((reconciliation_status = ANY (ARRAY['pending'::text, 'matched'::text, 'mismatched'::text])))
+  CONSTRAINT store_order_requests_shipping_amount_check CHECK (((shipping_amount IS NULL) OR (shipping_amount >= (0)::numeric)))
+  CONSTRAINT store_order_requests_status_check CHECK ((status = ANY (ARRAY['awaiting_store_confirmation'::text, 'store_confirmed'::text, 'processing'::text, 'shipped'::text, 'delivered'::text, 'store_rejected'::text, 'store_cancelled'::text, 'needs_review'::text, 'completed'::text, 'cancelled'::text])))
+  CONSTRAINT store_order_requests_subtotal_check CHECK ((subtotal >= (0)::numeric))
+  CONSTRAINT store_order_requests_total_amount_check CHECK (((total_amount IS NULL) OR (total_amount >= (0)::numeric)))
+  CREATE INDEX store_order_requests_best_seller_scope_idx ON store_order_requests USING btree (created_at, status, reconciliation_status) INCLUDE (id, user_id, checkout_session_id, store_id)
+  CREATE INDEX store_order_requests_checkout_tracking_idx ON store_order_requests USING btree (checkout_tracking_number, created_at DESC)
+  CREATE INDEX store_order_requests_inventory_applied_idx ON store_order_requests USING btree (inventory_applied_at) WHERE (inventory_applied_at IS NOT NULL)
+  CREATE INDEX store_order_requests_session_idx ON store_order_requests USING btree (checkout_session_id, created_at DESC)
+  CREATE INDEX store_order_requests_store_status_idx ON store_order_requests USING btree (store_id, status, created_at DESC)
+  CREATE INDEX store_order_requests_user_id_idx ON store_order_requests USING btree (user_id)
+  POLICY store_order_requests_admin_all PERMISSIVE FOR ALL TO authenticated USING (private.is_platform_admin()) WITH CHECK (private.is_platform_admin())
+  POLICY store_order_requests_owner_read PERMISSIVE FOR SELECT TO authenticated USING ((user_id = ( SELECT auth.uid() AS uid)))
+  POLICY store_order_requests_store_read PERMISSIVE FOR SELECT TO authenticated USING (private.is_store_member(store_id))
+  CREATE TRIGGER store_order_notifications_realtime_trigger AFTER INSERT OR UPDATE ON store_order_requests FOR EACH ROW EXECUTE FUNCTION notifications_on_store_order_change()
+  CREATE TRIGGER store_order_request_audit_trigger AFTER INSERT OR UPDATE ON store_order_requests FOR EACH ROW EXECUTE FUNCTION audit_store_order_request_change()
+
+TABLE store_products  rls=on  grants: anon=- authenticated=awd service_role=rawdDxt
+  id uuid NOT NULL DEFAULT gen_random_uuid()
+  store_id uuid NOT NULL
+  product_size_id uuid NOT NULL
+  price numeric(12,2) NOT NULL
+  original_price numeric(12,2)
+  discount_percentage numeric(5,2)
+  stock_quantity integer DEFAULT 0
+  is_available boolean NOT NULL DEFAULT false
+  is_new_arrival boolean NOT NULL DEFAULT false
+  is_coming_soon boolean NOT NULL DEFAULT false
+  price_includes_tax boolean
+  price_includes_shipping boolean
+  currency text NOT NULL DEFAULT 'EGP'::text
+  data_source text NOT NULL DEFAULT 'store_catalog'::text
+  sync_status text NOT NULL DEFAULT 'unavailable'::text
+  last_synced_at timestamp with time zone
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+  product_url text
+  is_catalog_bestseller boolean NOT NULL DEFAULT false
+  CONSTRAINT store_products_pkey PRIMARY KEY (id)
+  CONSTRAINT store_products_store_id_product_size_id_key UNIQUE (store_id, product_size_id)
+  CONSTRAINT store_products_product_size_id_fkey FOREIGN KEY (product_size_id) REFERENCES product_sizes(id) ON DELETE CASCADE
+  CONSTRAINT store_products_store_id_fkey FOREIGN KEY (store_id) REFERENCES stores(id) ON DELETE CASCADE
+  CONSTRAINT store_products_discount_percentage_check CHECK (((discount_percentage >= (0)::numeric) AND (discount_percentage <= (100)::numeric)))
+  CONSTRAINT store_products_original_price_check CHECK ((original_price >= (0)::numeric))
+  CONSTRAINT store_products_price_check CHECK ((price >= (0)::numeric))
+  CONSTRAINT store_products_stock_quantity_check CHECK ((stock_quantity >= 0))
+  CONSTRAINT store_products_sync_status_check CHECK ((sync_status = ANY (ARRAY['synced'::text, 'stale'::text, 'unavailable'::text])))
+  CREATE INDEX idx_store_products_cheapest ON store_products USING btree (product_size_id, price) WHERE is_available
+  CREATE INDEX idx_store_products_is_available ON store_products USING btree (is_available) WHERE is_available
+  CREATE INDEX idx_store_products_price ON store_products USING btree (price)
+  CREATE INDEX idx_store_products_product_size_id ON store_products USING btree (product_size_id)
+  CREATE INDEX idx_store_products_store_id ON store_products USING btree (store_id)
+  COLUMN GRANTS anon=select,authenticated=select: id,store_id,product_size_id,price,stock_quantity,is_available,is_new_arrival,price_includes_tax,price_includes_shipping,currency,sync_status,last_synced_at,is_catalog_bestseller
+  POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
+  POLICY member_all PERMISSIVE FOR ALL TO authenticated USING (private.is_store_member(store_id)) WITH CHECK (private.is_store_member(store_id))
+  POLICY public_read PERMISSIVE FOR SELECT TO anon,authenticated USING ((is_available AND (stock_quantity > 0) AND (sync_status = 'synced'::text) AND private.store_is_active(store_id)))
+  CREATE TRIGGER set_updated_at BEFORE UPDATE ON store_products FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
+
+TABLE store_shipments  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
+  id uuid NOT NULL DEFAULT gen_random_uuid()
+  request_id uuid NOT NULL
+  store_id uuid NOT NULL
+  carrier_name text
+  tracking_code text
+  shipping_status text NOT NULL DEFAULT 'preparing'::text
+  status_note text
+  estimated_delivery_at timestamp with time zone
+  delivered_at timestamp with time zone
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT store_shipments_pkey PRIMARY KEY (id)
+  CONSTRAINT store_shipments_request_id_key UNIQUE (request_id)
+  CONSTRAINT store_shipments_request_id_fkey FOREIGN KEY (request_id) REFERENCES store_order_requests(id) ON DELETE CASCADE
+  CONSTRAINT store_shipments_store_id_fkey FOREIGN KEY (store_id) REFERENCES stores(id)
+  CONSTRAINT store_shipments_carrier_name_check CHECK ((length(COALESCE(carrier_name, ''::text)) <= 120))
+  CONSTRAINT store_shipments_shipping_status_check CHECK ((shipping_status = ANY (ARRAY['preparing'::text, 'handed_to_carrier'::text, 'in_transit'::text, 'out_for_delivery'::text, 'delivered'::text, 'delayed'::text, 'returned'::text, 'cancelled'::text])))
+  CONSTRAINT store_shipments_status_note_check CHECK ((length(COALESCE(status_note, ''::text)) <= 500))
+  CONSTRAINT store_shipments_tracking_code_check CHECK ((length(COALESCE(tracking_code, ''::text)) <= 160))
+  CREATE INDEX store_shipments_request_idx ON store_shipments USING btree (request_id)
+  CREATE INDEX store_shipments_store_status_idx ON store_shipments USING btree (store_id, shipping_status, updated_at DESC)
+  POLICY store_shipments_admin_all PERMISSIVE FOR ALL TO authenticated USING (private.is_platform_admin()) WITH CHECK (private.is_platform_admin())
+  POLICY store_shipments_owner_read PERMISSIVE FOR SELECT TO authenticated USING ((EXISTS ( SELECT 1 FROM store_order_requests r WHERE ((r.id = store_shipments.request_id) AND (r.user_id = ( SELECT auth.uid() AS uid))))))
+  POLICY store_shipments_store_read PERMISSIVE FOR SELECT TO authenticated USING (private.is_store_member(store_id))
+  CREATE TRIGGER set_store_shipments_updated_at BEFORE UPDATE ON store_shipments FOR EACH ROW EXECUTE FUNCTION private.set_store_shipments_updated_at()
+  CREATE TRIGGER validate_store_shipment_store BEFORE INSERT OR UPDATE ON store_shipments FOR EACH ROW EXECUTE FUNCTION private.validate_store_shipment_store()
+
+TABLE stores  rls=on  grants: anon=- authenticated=awd service_role=rawdDxt
+  id uuid NOT NULL DEFAULT gen_random_uuid()
+  name text NOT NULL
+  slug text NOT NULL
+  logo_url text
+  image_url text
+  short_description text
+  website_url text
+  status text NOT NULL DEFAULT 'active'::text
+  commission_rate numeric(5,2) NOT NULL DEFAULT 0
+  priority_rank integer NOT NULL DEFAULT 100
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT stores_pkey PRIMARY KEY (id)
+  CONSTRAINT stores_slug_key UNIQUE (slug)
+  CONSTRAINT stores_commission_rate_check CHECK (((commission_rate >= (0)::numeric) AND (commission_rate <= (100)::numeric)))
+  CONSTRAINT stores_status_check CHECK ((status = ANY (ARRAY['active'::text, 'inactive'::text])))
+  CREATE INDEX idx_stores_commission_rate ON stores USING btree (commission_rate)
+  COLUMN GRANTS anon=select,authenticated=select: id,name,slug,logo_url,image_url,short_description,status
+  POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
+  POLICY public_read PERMISSIVE FOR SELECT TO anon,authenticated USING ((status = 'active'::text))
+  CREATE TRIGGER set_updated_at BEFORE UPDATE ON stores FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
+
+TABLE sync_logs  rls=on  grants: anon=- authenticated=awd service_role=rawdDxt
+  id uuid NOT NULL DEFAULT gen_random_uuid()
+  store_id uuid NOT NULL
+  status text NOT NULL
+  message text
+  records_count integer NOT NULL DEFAULT 0
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT sync_logs_pkey PRIMARY KEY (id)
+  CONSTRAINT sync_logs_store_id_fkey FOREIGN KEY (store_id) REFERENCES stores(id) ON DELETE CASCADE
+  CREATE INDEX idx_sync_logs_store_id ON sync_logs USING btree (store_id)
+  POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
+  POLICY member_read PERMISSIVE FOR SELECT TO authenticated USING (private.is_store_member(store_id))
+  CREATE TRIGGER set_updated_at BEFORE UPDATE ON sync_logs FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()

@@ -1,0 +1,104 @@
+EXTENSIONS
+  pg_cron 1.6.4 (schema pg_catalog)
+  pg_stat_statements 1.11 (schema extensions)
+  pgcrypto 1.3 (schema extensions)
+  plpgsql 1.0 (schema pg_catalog)
+  supabase_vault 0.3.1 (schema vault)
+  uuid-ossp 1.1 (schema extensions)
+
+SCHEMA PRIVILEGES (U=usage C=create)
+  auth: anon=U- authenticated=U- service_role=U-
+  private: anon=U- authenticated=U- service_role=U-
+  public: anon=U- authenticated=U- service_role=U-
+  storage: anon=U- authenticated=U- service_role=U-
+
+DEFAULT PRIVILEGES
+  postgres in public on f: postgres=X/postgres anon=X/postgres authenticated=X/postgres service_role=X/postgres
+  postgres in public on r: postgres=arwdDxtm/postgres anon=rm/postgres authenticated=arwdm/postgres service_role=arwdDxtm/postgres
+  postgres in public on S: postgres=rwU/postgres anon=rwU/postgres authenticated=rwU/postgres service_role=rwU/postgres
+  postgres in storage on f: postgres=X/postgres anon=X/postgres authenticated=X/postgres service_role=X/postgres
+  postgres in storage on r: postgres=arwdDxtm/postgres anon=arwdDxtm/postgres authenticated=arwdDxtm/postgres service_role=arwdDxtm/postgres
+  postgres in storage on S: postgres=rwU/postgres anon=rwU/postgres authenticated=rwU/postgres service_role=rwU/postgres
+  supabase_admin in cron on f: postgres=X*/supabase_admin
+  supabase_admin in cron on r: postgres=a*r*w*d*D*x*t*m*/supabase_admin
+  supabase_admin in cron on S: postgres=r*w*U*/supabase_admin
+  supabase_admin in extensions on f: postgres=X*/supabase_admin
+  supabase_admin in extensions on r: postgres=a*r*w*d*D*x*t*m*/supabase_admin
+  supabase_admin in extensions on S: postgres=r*w*U*/supabase_admin
+  supabase_admin in graphql on f: postgres=X/supabase_admin anon=X/supabase_admin authenticated=X/supabase_admin service_role=X/supabase_admin
+  supabase_admin in graphql on r: postgres=arwdDxtm/supabase_admin anon=arwdDxtm/supabase_admin authenticated=arwdDxtm/supabase_admin service_role=arwdDxtm/supabase_admin
+  supabase_admin in graphql on S: postgres=rwU/supabase_admin anon=rwU/supabase_admin authenticated=rwU/supabase_admin service_role=rwU/supabase_admin
+  supabase_admin in graphql_public on f: postgres=X/supabase_admin anon=X/supabase_admin authenticated=X/supabase_admin service_role=X/supabase_admin
+  supabase_admin in graphql_public on r: postgres=arwdDxtm/supabase_admin anon=arwdDxtm/supabase_admin authenticated=arwdDxtm/supabase_admin service_role=arwdDxtm/supabase_admin
+  supabase_admin in graphql_public on S: postgres=rwU/supabase_admin anon=rwU/supabase_admin authenticated=rwU/supabase_admin service_role=rwU/supabase_admin
+  supabase_admin in public on f: postgres=X/supabase_admin anon=X/supabase_admin authenticated=X/supabase_admin service_role=X/supabase_admin
+  supabase_admin in public on r: postgres=arwdDxtm/supabase_admin anon=arwdDxtm/supabase_admin authenticated=arwdDxtm/supabase_admin service_role=arwdDxtm/supabase_admin
+  supabase_admin in public on S: postgres=rwU/supabase_admin anon=rwU/supabase_admin authenticated=rwU/supabase_admin service_role=rwU/supabase_admin
+  supabase_admin in realtime on f: postgres=X/supabase_admin dashboard_user=X/supabase_admin
+  supabase_admin in realtime on r: postgres=a*r*wdDxtm/supabase_admin dashboard_user=arwdDxtm/supabase_admin
+  supabase_admin in realtime on S: postgres=rwU/supabase_admin dashboard_user=rwU/supabase_admin
+  supabase_auth_admin in auth on f: postgres=X/supabase_auth_admin dashboard_user=X/supabase_auth_admin
+  supabase_auth_admin in auth on r: postgres=arwdDxtm/supabase_auth_admin dashboard_user=arwdDxtm/supabase_auth_admin
+  supabase_auth_admin in auth on S: postgres=rwU/supabase_auth_admin dashboard_user=rwU/supabase_auth_admin
+
+VIEWS
+VIEW cheapest_offers | security_invoker | grants: anon=r authenticated=rawd service_role=rawd
+  cols: product_size_id uuid, product_id uuid, brand_id uuid, store_id uuid, store_name text, price numeric, stock_quantity integer, currency text, price_includes_tax boolean, price_includes_shipping boolean, last_synced_at timestamp with time zone
+  def_md5=c2de1d868a39bb85a8f9dbb2566289d7
+VIEW customer_product_cart_add_events | security_invoker | grants: anon=- authenticated=- service_role=r
+  cols: id uuid, guest_id uuid, user_id uuid, session_id uuid, product_id uuid, product_size_id uuid, store_product_id uuid, quantity integer, occurred_at timestamp with time zone, product_snapshot jsonb
+  def_md5=f5a9129c2dcb15b52b565c1b10992033
+VIEW customer_product_cart_remove_events | security_invoker | grants: anon=- authenticated=- service_role=r
+  cols: id uuid, guest_id uuid, user_id uuid, session_id uuid, product_id uuid, product_size_id uuid, store_product_id uuid, quantity integer, occurred_at timestamp with time zone, product_snapshot jsonb
+  def_md5=c8e502071ef03aed414ae9e6b517e0b4
+VIEW customer_product_search_events | security_invoker | grants: anon=- authenticated=- service_role=r
+  cols: id uuid, guest_id uuid, user_id uuid, session_id uuid, product_id uuid, product_size_id uuid, store_product_id uuid, quantity integer, occurred_at timestamp with time zone, product_snapshot jsonb
+  def_md5=a0b93336cdab87cc691e3247e24fa7e7
+VIEW customer_product_view_events | security_invoker | grants: anon=- authenticated=- service_role=r
+  cols: id uuid, guest_id uuid, user_id uuid, session_id uuid, product_id uuid, product_size_id uuid, store_product_id uuid, quantity integer, occurred_at timestamp with time zone, product_snapshot jsonb
+  def_md5=985783171e866e393cd7223ff8e72010
+VIEW guest_current_cart_items | security_invoker | grants: anon=- authenticated=- service_role=r
+  cols: guest_id uuid, fingerprint_hash text, first_seen_at timestamp with time zone, last_seen_at timestamp with time zone, item_position integer, product_size_id uuid, store_product_id uuid, quantity integer, product_snapshot jsonb, cart_item_snapshot jsonb
+  def_md5=30b263dc090d6250302f3cfde17eb919
+VIEW public_brands | security_invoker | grants: anon=r authenticated=rawd service_role=rawd
+  cols: id uuid, name text, slug text, official_logo_url text, description text
+  def_md5=8f549fb40f164c3dc59ab08b32a64639
+VIEW public_products | security_invoker | grants: anon=r authenticated=rawd service_role=rawd
+  cols: id uuid, brand_id uuid, brand_name text, brand_slug text, name text, slug text, short_description text, official_description text, composition text, gender text, notes_source text, meta_title text, meta_description text, min_price numeric, available_sizes bigint, views_count integer, sales_count integer, search_count integer, request_count integer, average_rating numeric(3,2), reviews_count integer, distinctiveness_score numeric(5,2), catalog_bestseller boolean
+  def_md5=f851689ee3bcd8bd0986d82fb9855ec7
+VIEW public_stores | security_invoker | grants: anon=r authenticated=rawd service_role=rawd
+  cols: id uuid, name text, slug text, logo_url text, image_url text, short_description text, status text
+  def_md5=44d3e340da1fe2c0685ecc9d0f0cd2b2
+VIEW registered_customer_best_sellers | owner-privileges | grants: anon=- authenticated=- service_role=rawd
+  cols: rank bigint, product_id uuid, product_name text, brand_name text, slug text, units_sold bigint, purchase_count bigint, store_count bigint, size_breakdown jsonb
+  def_md5=4101aa14e63a05d61d303875e14e68f1
+VIEW registered_customer_current_cart_items | security_invoker | grants: anon=- authenticated=- service_role=r
+  cols: cart_item_id uuid, user_id uuid, store_id uuid, store_product_id uuid, product_size_id uuid, product_id uuid, quantity integer, created_at timestamp with time zone, updated_at timestamp with time zone, product_snapshot jsonb
+  def_md5=e994fdc6ef2257d04beb0f89a6d3eade
+
+PG_CRON JOBS
+  customer-searches-retention-365d | 17 3 * * * | active=true
+    select public.purge_expired_customer_searches();
+  expire-editor-sections | * * * * * | active=true
+    select public.expire_editor_sections();
+  guest-fingerprint-retention-400d | 41 3 * * * | active=true
+    select public.purge_expired_guest_fingerprints();
+
+STORAGE BUCKETS
+  bucket site-media | public=true | file_size_limit=52428800 | allowed_mime_types=image/jpeg,image/png,image/webp,image/gif,image/avif,video/mp4,video/webm
+
+POLICIES OUTSIDE public
+  POLICY cron.job cron_job_policy PERMISSIVE FOR ALL TO public USING ((username = CURRENT_USER))
+  POLICY cron.job_run_details cron_job_run_details_policy PERMISSIVE FOR ALL TO public USING ((username = CURRENT_USER))
+  POLICY storage.objects site_media_admin_delete PERMISSIVE FOR DELETE TO authenticated USING (((bucket_id = 'site-media'::text) AND ( SELECT private.is_platform_admin() AS is_platform_admin)))
+  POLICY storage.objects site_media_admin_insert PERMISSIVE FOR INSERT TO authenticated WITH CHECK (((bucket_id = 'site-media'::text) AND ( SELECT private.is_platform_admin() AS is_platform_admin)))
+  POLICY storage.objects site_media_admin_select PERMISSIVE FOR SELECT TO authenticated USING (((bucket_id = 'site-media'::text) AND ( SELECT private.is_platform_admin() AS is_platform_admin)))
+  POLICY storage.objects site_media_admin_update PERMISSIVE FOR UPDATE TO authenticated USING (((bucket_id = 'site-media'::text) AND ( SELECT private.is_platform_admin() AS is_platform_admin))) WITH CHECK (((bucket_id = 'site-media'::text) AND ( SELECT private.is_platform_admin() AS is_platform_admin)))
+
+TRIGGERS ON auth TABLES
+  auth.users: CREATE TRIGGER on_auth_user_created AFTER INSERT ON auth.users FOR EACH ROW EXECUTE FUNCTION private.handle_new_user()
+
+REALTIME PUBLICATION TABLES (public)
+  supabase_realtime: public.offers
+  supabase_realtime: public.product_stats
+  supabase_realtime: public.store_products
