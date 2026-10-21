@@ -78,7 +78,12 @@ async function updateOrder(button) {
   try {
     const response = await fetch('/api/store-order-update', { method: 'PATCH', headers: { ...Portal.auth(), 'Content-Type': 'application/json' }, body: JSON.stringify({ requestId: button.dataset.update, status: button.dataset.status }) });
     const data = await response.json();
-    if (!response.ok) throw new Error(data.error || 'تعذر تحديث حالة الطلب');
+    if (!response.ok) {
+      const stale = data.error === 'order_status_changed' || data.error === 'invalid_status_transition';
+      const message = stale ? 'تغيّرت حالة الطلب قبل تنفيذ التحديث، وتم تحديث القائمة. راجع الحالة الحالية ثم أعد المحاولة.' : (data.error || 'تعذر تحديث حالة الطلب');
+      if (stale) await loadStore();
+      throw new Error(message);
+    }
     await loadStore();
   } catch (error) {
     alert(error.message || 'تعذر تحديث حالة الطلب');
