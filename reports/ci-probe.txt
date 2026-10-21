@@ -1,3 +1,0 @@
-DO NOT MERGE. Standing pull request used only to read the result of the test run after a direct push to main.
-Each push to this branch re-runs the full test suite against the current main, and the result is visible on this pull request.
-probe: 1
