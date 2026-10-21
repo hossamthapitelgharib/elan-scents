@@ -1,5 +1,13 @@
+const { createLimiter, clientIp } = require('../lib/rate-limit');
+
+// The restore token is a random UUID (gen_random_uuid), so anything else can never match a row.
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// Generous for a person restoring one cart, tight for a script trying tokens. Per IP, per process.
+const limiter = createLimiter({ max: 30, windowMs: 60 * 1000 });
+
 function reply(res, status, body) {
-  res.status(status).setHeader('Content-Type', 'application/json').json(body);
+  // The success response carries the customer's phone and email, so it must never sit in a shared cache.
+  res.status(status).setHeader('Content-Type', 'application/json').setHeader('Cache-Control', 'no-store').json(body);
 }
 
 module.exports = async function restoreStoreOrder(req, res) {
@@ -7,10 +15,21 @@ module.exports = async function restoreStoreOrder(req, res) {
     reply(res, 405, { ok: false, error: 'method_not_allowed' });
     return;
   }
+  const limit = limiter(clientIp(req));
+  if (!limit.allowed) {
+    res.setHeader('Retry-After', String(limit.retryAfter));
+    reply(res, 429, { ok: false, error: 'too_many_requests' });
+    return;
+  }
   const body = req.body && typeof req.body === 'object' ? req.body : {};
-  const restoreToken = body.restoreToken || body.token;
-  if (!restoreToken) {
+  const rawToken = body.restoreToken || body.token;
+  if (!rawToken) {
     reply(res, 400, { ok: false, error: 'restoreToken is required' });
+    return;
+  }
+  const restoreToken = typeof rawToken === 'string' ? rawToken.trim() : '';
+  if (!UUID_PATTERN.test(restoreToken)) {
+    reply(res, 404, { ok: false, error: 'restoration_not_found' });
     return;
   }
   const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
