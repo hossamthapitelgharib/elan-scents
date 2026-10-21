@@ -2,6 +2,15 @@ const { getContext, requireRoles } = require('./_auth');
 const { canStoreTransition } = require('../lib/order-status');
 function reply(res, status, body) { res.status(status).setHeader('Content-Type', 'application/json').json(body); }
 const statuses = new Set(['store_confirmed','processing','shipped','delivered','store_rejected']);
+const MAX_AMOUNT = 100000000;
+const MAX_REASON = 500;
+// A money field must be a finite, non-negative number (or a numeric string). Anything else used to be written as
+// Number(x): NaN turned into null in the JSON and silently erased the saved shipping/total, and negatives were accepted.
+function money(value) {
+  if (typeof value === 'string' ? !value.trim() : typeof value !== 'number') return null;
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0 && number <= MAX_AMOUNT ? Math.round(number * 100) / 100 : null;
+}
 module.exports = async function storeOrderUpdate(req, res) {
   if (req.method !== 'PATCH' && req.method !== 'POST') return reply(res, 405, { ok: false, error: 'method_not_allowed' });
   try {
@@ -9,8 +18,13 @@ module.exports = async function storeOrderUpdate(req, res) {
     if (context.error) return reply(res, context.status, { ok: false, error: context.error });
     const body = req.body && typeof req.body === 'object' ? req.body : {};
     if (!body.requestId || !statuses.has(body.status)) return reply(res, 400, { ok: false, error: 'requestId and valid status are required' });
+    const shippingAmount = body.shippingAmount == null ? undefined : money(body.shippingAmount);
+    const totalAmount = body.totalAmount == null ? undefined : money(body.totalAmount);
+    if (shippingAmount === null || totalAmount === null) return reply(res, 400, { ok: false, error: 'invalid_amount' });
     const targetResponse = await fetch(`${context.supabaseUrl}/rest/v1/store_order_requests?select=id,store_id,tracking_number,status&id=eq.${encodeURIComponent(body.requestId)}&limit=1`, { headers: { apikey: context.serviceRoleKey, Authorization: `Bearer ${context.serviceRoleKey}` } });
     const target = await targetResponse.json();
+    // PostgREST answers 400 when the id is not a UUID; that is the caller's mistake, not a database failure.
+    if (targetResponse.status === 400) return reply(res, 400, { ok: false, error: 'invalid_request_id' });
     if (!targetResponse.ok || !Array.isArray(target)) return reply(res, 502, { ok: false, error: 'supabase_read_failed' });
     if (!target[0]) return reply(res, 404, { ok: false, error: 'order_not_found' });
     // platform_admin may set any store status from any state (support override for stuck orders); the role
@@ -22,14 +36,14 @@ module.exports = async function storeOrderUpdate(req, res) {
       if (!membershipResponse.ok || !Array.isArray(memberships)) return reply(res, 502, { ok: false, error: 'store_access_check_failed' });
       if (!memberships.some(row => row.store_id === target[0].store_id)) return reply(res, 403, { ok: false, error: 'store_access_denied' });
       if (!canStoreTransition(target[0].status, body.status)) return reply(res, 409, { ok: false, error: 'invalid_status_transition', from: target[0].status, to: body.status });
-      if (body.shippingAmount != null || body.totalAmount != null) {
+      if (shippingAmount !== undefined || totalAmount !== undefined) {
         if (['shipped','delivered','completed'].includes(target[0].status)) return reply(res, 409, { ok: false, error: 'financial_update_locked' });
       }
     }
     const patch = { status: body.status, updated_at: new Date().toISOString() };
-    if (body.shippingAmount != null) patch.shipping_amount = Number(body.shippingAmount);
-    if (body.totalAmount != null) patch.total_amount = Number(body.totalAmount);
-    if (body.reason) patch.failure_reason = body.reason;
+    if (shippingAmount !== undefined) patch.shipping_amount = shippingAmount;
+    if (totalAmount !== undefined) patch.total_amount = totalAmount;
+    if (typeof body.reason === 'string' && body.reason.trim()) patch.failure_reason = body.reason.trim().slice(0, MAX_REASON);
     // Compare-and-set: the transition was validated against the status read above, so the write only applies
     // while the order still has that status. Two concurrent updates can no longer both pass the check.
     const patchParams = new URLSearchParams({ id: `eq.${target[0].id}`, status: `eq.${target[0].status}`, select: 'id' });
