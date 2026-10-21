@@ -1,6 +1,6 @@
 # Supabase migrations
 
-`migrations/` contains **70** tracked SQL source files for the live Supabase project. The live ledger (`supabase_migrations.schema_migrations`, checked read-only on 2026-10-20) contains **72** records. The two-record difference is the documented historical source gap below. Migration files are kept in ascending version order, and `tests/migrations-consistency.test.js` checks local naming and ordering.
+`migrations/` contains **73** tracked SQL source files for the live Supabase project. The live ledger (`supabase_migrations.schema_migrations`, checked read-only on 2026-10-21) contains **75** records. The two-record difference is the documented historical source gap below. Migration files are kept in ascending version order, and `tests/migrations-consistency.test.js` checks local naming and ordering.
 
 ## Live-history gaps
 
@@ -40,6 +40,9 @@ The customer, store, and platform access changes applied to the live project inc
 - `20261017030354_batch_guest_identity_links` (written as `pending/20261017024500_…`, then applied live as this version)
 - `20261017062830_customer_activity_totals_and_guest_cleanup_on_claim`
 - `20261019052550_guest_fingerprint_retention_400_days` (written as `pending/20261019000100_…`, then applied live as this version)
+- `20261020101127_restore_best_seller_audit_breakdown` (written as `pending/20261020010000_…`, then applied live as this version; restores the best-seller audit fields that `20261018215138` dropped)
+- `20261020103154_guest_retention_delete_expired_guest_counters` (written as `pending/20261020000100_…`, then applied live as this version; see the owner decision of 2026-10-20 below)
+- `20261020115120_harden_adjustment_trigger_fn_and_add_fk_indexes` (applied live with the owner's explicit approval and tracked directly under `migrations/`, without a `pending/` step: revokes client EXECUTE on the trigger function `validate_store_order_item_adjustment()`, adds six missing foreign-key indexes, and makes the `store_shipments_owner_read` policy evaluate `(select auth.uid())`; tests `tests/db-hardening-acl-and-indexes.test.js` and `.test.sql`)
 
 Nine more migrations were applied live without a tracked source file. Each file here is the statement text recovered verbatim from the live ledger (read-only). The md5 of every file equals the md5 of the ledger statement; the files from 2026-10-18 and the two editor-section files from 2026-10-19 have one trailing newline added, which is removed before comparing:
 
@@ -53,7 +56,7 @@ Nine more migrations were applied live without a tracked source file. Each file 
 - `20261019163540_archive_expired_editor_sections` (1228 characters; added `private.archive_expired_editor_sections()` and the cron job `archive-expired-editor-sections`, a duplicate of the existing `expire-editor-sections`)
 - `20261019222030_remove_duplicate_archive_expired_editor_sections` (590 characters; removes only that duplicate cron job and function again, leaving `20261017014836_expire_editor_sections` in charge)
 
-Applying a migration to the live project without first writing it under `pending/` breaks the rules below; the next live change should follow the pending-first flow.
+Applying a migration to the live project without first writing it under `pending/` breaks the rules below. It happened for the nine files above, and once more with the owner's explicit approval for `20261020115120`; any other live change should follow the pending-first flow.
 
 Two earlier applied migrations on 2026-10-13 (`20261013014000_harden_anon_grants_rls_initplan_and_order_pricing` and `20261013014023_guest_analytics_explicit_deny`) are also tracked locally. The live ledger is authoritative for version prefixes. Historical `PENDING` comments in immutable migration files are intentionally preserved.
 
@@ -64,25 +67,28 @@ Two earlier applied migrations on 2026-10-13 (`20261013014000_harden_anon_grants
 - Never reuse a migration name at a different version.
 - Real-database regression tests live in `tests/*.sql` and run inside `BEGIN ... ROLLBACK`.
 
-## تغييرات معلّقة
+## الترحيلات المعلّقة وقرارات المالك
 
-يوجد ترحيلان معلّقان بانتظار موافقة المالك على تطبيقهما: `pending/20261020000100_guest_retention_delete_expired_guest_counters.sql` (عدّادات الضيف تنتهي مع الضيف، تفاصيله في آخر هذا القسم) و`pending/20261020010000_restore_best_seller_audit_breakdown.sql` (يستعيد حقول تدقيق الأكثر مبيعاً التي أسقطها `20261018215138`)؛ ما عداهما طُبّق ونُقل إلى `migrations/`. كان `pending/20261017024500_batch_guest_identity_links.sql` قد طُبّق على المشروع الحي بالإصدار `20261017030354` (نص مطابق حرفيًا للملف المعلّق، 1674 حرفًا)، فنُقل ملفه وملف التراجع المقابل إلى `migrations/` و`rollback/` بهذا الإصدار. يحافظ `api/guest-cart.js` على استدعاء `guest_identity_link` الفردي كمسار احتياطي ويمكن إزالته في تغيير لاحق بعد قياس `guest_identity_link_many` على بيانات حقيقية.
+لا توجد ترحيلات معلّقة حاليًا (مجلد `supabase/pending/` غير موجود). كل ما كُتب معلّقًا طُبّق على المشروع الحي ونُقل مع ملف التراجع المقابل إلى `migrations/` و`rollback/` بالإصدار الذي سجّلته Supabase.
 
-طُبّق `pending/20261019000100_guest_fingerprint_retention_400_days.sql` على المشروع الحي بالإصدار `20261019052550` بموافقة المالك الصريحة بتاريخ 2026-10-19 (بنص الملف نفسه)، فنُقل ملفه وملف التراجع المقابل إلى `migrations/` و`rollback/` بهذا الإصدار. يمسح يومياً (pg_cron، الساعة 03:41 UTC) بيانات بصمة الضيوف بعد **400 يوماً** من آخر ظهور، تنفيذاً لقرار المالك بتاريخ 2026-10-18 وبما يطابق عمر كوكي `elan_gid`: `guest_fingerprints` و`guest_identity_links` وصفوف `guest_visitors` بحالة `guest` فقط (وتُحذف بحثاتهم معها). لا يمسّ عدّادات الضيف (`guest_analytics_visits` و`guest_product_analytics`) ولا `guest_conversions`؛ عدّادات الضيف يعالجها الترحيل المعلّق الموصوف أدناه بحسب قرار المالك بتاريخ 2026-10-20. ملف التراجع المقابل إلى `migrations/` و`rollback/` بهذا الإصدار. يمسح يومياً (pg_cron، الساعة 03:41 UTC) بيانات بصمة الضيوف بعد **400 يوماً** من آخر ظهور، تنفيذاً لقرار المالك بتاريخ 2026-10-18 وبما يطابق عمر كوكي `elan_gid`: `guest_fingerprints` و`guest_identity_links` وصفوف `guest_visitors` بحالة `guest` فقط (وتُحذف بحثاتهم معها). لا يمسّ عدّادات التحليلات المجمّعة (`guest_analytics_visits` و`guest_product_analytics`) ولا `guest_conversions`. **قرار المالك بتاريخ 2026-10-19: عدّادات التحليلات المجمّعة (`guest_analytics_visits` و`guest_product_analytics`) لا عمر محدداً لها ولا يحذفها مسح العمر، فهي مرتبطة بعمر المنصة وتقوم عليها التحليلات وتطويرها؛ أي مسح عمري مستقبلي يجب ألا يشملها.** (التعليق في ملفَي الترحيل `20261019052550` و`20261019105404` يصف هذا القرار بأنه «منفصل» لأنه كُتب قبله، ولا يُعدّل لأن الترحيل مطبّق.) ملف التراجع `rollback/20261019052550_guest_fingerprint_retention_400_days.sql` يوقف المسح ولا يستعيد صفوفاً حُذفت، واختبار قاعدة البيانات `tests/guest-fingerprint-retention.test.sql` يُشغّل على قاعدة تجريبية ثم يتراجع.
+- `20261017030354_batch_guest_identity_links`: نص مطابق حرفيًا للملف المعلّق (1674 حرفًا). يحافظ `api/guest-cart.js` على استدعاء `guest_identity_link` الفردي كمسار احتياطي، ويمكن إزالته في تغيير لاحق بعد قياس `guest_identity_link_many` على بيانات حقيقية.
+- `20261019052550_guest_fingerprint_retention_400_days`: طُبّق بموافقة المالك الصريحة بتاريخ 2026-10-19 بنص الملف نفسه. يمسح يوميًا (pg_cron، الساعة 03:41 UTC) بيانات بصمة الضيوف بعد **400 يومًا** من آخر ظهور، تنفيذًا لقرار المالك بتاريخ 2026-10-18 وبما يطابق عمر كوكي `elan_gid`: `guest_fingerprints` و`guest_identity_links` وصفوف `guest_visitors` بحالة `guest` فقط (وتُحذف بحثاتهم معها). ملف التراجع `rollback/20261019052550_guest_fingerprint_retention_400_days.sql` يوقف المسح ولا يستعيد صفوفًا حُذفت، واختبار قاعدة البيانات `tests/guest-fingerprint-retention.test.sql` يُشغَّل على قاعدة تجريبية ثم يتراجع.
+- `20261019105404_guest_fingerprint_retention_fix_owner_rows`: نصه في `migrations/` مطابق حرفيًا لسجل القاعدة. يستبدل الدالة `purge_expired_guest_fingerprints` بحيث تحذف أيضًا `customer_sessions` و`customer_product_events` الخاصة بالضيف المنتهية مدته قبل صف `guest_visitors` نفسه، لأن الجدولين يشترطان مالكًا واحدًا بالضبط (ضيف أو عميل) ويشيران للضيف بـ `ON DELETE SET NULL`، فحذف صف الضيف وحده كان سيخرق القاعدة ويُفشل المهمة كلها. لم تعمل المهمة المجدولة بعد وقت التحقق ولم يُحذف شيء: أقدم ضيف ظهر في 2026-10-09 فلا يستحق المسح قبل نوفمبر 2027.
+- `20261020101127_restore_best_seller_audit_breakdown`: يستعيد حقول تدقيق الأكثر مبيعًا التي أسقطها `20261018215138`.
 
-ثم طُبّق على المشروع الحي الترحيل `20261019105404_guest_fingerprint_retention_fix_owner_rows` (نصه في `migrations/` مطابق حرفياً لسجل القاعدة): يستبدل الدالة `purge_expired_guest_fingerprints` بحيث تحذف أيضاً `customer_sessions` و`customer_product_events` الخاصة بالضيف المنتهية مدته قبل صف `guest_visitors` نفسه، لأن الجدولين يشترطان مالكاً واحداً بالضبط (ضيف أو عميل) ويشيران للضيف بـ `ON DELETE SET NULL`، فحذف صف الضيف وحده كان سيخرق القاعدة وُفشل المهمة كلها. لم تعمل المهمة المجدولة بعد وقت التحقق ولم ُحذف شيء: أقدم ضيف ظهر في 2026-10-09 فلا يستحق المسح قبل نوفمبر 2027.
+### قرار المالك بتاريخ 2026-10-19 (حلّ محلّه قرار 2026-10-20 فيما يخص عدّادات الضيف)
+
+قرار المالك بتاريخ 2026-10-19 كان أن عدّادات التحليلات المجمّعة (`guest_analytics_visits` و`guest_product_analytics`) لا عمر محددًا لها ولا يحذفها مسح العمر. التعليق في ملفَّي الترحيل `20261019052550` و`20261019105404` يصف هذا القرار بأنه «منفصل» لأنه كُتب قبله، ولا يُعدَّل لأن الترحيل مطبّق.
 
 ### قرار المالك بتاريخ 2026-10-20: عدّادات الضيف تنتهي مع الضيف
 
-لوحة المنصة أربع مجموعات عدّادات: **الزوار** بكل أحداثهم، و**المسجلون** بكل أحداثهم، و**الأكثر مبيعاً**، و**المجموع** (الزوار والمسجلون معاً بكل الأحداث). والقاعدة:
+لوحة المنصة أربع مجموعات عدّادات: **الزوار** بكل أحداثهم، و**المسجلون** بكل أحداثهم، و**الأكثر مبيعًا**، و**المجموع** (الزوار والمسجلون معًا بكل الأحداث). والقاعدة:
 
-- ضيف لم يسجّل خلال 400 يوم من آخر ظهور يُحذف بالكامل بكل أحداثه، فتنقص عدّادات الزوار بكل أحداثها وينقص المجموع تلقائياً.
+- ضيف لم يسجّل خلال 400 يوم من آخر ظهور يُحذف بالكامل بكل أحداثه، فتنقص عدّادات الزوار بكل أحداثها وينقص المجموع تلقائيًا.
 - ضيف يسجّل قبل ذلك يتحول من رقم بصمة إلى معرّف حساب وتنتقل معه كل أحداثه كما هي (المشاهدة والبحث والإضافة والحذف وآخر وضع للسلة)، ثم تُحذف بصمته وما يخصها؛ فتنقص عدّادات الزوار وتزيد عدّادات المسجلين ويبقى المجموع كما هو.
 - `guest_analytics_visits` و`guest_product_analytics` هما عدّادات الزوار نفسها (صف لكل متصفح مشفّر)، وتنتهي مع وجود الزائر بالمسح بعد 400 يوم أو بالتسجيل.
 
-التسجيل تنفّذه حالياً `claim_guest_browser_cart` ذات المعاملات الثلاثة (تنقل الجلسات وأحداث المنتجات والبحثات ثم تحذف البصمات والروابط وعدّادات المتصفح وصف الضيف). تحقق من ذلك على الدالة الحية، وعلى البيانات الحية جاء مجموع أحداث الضيوف في العدّادات مطابقاً لعدد أحداثهم التفصيلية (إضافات للسلة 5 = 5، مشاهدات 1 = 1)، فانتقالهم لا يغيّر المجموع.
-
-الانقضاء بعد 400 يوم كانت الدالة الحية تتركه ناقصاً: تحذف الضيف وأحداثه لكن تترك صفوفه في `guest_analytics_visits` و`guest_product_analytics`. الترحيل المعلّق **`pending/20261020000100_guest_retention_delete_expired_guest_counters.sql`** (وتراجعه في `rollback/`) يكمّل ذلك: يحذف كل صفوف أي متصفح لم يظهر له أي نشاط (صف عدّاد أو بصمة) خلال المدة، دفعة واحدة لكل أيامه، ولا يمسّ أيام ضيف ما زال نشطاً. لا يحذف `guest_conversions` ولا بيانات المسجلين ولا الأكثر مبيعاً. اختباره `tests/guest-fingerprint-retention.test.sql` (يغطي الجلسات والأحداث والبحثات والعدّادات) نجح على قاعدة تجريبية قبل التطبيق ويفشل على الدالة السابقة. **لم يُطبَّق على المشروع الحي بعد؛ ينتظر موافقة المالك الصريحة.**
+التسجيل تنفّذه `claim_guest_browser_cart` ذات المعاملات الثلاثة (تنقل الجلسات وأحداث المنتجات والبحثات ثم تحذف البصمات والروابط وعدّادات المتصفح وصف الضيف). كانت الدالة الحية تترك الانقضاء بعد 400 يوم ناقصًا: تحذف الضيف وأحداثه لكن تترك صفوفه في `guest_analytics_visits` و`guest_product_analytics`. الترحيل **`20261020103154_guest_retention_delete_expired_guest_counters`** (وتراجعه في `rollback/`) يكمّل ذلك: يحذف كل صفوف أي متصفح لم يظهر له أي نشاط (صف عدّاد أو بصمة) خلال المدة، دفعة واحدة لكل أيامه، ولا يمسّ أيام ضيف ما زال نشطًا. لا يحذف `guest_conversions` ولا بيانات المسجلين ولا الأكثر مبيعًا. اختباره `tests/guest-fingerprint-retention.test.sql` (يغطي الجلسات والأحداث والبحثات والعدّادات) نجح على قاعدة تجريبية قبل التطبيق ويفشل على الدالة السابقة. طُبّق على المشروع الحي بالإصدار `20261020103154`؛ ولم يُحذف شيء وقت التطبيق لأن أقدم صف عدّاد ضيف يعود إلى 2026-10-10 والمدة 400 يوم.
 
 ## Known divergences
 
