@@ -4,14 +4,21 @@ window.Portal = {
     catch (_) { return null; }
   },
   login: async form => {
-    const cfg = await fetch('/api/config').then(response => response.json());
-    const response = await fetch(`${cfg.url}/auth/v1/token?grant_type=password`, {
-      method: 'POST',
-      headers: { apikey: cfg.key, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: form.email.value.trim(), password: form.password.value })
-    });
-    const data = await response.json();
-    if (!response.ok || !data.access_token) throw new Error(data.msg || 'تعذر تسجيل الدخول');
+    let response, data;
+    try {
+      const cfg = await fetch('/api/config').then(result => result.json());
+      response = await fetch(`${cfg.url}/auth/v1/token?grant_type=password`, {
+        method: 'POST',
+        headers: { apikey: cfg.key, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: form.email.value.trim(), password: form.password.value })
+      });
+      data = await response.json();
+    } catch (_) {
+      throw new Error('تعذر الاتصال بالخدمة، تحقق من الإنترنت وحاول مرة أخرى.');
+    }
+    if (!response.ok || !data.access_token) {
+      throw new Error(Portal.errorMessages[data.error_code] || Portal.errorMessages[data.error] || 'تعذر تسجيل الدخول، حاول مرة أخرى.');
+    }
     localStorage.setItem('elan_auth_session', JSON.stringify(data));
     return data;
   },
@@ -36,6 +43,45 @@ window.Portal = {
 Portal.escape = value => String(value ?? '').replace(/[&<>"']/g, character => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
 }[character]));
+
+// The API and Supabase answer with English codes; the portals are Arabic, so a person never sees a raw code.
+Portal.errorMessages = {
+  invalid_credentials: 'البريد الإلكتروني أو كلمة المرور غير صحيحة.',
+  invalid_grant: 'البريد الإلكتروني أو كلمة المرور غير صحيحة.',
+  email_not_confirmed: 'لم يتم تأكيد البريد الإلكتروني بعد، افتح رسالة التأكيد أولًا.',
+  over_request_rate_limit: 'محاولات كثيرة، انتظر قليلًا ثم حاول مرة أخرى.',
+  over_email_send_rate_limit: 'محاولات كثيرة، انتظر قليلًا ثم حاول مرة أخرى.',
+  too_many_requests: 'محاولات كثيرة، انتظر قليلًا ثم حاول مرة أخرى.',
+  unauthorized: 'انتهت جلسة الدخول، سجّل الدخول من جديد.',
+  login_required: 'انتهت جلسة الدخول، سجّل الدخول من جديد.',
+  forbidden: 'هذا الحساب غير مصرح له بفتح هذه الصفحة.',
+  role_check_failed: 'تعذر التحقق من صلاحية الحساب الآن، حاول بعد قليل.',
+  supabase_service_configuration_missing: 'الخدمة غير مهيأة حاليًا، تواصل مع مسؤول المنصة.',
+  invalid_page: 'رقم الصفحة المطلوبة غير صحيح.',
+  customer_data_unavailable: 'تعذر تحميل بيانات العملاء الآن، حاول بعد قليل.',
+  customer_cart_data_unavailable: 'تعذر تحميل سلال العملاء الآن، حاول بعد قليل.',
+  customer_activity_unavailable: 'تعذر تحميل سجل النشاط الآن، حاول بعد قليل.',
+  customer_search_history_unavailable: 'تعذر تحميل سجل البحث الآن، حاول بعد قليل.',
+  customer_not_found: 'لم يعد هذا العميل موجودًا، حدّث القائمة.',
+  invalid_customer: 'بيانات العميل المطلوبة غير صحيحة.',
+  guest_analytics_unavailable: 'تعذر تحميل التحليلات الآن، حاول بعد قليل.',
+  store_order_read_failed: 'تعذر تحميل الطلبات الآن، حاول بعد قليل.',
+  dashboard_read_failed: 'تعذر تحميل الطلبات الآن، حاول بعد قليل.',
+  supabase_read_failed: 'تعذر تحميل الطلبات الآن، حاول بعد قليل.',
+  customer_dashboard_failed: 'تعذر تحميل طلباتك الآن، حاول بعد قليل.',
+  method_not_allowed: 'الطلب غير مدعوم.',
+  invalid_status: 'حالة الطلب المطلوبة غير صحيحة.',
+  invalid_store_id: 'المتجر المطلوب غير صحيح.'
+};
+Portal.errorText = (error, fallback) => {
+  const raw = String(error && error.message !== undefined ? error.message : error == null ? '' : error).trim();
+  if (Portal.errorMessages[raw]) return Portal.errorMessages[raw];
+  if (/[؀-ۿ]/.test(raw)) return raw;
+  if (/failed to fetch|networkerror|load failed|network request failed/i.test(raw)) return 'تعذر الاتصال بالخدمة، تحقق من الإنترنت وحاول مرة أخرى.';
+  const text = fallback || 'حدث خطأ غير متوقع، حاول مرة أخرى.';
+  // An API code we have no sentence for is kept in brackets, so support can still tell what failed.
+  return /^[a-z][a-z0-9_]{2,60}$/.test(raw) ? `${text} (${raw})` : text;
+};
 
 Portal.toast = (text, kind = 'info') => {
   let box = document.querySelector('#portalToast');

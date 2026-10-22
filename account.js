@@ -1,7 +1,16 @@
 const escA = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[c]));
-const statusA = { awaiting_store_confirmation: ['بانتظار المتجر', 'gold'], store_confirmed: ['تم تأكيد الطلب', 'green'], processing: ['قيد التجهيز', 'blue'], shipped: ['تم الشحن', 'blue'], delivered: ['تم التسليم', 'green'], completed: ['تم التسليم', 'green'], store_rejected: ['أُلغي الطلب', 'red'], store_cancelled: ['أُلغي الطلب وأُعيدت المنتجات', 'red'], restored: ['عادت المنتجات إلى السلة', 'green'], needs_review: ['قيد المراجعة', 'orange'] };
+const statusA = { awaiting_store_confirmation: ['بانتظار المتجر', 'gold'], store_confirmed: ['تم تأكيد الطلب', 'green'], processing: ['قيد التجهيز', 'blue'], shipped: ['تم الشحن', 'blue'], delivered: ['تم التسليم', 'green'], completed: ['تم التسليم', 'green'], store_rejected: ['أُلغي الطلب', 'red'], cancelled: ['أُلغي الطلب', 'red'], store_cancelled: ['أُلغي الطلب وأُعيدت المنتجات', 'red'], restored: ['عادت المنتجات إلى السلة', 'green'], needs_review: ['قيد المراجعة', 'orange'] };
 const shippingA = { preparing: ['قيد التجهيز', 'gold'], handed_to_carrier: ['تم تسليمها لشركة الشحن', 'blue'], in_transit: ['في الطريق', 'blue'], out_for_delivery: ['خرجت للتسليم', 'blue'], delivered: ['تم التسليم', 'green'], delayed: ['متأخرة', 'orange'], returned: ['مرتجعة', 'red'], cancelled: ['ملغاة', 'red'] };
-const terminalA = new Set(['completed', 'delivered', 'store_cancelled', 'store_rejected', 'restored', 'closed']);
+const terminalA = new Set(['completed', 'delivered', 'store_cancelled', 'store_rejected', 'cancelled', 'restored', 'closed']);
+// Errors go where the person can see them: the login box before sign-in, the orders page after it
+// (the login box is hidden once the orders are shown, so an error written there is never seen).
+function showMessage(error) {
+  const text = error ? Portal.errorText(error, 'تعذر تحميل البيانات، حاول مرة أخرى.') : '';
+  const appVisible = !document.querySelector('#app').hidden;
+  const appBox = document.querySelector('#appMessage'), loginBox = document.querySelector('#message');
+  if (appBox) { appBox.textContent = appVisible ? text : ''; appBox.hidden = !(appVisible && text); }
+  if (loginBox) loginBox.textContent = appVisible ? '' : text;
+}
 const badgeA = status => { const value = statusA[status] || ['قيد المتابعة', 'muted']; return `<span class="badge ${value[1]}">${value[0]}</span>`; };
 const shippingBadgeA = status => { const value = shippingA[status] || ['غير مسجل', 'muted']; return `<span class="badge ${value[1]}">${value[0]}</span>`; };
 const moneyA = (amount, currency = 'EGP') => `${Number(amount || 0).toFixed(2)} ${escA(currency)}`;
@@ -90,6 +99,11 @@ async function loadArchive(event, append = false) {
     const requests = flatten(archiveSessions).filter(request => terminalA.has(stateA(request)));
     const box = document.querySelector('#archiveOrders'); box.hidden = false; renderList(box, requests, 'لا توجد طلبات مطابقة للبحث');
     more.hidden = archiveTotal !== null ? archiveSessions.length >= archiveTotal : !page.hasMore;
+    showMessage('');
+  } catch (error) {
+    // A failed search must not leave "searching…" on the screen forever.
+    if (!append) { const box = document.querySelector('#archiveOrders'); box.hidden = false; box.innerHTML = '<div class="empty">تعذر إكمال البحث، حاول مرة أخرى.</div>'; }
+    throw error;
   } finally { more.disabled = false; archiveLoading = false; }
 }
 async function loadAccount(append = false) {
@@ -111,14 +125,15 @@ async function loadAccount(append = false) {
     document.querySelector('#app').hidden = false;
     document.querySelector('#logout').hidden = false;
     renderAccount(accountSessions);
+    showMessage('');
   } finally { more.disabled = false; accountLoading = false; }
 }
 
-document.querySelector('#loginForm').addEventListener('submit', async event => { event.preventDefault(); try { await Portal.login(event.target); await loadAccount(); } catch (error) { document.querySelector('#message').textContent = error.message; } });
-document.querySelector('#archiveForm').addEventListener('submit', event => loadArchive(event).catch(error => { document.querySelector('#message').textContent = error.message; }));
-document.querySelector('#loadMoreOrders').addEventListener('click', () => loadAccount(true).catch(error => { document.querySelector('#message').textContent = error.message; }));
-document.querySelector('#loadMoreArchive').addEventListener('click', () => loadArchive(null, true).catch(error => { document.querySelector('#message').textContent = error.message; }));
-if (Portal.session()) loadAccount().catch(error => { document.querySelector('#message').textContent = error.message; });
+document.querySelector('#loginForm').addEventListener('submit', async event => { event.preventDefault(); try { await Portal.login(event.target); await loadAccount(); } catch (error) { showMessage(error); } });
+document.querySelector('#archiveForm').addEventListener('submit', event => loadArchive(event).catch(showMessage));
+document.querySelector('#loadMoreOrders').addEventListener('click', () => loadAccount(true).catch(showMessage));
+document.querySelector('#loadMoreArchive').addEventListener('click', () => loadArchive(null, true).catch(showMessage));
+if (Portal.session()) loadAccount().catch(showMessage);
 // A hidden tab does not poll; coming back to it after a while refreshes once.
 let accountHiddenAt = 0;
 setInterval(() => { if (!document.hidden && Portal.session()) loadAccount().catch(() => {}); }, 30000);

@@ -8,10 +8,15 @@ function durationP(seconds) {
   return hours ? `${hours} س ${minutes} د` : minutes ? `${minutes} د ${secs} ث` : `${secs} ث`;
 }
 
+// The API answers with English codes; the person reads an Arabic sentence (an unknown code stays in brackets for support).
+function errText(error, fallback) {
+  return typeof Portal.errorText === 'function' ? Portal.errorText(error, fallback) : (error && error.message) || fallback;
+}
 function reportError(error) {
-  const message = error && error.message ? error.message : 'تعذر تحميل البيانات';
-  const box = document.querySelector('#platformError');
-  if (box) { box.textContent = message; box.hidden = false; }
+  const message = errText(error, 'تعذر تحميل البيانات، حاول مرة أخرى.');
+  const app = document.querySelector('#app'), box = document.querySelector('#platformError');
+  // Before the dashboard is shown (sign-in, wrong account) the error belongs in the sign-in box, the only part on screen.
+  if (box && app && !app.hidden) { box.textContent = message; box.hidden = false; }
   else document.querySelector('#message').textContent = message;
 }
 function jsonCell(value) { return value === null || value === undefined || value === '' ? '—' : typeof value === 'object' ? JSON.stringify(value) : String(value); }
@@ -209,7 +214,7 @@ function showAnalyticsError(actor, error) {
   const prefix = analyticsPrefix(actor);
   const box = document.querySelector(`#${prefix}AnalyticsError`);
   if (!box) return;
-  box.textContent = error && error.message ? error.message : 'تعذر تحميل التحليلات'; box.hidden = false;
+  box.textContent = errText(error, 'تعذر تحميل التحليلات، حاول مرة أخرى.'); box.hidden = false;
 }
 let bestSellerStateP = null;
 let bestSellerRequestP = 0;
@@ -317,10 +322,12 @@ function activateCustomerTabs() {
 }
 async function loadCustomersDashboard(loadInsights = true) {
   if (!Portal.session()) return;
-  document.querySelector('#login').hidden = true; document.querySelector('#app').hidden = false; document.querySelector('#logout').hidden = false;
   const query = new URLSearchParams({ registeredOffset: String(customerOffsets.registered), visitorOffset: String(customerOffsets.visitors) });
   const response = await fetch(`/api/platform-customers?${query}`, { headers: Portal.auth() }), data = await response.json();
   if (!response.ok) throw Error(data.error || 'تعذر تحميل بيانات العملاء');
+  // Shown only now: a wrong account or an expired session keeps the sign-in box (and its message) instead of an empty dashboard.
+  document.querySelector('#login').hidden = true; document.querySelector('#app').hidden = false; document.querySelector('#logout').hidden = false;
+  document.querySelector('#message').textContent = '';
   document.querySelector('#platformError').hidden = true;
   document.querySelector('#stats').innerHTML = [['العملاء المسجلون', data.counts.registered], ['العملاء الزوار', data.counts.visitors]].map(item => `<div class="stat"><small>${item[0]}</small><b>${numberP(item[1])}</b></div>`).join('');
   renderCustomers(data);
@@ -349,7 +356,7 @@ document.addEventListener('click', event => {
   const more = event.target.closest('[data-more-activity]');
   if (more) {
     const panel = more.closest('.customer-activity-panel'); if (!panel) return;
-    more.disabled = true; fetchCustomerDetail(panel, Number(panel.dataset.offset || 0), true).catch(error => { more.textContent = error.message || 'تعذر تحميل المزيد'; }).finally(() => { more.disabled = false; }); return;
+    more.disabled = true; fetchCustomerDetail(panel, Number(panel.dataset.offset || 0), true).catch(error => { more.textContent = errText(error, 'تعذر تحميل المزيد، اضغط للمحاولة مرة أخرى'); }).finally(() => { more.disabled = false; }); return;
   }
   const pageButton = event.target.closest('[data-customer-page]');
   if (pageButton) {
@@ -365,7 +372,7 @@ document.addEventListener('click', event => {
   if (panel.dataset.loaded === 'true') { panel.hidden = !panel.hidden; return; }
   panel.hidden = false; panel.dataset.type = button.dataset.kind; panel.dataset.id = button.dataset.id;
   panel.innerHTML = '<p class="muted">جارٍ تحميل السلة وسجل النشاط…</p>'; button.disabled = true;
-  fetchCustomerDetail(panel, 0, false).then(() => { panel.dataset.loaded = 'true'; }).catch(error => { panel.innerHTML = `<p class="platform-error">${escP(error.message || 'تعذر تحميل سجل العميل')}</p>`; }).finally(() => { button.disabled = false; });
+  fetchCustomerDetail(panel, 0, false).then(() => { panel.dataset.loaded = 'true'; }).catch(error => { panel.innerHTML = `<p class="platform-error">${escP(errText(error, 'تعذر تحميل سجل العميل، حاول مرة أخرى.'))}</p>`; }).finally(() => { button.disabled = false; });
 });
 document.querySelector('#loginForm').addEventListener('submit', async event => {
   event.preventDefault(); try { await Portal.login(event.target); await loadCustomersDashboard(); } catch (error) { reportError(error); }

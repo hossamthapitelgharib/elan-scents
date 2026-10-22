@@ -32,9 +32,18 @@ function renderOrder(order) {
   const store = order.stores && order.stores.name || '—';
   return `<article class="order-card"><div class="order-head"><div class="order-title"><b>${escapeHtml(store)}</b><span class="tracking">${escapeHtml(order.checkout_tracking_number || order.tracking_number)}</span><small>${escapeHtml(order.tracking_number)} · ${new Date(order.created_at).toLocaleString('ar-EG')}</small></div><div class="badges">${orderStatusBadge(order.status)}${matchBadge(order.reconciliation_status)}</div></div><div class="order-body"><div class="customer"><b>بيانات العميل</b><p>الاسم: <b>${escapeHtml(order.customer_name)}</b></p><p>الهاتف: <b>${escapeHtml(order.customer_phone)}</b></p><p>البريد: ${escapeHtml(order.customer_email || '—')}</p><p>العنوان: ${escapeHtml(order.customer_address)}</p><p>ملاحظات: ${escapeHtml(order.customer_notes || '—')}</p></div><div><b>المنتجات والتكلفة</b><div class="items">${items.map(item => `<div class="item"><span>${escapeHtml(item.product_name)} × ${item.quantity}<small>${escapeHtml(item.brand_name || '')}</small></span><span>${money(item.line_total, item.currency)}</span></div>`).join('')}</div><div class="money"><span>الإجمالي الفرعي</span><b>${money(order.subtotal, order.currency)}</b></div><div class="money"><span>الشحن</span><b>${order.shipping_amount == null ? 'يحدده المتجر' : money(order.shipping_amount, order.currency)}</b></div><div class="money"><span>الإجمالي النهائي</span><b>${order.total_amount == null ? 'بانتظار المتجر' : money(order.total_amount, order.currency)}</b></div></div><div class="notifications"><b>سجل الإشعارات والمطابقة</b>${notices.length ? notices.map(notice => `<div class="notice"><span>${notice.event_type === 'initial_submitted' ? 'الإشعار المبدئي' : notice.event_type === 'store_completed' ? 'إشعار الإتمام' : notice.event_type === 'store_rejected' ? 'إشعار عدم التنفيذ' : 'تحديث متجر'} · ${escapeHtml(notice.match_status)}</span><time>${new Date(notice.received_at).toLocaleString('ar-EG')}</time></div>`).join('') : '<div class="notice">لم يصل إشعار من المتجر بعد</div>'}</div></div></article>`;
 }
+function errorMessage(error, fallback = 'تعذر تحميل البيانات، حاول مرة أخرى.') {
+  return typeof Portal.errorText === 'function' ? Portal.errorText(error, fallback) : (error && error.message) || fallback;
+}
 function setAuthError(error) {
   const box = $('authError');
-  box.textContent = error && error.message ? error.message : 'تعذر تحميل البيانات';
+  box.textContent = errorMessage(error);
+  box.hidden = false;
+}
+// Once the orders are on screen a failed refresh or "load more" is shown above them: it must not throw the admin back to the sign-in card.
+function setOrdersError(error) {
+  const box = $('ordersError');
+  box.textContent = errorMessage(error);
   box.hidden = false;
 }
 async function loadOrders(append = false) {
@@ -62,13 +71,16 @@ async function loadOrders(append = false) {
     $('dashboard').hidden = false;
     $('logout').hidden = false;
     $('authError').hidden = true;
+    $('ordersError').hidden = true;
     $('lastUpdated').textContent = `آخر تحديث: ${new Date().toLocaleTimeString('ar-EG')}`;
     renderOrders();
-    if (!append) await loadStoreSettings();
+    // The store settings are a separate tab: if they fail to load the orders stay usable.
+    if (!append) await loadStoreSettings().catch(error => showSettingsError(error));
   } catch (error) {
-    $('authCard').hidden = false;
-    $('dashboard').hidden = true;
-    setAuthError(error);
+    if ($('dashboard').hidden) {
+      $('authCard').hidden = false;
+      setAuthError(error);
+    } else setOrdersError(error);
   } finally {
     if (button) button.disabled = false;
     orderLoading = false;
@@ -79,6 +91,12 @@ function inputField(label, key, value, placeholder = '', type = 'text') {
 }
 function renderStoreSettings() {
   $('storeSettings').innerHTML = storeSettings.length ? storeSettings.map((store, index) => `<article class="store-setting" data-index="${index}"><div class="store-setting-head"><div><h3>${escapeHtml(store.name)}</h3><p>${escapeHtml(store.shortDescription || 'بيانات تكامل المتجر')}</p></div><label class="switch"><input data-setting="enabled" type="checkbox" ${store.enabled ? 'checked' : ''}><span></span><em>التكامل مفعّل</em></label></div><div class="fields-grid">${inputField('رابط المتجر الأساسي', 'baseUrl', store.baseUrl, 'https://store.example')}${inputField('رابط سلة/Checkout بعد الربط', 'cartUrl', store.cartUrl, 'يُحدد مع التاجر')}${inputField('رابط API الأساسي', 'apiBaseUrl', store.apiBaseUrl, 'https://api.store.example')}${inputField('Endpoint الكتالوج والأسعار', 'catalogEndpoint', store.catalogEndpoint, '/products أو رابط كامل')}${inputField('API Key', 'apiKey', '', store.hasApiKey ? `محفوظ: ${store.apiKeyMasked}` : 'أدخل المفتاح عند توفره', 'password')}${inputField('Webhook Secret', 'webhookSecret', '', store.hasWebhookSecret ? `محفوظ: ${store.webhookSecretMasked}` : 'أدخل السر عند توفره', 'password')}</div><label class="field full"><span>Webhook URL الذي سيستقبله التاجر</span><div class="copy-row"><input data-webhook-url readonly value="${escapeHtml(store.webhookUrl)}"><button type="button" class="secondary" data-copy>نسخ</button></div></label>${inputField('ملاحظات الربط', 'notes', store.notes, 'مثال: Shopify / WooCommerce / طريقة تمرير السلة')}</article>`).join('') : '<div class="empty">لا توجد متاجر في الكتالوج.</div>';
+}
+function showSettingsError(error, fallback = 'تعذر تحميل إعدادات المتاجر، حاول مرة أخرى.') {
+  const notice = $('settingsNotice');
+  notice.textContent = errorMessage(error, fallback);
+  notice.className = 'notice-banner error';
+  notice.hidden = false;
 }
 async function loadStoreSettings() {
   const response = await fetch('/api/store-integrations', { headers: Portal.auth() });
@@ -107,9 +125,7 @@ async function saveStoreSettings() {
     notice.hidden = false;
     await loadStoreSettings();
   } catch (error) {
-    notice.textContent = error.message;
-    notice.className = 'notice-banner error';
-    notice.hidden = false;
+    showSettingsError(error, 'تعذر حفظ الإعدادات، حاول مرة أخرى.');
   } finally { button.disabled = false; }
 }
 
