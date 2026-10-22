@@ -237,6 +237,7 @@ function renderBestSellers(data, records) {
   ];
   const auditRows = [
     ['إجمالي وحدات بنود العملاء المسجلين', audit.registeredUnits],
+    ['وحدات مرتجعة أو مستردة مخصومة من الترتيب', audit.reversedUnits],
     ['وحدات الطلبات الملغاة أو المرفوضة المستبعدة', audit.excludedCancelledUnits],
     ['وحدات الطلبات غير المكتملة المستبعدة', audit.excludedInProgressUnits],
     ['وحدات الطلبات قيد المراجعة أو غير المطابقة', audit.excludedReviewOrMismatchUnits],
