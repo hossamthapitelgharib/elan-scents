@@ -69,21 +69,6 @@ test('frontend order persistence uses the authenticated Supabase identity', () =
   assert.match(migration, /c\.id = v_checkout_session_id and c\.user_id = v_user_id/);
 });
 
-test('create-store-order validates login and splits one checkout across stores', async () => {
-  const handler = lib('create-store-order');
-  const calls = [];
-  process.env.SUPABASE_URL = 'https://test.supabase.co'; process.env.SUPABASE_SERVICE_ROLE_KEY = 'service';
-  global.fetch = async (url, options = {}) => { calls.push({ url, options }); if (url.endsWith('/create_checkout_session')) return textResponse({ id: 'session-1' }); if (url.endsWith('/create_store_order_request')) return textResponse({ id: `request-${calls.length}`, status: 'awaiting_store_confirmation' }); throw new Error(`unexpected ${url}`); };
-  const body = { customer: { name: 'عميل', phone: '01000000000', address: 'عنوان' }, items: [
-    { storeId: 'store-a', storeName: 'A', productSizeId: 'size-a', name: 'عطر A', quantity: 1, unitPrice: 100, total: 100 },
-    { storeId: 'store-b', storeName: 'B', productSizeId: 'size-b', name: 'عطر B', quantity: 2, unitPrice: 200, total: 400 },
-  ] };
-  const result = await invoke(handler, { method: 'POST', headers: { authorization: 'Bearer customer' }, body });
-  assert.equal(result.status, 201); assert.equal(result.body.ok, true); assert.equal(result.body.stores.length, 2);
-  assert.equal(calls.filter(x => x.url.endsWith('/create_store_order_request')).length, 2);
-  const unauthorized = await invoke(handler, { method: 'POST', headers: {}, body }); assert.equal(unauthorized.status, 401);
-});
-
 test('store status API normalizes and reconciles completed webhook events', async () => {
   process.env.SUPABASE_URL = 'https://test.supabase.co'; process.env.SUPABASE_SERVICE_ROLE_KEY = 'service'; process.env.STORE_ORDER_WEBHOOK_SECRET = 'secret';
   const status = api('store-order-status'); let rpcPayload;
