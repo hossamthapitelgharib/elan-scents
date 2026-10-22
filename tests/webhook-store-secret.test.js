@@ -10,7 +10,9 @@ const STORE_A = '11111111-1111-4111-8111-111111111111';
 const STORE_B = '22222222-2222-4222-8222-222222222222';
 const STORE_NO_SECRET = '33333333-3333-4333-8333-333333333333';
 const STORE_UNKNOWN = '44444444-4444-4444-8444-444444444444';
-const SECRETS = { [STORE_A]: 'unit-test-secret-a', [STORE_B]: 'unit-test-secret-b', [STORE_NO_SECRET]: '' };
+const STORE_DISABLED = '55555555-5555-4555-8555-555555555555';
+const SECRETS = { [STORE_A]: 'unit-test-secret-a', [STORE_B]: 'unit-test-secret-b', [STORE_NO_SECRET]: '', [STORE_DISABLED]: 'unit-test-secret-disabled' };
+const DISABLED = new Set([STORE_DISABLED]);
 const ORDERS = [
   { id: 'req-a1', store_id: STORE_A, tracking_number: 'TRK-A-1', checkout_tracking_number: 'CHK-A-1' },
   { id: 'req-b1', store_id: STORE_B, tracking_number: 'TRK-B-1', checkout_tracking_number: 'CHK-B-1' },
@@ -31,7 +33,7 @@ function installDatabase({ failIntegrationLookup = false, failOrderLookup = fals
     if (url.pathname === '/rest/v1/store_integrations') {
       if (failIntegrationLookup) return jsonResponse({ message: 'down' }, 500);
       const secret = SECRETS[eq('store_id')];
-      return jsonResponse(secret === undefined ? [] : [{ webhook_secret: secret }]);
+      return jsonResponse(secret === undefined ? [] : [{ webhook_secret: secret, enabled: !DISABLED.has(eq('store_id')) }]);
     }
     if (url.pathname === '/rest/v1/store_order_requests') {
       if (failOrderLookup) return jsonResponse({ message: 'down' }, 500);
@@ -84,6 +86,7 @@ for (const { name, rpc, makeBody } of CASES) {
     assert.equal(result.body.ok, true);
     assert.deepEqual(calls.map((c) => c.pathname), ['/rest/v1/store_integrations', '/rest/v1/store_order_requests', `/rest/v1/rpc/${rpc}`]);
     assert.equal(calls[0].params.get('store_id'), `eq.${STORE_A}`);
+    assert.equal(calls[0].params.get('select'), 'webhook_secret,enabled');
     assert.equal(calls[1].params.get('store_id'), `eq.${STORE_A}`);
     assert.equal(calls[1].params.get('tracking_number'), 'eq.TRK-A-1');
   });
@@ -107,6 +110,7 @@ for (const { name, rpc, makeBody } of CASES) {
     const failures = {
       'unknown store': webhook({ storeId: STORE_UNKNOWN, body: makeBody('TRK-A-1') }),
       'store without a secret': webhook({ storeId: STORE_NO_SECRET, secret: 'anything', body: makeBody('TRK-A-1') }),
+      'switched-off integration with the right secret': webhook({ storeId: STORE_DISABLED, secret: SECRETS[STORE_DISABLED], body: makeBody('TRK-A-1') }),
       "another store's secret": webhook({ secret: SECRETS[STORE_B], body: makeBody('TRK-A-1') }),
       'the shared secret instead of the store secret': webhook({ secret: 'shared-secret', body: makeBody('TRK-A-1') }),
     };
@@ -124,23 +128,23 @@ for (const { name, rpc, makeBody } of CASES) {
     assert.equal(calls.length, before, 'a request without a secret must not touch Supabase');
   });
 
-  test(`${name}: a store cannot report on another store's order, and cannot tell it exists`, async () => {
+  test(`${name}: an unknown order and another store's order get the same 404, which differs from an authentication failure`, async () => {
     const handler = api(name);
     const calls = installDatabase();
     const wrong = await call(handler, webhook({ secret: 'nope', body: makeBody('TRK-A-1') }));
     const otherStoreOrder = await call(handler, webhook({ body: makeBody('TRK-B-1') }));
     const unknownOrder = await call(handler, webhook({ body: makeBody('TRK-NOBODY') }));
-    for (const result of [otherStoreOrder, unknownOrder]) {
-      assert.equal(result.status, wrong.status);
-      assert.deepEqual(result.body, wrong.body);
-    }
+    assert.equal(otherStoreOrder.status, 404);
+    assert.deepEqual(otherStoreOrder.body, { ok: false, error: 'order_not_found' });
+    assert.deepEqual(unknownOrder, { ...otherStoreOrder, headers: unknownOrder.headers }, 'the two cases must be indistinguishable');
+    assert.equal(wrong.status, 401, 'a failed authentication is still a 401');
     assert.equal(rpcCalls(calls).length, 0, 'the RPC must never run for an order the store does not own');
   });
 
   test(`${name}: the tracking number is sent to Supabase as one encoded value`, async () => {
     const calls = installDatabase();
     const result = await call(api(name), webhook({ body: makeBody('TRK-B-1&store_id=neq.nobody') }));
-    assert.equal(result.status, 401);
+    assert.equal(result.status, 404);
     const orderLookup = calls.find((c) => c.pathname === '/rest/v1/store_order_requests');
     assert.equal(orderLookup.params.get('tracking_number'), 'eq.TRK-B-1&store_id=neq.nobody');
     assert.equal(orderLookup.params.get('store_id'), `eq.${STORE_A}`);
@@ -190,8 +194,8 @@ test('store-order-cancelled: the checkout tracking number works only for the sto
   assert.equal(own.status, 200);
   assert.equal(rpcCalls(calls).length, 1);
   const other = await call(api('store-order-cancelled'), webhook({ body: { trackingNumber: 'CHK-B-1', items: [{ productSizeId: 'p1', quantity: 1 }] } }));
-  assert.equal(other.status, 401);
-  assert.deepEqual(other.body, { ok: false, error: 'invalid_webhook_secret' });
+  assert.equal(other.status, 404);
+  assert.deepEqual(other.body, { ok: false, error: 'order_not_found' });
   assert.equal(rpcCalls(calls).length, 1);
 });
 
