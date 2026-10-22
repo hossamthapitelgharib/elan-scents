@@ -128,9 +128,11 @@ test('registered-customer dashboard exposes the best-seller ranking and audit in
   assert.match(html, /id="registeredBestSellersPeriod"/);
   assert.match(html, /id="registeredBestSellersAudit"/);
   assert.match(html, /id="registeredBestSellersTable"/);
-  assert.match(html, /لا توجد حاليًا بيانات موثقة للمرتجعات أو الاستردادات/);
+  assert.match(html, /يُخصم المرتجع أو المسترد المكتمل من العدد/);
+  assert.doesNotMatch(html, /لا توجد حاليًا بيانات موثقة للمرتجعات/, 'returns and refunds are tracked, so the note must not say they are not');
   assert.match(js, /api\/customer-best-sellers/);
   assert.match(js, /data-best-sellers-more/);
   assert.match(js, /excludedReviewOrMismatchUnits/);
+  assert.match(js, /audit\.reversedUnits/, 'the audit details list the returned and refunded units');
   assert.match(js, /ensureBestSellers/);
 });
