@@ -1,5 +1,6 @@
 const crypto = require('node:crypto');
 const { checkSecret } = require('../lib/secure');
+const { storeIdFromRequest, authenticateStoreWebhook, checkOrderOwnership } = require('../lib/store-webhook-auth');
 function reply(res, status, body) {
   res.status(status).setHeader('Content-Type', 'application/json').json(body);
 }
@@ -9,10 +10,24 @@ module.exports = async function storeOrderCancelled(req, res) {
     reply(res, 405, { ok: false, error: 'method_not_allowed' });
     return;
   }
-  const denied = checkSecret(req, 'STORE_ORDER_WEBHOOK_SECRET', 'x-store-webhook-secret');
-  if (denied) {
-    reply(res, denied.status, { ok: false, error: denied.error });
-    return;
+  // The per-store path applies only when the request carries a store-identifier header (a UUID).
+  // Every other request is checked against the shared secret exactly as before.
+  const storeId = storeIdFromRequest(req);
+  let storeAuth = null;
+  if (storeId) {
+    const result = await authenticateStoreWebhook(req, storeId);
+    if (result.denied) {
+      if (result.denied.retryAfter) res.setHeader('Retry-After', String(result.denied.retryAfter));
+      reply(res, result.denied.status, result.denied.body);
+      return;
+    }
+    storeAuth = result;
+  } else {
+    const denied = checkSecret(req, 'STORE_ORDER_WEBHOOK_SECRET', 'x-store-webhook-secret');
+    if (denied) {
+      reply(res, denied.status, { ok: false, error: denied.error });
+      return;
+    }
   }
   const body = req.body && typeof req.body === 'object' ? req.body : {};
   const payload = body.order && typeof body.order === 'object'
@@ -34,6 +49,15 @@ module.exports = async function storeOrderCancelled(req, res) {
     return;
   }
   payload.trackingNumber = payload.trackingNumber || payload.orderNumber;
+  if (storeAuth) {
+    // cancel_store_order_request scopes its lookup by payload.storeId: never trust one sent in the body.
+    payload.storeId = storeAuth.storeId;
+    const notOwned = await checkOrderOwnership(storeAuth, payload.trackingNumber, { checkoutNumber: true });
+    if (notOwned) {
+      reply(res, notOwned.status, notOwned.body);
+      return;
+    }
+  }
   payload.idempotencyKey = payload.idempotencyKey || payload.eventId || crypto.createHash('sha256').update(JSON.stringify({ trackingNumber: payload.trackingNumber, status: payload.status, reason: payload.reason, items: payload.items })).digest('hex');
   try {
     const response = await fetch(`${supabaseUrl}/rest/v1/rpc/cancel_store_order_request`, {

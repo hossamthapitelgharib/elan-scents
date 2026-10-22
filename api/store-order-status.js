@@ -1,5 +1,6 @@
 const crypto = require('node:crypto');
 const { checkSecret } = require('../lib/secure');
+const { storeIdFromRequest, authenticateStoreWebhook, checkOrderOwnership } = require('../lib/store-webhook-auth');
 const ALLOWED_STATUSES = new Set([
   'completed',
   'success',
@@ -54,10 +55,24 @@ module.exports = async function storeOrderStatus(req, res) {
     return;
   }
 
-  const denied = checkSecret(req, 'STORE_ORDER_WEBHOOK_SECRET', 'x-store-webhook-secret');
-  if (denied) {
-    send(res, denied.status, { ok: false, error: denied.error });
-    return;
+  // The per-store path applies only when the request carries a store-identifier header (a UUID).
+  // Every other request is checked against the shared secret exactly as before.
+  const storeId = storeIdFromRequest(req);
+  let storeAuth = null;
+  if (storeId) {
+    const result = await authenticateStoreWebhook(req, storeId);
+    if (result.denied) {
+      if (result.denied.retryAfter) res.setHeader('Retry-After', String(result.denied.retryAfter));
+      send(res, result.denied.status, result.denied.body);
+      return;
+    }
+    storeAuth = result;
+  } else {
+    const denied = checkSecret(req, 'STORE_ORDER_WEBHOOK_SECRET', 'x-store-webhook-secret');
+    if (denied) {
+      send(res, denied.status, { ok: false, error: denied.error });
+      return;
+    }
   }
 
   const payload = normalizePayload(req.body);
@@ -65,6 +80,14 @@ module.exports = async function storeOrderStatus(req, res) {
   if (validationError) {
     send(res, 400, { ok: false, error: validationError });
     return;
+  }
+
+  if (storeAuth) {
+    const notOwned = await checkOrderOwnership(storeAuth, payload.trackingNumber);
+    if (notOwned) {
+      send(res, notOwned.status, notOwned.body);
+      return;
+    }
   }
 
   const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
