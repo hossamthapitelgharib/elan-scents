@@ -1,6 +1,6 @@
 const crypto = require('node:crypto');
 const { checkSecret } = require('../lib/secure');
-const { storeIdFromRequest, authenticateStoreWebhook, checkOrderOwnership } = require('../lib/store-webhook-auth');
+const { storeIdFromRequest, authenticateStoreWebhook, checkOrderOwnership, scopeIdempotencyKey, storeFailureStatus } = require('../lib/store-webhook-auth');
 const ALLOWED_STATUSES = new Set([
   'completed',
   'success',
@@ -88,6 +88,7 @@ module.exports = async function storeOrderStatus(req, res) {
       send(res, notOwned.status, notOwned.body);
       return;
     }
+    payload.idempotencyKey = scopeIdempotencyKey(storeAuth.storeId, payload.idempotencyKey);
   }
 
   const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -112,6 +113,10 @@ module.exports = async function storeOrderStatus(req, res) {
     try { result = raw ? JSON.parse(raw) : null; } catch (_) { result = { raw }; }
 
     if (!response.ok) {
+      if (storeAuth) {
+        send(res, storeFailureStatus('store-order-status', response.status, raw), { ok: false, error: 'supabase_update_failed' });
+        return;
+      }
       send(res, response.status >= 400 && response.status < 500 ? response.status : 502, {
         ok: false,
         error: 'supabase_update_failed',

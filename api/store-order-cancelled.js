@@ -1,6 +1,6 @@
 const crypto = require('node:crypto');
 const { checkSecret } = require('../lib/secure');
-const { storeIdFromRequest, authenticateStoreWebhook, checkOrderOwnership } = require('../lib/store-webhook-auth');
+const { storeIdFromRequest, authenticateStoreWebhook, checkOrderOwnership, scopeIdempotencyKey, storeFailureStatus } = require('../lib/store-webhook-auth');
 function reply(res, status, body) {
   res.status(status).setHeader('Content-Type', 'application/json').json(body);
 }
@@ -59,6 +59,7 @@ module.exports = async function storeOrderCancelled(req, res) {
     }
   }
   payload.idempotencyKey = payload.idempotencyKey || payload.eventId || crypto.createHash('sha256').update(JSON.stringify({ trackingNumber: payload.trackingNumber, status: payload.status, reason: payload.reason, items: payload.items })).digest('hex');
+  if (storeAuth) payload.idempotencyKey = scopeIdempotencyKey(storeAuth.storeId, payload.idempotencyKey);
   try {
     const response = await fetch(`${supabaseUrl}/rest/v1/rpc/cancel_store_order_request`, {
       method: 'POST',
@@ -69,6 +70,10 @@ module.exports = async function storeOrderCancelled(req, res) {
     let data;
     try { data = raw ? JSON.parse(raw) : null; } catch (_) { data = { raw }; }
     if (!response.ok) {
+      if (storeAuth) {
+        reply(res, storeFailureStatus('store-order-cancelled', response.status, raw), { ok: false, error: 'cancellation_update_failed' });
+        return;
+      }
       reply(res, response.status >= 400 && response.status < 500 ? response.status : 502, { ok: false, error: 'cancellation_update_failed', details: data });
       return;
     }
