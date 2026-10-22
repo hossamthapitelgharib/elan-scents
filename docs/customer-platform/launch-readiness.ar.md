@@ -57,7 +57,7 @@
 | `authenticated_security_definer_function_executable` (WARN) | 3 دوال: `create_checkout_session` و`create_store_order_request` و`create_store_order_request_from_cart` | مقصود: هي واجهة الشراء التي تستدعيها الواجهة بجلسة العميل، وتربط الطلب بـ `auth.uid()` داخل الدالة (اختبار `regression.test.js` يثبّت ذلك). سحب الصلاحية يوقف الشراء. |
 | `multiple_permissive_policies` (WARN) | 55 | أثر أداء فقط، ولا حركة على المنصة بعد (0 طلب). دمج السياسات يعيد كتابة RLS على جداول العملاء، فلا يُنفَّذ إلا مع قياس فعلي. |
 | `unused_index` (INFO) | 41 | لا حركة بعد فلا تُقاس الفهارس؛ حذفها الآن ثم إعادتها بعد الإطلاق عمل بلا فائدة. تُراجع بعد أسابيع من الاستعمال الفعلي. |
-| `no_primary_key` (INFO) | `guest_product_analytics` | عُولج بترحيل جاهز ومُختبر ينتظر التطبيق، انظر `supabase/README.md`. |
+| `no_primary_key` (INFO) | `guest_product_analytics` | عُولج: طُبّق الترحيل `20261021104519` (القيد الفريد الموجود صار مفتاحًا أساسيًا)، انظر `supabase/README.md`. |
 | `auth_leaked_password_protection` (WARN) | 1 | إعداد في لوحة Supabase Auth لا يُضبط من الكود. |
 
 حد الطلبات في `lib/rate-limit.js` يعمل داخل ذاكرة العملية، فنسخة Railway الواحدة شرط لصحته؛ إن زاد عدد النسخ صار لكل نسخة عدّاد مستقل ويضعف الحد، فانقله إلى مخزن مشترك قبل ذلك.
