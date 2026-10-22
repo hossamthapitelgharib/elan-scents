@@ -113,4 +113,6 @@ Same version and same statements; only the descriptive part of the file name dif
 
 ## Not covered
 
-The base schema (`profiles`, `stores`, `products`, `product_sizes`, `store_products`, `offers`, `cart_items`, and related tables) predates the tracked migration history. A new database cannot be rebuilt from this folder alone; a trusted schema snapshot of the live database is required.
+The base schema (`profiles`, `stores`, `products`, `product_sizes`, `store_products`, `offers`, `cart_items`, and related tables) predates the tracked migration history. A new database cannot be rebuilt from this folder alone.
+
+`schema-snapshot/` holds a read-only, structure-only snapshot of the live database (tables, columns, constraints, indexes, policies, grants, triggers, function signatures with definition hashes, views, cron jobs, storage buckets). It documents what the live schema looks like; it is not a restore script. Its `README.md` explains the files, the md5 table that `tests/schema-snapshot.test.js` checks, and how to re-run `generate.sql` to detect drift. When a migration changes the live schema, refresh the affected snapshot file in the same change.
