@@ -4,6 +4,16 @@ const { createLimiter, clientIp } = require('../lib/rate-limit');
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 // Generous for a person restoring one cart, tight for a script trying tokens. Per IP, per process.
 const limiter = createLimiter({ max: 30, windowMs: 60 * 1000 });
+// A restoration link is valid for 30 days from the cancellation (created_at is NOT NULL, set by the database).
+// Past that the link answers 410 and the customer's phone and email are no longer returned, whatever the status.
+// The age is computed here, so no schema change is needed and the row's status is left untouched.
+const RESTORE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+function isExpired(createdAt, now) {
+  const created = Date.parse(createdAt);
+  // An unreadable timestamp cannot be shown to be fresh, so it counts as expired.
+  return !Number.isFinite(created) || now - created > RESTORE_TTL_MS;
+}
 
 function reply(res, status, body) {
   // The success response carries the customer's phone and email, so it must never sit in a shared cache.
@@ -40,7 +50,7 @@ module.exports = async function restoreStoreOrder(req, res) {
   }
   const headers = { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}`, 'Content-Type': 'application/json' };
   try {
-    const query = new URLSearchParams({ select: 'id,request_id,tracking_number,items,status,customer_phone,customer_email', restore_token: `eq.${restoreToken}`, limit: '1' });
+    const query = new URLSearchParams({ select: 'id,request_id,tracking_number,items,status,customer_phone,customer_email,created_at', restore_token: `eq.${restoreToken}`, limit: '1' });
     const foundResponse = await fetch(`${supabaseUrl}/rest/v1/store_order_cart_restorations?${query.toString()}`, { headers });
     const found = await foundResponse.json();
     if (!foundResponse.ok || !Array.isArray(found) || !found[0]) {
@@ -48,6 +58,10 @@ module.exports = async function restoreStoreOrder(req, res) {
       return;
     }
     const restoration = found[0];
+    if (isExpired(restoration.created_at, Date.now())) {
+      reply(res, 410, { ok: false, error: 'restoration_expired' });
+      return;
+    }
     if (restoration.status === 'pending') {
       const updateResponse = await fetch(`${supabaseUrl}/rest/v1/store_order_cart_restorations?id=eq.${restoration.id}`, { method: 'PATCH', headers: { ...headers, Prefer: 'return=minimal' }, body: JSON.stringify({ status: 'restored', restored_at: new Date().toISOString() }) });
       if (!updateResponse.ok) {
@@ -60,3 +74,4 @@ module.exports = async function restoreStoreOrder(req, res) {
     reply(res, 502, { ok: false, error: 'restoration_processing_failed' });
   }
 };
+module.exports.RESTORE_TTL_MS = RESTORE_TTL_MS;

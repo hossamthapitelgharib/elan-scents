@@ -34,7 +34,9 @@ function stubFetch(rows) {
     return jsonResponse(rows);
   };
 }
-const pendingRow = { id: 'row-1', request_id: 'req-1', tracking_number: 'ELN-20261020-0001-S01', items: [{ productSizeId: 'p1', quantity: 2 }], status: 'pending', customer_phone: '+201000000000', customer_email: 'a@b.co' };
+const DAY = 24 * 60 * 60 * 1000;
+const ago = (ms) => new Date(Date.now() - ms).toISOString();
+const pendingRow = { id: 'row-1', request_id: 'req-1', tracking_number: 'ELN-20261020-0001-S01', items: [{ productSizeId: 'p1', quantity: 2 }], status: 'pending', customer_phone: '+201000000000', customer_email: 'a@b.co', created_at: ago(60 * 60 * 1000) };
 
 test.beforeEach(() => { process.env.SUPABASE_URL = 'https://test.supabase.co'; process.env.SUPABASE_SERVICE_ROLE_KEY = 'service'; });
 
@@ -99,4 +101,51 @@ test('one client address is limited to 30 attempts a minute and other clients ar
   assert.ok(Number(blocked.headers['retry-after']) >= 1);
   assert.equal(calls.length, hitsBefore, 'a limited request must not reach Supabase');
   assert.equal((await call({ restoreToken: TOKEN })).status, 404, 'a different client is not limited');
+});
+
+test('the link is valid for 30 days from the cancellation and is checked against created_at', async () => {
+  assert.equal(handler.RESTORE_TTL_MS, 30 * DAY);
+  stubFetch([{ ...pendingRow, created_at: ago(29 * DAY) }]);
+  const inside = await call({ restoreToken: TOKEN });
+  assert.equal(inside.status, 200);
+  assert.match(calls[0].url, /select=[^&]*created_at/);
+
+  stubFetch([{ ...pendingRow, created_at: ago(31 * DAY) }]);
+  const outside = await call({ restoreToken: TOKEN });
+  assert.equal(outside.status, 410);
+  assert.deepEqual(outside.body, { ok: false, error: 'restoration_expired' });
+});
+
+test('an expired link neither restores the order nor returns the customer contact details', async () => {
+  for (const status of ['pending', 'restored', 'expired']) {
+    stubFetch([{ ...pendingRow, status, created_at: ago(45 * DAY) }]);
+    const result = await call({ restoreToken: TOKEN });
+    assert.equal(result.status, 410, status);
+    assert.equal(result.headers['cache-control'], 'no-store');
+    assert.equal(JSON.stringify(result.body).includes('+201000000000'), false);
+    assert.equal(JSON.stringify(result.body).includes('a@b.co'), false);
+    assert.equal(calls.filter((c) => c.method === 'PATCH').length, 0, 'an expired link must not write');
+  }
+});
+
+test('a row whose age cannot be read counts as expired instead of being served', async () => {
+  for (const created_at of [undefined, null, '', 'not-a-date']) {
+    stubFetch([{ ...pendingRow, created_at }]);
+    assert.equal((await call({ restoreToken: TOKEN })).status, 410, String(created_at));
+  }
+});
+
+test('an unknown token stays 404 and does not look like an expired one', async () => {
+  stubFetch([]);
+  const result = await call({ restoreToken: TOKEN });
+  assert.equal(result.status, 404);
+  assert.equal(result.body.error, 'restoration_not_found');
+});
+
+test('the storefront tells the customer when a restore link has expired instead of ignoring it', () => {
+  const core = require('node:fs').readFileSync(path.join(root, 'app-core.js'), 'utf8');
+  const start = core.indexOf('function restoreCancelledStoreItemsFromToken');
+  const body = core.slice(start, core.indexOf('\n', start));
+  assert.match(body, /d\.error==='restoration_expired'/);
+  assert.match(body, /toast\(lang=='ar'\?'انتهت صلاحية رابط استعادة الطلب الملغى'/);
 });
