@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node railway/server.js",
     "test": "node scripts/test-and-record.js",
-    "test:raw": "node --test tests/*.test.js"
+    "test:raw": "node --test tests/*.test.js",
+    "build:cloudflare": "node scripts/build-cloudflare.js"
   },
   "engines": {
     "node": ">=20"

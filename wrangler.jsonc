@@ -1,0 +1,31 @@
+{
+  // Élan Scents on Cloudflare Workers. Setup and cut-over steps: cloudflare/README.md
+  "name": "elan-scents",
+  "main": "cloudflare/index.mjs",
+  "compatibility_date": "2026-10-13",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // Creates dist/ (public files + _headers) and cloudflare/generated/ (editor files) before every deploy.
+  "build": { "command": "node scripts/build-cloudflare.js" },
+
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    // Keep every address exactly as on Railway: /account.html stays /account.html (no redirect to /account).
+    "html_handling": "none",
+    "not_found_handling": "none",
+    // Only these paths run the Worker first. Everything else is a static file served by Cloudflare without invoking code.
+    "run_worker_first": ["/api", "/api/*", "/health", "/editor", "/editor/", "/editor-login.js", "/editor-login.css", "/editor-guard.js", "/editor-media.js"]
+  },
+
+  // Plain (non-secret) settings. Secrets and site-specific values are set in the dashboard (see cloudflare/README.md);
+  // keep_vars stops a deploy from erasing variables that were added there.
+  "keep_vars": true,
+  "vars": {
+    "EDITOR_ENV": "production",
+    "EDITOR_TARGET_BRANCH": "main",
+    "GITHUB_REPO": "hossamthapitelgharib/elan-scents"
+  },
+
+  "observability": { "enabled": true }
+}

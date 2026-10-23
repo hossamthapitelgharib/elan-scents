@@ -21,3 +21,10 @@ reports/test-runs/latest.json
 
 # Temporary preview artifacts
 .tmp/
+
+# Cloudflare build output and local Worker state (scripts/build-cloudflare.js regenerates them)
+dist/
+cloudflare/generated/
+.wrangler/
+.dev.vars
+.dev.vars.*
