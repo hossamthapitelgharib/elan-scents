@@ -1,0 +1,68 @@
+name: Cloudflare Worker check
+
+# Proves, on every push, that the site still builds and runs as a Cloudflare Worker:
+#   1. wrangler bundles the Worker and validates wrangler.jsonc (a dry run, nothing is deployed);
+#   2. wrangler dev starts it in workerd, the real Cloudflare runtime, and scripts/cloudflare-smoke.js talks to it
+#      (static files, /api routes, the owner editor's encrypted cookies) with fake secrets and a fake Supabase.
+# Nothing here has access to a Cloudflare account or to any real secret.
+
+on:
+  push:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  worker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CI: "true"
+      WRANGLER_SEND_METRICS: "false"
+      WRANGLER_LOG_PATH: ${{ runner.temp }}/wrangler-logs
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build the public files and the handler registry
+        run: node scripts/build-cloudflare.js
+      - name: Wrangler dry run (bundle and validate the config)
+        shell: bash
+        run: |
+          set -o pipefail
+          npx --yes wrangler@4 deploy --dry-run --outdir "$RUNNER_TEMP/worker-bundle" 2>&1 | tee "$RUNNER_TEMP/dry-run.log"
+          bytes=$(cat "$RUNNER_TEMP"/worker-bundle/*.js "$RUNNER_TEMP"/worker-bundle/**/*.js 2>/dev/null | gzip -c | wc -c)
+          echo "::notice title=Worker bundle::gzip size ${bytes} bytes (Cloudflare Free plan limit is 3 MB)"
+      - name: Start the Worker locally in workerd
+        shell: bash
+        run: |
+          cat > .dev.vars <<'VARS'
+          SUPABASE_URL=http://127.0.0.1:54321
+          SUPABASE_ANON_KEY=anon-fake-key
+          SUPABASE_SERVICE_ROLE_KEY=service-role-fake-key-0123456789abcdef
+          STORE_ORDER_WEBHOOK_SECRET=smoke-webhook-secret-0123456789
+          EDITOR_AUTH_BYPASS=1
+          EDITOR_ACCESS_KEY=smoke-access-key-0123456789
+          EDITOR_ENV=production
+          EDITOR_SITE_ORIGIN=https://smoke.example
+          VARS
+          nohup npx --yes wrangler@4 dev --port 8787 --ip 127.0.0.1 > "$RUNNER_TEMP/wrangler-dev.log" 2>&1 &
+          echo "started wrangler dev"
+      - name: Smoke test against the running Worker
+        run: node scripts/cloudflare-smoke.js http://127.0.0.1:8787
+      - name: Show the logs when something failed
+        if: failure()
+        shell: bash
+        run: |
+          for f in "$RUNNER_TEMP/dry-run.log" "$RUNNER_TEMP/wrangler-dev.log"; do
+            [ -f "$f" ] || continue
+            echo "===== $f ====="
+            tail -n 60 "$f"
+            msg=$(tail -n 18 "$f" | sed 's/\x1b\[[0-9;]*m//g' | cut -c1-300 | sed ':a;N;$!ba;s/\n/%0A/g')
+            echo "::error title=$(basename "$f")::${msg}"
+          done

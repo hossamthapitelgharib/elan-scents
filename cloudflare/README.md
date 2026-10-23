@@ -16,14 +16,12 @@ Railway يبقى شغّالاً كما هو حتى يُقرَّر التحويل
 
 | الاسم | نوعه | ملاحظة |
 |---|---|---|
-| `SUPABASE_URL` | Variable | نفس قيمة Railway |
-| `SUPABASE_ANON_KEY` | Secret | نفس قيمة Railway |
 | `SUPABASE_SERVICE_ROLE_KEY` | Secret | نفس قيمة Railway |
 | `STORE_ORDER_WEBHOOK_SECRET` | Secret | نفس قيمة Railway (وإلا ترد الـ webhooks بـ 503) |
 | `GUEST_HASH_SECRET` | Secret | **إن كان مضبوطاً على Railway انسخ القيمة نفسها حرفياً**؛ أي قيمة أخرى تبدأ كل ضيف من الصفر. وإن لم يكن مضبوطاً هناك فلا تضفه |
 | `GITHUB_TOKEN` | Secret | للمحرر (الكتابة على `main`) |
 
-`EDITOR_ENV` و`EDITOR_TARGET_BRANCH` و`GITHUB_REPO` موجودة في `wrangler.jsonc`. أما `EDITOR_SITE_ORIGIN` و`ELAN_EDITOR_ORIGIN` و`ELAN_STORE_ORIGIN` فإن لم تُضبط يستعمل الـ Worker العنوان الذي زرتَه به (المحرر والمتجر على أصل واحد)؛ اضبطها فقط إن استعملت أكثر من نطاق.
+`SUPABASE_URL` و`SUPABASE_ANON_KEY` (قيمتان عامتان يستلمهما متصفح كل زائر من `/api/config`) و`EDITOR_ENV` و`EDITOR_TARGET_BRANCH` و`GITHUB_REPO` موجودة في `wrangler.jsonc`، فلا تضفها. أما `EDITOR_SITE_ORIGIN` و`ELAN_EDITOR_ORIGIN` و`ELAN_STORE_ORIGIN` فإن لم تُضبط يستعمل الـ Worker العنوان الذي زرتَه به (المحرر والمتجر على أصل واحد)؛ اضبطها فقط إن استعملت أكثر من نطاق.
 3. افتح `https://<الـ worker>.workers.dev/health` (يردّ `ok`) ثم `/` و`/api/config` و`/editor`.
 
 ## التحويل الكامل
