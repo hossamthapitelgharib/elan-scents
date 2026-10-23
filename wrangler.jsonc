@@ -15,7 +15,9 @@
     "html_handling": "none",
     "not_found_handling": "none",
     // Only these paths run the Worker first. Everything else is a static file served by Cloudflare without invoking code.
-    "run_worker_first": ["/api", "/api/*", "/health", "/editor", "/editor/", "/editor-login.js", "/editor-login.css", "/editor-guard.js", "/editor-media.js"]
+    // The hero video is here because the asset layer ignores Range requests and Safari/iOS will not play a video without them;
+    // the Worker answers them (cloudflare/worker-core.js). Add any other video file to this list (a test checks).
+    "run_worker_first": ["/api", "/api/*", "/health", "/editor", "/editor/", "/editor-login.js", "/editor-login.css", "/editor-guard.js", "/editor-media.js", "/assets/hero.mp4"]
   },
 
   // Plain (non-secret) settings. Secrets and site-specific values are set in the dashboard (see cloudflare/README.md);

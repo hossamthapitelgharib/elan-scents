@@ -93,6 +93,13 @@ async function main() {
     const video = await get('/assets/hero.mp4', { headers: { range: 'bytes=0-99' } });
     const videoBytes = (await video.arrayBuffer()).byteLength;
     check('the hero video answers a Range request with 206', video.status === 206 && videoBytes === 100 && /^bytes 0-99\/\d+$/.test(video.headers.get('content-range') || ''), video.status + ' ' + videoBytes + ' ' + video.headers.get('content-range'));
+    check('a range answer keeps the hero video cache rule and says it accepts ranges', video.headers.get('cache-control') === 'public, max-age=31536000, immutable' && video.headers.get('accept-ranges') === 'bytes', video.headers.get('cache-control') + ' ' + video.headers.get('accept-ranges'));
+    const total = Number((/\/(\d+)$/.exec(video.headers.get('content-range') || '') || [])[1]);
+    const wholeVideo = await get('/assets/hero.mp4');
+    check('the hero video without a Range is the whole file with the cache rule', wholeVideo.status === 200 && (await wholeVideo.arrayBuffer()).byteLength === total && wholeVideo.headers.get('cache-control') === 'public, max-age=31536000, immutable' && /^video\/mp4/.test(wholeVideo.headers.get('content-type') || ''), wholeVideo.status + ' ' + total + ' ' + wholeVideo.headers.get('content-type'));
+    const beyond = await get('/assets/hero.mp4', { headers: { range: 'bytes=' + (total + 10) + '-' } });
+    check('a range beyond the end of the video is 416', beyond.status === 416 && beyond.headers.get('content-range') === 'bytes */' + total, beyond.status + ' ' + beyond.headers.get('content-range'));
+    await beyond.arrayBuffer();
     const first = await get('/index.html');
     const etag = first.headers.get('etag');
     await first.arrayBuffer();

@@ -23,7 +23,7 @@ const built = (() => {
 test.after(() => fs.rmSync(built.dir, { recursive: true, force: true }));
 
 /* A stand-in for the ASSETS binding: exact file match only (html_handling "none"), 404 otherwise. */
-const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8', '.css': 'text/css; charset=utf-8' };
+const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8', '.css': 'text/css; charset=utf-8', '.mp4': 'video/mp4' };
 const ASSETS = {
   calls: [],
   async fetch(input) {
@@ -349,4 +349,102 @@ test('the editor page and its CSP are the same whether the hashes were computed 
       assert.ok(hashes.length > 1 && handlers.length > 0, 'the editor page really has inline scripts and handlers to hash');
     } finally { host.setFileProvider(provider()); }
   });
+});
+
+/* The asset layer answers a Range request with the whole file (200). The stand-in ASSETS above does the same on purpose. */
+const HERO = path.join(root, 'assets', 'hero.mp4');
+const heroBytes = fs.readFileSync(HERO);
+const range = (value, extra) => call('/assets/hero.mp4', { headers: Object.assign({ Range: value }, extra || {}) });
+
+test('video files answer byte ranges themselves, because the asset layer does not', async () => {
+  const first = await range('bytes=0-99');
+  assert.equal(first.status, 206);
+  assert.equal(first.headers.get('content-range'), 'bytes 0-99/' + heroBytes.length);
+  assert.equal(first.headers.get('accept-ranges'), 'bytes');
+  assert.equal(first.headers.get('content-type'), 'video/mp4');
+  assert.equal(first.headers.get('x-content-type-options'), 'nosniff');
+  assert.deepEqual(Buffer.from(await first.arrayBuffer()), heroBytes.subarray(0, 100));
+
+  const open = await range('bytes=1000-');
+  assert.equal(open.status, 206);
+  assert.equal(open.headers.get('content-range'), 'bytes 1000-' + (heroBytes.length - 1) + '/' + heroBytes.length);
+  assert.deepEqual(Buffer.from(await open.arrayBuffer()), heroBytes.subarray(1000));
+
+  const suffix = await range('bytes=-50');
+  assert.equal(suffix.status, 206);
+  assert.deepEqual(Buffer.from(await suffix.arrayBuffer()), heroBytes.subarray(heroBytes.length - 50));
+
+  const clipped = await range('bytes=0-' + (heroBytes.length * 10));
+  assert.equal(clipped.status, 206);
+  assert.equal(clipped.headers.get('content-range'), 'bytes 0-' + (heroBytes.length - 1) + '/' + heroBytes.length);
+  assert.equal((await clipped.arrayBuffer()).byteLength, heroBytes.length);
+});
+
+test('a range outside the file is 416, and anything that is not one range gets the whole file', async () => {
+  for (const bad of ['bytes=' + heroBytes.length + '-', 'bytes=99999999999-', 'bytes=-0', 'bytes=50-10']) {
+    const res = await range(bad);
+    assert.equal(res.status, 416, bad);
+    assert.equal(res.headers.get('content-range'), 'bytes */' + heroBytes.length, bad);
+    assert.equal((await res.arrayBuffer()).byteLength, 0);
+  }
+  for (const other of ['bytes=0-1,5-6', 'items=0-5', 'bytes=-', 'garbage']) {
+    const res = await range(other);
+    assert.equal(res.status, 200, other);
+    assert.equal(res.headers.get('accept-ranges'), 'bytes');
+    assert.equal((await res.arrayBuffer()).byteLength, heroBytes.length, other);
+  }
+});
+
+test('without a Range the video is sent whole, HEAD sends only headers, and If-Range decides which version a range applies to', async () => {
+  const whole = await call('/assets/hero.mp4');
+  assert.equal(whole.status, 200);
+  assert.equal(whole.headers.get('accept-ranges'), 'bytes');
+  assert.equal((await whole.arrayBuffer()).byteLength, heroBytes.length);
+
+  const head = await call('/assets/hero.mp4', { method: 'HEAD', headers: { Range: 'bytes=0-9' } });
+  assert.equal(head.status, 206);
+  assert.equal(head.headers.get('content-range'), 'bytes 0-9/' + heroBytes.length);
+  assert.equal((await head.arrayBuffer()).byteLength, 0);
+
+  const same = await range('bytes=0-9', { 'If-Range': '"x"' });
+  assert.equal(same.status, 206);
+  const other = await range('bytes=0-9', { 'If-Range': '"older-version"' });
+  assert.equal(other.status, 200);
+  assert.equal((await other.arrayBuffer()).byteLength, heroBytes.length);
+});
+
+test('a video that is not in the assets is a 404, and other paths never go through the range code', async () => {
+  const missing = await call('/assets/missing.mp4', { headers: { Range: 'bytes=0-9' } });
+  assert.equal(missing.status, 404);
+  const post = await call('/assets/hero.mp4', { method: 'POST', body: '{}' });
+  assert.equal(post.status, 405);
+  const css = await call('/style.css', { headers: { Range: 'bytes=0-9' } });
+  assert.notEqual(css.status, 206);
+});
+
+test('the same range request gets the same answer from the Worker and from railway/server.js', async () => {
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  try {
+    const port = server.address().port;
+    for (const value of ['bytes=0-99', 'bytes=1000-', 'bytes=-50', 'bytes=0-99999999', 'bytes=99999999-']) {
+      const railway = await fetch('http://127.0.0.1:' + port + '/assets/hero.mp4', { headers: { Range: value, 'Accept-Encoding': 'identity' } });
+      const worker = await range(value);
+      assert.equal(worker.status, railway.status, value);
+      assert.equal(worker.headers.get('content-range'), railway.headers.get('content-range'), value);
+      assert.deepEqual(Buffer.from(await worker.arrayBuffer()), Buffer.from(await railway.arrayBuffer()), value);
+    }
+  } finally { server.close(); }
+});
+
+test('parseRange mirrors the rules railway/server.js applies', () => {
+  const size = 1000;
+  assert.deepEqual(core.parseRange('bytes=0-0', size), { start: 0, end: 0 });
+  assert.deepEqual(core.parseRange('bytes=999-', size), { start: 999, end: 999 });
+  assert.deepEqual(core.parseRange('bytes=-1000', size), { start: 0, end: 999 });
+  assert.deepEqual(core.parseRange('bytes=-5000', size), { start: 0, end: 999 });
+  assert.equal(core.parseRange('bytes=1000-', size), 'invalid');
+  assert.equal(core.parseRange('bytes=5-4', size), 'invalid');
+  assert.equal(core.parseRange(' bytes=1-2 ', size).start, 1);
+  assert.equal(core.parseRange(null, size), null);
+  assert.ok(core.RANGE_EXTENSIONS.test('/a/b.MP4') && core.RANGE_EXTENSIONS.test('/x.webm') && !core.RANGE_EXTENSIONS.test('/x.mp4.js'));
 });

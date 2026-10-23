@@ -7,6 +7,7 @@ Railway يبقى شغّالاً كما هو حتى يُقرَّر التحويل
 - `wrangler.jsonc`: إعداد الـ Worker (الاسم، مجلد الملفات الثابتة `dist/`، المسارات التي يعمل فيها الكود أولاً، المتغيرات غير السرية).
 - `scripts/build-cloudflare.js`: يُشغَّل تلقائياً قبل كل نشر (`build.command`). يبني `dist/` (نفس الملفات العامة التي يقدّمها `railway/server.js` بالضبط، مع ملف `_headers` مولَّد من `vercel.json`) ويضمّ صفحات المحرر الخاصة داخل الـ Worker (`cloudflare/generated/`، غير مرفوع).
 - `cloudflare/worker-core.js`: يحوّل الطلب إلى `req`/`res` على طريقة Node ويشغّل نفس ملفات `api/*.js` و`railway/editor-host.js` بدون تعديل في منطقها.
+- فيديو الصفحة الرئيسية (`assets/hero.mp4`) يمر عبر الـ Worker (`run_worker_first`) لأن طبقة الملفات الثابتة في Cloudflare لا تردّ على طلبات `Range` (تعيد الملف كاملاً بـ 200) وSafari/iPhone لا يشغّل الفيديو بدونها؛ `worker-core.js` يردّ بـ 206. أي فيديو جديد يُضاف إلى `run_worker_first` (اختبار يفشل إن نُسي).
 - `cloudflare/api-registry.js`: قائمة ثابتة بدوال الـ API (الحزمة لا تستطيع قراءة المجلد وقت التشغيل). اختبار يفشل إن أضفتَ ملفاً في `api/` ونسيتَ القائمة.
 - `tests/cloudflare-*.test.js`: يتأكدان أن الملفات العامة مطابقة لـ Railway بالبايت، وأن رؤوس الكاش مطابقة، وأن ردّ الـ Worker مطابق لردّ خادم Railway لنفس الطلب.
 

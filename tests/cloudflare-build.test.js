@@ -145,3 +145,12 @@ test('the header resolver keeps "later rule wins" and refuses unsafe input', () 
   const many = Array.from({ length: 120 }, (_, i) => 'f' + i + '.js');
   assert.throws(() => build.buildHeadersFile(many, { headers: [{ source: '/(.*)\\.js', headers: [{ key: 'Cache-Control', value: 'x' }] }].concat(many.map((f, i) => ({ source: '/' + f.replace('.', '\\.'), headers: [{ key: 'Cache-Control', value: 'v' + i }] }))) }), /too many/);
 });
+
+test('every video file in the assets is routed through the Worker, where Range requests are answered', () => {
+  // The whole-line comments are the only ones in wrangler.jsonc, so dropping them leaves plain JSON.
+  const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'wrangler.jsonc'), 'utf8').split('\n').filter((l) => !l.trim().startsWith('//')).join('\n'));
+  const first = new Set(config.assets.run_worker_first);
+  const videos = build.listPublicFiles(path.join(__dirname, '..')).filter((rel) => /\.(mp4|webm)$/i.test(rel));
+  assert.ok(videos.includes('assets/hero.mp4'));
+  for (const rel of videos) assert.ok(first.has('/' + rel), rel + ' must be in run_worker_first (wrangler.jsonc), or Safari cannot play it');
+});

@@ -275,6 +275,53 @@ function withBaseline(response, url) {
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 
+/* Cloudflare's asset layer ignores a Range header and answers 200 with the whole file. Safari and iOS will not play a <video>
+   unless the server answers byte ranges (206), so video files are routed through the Worker (run_worker_first in wrangler.jsonc;
+   tests/cloudflare-build.test.js fails if a video file is missing there) and sliced here, the way railway/server.js does. */
+const RANGE_EXTENSIONS = /\.(mp4|webm)$/i;
+
+/* A single "bytes=a-b", "bytes=a-" or "bytes=-n" range inside a file of `size` bytes: { start, end } (inclusive), 'invalid' when
+   it cannot be satisfied (416), or null when the header is something else (several ranges, another unit): answer the whole file. */
+function parseRange(header, size) {
+  const m = /^bytes=(\d*)-(\d*)$/.exec(String(header || '').trim());
+  if (!m || (m[1] === '' && m[2] === '')) return null;
+  let start; let end;
+  if (m[1] === '') {
+    const last = Number(m[2]);
+    start = Math.max(0, size - last); end = size - 1;
+    if (last === 0) return 'invalid';
+  } else {
+    start = Number(m[1]);
+    end = m[2] === '' ? size - 1 : Math.min(Number(m[2]), size - 1);
+  }
+  if (start >= size || start > end) return 'invalid';
+  return { start, end };
+}
+
+async function serveAssetWithRange(request, env, url) {
+  const wanted = request.headers.get('range');
+  const ifRange = request.headers.get('if-range');
+  const headers = new Headers(request.headers);
+  headers.delete('range'); headers.delete('if-range');
+  const asset = await env.ASSETS.fetch(new Request(url, { method: 'GET', headers }));
+  if (asset.status !== 200) return withBaseline(asset, url); // 304, 404 ...
+  const out = new Headers(asset.headers);
+  out.set('Accept-Ranges', 'bytes');
+  const head = request.method === 'HEAD';
+  const whole = () => withBaseline(new Response(head ? null : asset.body, { status: 200, headers: out }), url);
+  // If-Range names the version the client already holds part of; a different version means "send the whole file".
+  if (!wanted || (ifRange && ifRange !== out.get('etag'))) return whole();
+  const bytes = new Uint8Array(await asset.arrayBuffer());
+  const range = parseRange(wanted, bytes.length);
+  if (range === null) return withBaseline(new Response(head ? null : bytes, { status: 200, headers: out }), url);
+  if (range === 'invalid') {
+    out.set('Content-Range', 'bytes */' + bytes.length);
+    return withBaseline(new Response(null, { status: 416, headers: out }), url);
+  }
+  out.set('Content-Range', 'bytes ' + range.start + '-' + range.end + '/' + bytes.length);
+  return withBaseline(new Response(head ? null : bytes.subarray(range.start, range.end + 1), { status: 206, headers: out }), url);
+}
+
 function notFound(url) {
   return withBaseline(new Response('Not found', { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8' } }), url);
 }
@@ -298,6 +345,7 @@ async function handleRequest(request, env, ctx, deps) {
   if (url.protocol === 'https:') res.setHeader('Strict-Transport-Security', HSTS);
 
   let pathname = url.pathname;
+  if ((request.method === 'GET' || request.method === 'HEAD') && RANGE_EXTENSIONS.test(pathname) && env.ASSETS) return serveAssetWithRange(request, env, url);
   if (pathname === '/health') { res.setHeader('Content-Type', 'text/plain'); res.end('ok'); return settle(res); }
 
   let editorHost;
@@ -323,4 +371,4 @@ async function handleRequest(request, env, ctx, deps) {
   return notFound(url);
 }
 
-module.exports = { handleRequest, NodeResponse, makeRequest, BASELINE_HEADERS, REWRITES };
+module.exports = { handleRequest, NodeResponse, makeRequest, parseRange, RANGE_EXTENSIONS, BASELINE_HEADERS, REWRITES };
