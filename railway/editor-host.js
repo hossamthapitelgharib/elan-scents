@@ -12,6 +12,8 @@ const { clientIp } = require('../lib/rate-limit.js');
 // Workers have no disk and no __dirname: the Cloudflare bundle supplies the editor files with setFileProvider() instead.
 const ROOT = typeof __dirname === 'string' ? path.resolve(__dirname, '..') : '/';
 const COOKIE = 'elan_sess';
+// One byte over the largest image editor-media.js accepts, so an oversized upload is cut off while it is still being read.
+const UPLOAD_LIMIT = media.MAX_BYTES + 1;
 const LOGIN_FILES = { '/editor-login.js': 'text/javascript; charset=utf-8', '/editor-login.css': 'text/css; charset=utf-8', '/editor-guard.js': 'text/javascript; charset=utf-8', '/editor-media.js': 'text/javascript; charset=utf-8' };
 
 function editorSiteOrigin() {
@@ -155,7 +157,7 @@ async function handle(req, res, pathname) {
     renewCookie(req, res, s);
     if (req.method !== 'POST' || !sameOrigin(req)) return json(res, 403, { ok: false, error: 'forbidden' }), true;
     const type = String(req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
-    const buf = await readRaw(req, media.MAX_VIDEO_BYTES + 1);
+    const buf = await readRaw(req, UPLOAD_LIMIT);
     if (!buf) return json(res, 413, { ok: false, error: 'file_too_large' }), true;
     let name = ''; try { name = decodeURIComponent(String(req.headers['x-file-name'] || '')); } catch (_) { name = ''; }
     const r = await media.upload(s, buf, type, name);
@@ -216,4 +218,4 @@ async function handle(req, res, pathname) {
   return false;
 }
 
-module.exports = { handle, attachSession, attachBridgeTicket, buildPage, editorSiteOrigin, bridgeTickets, setFileProvider };
+module.exports = { handle, attachSession, attachBridgeTicket, buildPage, editorSiteOrigin, bridgeTickets, setFileProvider, UPLOAD_LIMIT };
