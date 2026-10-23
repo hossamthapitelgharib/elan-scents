@@ -43,8 +43,9 @@ test('every file extension the site serves has a content type, so nosniff cannot
   const path = require('node:path');
   const root = path.resolve(__dirname, '..');
   const files = execFileSync('git', ['ls-files'], { cwd: root, encoding: 'utf8' }).split('\n').filter(Boolean);
-  const hidden = /^(api|tests|supabase|railway|node_modules|src|lib|scripts|reports|docs|\.github|\.git|\.archive)\//;
-  const extensions = new Set(files.filter(f => !hidden.test(f)).map(f => path.extname(f).toLowerCase()).filter(Boolean));
+  const hidden = /^(api|tests|supabase|railway|cloudflare|dist|node_modules|src|lib|scripts|reports|docs|\.github|\.git|\.archive)\//;
+  // wrangler.jsonc is Cloudflare build configuration: the host blocks it (tests/cloudflare-build.test.js checks that).
+  const extensions = new Set(files.filter(f => !hidden.test(f) && f !== 'wrangler.jsonc').map(f => path.extname(f).toLowerCase()).filter(Boolean));
   // .sql files are never served (the host blocks them) and .gitkeep/.gitignore are dot files, which are never served either.
   const unmapped = [...extensions].filter(e => !server.MIME[e] && !['.sql', '.gitkeep', '.gitignore'].includes(e));
   assert.deepEqual(unmapped, [], 'add a MIME type in railway/server.js for: ' + unmapped.join(', '));
