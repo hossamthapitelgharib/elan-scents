@@ -1,7 +1,7 @@
 /* Élan Scents — media for the owner editor: list the library and upload an image.
    Runs with the admin's own Supabase session (kept on the server), so the database and storage rules decide what is allowed.
    No service key is used here. */
-const crypto = require('crypto');
+const crypto = require('node:crypto');
 
 const BUCKET = 'site-media';
 const MAX_BYTES = 10 * 1024 * 1024;

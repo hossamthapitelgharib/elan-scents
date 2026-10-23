@@ -25,9 +25,9 @@ const MIME = {
 // Never serve server-side or repo-internal files.
 // Full editor UI stays private (served only via editor-host); only explicitly allow-listed,
 // browser-safe editor/store scripts may be fetched directly.
-const BLOCKED_TOP = new Set(['api', 'tests', 'supabase', 'railway', 'node_modules', 'src', 'lib', 'scripts', 'reports', 'docs', '.github', '.git']);
+const BLOCKED_TOP = new Set(['api', 'tests', 'supabase', 'railway', 'cloudflare', 'dist', 'node_modules', 'src', 'lib', 'scripts', 'reports', 'docs', '.github', '.git']);
 const EDITOR_PUBLIC_FILES = new Set(['edit-model.js', 'editor-data-bridge.js', 'editor-geometry.js', 'editor-live-library.js']);
-const BLOCKED_FILES = new Set(['package.json', 'package-lock.json', 'vercel.json', 'claude.md', 'readme.md']);
+const BLOCKED_FILES = new Set(['package.json', 'package-lock.json', 'vercel.json', 'server.js', 'wrangler.jsonc', 'wrangler.json', 'wrangler.toml', 'claude.md', 'readme.md']);
 
 function compile(rules, key) {
   return (rules || []).map((r) => {

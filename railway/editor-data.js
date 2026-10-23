@@ -1,6 +1,6 @@
 /* Élan Scents — authenticated data provider for editor tools.
    Uses the attached admin session and Supabase service role only on the server. */
-const crypto = require('crypto');
+const crypto = require('node:crypto');
 const { getContext, requireRoles } = require('../api/_auth');
 
 function reply(res, status, body) {

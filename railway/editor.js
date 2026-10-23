@@ -1,9 +1,9 @@
 /* Élan Scents — one guarded editor API endpoint on Railway.
    Admin only. Writes exactly one file (design/home.json) with one commit per save.
    Repo, path and branch come from server configuration, never from the request. */
-const crypto = require('crypto');
-const fs = require('fs');
-const path = require('path');
+const crypto = require('node:crypto');
+const fs = require('node:fs');
+const path = require('node:path');
 const { getContext, requireRoles } = require('../api/_auth');
 const ED = require('../design-schema.js');
 
@@ -46,10 +46,17 @@ function config(env) {
   return { token, repo, branch, origin: origin.replace(/\/+$/, ''), isProd };
 }
 
-function localDesign() {
-  const file = path.resolve(__dirname, '..', DESIGN_PATH);
+/* Where the committed design file is read from when GitHub is not configured: the repository on disk, or (Cloudflare Workers, which
+   have no disk) a source the host provides. selfFetch lets a Worker answer requests for its own /design/home.json from its assets. */
+let designSource = null;
+let selfFetch = null;
+function setDesignSource(fn) { designSource = typeof fn === 'function' ? fn : null; }
+function setSelfFetch(fn) { selfFetch = typeof fn === 'function' ? fn : null; }
+
+async function localDesign() {
   try {
-    const text = fs.readFileSync(file, 'utf8');
+    const text = designSource ? await designSource() : fs.readFileSync(path.resolve(__dirname, '..', DESIGN_PATH), 'utf8');
+    if (typeof text !== 'string') throw new Error('design file is not available');
     const parsed = JSON.parse(text);
     const n = ED.normalize(parsed, { strict: false });
     return { text, design: n.design, warnings: n.ok && !n.errors.length ? undefined : n.errors.slice(0, 5) };
@@ -94,7 +101,7 @@ function parseBody(req) {
 
 async function actionState(cfg) {
   if (cfg.readOnly) {
-    const local = localDesign();
+    const local = await localDesign();
     const body = { ok: true, revision: gitBlobSha(local.text), design: local.design, branch: cfg.branch || 'main', readOnly: true };
     if (local.warnings) body.warnings = local.warnings;
     return { status: 200, body };
@@ -166,7 +173,7 @@ async function actionStatus(cfg, body) {
   try {
     const controller = new AbortController();
     const timer = setTimeout(function () { controller.abort(); }, 8000);
-    const response = await fetch(cfg.origin + '/design/home.json?cb=' + Date.now(), { cache: 'no-store', signal: controller.signal });
+    const response = await (selfFetch || fetch)(cfg.origin + '/design/home.json?cb=' + Date.now(), { cache: 'no-store', signal: controller.signal });
     clearTimeout(timer);
     if (response.ok) live = gitBlobSha(await response.text());
   } catch (_) { /* not reachable yet */ }
@@ -203,3 +210,5 @@ module.exports = async function editor(req, res) {
 };
 
 module.exports.internals = { config, gitBlobSha, DESIGN_PATH };
+module.exports.setDesignSource = setDesignSource;
+module.exports.setSelfFetch = setSelfFetch;

@@ -6,7 +6,7 @@
    applied to the page by this module: the owner still picks it for an element and presses Save. */
 'use strict';
 
-const crypto = require('crypto');
+const crypto = require('node:crypto');
 const { looksLike, MAX_BYTES } = require('./editor-media.js');
 
 const BUCKET = 'site-media';

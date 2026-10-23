@@ -1,15 +1,16 @@
 /* Élan Scents — owner editor on the same site (same origin as the storefront).
    "/editor" shows a login page; after an admin login it serves the original editor page, which opens
    this same site inside it. The editor page is never a public file. Sessions live in server memory only. */
-const fs = require('fs');
-const path = require('path');
-const crypto = require('crypto');
+const fs = require('node:fs');
+const path = require('node:path');
 const sessions = require('./editor-session.js');
 const media = require('./editor-media.js');
 const bridgeTickets = require('./editor-bridge-ticket.js');
+const pageHashes = require('./editor-page-hashes.js');
 const { clientIp } = require('../lib/rate-limit.js');
 
-const ROOT = path.resolve(__dirname, '..');
+// Workers have no disk and no __dirname: the Cloudflare bundle supplies the editor files with setFileProvider() instead.
+const ROOT = typeof __dirname === 'string' ? path.resolve(__dirname, '..') : '/';
 const COOKIE = 'elan_sess';
 const LOGIN_FILES = { '/editor-login.js': 'text/javascript; charset=utf-8', '/editor-login.css': 'text/css; charset=utf-8', '/editor-guard.js': 'text/javascript; charset=utf-8', '/editor-media.js': 'text/javascript; charset=utf-8' };
 
@@ -26,18 +27,30 @@ function editorSiteOrigin() {
   return 'https://elan-site-production.up.railway.app';
 }
 
-function sha(s) { return "'sha256-" + crypto.createHash('sha256').update(s, 'utf8').digest('base64') + "'"; }
+let fileProvider = null;
+function setFileProvider(fn) { fileProvider = typeof fn === 'function' ? fn : null; PAGE = null; }
+/* Text of a file in editor/ (null when missing): from the provider when one is set, otherwise from the repository on disk. */
+function editorFile(name) {
+  if (fileProvider) { const text = fileProvider(name); return text === undefined || text === null ? null : String(text); }
+  try { return fs.readFileSync(path.join(ROOT, 'editor', name), 'utf8'); } catch (_) { return null; }
+}
+
+const sha = pageHashes.sha;
 
 let PAGE = null;
 function buildPage() {
-  let html = fs.readFileSync(path.join(ROOT, 'editor', 'elan-editor.html'), 'utf8');
+  const base = editorFile('elan-editor.html');
+  if (base === null) throw new Error('editor page is missing');
   const siteOrigin = editorSiteOrigin();
-  html = html.replace('</head>', '<script>window.ELAN_EDITOR_SITE_ORIGIN=' + JSON.stringify(siteOrigin) + ';</script></head>');
+  const injectedCode = 'window.ELAN_EDITOR_SITE_ORIGIN=' + JSON.stringify(siteOrigin) + ';';
+  let html = base.replace('</head>', '<script>' + injectedCode + '</script></head>');
   html = html.replace('</body>', '<script src="/editor-guard.js"></script><script src="/editor-media.js"></script><script src="/editor/editor-live-library.js?v=20261016-01"></script></body>');
-  const hashes = [];
-  html.replace(/<script>([\s\S]*?)<\/script>/g, (_, code) => { hashes.push(sha(code)); return ''; });
-  const handlers = [];
-  html.replace(/\son[a-z]+="([^"]*)"/g, (_, code) => { handlers.push(sha(code.replace(/&quot;/g, '"').replace(/&#39;/g, "'"))); return ''; });
+  // Hashes computed at build time (Cloudflare bundle) are used only while they still describe this exact page.
+  let found = null;
+  try { const stored = editorFile('elan-editor.hashes.json'); found = stored ? JSON.parse(stored) : null; } catch (_) { found = null; }
+  const scanned = found && found.digest === pageHashes.digest(base) ? found : pageHashes.scan(base);
+  const hashes = scanned.headScripts.concat(base.includes('</head>') ? [sha(injectedCode)] : [], scanned.bodyScripts);
+  const handlers = scanned.handlers;
   const csp = [
     "default-src 'self'",
     "script-src 'self' " + hashes.join(' ') + (handlers.length ? " 'unsafe-hashes' " + handlers.join(' ') : ''),
@@ -70,13 +83,12 @@ function sameOrigin(req) {
 }
 function ip(req) { return clientIp(req); }
 function json(res, status, body) { res.statusCode = status; res.setHeader('Content-Type', 'application/json; charset=utf-8'); res.setHeader('Cache-Control', 'no-store'); res.end(JSON.stringify(body)); }
-function sendFile(res, file, type, extra) {
-  fs.readFile(file, (err, data) => {
-    if (err) { res.statusCode = 404; return res.end('Not found'); }
-    res.statusCode = 200; res.setHeader('Content-Type', type); res.setHeader('Cache-Control', 'no-store');
-    Object.keys(extra || {}).forEach((k) => res.setHeader(k, extra[k]));
-    res.end(data);
-  });
+function sendFile(res, name, type, extra) {
+  const data = editorFile(name);
+  if (data === null) { res.statusCode = 404; return res.end('Not found'); }
+  res.statusCode = 200; res.setHeader('Content-Type', type); res.setHeader('Cache-Control', 'no-store');
+  Object.keys(extra || {}).forEach((k) => res.setHeader(k, extra[k]));
+  res.end(data);
 }
 function readJson(req) {
   return new Promise((resolve) => {
@@ -189,7 +201,7 @@ async function handle(req, res, pathname) {
       res.end(req.method === 'HEAD' ? '' : PAGE.html);
       return true;
     }
-    sendFile(res, path.join(ROOT, 'editor', 'login.html'), 'text/html; charset=utf-8', {
+    sendFile(res, 'login.html', 'text/html; charset=utf-8', {
       'Content-Security-Policy': "default-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
       'X-Frame-Options': 'DENY', 'X-Content-Type-Options': 'nosniff'
     });
@@ -198,10 +210,10 @@ async function handle(req, res, pathname) {
 
   if (LOGIN_FILES[pathname] && (req.method === 'GET' || req.method === 'HEAD')) {
     if (pathname === '/editor-guard.js' && !(await sessions.get(sid))) { res.statusCode = 404; res.end('Not found'); return true; }
-    sendFile(res, path.join(ROOT, 'editor', pathname.slice(1)), LOGIN_FILES[pathname]);
+    sendFile(res, pathname.slice(1), LOGIN_FILES[pathname]);
     return true;
   }
   return false;
 }
 
-module.exports = { handle, attachSession, attachBridgeTicket, buildPage, editorSiteOrigin, bridgeTickets };
+module.exports = { handle, attachSession, attachBridgeTicket, buildPage, editorSiteOrigin, bridgeTickets, setFileProvider };
