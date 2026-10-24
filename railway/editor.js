@@ -1,4 +1,4 @@
-/* Élan Scents — one guarded editor API endpoint on Railway.
+/* Élan Scents — one guarded editor API endpoint (served by the Cloudflare Worker; also runs under railway/server.js locally).
    Admin only. Writes exactly one file (design/home.json) with one commit per save.
    Repo, path and branch come from server configuration, never from the request. */
 const crypto = require('node:crypto');
@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { getContext, requireRoles } = require('../api/_auth');
 const ED = require('../design-schema.js');
+const { DEFAULT_SITE_ORIGIN } = require('../lib/site-origin.js');
 
 const DESIGN_PATH = 'design/home.json';
 const DEFAULT_REPO = 'hossamthapitelgharib/elan-scents';
@@ -33,7 +34,7 @@ function config(env) {
   const host = env.RAILWAY_PUBLIC_DOMAIN;
   let origin = env.EDITOR_SITE_ORIGIN || (host ? 'https://' + host : '');
   const selfOrigin = host ? ('https://' + String(host).replace(/^https?:\/\//, '').replace(/\/+$/, '')) : '';
-  if (isProd && selfOrigin && origin.replace(/\/+$/, '') === selfOrigin) origin = 'https://elan-site-production.up.railway.app';
+  if (isProd && selfOrigin && origin.replace(/\/+$/, '') === selfOrigin) origin = DEFAULT_SITE_ORIGIN;
   const missing = [];
   if (!token) missing.push('GITHUB_TOKEN');
   if (!branch) missing.push('EDITOR_TARGET_BRANCH');

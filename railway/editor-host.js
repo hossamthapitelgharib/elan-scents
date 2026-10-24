@@ -8,6 +8,7 @@ const media = require('./editor-media.js');
 const bridgeTickets = require('./editor-bridge-ticket.js');
 const pageHashes = require('./editor-page-hashes.js');
 const { clientIp } = require('../lib/rate-limit.js');
+const { DEFAULT_SITE_ORIGIN } = require('../lib/site-origin.js');
 
 // Workers have no disk and no __dirname: the Cloudflare bundle supplies the editor files with setFileProvider() instead.
 const ROOT = typeof __dirname === 'string' ? path.resolve(__dirname, '..') : '/';
@@ -26,7 +27,7 @@ function editorSiteOrigin() {
     const u = new URL(String(process.env.EDITOR_SITE_ORIGIN || ''));
     if (u.protocol === 'https:' && !u.username && !u.password && u.pathname === '/' && !u.search && !u.hash && (!selfOrigin || u.origin !== selfOrigin)) return u.origin;
   } catch (_) { /* use the known production storefront */ }
-  return 'https://elan-site-production.up.railway.app';
+  return DEFAULT_SITE_ORIGIN;
 }
 
 let fileProvider = null;

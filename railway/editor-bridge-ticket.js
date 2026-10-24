@@ -1,8 +1,7 @@
 /* Short-lived, server-signed delegation from the authenticated editor host to its storefront iframe. */
 const crypto = require('node:crypto');
+const { DEFAULT_SITE_ORIGIN } = require('../lib/site-origin.js');
 
-const DEFAULT_EDITOR_ORIGIN = 'https://elan-editor-production-dc4e.up.railway.app';
-const DEFAULT_STORE_ORIGIN = 'https://elan-site-production.up.railway.app';
 const TTL_SECONDS = 10 * 60;
 
 function normalizeOrigin(value) {
@@ -18,22 +17,19 @@ function signingSecret(env) {
   return String(env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SECRET_KEY || '');
 }
 
+/* The editor and the storefront are one origin (one Worker), so unless ELAN_EDITOR_ORIGIN says otherwise the editor origin is the store's. */
 function editorOrigin(env) {
   env = env || process.env;
-  return normalizeOrigin(env.ELAN_EDITOR_ORIGIN) || DEFAULT_EDITOR_ORIGIN;
+  return normalizeOrigin(env.ELAN_EDITOR_ORIGIN) || storeOrigin(env);
 }
 
 function storeOrigin(env) {
   env = env || process.env;
   const explicit = normalizeOrigin(env.ELAN_STORE_ORIGIN);
   if (explicit) return explicit;
-  const host = normalizeOrigin(String(env.RAILWAY_PUBLIC_DOMAIN || '').includes('://')
-    ? env.RAILWAY_PUBLIC_DOMAIN
-    : (env.RAILWAY_PUBLIC_DOMAIN ? 'https://' + env.RAILWAY_PUBLIC_DOMAIN : ''));
-  if (host && host !== DEFAULT_EDITOR_ORIGIN) return host;
   const configured = normalizeOrigin(env.EDITOR_SITE_ORIGIN);
-  if (configured && configured !== DEFAULT_EDITOR_ORIGIN) return configured;
-  return DEFAULT_STORE_ORIGIN;
+  if (configured) return configured;
+  return DEFAULT_SITE_ORIGIN;
 }
 
 function issue(siteOrigin, env, now) {
@@ -78,4 +74,4 @@ function verify(token, env, now) {
   return claims;
 }
 
-module.exports = { issue, verify, editorOrigin, storeOrigin, TTL_SECONDS, DEFAULT_EDITOR_ORIGIN, DEFAULT_STORE_ORIGIN };
+module.exports = { issue, verify, editorOrigin, storeOrigin, TTL_SECONDS };

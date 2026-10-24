@@ -1,6 +1,6 @@
 # Editor layout (production)
 
-The live editor runs **on the same Railway service as the storefront** (`elan-scents`).
+The live editor runs **on the same Cloudflare Worker and the same origin as the storefront** (`elan-scents`, https://elan-scents.hossamthapitelgharib.workers.dev/editor).
 
 ## Runtime paths
 

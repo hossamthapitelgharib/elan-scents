@@ -84,10 +84,10 @@ test('when the editor cannot start, it says why instead of showing no tools', ()
   const ok = config({ GITHUB_TOKEN: 't', EDITOR_TARGET_BRANCH: 'main', EDITOR_SITE_ORIGIN: 'https://example.com', RAILWAY_ENVIRONMENT_NAME: 'production' });
   assert.equal(ok.error, undefined);
   const selfOrigin = config({ GITHUB_TOKEN: 't', EDITOR_TARGET_BRANCH: 'main', EDITOR_SITE_ORIGIN: 'https://editor.example.test', RAILWAY_PUBLIC_DOMAIN: 'editor.example.test', RAILWAY_ENVIRONMENT_NAME: 'production' });
-  assert.equal(selfOrigin.origin, 'https://elan-site-production.up.railway.app');
+  assert.equal(selfOrigin.origin, require('../lib/site-origin.js').DEFAULT_SITE_ORIGIN);
 });
 
-test('save error shows which Railway settings are missing', () => {
+test('save error shows which Cloudflare settings are missing', () => {
   const page = read('editor/elan-editor.html');
   assert.match(page, /الناقص: '\+j\.missing\.join/);
 });
@@ -102,7 +102,7 @@ test('live preview defaults to the configured storefront origin, not the editor 
   const page = read('editor/elan-editor.html');
   const host = read('railway/editor-host.js');
   const mode = read('edit-mode.js');
-  assert.match(page, /address\.value=\(window\.ELAN_EDITOR_SITE_ORIGIN\|\|\'https:\/\/elan-site-production\.up\.railway\.app\'\)\+'\/'/);
+  assert.match(page, /address\.value=\(window\.ELAN_EDITOR_SITE_ORIGIN\|\|location\.origin\)\+'\/'/);
   assert.match(host, /frame-src 'self' \" \+ siteOrigin/);
   assert.match(host, /window\.ELAN_EDITOR_SITE_ORIGIN/);
   assert.match(host, /frame-ancestors 'none'/);
@@ -122,7 +122,9 @@ test('the authenticated editor delegates a short-lived ticket to the storefront 
   assert.ok(page.includes('setInterval(renewBridgeTicket,4*60*1000)'));
   assert.ok(host.includes("req.headers['x-elan-editor-ticket']"));
   assert.ok(mode.includes("options.headers['X-Elan-Editor-Ticket'] = bridgeTicket"));
-  assert.ok(mode.includes("https://elan-editor-production-dc4e.up.railway.app"));
+  // The framed storefront trusts only its own origin (or a local test server) as the editor: no other host, and no hosting provider's address.
+  assert.ok(!/railway\.app/i.test(mode));
+  assert.match(mode, /return location\.origin;/);
   assert.ok(bridge.includes("m.type==='auth'"));
   assert.match(server, /pathname === '\/api\/editor' \|\| pathname === '\/api\/editor-data'/);
 });

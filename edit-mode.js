@@ -758,9 +758,10 @@
     try {
       var u = new URL(raw);
       var localHttp = u.protocol === 'http:' && (u.hostname === 'localhost' || u.hostname === '127.0.0.1');
-      var productionEditor = 'https://elan-editor-production-dc4e.up.railway.app';
+      /* The editor and this storefront are one origin on Cloudflare, so the parent is trusted only when it is this very origin
+         (the default) or a local test server. No other host is ever accepted as an editor. */
       if (u.username || u.password || u.pathname !== '/' || u.search || u.hash || u.origin !== raw) return location.origin;
-      if (u.origin === productionEditor || (localHttp && u.origin === raw)) return u.origin;
+      if (localHttp && u.origin === raw) return u.origin;
       return location.origin;
     } catch (_) { return location.origin; }
   }

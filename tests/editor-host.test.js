@@ -39,7 +39,7 @@ test('the editor preview never defaults to the editor service itself as the stor
   const previous = { origin: process.env.EDITOR_SITE_ORIGIN, domain: process.env.RAILWAY_PUBLIC_DOMAIN };
   process.env.EDITOR_SITE_ORIGIN = 'https://editor.example.test';
   process.env.RAILWAY_PUBLIC_DOMAIN = 'editor.example.test';
-  try { assert.equal(host.editorSiteOrigin(), 'https://elan-site-production.up.railway.app'); }
+  try { assert.equal(host.editorSiteOrigin(), require('../lib/site-origin.js').DEFAULT_SITE_ORIGIN); }
   finally {
     if (previous.origin === undefined) delete process.env.EDITOR_SITE_ORIGIN; else process.env.EDITOR_SITE_ORIGIN = previous.origin;
     if (previous.domain === undefined) delete process.env.RAILWAY_PUBLIC_DOMAIN; else process.env.RAILWAY_PUBLIC_DOMAIN = previous.domain;
