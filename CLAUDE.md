@@ -40,17 +40,10 @@
 ## عمل Claude: رفع مباشر بلا PR، والاختبارات معه، والتحقق بعد النشر
 - قرار صاحب المشروع: كل عمل يخص Claude يُرفع مباشرة إلى GitHub على `main` بلا Pull Request. لا يُفتح PR لعمل Claude إلا إذا طلبه حسام صراحة.
 - كل اختبار يخص العمل يُرفع مع الكوميت نفسه أو الذي يليه مباشرة، ولا يبقى محلياً أو في جلسة العمل فقط.
-<<<<<<< Updated upstream
 - بعد كل رفع يتحقق Claude بنفسه من أمرين ويبلّغ بنتيجتهما: (1) أن GitHub Actions (`tests`) أخضر على الكوميت المرفوع، (2) أن «Workers Builds: elan-scents» و«Cloudflare Worker check» نجحا على الكوميت نفسه (تُقرأ من `check-runs` الكوميت في GitHub API).
 - إن كان CI أحمر أو فشل النشر يصلحه Claude فوراً بكوميت جديد (من غير `--force`) ثم يعيد التحقق، ولا يترك `main` أحمر.
 - إن لم تتوفر لـ Claude وسيلة لقراءة نتيجة GitHub Actions (مثل أدوات تقرؤها من الـ PR فقط) يقول ذلك صراحة ولا يزعم أنها خضراء قبل أن يراها، ويطلب من حسام أو Manus تأكيدها.
 - تطبيق ترحيلات Supabase وتغيير متغيرات الاستضافة (Cloudflare) مفوّضان لـ Claude نيابةً عن صاحب المشروع كما في القسم التالي، ويُبلَّغ بنتيجتهما بعد التنفيذ.
-=======
-- بعد كل رفع يتحقق Claude بنفسه من أمرين ويبلّغ بنتيجتهما: (1) أن GitHub Actions (`tests`) أخضر على الكوميت المرفوع، (2) أن نشر Cloudflare نجح: النشر تلقائي من `main` عبر Workers Builds، فيتأكد أن وقت تعديل الـ Worker `elan-scents` (`workers_get_worker`/`workers_list`) لاحق للرفع وأن `https://elan-scents.hossamthapitelgharib.workers.dev/health` يردّ `ok`.
-- إن كان CI أحمر أو فشل النشر يصلحه Claude فوراً بكوميت جديد (من غير `--force`) ثم يعيد التحقق، ولا يترك `main` أحمر.
-- إن لم تتوفر لـ Claude وسيلة لقراءة نتيجة GitHub Actions (مثل أدوات تقرؤها من الـ PR فقط) يقول ذلك صراحة ولا يزعم أنها خضراء قبل أن يراها، ويطلب من حسام أو Manus تأكيدها.
-- تطبيق ترحيلات Supabase وتغيير إعدادات النشر مفوّضان لـ Claude نيابةً عن صاحب المشروع كما في القسم التالي، ويُبلَّغ بنتيجتهما بعد التنفيذ.
->>>>>>> Stashed changes
 
 ## الضرورة القصوى فقط: بطاقة موافقة
 فوّض صاحب المشروع Claude بكامل الصلاحيات نيابةً عنه (قرار 2026-10-20) ولا يريد انتظار موافقته إلا في الضرورة القصوى. في هذه الحالات وحدها يرسل Claude إلى حسام بطاقة موافقة ولا ينفّذ قبل ردّه:
@@ -60,26 +53,17 @@
 - تغيير سلوك الدفع أو أرقام التتبع أو تدفق الطلبات القائم.
 - تغيير قيمة `GUEST_HASH_SECRET` أو تدوير مفاتيح Supabase، لأن ذلك يبدأ كل ضيف من الصفر.
 
-<<<<<<< Updated upstream
 وكل ما عدا ذلك، ومنه الترحيلات وتغيير متغيرات الاستضافة وإعدادات النشر، يقرّره Claude وينفّذه ويبلّغ بنتيجته.
-=======
-وكل ما عدا ذلك، ومنه الترحيلات وإعدادات النشر، يقرّره Claude وينفّذه ويبلّغ بنتيجته.
->>>>>>> Stashed changes
 
 ## هيكل المشروع
 - المتجر: `index.html` و`app.js` و`app-core.js` و`texts.js` و`style.css` فوق `style-3.css`.
 - اللوحات: `account.*` (العميل) و`dashboard.*` (متابعة الطلبات) و`store-dashboard.*` (المتجر) و`platform-dashboard.*` (المنصة).
-<<<<<<< Updated upstream
 - `api/`: دوال الـ API التي يقدّمها الـ Worker (ومعه `railway/server.js` للتشغيل المحلي)، والتحقق من المستخدم والدور في `api/_auth.js`.
-=======
-- `api/`: دوال الـ API التي يقدّمها الـ Worker (`cloudflare/worker-core.js`) وخادم Node المحلي `railway/server.js`، والتحقق من المستخدم والدور في `api/_auth.js`.
->>>>>>> Stashed changes
 - `supabase/migrations/`: ترحيلات قاعدة البيانات.
 - `tests/`: اختبارات `node --test`، والتشغيل بـ `npm test` (Node 20 فأعلى).
 - CI: `.github/workflows/tests.yml` يعمل عند كل push أو PR على `main`.
 
 ## الاستضافة
-<<<<<<< Updated upstream
 - **Cloudflare Workers هو مضيف المشروع** (قرار حسام 2026-10-22): Worker واحد باسم `elan-scents` على `https://elan-scents.hossamthapitelgharib.workers.dev` (الخطة المجانية الآن، بلا نطاق خاص بعد). Workers Builds يبني وينشر كل رفعة على `main` تلقائياً، وتظهر نتيجته على الكوميت باسم «Workers Builds: elan-scents». خدمة الموقع `elan-site` لم تعد موجودة في مشروع Railway (فُحص 2026-10-24)؛ يبقى `railway/server.js` لتشغيل الموقع محلياً (`npm start`) ولاختبارات المطابقة مع الـ Worker.
 - **كيف يعمل الـ Worker**: `wrangler.jsonc` و`cloudflare/` و`scripts/build-cloudflare.js` تشغّل الموقع نفسه على Cloudflare Workers بنفس ملفات `api/` و`railway/`، وخطوات الإعداد والأسرار في `cloudflare/README.md`. أي ملف جديد في `api/` يُضاف أيضاً إلى `cloudflare/api-registry.js` (اختبار يفشل إن نُسي)، وأي تغيير في قواعد الحجب في `railway/server.js` يُطبَّق في `scripts/build-cloudflare.js` (اختبار المطابقة يفحص ذلك). `.github/workflows/cloudflare-worker.yml` يشغّل `wrangler deploy --dry-run` ثم `wrangler dev` (محرك workerd الحقيقي) و`scripts/cloudflare-smoke.js` بقيم وهمية عند كل رفع، لأن اختبارات Node لا تثبت سلوك طبقة الملفات الثابتة ولا التشفير داخل Cloudflare؛ يجب أن يكون أخضر مع `tests`. `.github/workflows/live-check.yml` (يدوي من تبويب Actions ← Run workflow، ويعمل أيضاً عند تغيير سكربته) يفحص الموقع الحي من الخارج بـ `scripts/live-check.js`: هل الموقع شغّال، وهل على الـ Worker مفتاح service-role، وهل المحرر والفيديو يردّان؛ لا يقرأ أي سرّ، وتُقرأ نتيجته من annotations الـ run.
 - `railway/server.js` يقدّم الملفات وواجهات `/api/*`، ويقرأ حاليًا `vercel.json` كمصدر مشترك لقواعد المسارات البديلة ورؤوس الكاش؛ لا تحذف الملف أو تنقل القواعد منه دون تحديث الخادم والاختبارات.
@@ -88,32 +72,16 @@
 - متغير اختياري `GUEST_HASH_SECRET` (16 حرفاً فأكثر): مفتاح تشفير هوية الضيوف (بصمة المتصفح والـ IP). إن لم يُضبط يُستخدم `SUPABASE_SERVICE_ROLE_KEY` كما كان، فلا يتغير شيء. لحفظ سجل الضيوف الحالي اضبطه على القيمة الحالية لمفتاح service-role قبل تدوير ذلك المفتاح؛ أي قيمة أخرى تبدأ كل ضيف من الصفر، ولذلك تغييرها يحتاج بطاقة موافقة من صاحب المشروع. على Cloudflare لم يُضبط: يُستعمل `SUPABASE_SERVICE_ROLE_KEY`، وهو القيمة نفسها التي ضُبط عليها `GUEST_HASH_SECRET` على Railway (2026-10-18)، فيستمر سجل الضيوف بلا تغيير ما دام مفتاح service-role لم يُدوَّر.
 - محرر الموقع يحتاج `GITHUB_TOKEN` (Secret على الـ Worker) و`EDITOR_TARGET_BRANCH=main`. `EDITOR_SITE_ORIGIN` اختياري على Cloudflare: إن لم يُضبط يُستعمل العنوان الذي زاره المالك. الحفظ من المحرر يكتب كوميتاً على `main` فيُنشر الـ Worker تلقائياً.
 - حد الطلبات في `lib/rate-limit.js` يعمل داخل ذاكرة نسخة التشغيل. على Cloudflare لكل نسخة (isolate) ذاكرتها، فالحد أضعف مما كان على Railway ذي النسخة الواحدة؛ جلسة المحرر (كوكي مشفّر) لا تتأثر.
-=======
-- **Cloudflare Workers هو مضيف المشروع الوحيد** (قرار حسام 2026-10-24؛ Railway أُغلق وحُذفت خدمة `elan-site` منه): Worker باسم `elan-scents` على `https://elan-scents.hossamthapitelgharib.workers.dev`، ويُنشر `main` تلقائياً عبر Workers Builds (تطبيق Cloudflare على GitHub، بلا مفاتيح) بعد كل رفع. لا تُنشأ خدمة Railway من جديد.
-- `wrangler.jsonc` و`cloudflare/` و`scripts/build-cloudflare.js` تشغّل الموقع بنفس ملفات `api/` و`railway/`؛ خطوات الإعداد في `cloudflare/README.md`. أي ملف جديد في `api/` يُضاف أيضاً إلى `cloudflare/api-registry.js` (اختبار يفشل إن نُسي)، وأي تغيير في قواعد الحجب في `railway/server.js` يُطبَّق في `scripts/build-cloudflare.js` (اختبار المطابقة يفحص ذلك). `.github/workflows/cloudflare-worker.yml` يشغّل `wrangler deploy --dry-run` ثم `wrangler dev` (محرك workerd الحقيقي) و`scripts/cloudflare-smoke.js` بقيم وهمية عند كل رفع، لأن اختبارات Node لا تثبت سلوك طبقة الملفات الثابتة ولا التشفير داخل Cloudflare؛ يجب أن يكون أخضر مع `tests`.
-- `railway/server.js` يقدّم الملفات وواجهات `/api/*`، ويقرأ حاليًا `vercel.json` كمصدر مشترك لقواعد المسارات البديلة ورؤوس الكاش؛ لا تحذف الملف أو تنقل القواعد منه دون تحديث الخادم والاختبارات.
-- المطلوب على الـ Worker: `SUPABASE_URL` و`SUPABASE_ANON_KEY` (قيمتان عامتان داخل `wrangler.jsonc`) و`SUPABASE_SERVICE_ROLE_KEY` و`STORE_ORDER_WEBHOOK_SECRET` (سران من لوحة Cloudflare؛ بدون الثاني ترد webhooks بـ 503). `DASHBOARD_TOKEN` قديم: لا يقرؤه أي كود إنتاج ويظهر في الاختبارات فقط، فلا يلزم ضبطه.
-- `STORE_ORDER_WEBHOOK_SECRET` كان ناقصاً على Railway بعد الانتقال من Vercel، فضُبط على الخدمة بقيمة جديدة عشوائية (2026-10-21) ولم يكن هناك متجر يعمل وقتها. القيمة لا تُكتب في الكود ولا في المحادثات. بعد الانتقال إلى Cloudflare (2026-10-24) تُحفظ كسر في لوحة Cloudflare ولا تُقرأ بعد الحفظ؛ لا يوجد متجر مربوط، فإن ضاعت تُنشأ قيمة جديدة وتُعطى للمتجر عند ربطه.
-- متغير اختياري `GUEST_HASH_SECRET` (16 حرفاً فأكثر): مفتاح تشفير هوية الضيوف (بصمة المتصفح والـ IP). إن لم يُضبط يُستخدم `SUPABASE_SERVICE_ROLE_KEY` كما كان، فلا يتغير شيء. لحفظ سجل الضيوف الحالي اضبطه على القيمة الحالية لمفتاح service-role قبل تدوير ذلك المفتاح؛ أي قيمة أخرى تبدأ كل ضيف من الصفر، ولذلك تغييرها يحتاج بطاقة موافقة من صاحب المشروع.
-- محرر الموقع يحتاج `GITHUB_TOKEN` (سر) و`EDITOR_TARGET_BRANCH=main` و`EDITOR_ENV=production` (كلاهما في `wrangler.jsonc`). `EDITOR_SITE_ORIGIN` اختياري: إن لم يُضبط يستعمل الـ Worker العنوان الذي زرتَه به لأن المحرر والمتجر على أصل واحد.
-- حد الطلبات في `lib/rate-limit.js` وعدّاد محاولات الدخول يعملان داخل ذاكرة كل نسخة تشغيل (isolate) في Cloudflare، فهما أضعف مما كانا على Railway ذي النسخة الواحدة؛ جلسة المحرر كوكي مشفّر لا تتأثر. خطة Workers المجانية: 10 ملي ثانية CPU للطلب و100 ألف طلب Worker في اليوم؛ الترقية المدفوعة تحتاج بطاقة موافقة.
->>>>>>> Stashed changes
 
 ## المحرر (مصدر واحد فقط)
 - المحرر المعتمد هو الموجود في هذا المستودع: `editor/elan-editor.html` (صفحة المحرر) مع `editor/edit-model.js` و`editor/editor-*.js`، أما وضع التحرير داخل الـ iframe فملفاته في **الجذر**: `edit-boot.js` و`edit-mode.js` و`elan-host-bridge.js` (يحمّلها `index.html` عند `?elan_editor=1` فقط). ويستخدم ملفات التصميم المشتركة في الجذر `design-layer.js` و`design-schema.js`. لا توجد نسخ من `edit-boot.js` أو `edit-mode.js` أو `elan-host-bridge.js` داخل `editor/`؛ كانت نسخًا قديمة لا يحمّلها أحد وحُذفت، فلا تُعدّل أو تُنشئ نسخًا موازية. يقدّمه `railway/editor-host.js` على `/editor` بتسجيل دخول المالك. لا نسخة أخرى معتمدة.
 - النسخ التاريخية للمحرر محفوظة للرجوع فقط في `.archive/legacy-editor-snapshots/` ولا تُقدَّم للعامة. لا تُنشأ نسخ موازية؛ أي تطوير جديد يُدمج في الملفات أعلاه مباشرة، وتبقى الاختبارات في `tests/editor-host.test.js`.
 - أي مجلد أو ملف يبدأ اسمه بـ `elan-editor` لا يُقدَّم للعامة أبداً (محجوب في `railway/server.js`).
 - لا ترفع ملفات يدوياً من المتصفح ("Add files via upload") فوق ملفات يعمل عليها الوكلاء؛ اطلب من Claude الدمج حتى لا تُستبدل تعديلات الآخرين.
-<<<<<<< Updated upstream
 - **اللينك الثابت للمحرر:** `https://elan-scents.hossamthapitelgharib.workers.dev/editor` (الـ Worker يقدّمه بتسجيل دخول المالك). خدمة Railway باسم `elan-editor` (نطاقها `elan-editor-production-35ba.up.railway.app`) تبقى بطلب حسام كخدمة تحويل فقط: أمر التشغيل فيها خادم صغير يردّ بتحويل `302` إلى لينك المحرر أعلاه، حتى يجد حسام لينك المحرر داخل لوحة Railway ويفتحه من أي جهاز. لا تغيّر أمر التشغيل ولا متغير `EDITOR_ROOT_REDIRECT` فيها دون إبلاغ حسام. لا تُنشأ خدمة محرر بمستودع آخر.
 - **لا اعتماد على Railway في الكود:** المحرر والمتجر والـ API كلها على الـ Worker وأصل واحد، فلا يجوز أن يحوي أي ملف يخدمه الموقع أو يشغّله عنوان `*.up.railway.app` أو `*.railway.internal` (يمنع ذلك `tests/no-railway-dependency.test.js`). العنوان الافتراضي الاحتياطي للموقع في `lib/site-origin.js` وهو عنوان الـ Worker؛ يُغيَّر هناك فقط إن تغيّر العنوان (نطاق خاص مثلاً). وإطار المتجر داخل المحرر لا يقبل أباً إلا أصله هو (أو خادماً محلياً للاختبار) في `edit-mode.js`.
 - لا تعتمد على Railway كحاجز للاختبارات: في 17 أكتوبر 2026 نُشرت رفعة `df1231e` على `elan-site` رغم أن CI عليها كان أحمر، فإعداد Wait for CI لا يمنع النشر فعليًا. شغّل `npm test` محليًا وتأكد من نجاح GitHub Actions **قبل** الدمج في `main`، لأن كل دمج ينشر.
 - **دخول مؤقت بالمفتاح (يُلغى بعد انتهاء التعديلات):** عند ضبط `EDITOR_AUTH_BYPASS` بالقيمة `1` بالضبط (وليس `true`) وعبارة سرية طولها 16 حرفاً فأكثر في `EDITOR_ACCESS_KEY` على الـ Worker الذي يقدّم `/editor` (لا يعمل على خدمة Railway `elan-editor` لأنها خدمة تحويل فقط)، يفتح المالك `/editor?key=<العبارة>` فيدخل دون بريد وكلمة سر. حذف أي من المتغيرين يعيد تسجيل الدخول العادي فوراً. جلسة هذا الدخول في ذاكرة نسخة التشغيل فقط، فلا يُعتمد عليه على Cloudflare (قد تضيع الجلسة بين نسخ الـ Worker)؛ الدخول المعتمد بالبريد وكلمة السر، ولا يُنقل `EDITOR_AUTH_BYPASS` إلى الـ Worker.
-=======
-- **اللينك الثابت للمحرر:** `https://elan-scents.hossamthapitelgharib.workers.dev/editor`. كانت خدمتا Railway (`elan-site` و`elan-editor`) تقدّمانه قبل الانتقال، وقد أُغلقتا ولا تُستعملان.
-- لا تعتمد على النشر التلقائي كحاجز للاختبارات: Workers Builds ينشر كل ما يصل إلى `main` حتى لو كان CI أحمر (حدث هذا على Railway في 17 أكتوبر 2026 مع `df1231e`). شغّل `npm test` محليًا وتأكد من نجاح GitHub Actions **قبل** الدمج في `main`، لأن كل دمج ينشر.
-- **دخول مؤقت بالمفتاح (يُلغى بعد انتهاء التعديلات):** عند ضبط `EDITOR_AUTH_BYPASS` بالقيمة `1` بالضبط (وليس `true`) وعبارة سرية طولها 16 حرفاً فأكثر في `EDITOR_ACCESS_KEY` على الـ Worker (أسرار في لوحة Cloudflare)، يفتح المالك `/editor?key=<العبارة>` فيدخل دون بريد وكلمة سر. حذف أي من المتغيرين يعيد تسجيل الدخول العادي فوراً. 
->>>>>>> Stashed changes
 - لا تثبّت في الاختبارات قيماً بصرية قابلة للتعديل مثل ارتفاعات الفوتر.
 
 ## مكتبة ThumbmarkJS (منجز)
