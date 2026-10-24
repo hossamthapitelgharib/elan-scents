@@ -4,7 +4,7 @@
   var ERR = {
     invalid_credentials: 'البريد أو كلمة السر غلط.', forbidden: 'الحساب ده مش مسموح له بالإديتور.',
     role_check_failed: 'تعذر التحقق من صلاحية الحساب بعد تسجيل الدخول. جرّبي تاني.',
-    too_many_attempts: 'محاولات كتير. استني شوية وجرّبي تاني.', supabase_service_configuration_missing: 'إعدادات سابابيس ناقصة على Railway.',
+    too_many_attempts: 'محاولات كتير. استني شوية وجرّبي تاني.', supabase_service_configuration_missing: 'إعدادات سابابيس ناقصة على Cloudflare.',
     auth_unreachable: 'مفيش اتصال بسابابيس، جرّبي تاني.'
   };
   function say(t, bad) { msg.textContent = t; msg.className = 'msg' + (bad ? ' err' : ''); }
