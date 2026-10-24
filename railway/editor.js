@@ -28,7 +28,7 @@ function config(env) {
   env = env || process.env;
   const environment = String(env.RAILWAY_ENVIRONMENT_NAME || env.EDITOR_ENV || '').toLowerCase();
   const isProd = environment === 'production';
-  const token = env.GITHUB_TOKEN;
+  const token = typeof env.GITHUB_TOKEN === 'string' ? env.GITHUB_TOKEN.trim() : env.GITHUB_TOKEN;
   const repo = env.GITHUB_REPO || DEFAULT_REPO;
   const branch = env.EDITOR_TARGET_BRANCH || (isProd ? 'main' : env.EDITOR_BRANCH);
   const host = env.RAILWAY_PUBLIC_DOMAIN;
@@ -37,6 +37,8 @@ function config(env) {
   if (isProd && selfOrigin && origin.replace(/\/+$/, '') === selfOrigin) origin = DEFAULT_SITE_ORIGIN;
   const missing = [];
   if (!token) missing.push('GITHUB_TOKEN');
+  // A token pasted with a stray space, a quote or a non-Latin letter makes every GitHub request throw, so say so instead of failing later.
+  else if (!/^[\x21-\x7e]+$/.test(token)) missing.push('GITHUB_TOKEN (فيه مسافة أو حرف غير صالح، الصقيه من جديد)');
   if (!branch) missing.push('EDITOR_TARGET_BRANCH');
   else if (!/^[\w./-]{1,100}$/.test(branch) || branch.indexOf('..') !== -1) missing.push('EDITOR_TARGET_BRANCH (قيمة غير صالحة)');
   if (!origin) missing.push('EDITOR_SITE_ORIGIN');
@@ -66,8 +68,28 @@ async function localDesign() {
   }
 }
 
+/* A GitHub failure the owner can act on. The detail carries only GitHub's own status and public error text (for example
+   "Bad credentials"), never the token; the endpoint is admin-only. */
+function githubError(code, r, cause) {
+  const detail = {};
+  if (r && r.status) detail.githubStatus = r.status;
+  if (r && r.json && typeof r.json.message === 'string') detail.githubMessage = r.json.message.slice(0, 200);
+  if (cause) detail.cause = String(cause && cause.message ? cause.message : cause).slice(0, 120);
+  return Object.assign(new Error(code), { status: 502, detail });
+}
+
 async function github(cfg, method, path, body) {
-  const response = await fetch('https://api.github.com/repos/' + cfg.repo + path, {
+  let response;
+  try {
+    response = await githubFetch(cfg, method, path, body);
+  } catch (e) { throw githubError('github_unreachable', null, e); }
+  let json = null;
+  try { json = await response.json(); } catch (_) { /* empty body */ }
+  return { status: response.status, json };
+}
+
+async function githubFetch(cfg, method, path, body) {
+  return fetch('https://api.github.com/repos/' + cfg.repo + path, {
     method,
     headers: {
       Authorization: 'Bearer ' + cfg.token,
@@ -78,16 +100,13 @@ async function github(cfg, method, path, body) {
     },
     body: body ? JSON.stringify(body) : undefined
   });
-  let json = null;
-  try { json = await response.json(); } catch (_) { /* empty body */ }
-  return { status: response.status, json };
 }
 
 async function readDesignFile(cfg) {
   const r = await github(cfg, 'GET', '/contents/' + DESIGN_PATH + '?ref=' + encodeURIComponent(cfg.branch));
   if (r.status === 404) return { exists: false };
-  if (r.status === 401 || r.status === 403) throw Object.assign(new Error('github_auth_failed'), { status: 502 });
-  if (r.status !== 200 || !r.json || typeof r.json.content !== 'string') throw Object.assign(new Error('github_read_failed'), { status: 502 });
+  if (r.status === 401 || r.status === 403) throw githubError('github_auth_failed', r);
+  if (r.status !== 200 || !r.json || typeof r.json.content !== 'string') throw githubError('github_read_failed', r);
   const text = Buffer.from(r.json.content, 'base64').toString('utf8');
   return { exists: true, sha: r.json.sha, text };
 }
@@ -153,7 +172,7 @@ async function actionSave(cfg, body) {
     if (!revision) return { status: 502, body: { ok: false, error: 'github_write_unconfirmed' } };
     return { status: 200, body: { ok: true, committed: true, revision, commit: put.json.commit && put.json.commit.sha, branch: cfg.branch } };
   }
-  if (put.status === 401 || put.status === 403) return { status: 502, body: { ok: false, error: 'github_auth_failed' } };
+  if (put.status === 401 || put.status === 403) return { status: 502, body: { ok: false, error: 'github_auth_failed', detail: githubError('x', put).detail } };
   if (put.status === 409 || put.status === 422) {
     // Someone changed the file between our read and write, or our own earlier attempt landed. Re-check, never overwrite.
     const again = await readDesignFile(cfg);
@@ -162,7 +181,7 @@ async function actionSave(cfg, body) {
     }
     return { status: 409, body: { ok: false, error: 'conflict', currentRevision: again.exists ? again.sha : null } };
   }
-  return { status: 502, body: { ok: false, error: 'github_write_failed' } };
+  return { status: 502, body: { ok: false, error: 'github_write_failed', detail: githubError('x', put).detail } };
 }
 
 /* Published = the live site is serving exactly the committed bytes. */
@@ -206,7 +225,9 @@ module.exports = async function editor(req, res) {
     else return reply(res, 400, { ok: false, error: 'unknown_action' });
     reply(res, result.status, result.body);
   } catch (e) {
-    reply(res, (e && e.status) || 502, { ok: false, error: (e && e.status && e.message) || 'editor_failed' });
+    const body = { ok: false, error: (e && e.status && e.message) || 'editor_failed' };
+    if (e && e.detail && typeof e.detail === 'object') body.detail = e.detail;
+    reply(res, (e && e.status) || 502, body);
   }
 };
 

@@ -13,7 +13,7 @@ const sha40 = (c) => c.repeat(40);
 function envFor(extra) {
   return Object.assign({
     SUPABASE_URL: SB, SUPABASE_SERVICE_ROLE_KEY: 'service', GITHUB_TOKEN: 'ghp_test',
-    EDITOR_ENV: 'development', EDITOR_TARGET_BRANCH: 'editor-v1', EDITOR_SITE_ORIGIN: 'https://elan-editor.up.railway.app'
+    EDITOR_ENV: 'development', EDITOR_TARGET_BRANCH: 'editor-v1', EDITOR_SITE_ORIGIN: 'https://elan-scents.hossamthapitelgharib.workers.dev'
   }, extra || {});
 }
 
@@ -222,10 +222,51 @@ test('status reports published only when the live site serves the committed byte
   const gh = fakeGithub(text);
   const live = await run({ body: { action: 'status', revision: rev }, github: gh, live: () => ({ status: 200, text }) });
   assert.equal(live.res.body.published, true);
-  assert.match(live.siteCalls[0], /^https:\/\/elan-editor\.up\.railway\.app\/design\/home\.json\?cb=/);
+  assert.match(live.siteCalls[0], /^https:\/\/elan-scents\.hossamthapitelgharib\.workers\.dev\/design\/home\.json\?cb=/);
   const old = await run({ body: { action: 'status', revision: rev }, github: gh, live: () => ({ status: 200, text: EMPTY }) });
   assert.equal(old.res.body.published, false);
   const down = await run({ body: { action: 'status', revision: rev }, github: gh, live: () => ({ status: 503, text: '' }) });
   assert.equal(down.res.body.published, false);
   assert.equal((await run({ body: { action: 'status', revision: 'zzz' }, github: gh })).res.statusCode, 400);
+});
+
+test('a GitHub refusal on read says what GitHub answered, never the token', async () => {
+  const gh = fakeGithub(EMPTY);
+  gh.handle = () => ({ status: 401, json: { message: 'Bad credentials' } });
+  const r = await run({ method: 'GET', query: { action: 'state' }, github: gh });
+  assert.equal(r.res.statusCode, 502);
+  assert.equal(r.res.body.error, 'github_auth_failed');
+  assert.deepEqual(r.res.body.detail, { githubStatus: 401, githubMessage: 'Bad credentials' });
+  assert.doesNotMatch(JSON.stringify(r.res.body), /ghp_test/);
+});
+
+test('an unexpected GitHub status on read is github_read_failed with the status', async () => {
+  const gh = fakeGithub(EMPTY);
+  gh.handle = () => ({ status: 500, json: { message: 'Server Error' } });
+  const r = await run({ method: 'GET', query: { action: 'state' }, github: gh });
+  assert.equal(r.res.statusCode, 502);
+  assert.equal(r.res.body.error, 'github_read_failed');
+  assert.equal(r.res.body.detail.githubStatus, 500);
+});
+
+test('a GitHub request that cannot be sent is github_unreachable, not a bare editor_failed', async () => {
+  const gh = fakeGithub(EMPTY);
+  gh.handle = () => { throw new TypeError('fetch failed'); };
+  const r = await run({ method: 'GET', query: { action: 'state' }, github: gh });
+  assert.equal(r.res.statusCode, 502);
+  assert.equal(r.res.body.error, 'github_unreachable');
+  assert.equal(r.res.body.detail.cause, 'fetch failed');
+});
+
+test('a token pasted with spaces around it still works, one with a bad character is reported as not configured', async () => {
+  const gh = fakeGithub(EMPTY);
+  const seen = [];
+  const handle = gh.handle;
+  gh.handle = (url, opts) => { seen.push(opts.headers.Authorization); return handle(url, opts); };
+  const ok = await run({ method: 'GET', query: { action: 'state' }, github: gh, env: { GITHUB_TOKEN: '  ghp_test \n' } });
+  assert.equal(ok.res.statusCode, 200);
+  assert.deepEqual(seen, ['Bearer ghp_test']);
+  const bad = await run({ method: 'GET', query: { action: 'state' }, github: fakeGithub(EMPTY), env: { GITHUB_TOKEN: 'ghp test' } });
+  assert.equal(bad.res.statusCode, 503);
+  assert.match(bad.res.body.missing.join(' '), /GITHUB_TOKEN/);
 });

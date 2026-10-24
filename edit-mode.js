@@ -735,13 +735,24 @@
     }
   }
 
+  /* Says what is wrong, in words the owner can act on, using the code and GitHub's own answer that /api/editor returns. */
+  function stateErrorText(status, j) {
+    var code = j && typeof j.error === 'string' ? j.error : '';
+    var d = j && j.detail && typeof j.detail === 'object' ? j.detail : {};
+    var extra = (d.githubStatus ? ' GitHub ' + d.githubStatus : '') + (d.githubMessage ? ': ' + String(d.githubMessage).slice(0, 120) : '') + (d.cause ? ' (' + String(d.cause).slice(0, 80) + ')' : '');
+    if (code === 'github_auth_failed') return 'GitHub رفض المفتاح GITHUB_TOKEN: غلط أو منتهي أو صلاحيته ناقصة (لازم Contents: Read and write على مستودع elan-scents).' + extra;
+    if (code === 'github_unreachable') return 'السيرفر ما قدرش يوصل لـ GitHub.' + extra;
+    if (code === 'github_read_failed') return 'GitHub ردّ بشيء غير متوقع عند قراءة design/home.json.' + extra;
+    return 'تعذر قراءة آخر إصدار منشور (' + status + (code ? ' ' + code : '') + ').' + extra;
+  }
+
   async function loadBase() {
     var r = await editorFetch('/api/editor?action=state');
     var j = await r.json().catch(function () { return {}; });
     if (!r.ok || !j.ok) {
       var why = r.status === 503 ? 'إعدادات الإديتور ناقصة على السيرفر' + (j.missing && j.missing.length ? ': ' + j.missing.join('، ') : '') + '.'
         : r.status === 401 || r.status === 403 ? 'الحساب ده مش مصرح له (محتاج أدمن المنصة). سجلي الدخول تاني.'
-        : 'تعذر قراءة آخر إصدار منشور (' + r.status + ').';
+        : stateErrorText(r.status, j);
       var e = new Error('state'); e.userMessage = why; throw e;
     }
     baseRevision = j.revision === null || j.revision === undefined ? 'initial' : j.revision;
