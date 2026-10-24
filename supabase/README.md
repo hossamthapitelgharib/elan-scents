@@ -1,15 +1,15 @@
 # Supabase migrations
 
-`migrations/` contains **74** tracked SQL source files for the live Supabase project. The live ledger (`supabase_migrations.schema_migrations`, checked read-only on 2026-10-21) contains **76** records. The two-record difference is the documented historical source gap below. Migration files are kept in ascending version order, and `tests/migrations-consistency.test.js` checks local naming and ordering.
+`migrations/` contains **76** tracked SQL source files for the live Supabase project, one for every record of the live ledger (`supabase_migrations.schema_migrations`, 76 records, checked read-only on 2026-10-24). Migration files are kept in ascending version order, and `tests/migrations-consistency.test.js` checks local naming and ordering. The Supabase GitHub integration compares the versions of the ledger with the files here and refuses to run ("Remote migration versions not found in local migrations directory") when a ledger version has no file, so every version recorded live must have a file.
 
-## Live-history gaps
+## Earlier runs recorded twice
 
-The live ledger has two earlier records without source files in this repository:
+Two migrations were run twice on the live project, the first time under an earlier version. Their earlier records had no source file until 2026-10-24, which made the integration's "Supabase Preview" check fail. Each file below is the statement text recovered **verbatim from the live ledger** (read-only); its md5 equals the md5 of the ledger statement. Their names end in `_earlier_run` because a migration name must not appear twice under different versions (`tests/migrations-consistency.test.js`); the integration matches on the version only.
 
-- `20261009230647_harden_order_user_binding` (the same migration name is recorded later as `20261010014304`)
-- `20261010001456_guest_browser_identity_analytics` (the same migration name is recorded later as `20261010014327`)
+- `20261009230647_harden_order_user_binding_earlier_run` (4432 characters, md5 `00be6300a1f9b9a3f308159a25309dc1`): the first run of `harden_order_user_binding`. It differs from the later record `20261010014304_harden_order_user_binding` (5082 characters), which is the final form.
+- `20261010001456_guest_browser_identity_analytics_earlier_run` (12895 characters, md5 `b25c1766865869c3fd07609cbccff46e`): the first run of `guest_browser_identity_analytics`. Its statement is identical to the later record `20261010014327_guest_browser_identity_analytics`, whose file here additionally keeps the author's comment lines.
 
-Do not reconstruct either missing historical file from a later migration based only on its name.
+These two files are history only: they are already applied live and must never be run again by hand. Do not delete or edit them.
 
 ## Recent applied migrations
 

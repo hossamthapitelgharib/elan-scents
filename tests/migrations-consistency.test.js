@@ -28,6 +28,21 @@ test('a migration name never appears twice under different versions', () => {
   assert.deepEqual(duplicated, []);
 });
 
+/* Files recovered verbatim from the live ledger keep the md5 of the ledger statement (recorded in supabase/README.md).
+   The Supabase GitHub integration needs a file for every version recorded live, so these two must exist and stay unedited. */
+test('the earlier runs recorded twice keep their ledger text', () => {
+  const crypto = require('node:crypto');
+  const recovered = {
+    '20261009230647_harden_order_user_binding_earlier_run.sql': '00be6300a1f9b9a3f308159a25309dc1',
+    '20261010001456_guest_browser_identity_analytics_earlier_run.sql': 'b25c1766865869c3fd07609cbccff46e'
+  };
+  for (const [file, md5] of Object.entries(recovered)) {
+    assert.ok(migrations.includes(file), file + ' is missing');
+    const body = fs.readFileSync(path.join(root, 'migrations', file));
+    assert.equal(crypto.createHash('md5').update(body).digest('hex'), md5, file + ' was edited');
+  }
+});
+
 test('pending migrations are newer than every applied migration', () => {
   if (!pending.length) return;
   const last = migrations[migrations.length - 1].split('_')[0];
