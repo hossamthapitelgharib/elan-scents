@@ -1,0 +1,33 @@
+name: Live site check
+
+# Looks at the real site on Cloudflare from the outside (scripts/live-check.js): is it up, does the Worker have its
+# SUPABASE_SERVICE_ROLE_KEY, does the editor and the hero video answer. It sends harmless requests only and never reads a secret.
+# Run it by hand from the Actions tab (Run workflow), or it runs when the script itself changes.
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: Site address to check
+        default: https://elan-scents.hossamthapitelgharib.workers.dev
+  push:
+    paths:
+      - scripts/live-check.js
+      - .github/workflows/live-check.yml
+
+permissions:
+  contents: read
+
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check the live site
+        env:
+          SITE_URL: ${{ github.event.inputs.url || 'https://elan-scents.hossamthapitelgharib.workers.dev' }}
+        run: node scripts/live-check.js "$SITE_URL"
