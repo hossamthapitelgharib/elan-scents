@@ -169,12 +169,30 @@ async function actionSave(cfg, body) {
     return { status: 409, body: { ok: false, error: 'conflict', currentRevision: current.exists ? current.sha : null } };
   }
 
-  const put = await github(cfg, 'PUT', '/contents/' + DESIGN_PATH, {
+  const writeFile = () => github(cfg, 'PUT', '/contents/' + DESIGN_PATH, {
     message: 'design: update home page (editor)\n\nEditor-Request: ' + body.requestId,
     content: Buffer.from(text, 'utf8').toString('base64'),
     branch: cfg.branch,
     sha: current.exists ? current.sha : undefined
   });
+  let put = await writeFile();
+
+  if (put.status === 409 || put.status === 422) {
+    // Re-check, never overwrite: our own earlier attempt may have landed (success), or someone changed the file (a real conflict).
+    // If the file is exactly as we read it, GitHub did not refuse because of an edit: a 409 is then a transient race on the branch
+    // itself (another commit to main landed between our read and write), so try once more; anything else is GitHub refusing the
+    // write, and the owner is told why.
+    const again = await readDesignFile(cfg);
+    if (again.exists && again.sha === desiredSha) {
+      return { status: 200, body: { ok: true, committed: false, unchanged: true, revision: again.sha, branch: cfg.branch } };
+    }
+    const unchanged = again.exists === current.exists && (!again.exists || again.sha === current.sha);
+    if (!unchanged) return { status: 409, body: { ok: false, error: 'conflict', currentRevision: again.exists ? again.sha : null } };
+    if (put.status === 409) put = await writeFile();
+    if (put.status === 409 || put.status === 422) {
+      return { status: 502, body: { ok: false, error: 'github_write_failed', detail: githubError('x', put).detail } };
+    }
+  }
 
   if (put.status === 200 || put.status === 201) {
     const revision = put.json && put.json.content && put.json.content.sha;
@@ -182,14 +200,6 @@ async function actionSave(cfg, body) {
     return { status: 200, body: { ok: true, committed: true, revision, commit: put.json.commit && put.json.commit.sha, branch: cfg.branch } };
   }
   if (put.status === 401 || put.status === 403) return { status: 502, body: { ok: false, error: 'github_auth_failed', detail: githubError('x', put, null, cfg).detail } };
-  if (put.status === 409 || put.status === 422) {
-    // Someone changed the file between our read and write, or our own earlier attempt landed. Re-check, never overwrite.
-    const again = await readDesignFile(cfg);
-    if (again.exists && again.sha === desiredSha) {
-      return { status: 200, body: { ok: true, committed: false, unchanged: true, revision: again.sha, branch: cfg.branch } };
-    }
-    return { status: 409, body: { ok: false, error: 'conflict', currentRevision: again.exists ? again.sha : null } };
-  }
   return { status: 502, body: { ok: false, error: 'github_write_failed', detail: githubError('x', put).detail } };
 }
 

@@ -92,6 +92,15 @@ test('save error shows which Cloudflare settings are missing', () => {
   assert.match(page, /الناقص: '\+j\.missing\.join/);
 });
 
+test('a refused save shows what GitHub answered, and no editor message mentions the old host', () => {
+  const page = read('editor/elan-editor.html');
+  assert.match(page, /function saveDetail\(j\)/);
+  assert.match(page, /\+saveDetail\(j\)\);await requestLive\('page\.markSaved'/);
+  assert.match(page, /d\.githubStatus/);
+  assert.match(page, /d\.githubMessage/);
+  assert.doesNotMatch(page, /Railway/);
+});
+
 test('right-click menu is not closed by a repeat selection message for the same element', () => {
   const page = read('editor/elan-editor.html');
   assert.match(page, /liveMenuFor=el\?\.id\|\|null/);

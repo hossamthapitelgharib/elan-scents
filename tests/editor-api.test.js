@@ -209,6 +209,55 @@ test('GitHub failures are reported clearly and never as success', async () => {
   assert.equal(fail.res.body.ok, false);
 });
 
+function refusePuts(gh, status, message) {
+  const base = gh.handle;
+  gh.handle = (url, opts) => {
+    if (opts && opts.method === 'PUT') { gh.puts.push({ url }); return { status, json: { message } }; }
+    return base(url, opts);
+  };
+}
+
+test('a token that can read but not write says what GitHub answered, never the token', async () => {
+  const gh = fakeGithub(EMPTY);
+  refusePuts(gh, 403, 'Resource not accessible by personal access token');
+  const r = await run({ body: saveBody(), github: gh });
+  assert.equal(r.res.statusCode, 502);
+  assert.equal(r.res.body.error, 'github_auth_failed');
+  assert.equal(r.res.body.detail.githubStatus, 403);
+  assert.equal(r.res.body.detail.githubMessage, 'Resource not accessible by personal access token');
+  assert.doesNotMatch(JSON.stringify(r.res.body), /ghp_test/);
+});
+
+test('a write GitHub refuses (422) while the file is unchanged says why instead of calling it a conflict', async () => {
+  const gh = fakeGithub(EMPTY);
+  refusePuts(gh, 422, 'Invalid request.');
+  const r = await run({ body: saveBody(), github: gh });
+  assert.equal(r.res.statusCode, 502);
+  assert.equal(r.res.body.error, 'github_write_failed');
+  assert.equal(r.res.body.detail.githubStatus, 422);
+  assert.equal(r.res.body.detail.githubMessage, 'Invalid request.');
+  assert.equal(gh.puts.length, 1);
+});
+
+test('a 409 on the branch while the file is unchanged (another commit landed) is retried once and saves', async () => {
+  const gh = fakeGithub(EMPTY);
+  gh.nextPut = { status: 409 };
+  const r = await run({ body: saveBody(), github: gh });
+  assert.equal(r.res.statusCode, 200);
+  assert.equal(r.res.body.committed, true);
+  assert.equal(gh.puts.length, 2);
+});
+
+test('a 409 that keeps happening with the file unchanged is reported with GitHub\'s message, after one retry', async () => {
+  const gh = fakeGithub(EMPTY);
+  refusePuts(gh, 409, 'is at abc but expected def');
+  const r = await run({ body: saveBody(), github: gh });
+  assert.equal(r.res.statusCode, 502);
+  assert.equal(r.res.body.error, 'github_write_failed');
+  assert.equal(r.res.body.detail.githubStatus, 409);
+  assert.equal(gh.puts.length, 2);
+});
+
 test('first save creates the file when it does not exist yet', async () => {
   const gh = fakeGithub(null);
   const r = await run({ body: saveBody({ expectedRevision: null }), github: gh });
