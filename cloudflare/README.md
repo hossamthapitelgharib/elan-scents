@@ -1,7 +1,7 @@
 # Élan Scents على Cloudflare Workers
 
 الموقع كله (الملفات الثابتة + `/api/*` + محرر المالك) يعمل من Worker واحد باسم `elan-scents`.
-Railway يبقى شغّالاً كما هو حتى يُقرَّر التحويل؛ لا شيء هنا يغيّر سلوكه.
+هذا هو مضيف المشروع (قرار حسام 2026-10-22). على Railway بقيت خدمة `elan-editor` فقط، تحوّل لينك المحرر القديم إلى هنا.
 
 ## ماذا يوجد في المستودع
 - `wrangler.jsonc`: إعداد الـ Worker (الاسم، مجلد الملفات الثابتة `dist/`، المسارات التي يعمل فيها الكود أولاً، المتغيرات غير السرية).
@@ -11,24 +11,23 @@ Railway يبقى شغّالاً كما هو حتى يُقرَّر التحويل
 - `cloudflare/api-registry.js`: قائمة ثابتة بدوال الـ API (الحزمة لا تستطيع قراءة المجلد وقت التشغيل). اختبار يفشل إن أضفتَ ملفاً في `api/` ونسيتَ القائمة.
 - `tests/cloudflare-*.test.js`: يتأكدان أن الملفات العامة مطابقة لـ Railway بالبايت، وأن رؤوس الكاش مطابقة، وأن ردّ الـ Worker مطابق لردّ خادم Railway لنفس الطلب.
 
-## التفعيل (مرة واحدة، من لوحة Cloudflare)
-1. **Workers & Pages ← `elan-scents` ← Settings ← Builds ← Connect**: اربط مستودع GitHub `hossamthapitelgharib/elan-scents` والفرع `main`. اترك Build command فارغاً (الـ Worker يبنّي نفسه)، وأمر النشر الافتراضي `npx wrangler deploy`. كل دفع إلى `main` ينشر بعدها تلقائياً (بما فيه حفظات المحرر).
-2. **Settings ← Variables and Secrets**: أضف القيم التالية (الأسرار كـ Secret):
+## الإعداد (مرة واحدة، من لوحة Cloudflare)
+1. **Workers & Pages ← `elan-scents` ← Settings ← Builds**: المستودع `hossamthapitelgharib/elan-scents` والفرع `main` مربوطان؛ كل دفع إلى `main` يُبنى ويُنشر تلقائياً (بما فيه حفظات المحرر) وتظهر نتيجته على الكوميت باسم «Workers Builds: elan-scents». Build command فارغ (الـ Worker يبنّي نفسه)، وأمر النشر `npx wrangler deploy`.
+2. **Settings ← Variables and Secrets**: أضف الأسرار التالية بنوع **Secret** (لا تُكتب في الكود ولا في المحادثات):
 
-| الاسم | نوعه | ملاحظة |
+| الاسم | مطلوب؟ | ملاحظة |
 |---|---|---|
-| `SUPABASE_SERVICE_ROLE_KEY` | Secret | نفس قيمة Railway |
-| `STORE_ORDER_WEBHOOK_SECRET` | Secret | نفس قيمة Railway (وإلا ترد الـ webhooks بـ 503) |
-| `GUEST_HASH_SECRET` | Secret | **إن كان مضبوطاً على Railway انسخ القيمة نفسها حرفياً**؛ أي قيمة أخرى تبدأ كل ضيف من الصفر. وإن لم يكن مضبوطاً هناك فلا تضفه |
-| `GITHUB_TOKEN` | Secret | للمحرر (الكتابة على `main`) |
+| `SUPABASE_SERVICE_ROLE_KEY` | نعم | بدونه لا تعمل دوال `/api` ولا دخول المحرر بالبريد. من Supabase ← Project Settings ← API Keys، أو انسخه من Variables في خدمة Railway `elan-editor` |
+| `GITHUB_TOKEN` | للمحرر | بدونه يعمل المحرر للقراءة فقط ولا يحفظ على `main`. صلاحية Contents: Read and write على هذا المستودع |
+| `STORE_ORDER_WEBHOOK_SECRET` | عند ربط أول متجر | غير مضبوط عمداً الآن (لا متاجر)؛ الـ webhooks ترد 503 وهذا آمن. عند ربط متجر يُولَّد سرّ عشوائي جديد ويُعطى للمتجر |
+| `GUEST_HASH_SECRET` | لا | إن لم يُضبط يُستعمل `SUPABASE_SERVICE_ROLE_KEY` وهو القيمة التي كان مضبوطاً عليها على Railway، فيستمر سجل الضيوف. لا تضعه بقيمة أخرى |
 
 `SUPABASE_URL` و`SUPABASE_ANON_KEY` (قيمتان عامتان يستلمهما متصفح كل زائر من `/api/config`) و`EDITOR_ENV` و`EDITOR_TARGET_BRANCH` و`GITHUB_REPO` موجودة في `wrangler.jsonc`، فلا تضفها. أما `EDITOR_SITE_ORIGIN` و`ELAN_EDITOR_ORIGIN` و`ELAN_STORE_ORIGIN` فإن لم تُضبط يستعمل الـ Worker العنوان الذي زرتَه به (المحرر والمتجر على أصل واحد)؛ اضبطها فقط إن استعملت أكثر من نطاق.
-3. افتح `https://<الـ worker>.workers.dev/health` (يردّ `ok`) ثم `/` و`/api/config` و`/editor`.
+3. افتح `https://elan-scents.hossamthapitelgharib.workers.dev/health` (يردّ `ok`) ثم `/` و`/api/config` و`/editor`.
 
-## التحويل الكامل
-- النطاق: Settings ← Domains & Routes ← Add Custom Domain.
-- غيّر رابط الـ webhook في أي متجر مربوط (`/api/store-order-status` وأخواتها) إلى النطاق الجديد.
-- بعد التأكد أوقف خدمة Railway.
+## نطاق خاص (لاحقاً)
+- النطاق: Settings ← Domains & Routes ← Add Custom Domain. الموقع الآن على `workers.dev` بقرار حسام.
+- غيّر رابط الـ webhook في أي متجر مربوط (`/api/store-order-status` وأخواتها) إلى العنوان الجديد، وحدّث Site URL وRedirect URLs في Supabase ← Authentication ← URL Configuration.
 
 ## حدود الخطة المجانية (Workers Free)
 - الملفات الثابتة بلا حد ولا تُحسب طلبات؛ الطلبات التي تشغّل الكود (`/api/*` و`/editor`) حدّها 100 ألف في اليوم.
