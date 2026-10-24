@@ -70,11 +70,19 @@ async function localDesign() {
 
 /* A GitHub failure the owner can act on. The detail carries only GitHub's own status and public error text (for example
    "Bad credentials"), never the token; the endpoint is admin-only. */
-function githubError(code, r, cause) {
+function tokenShape(token) {
+  const t = String(token || '');
+  const m = /^(github_pat_|ghp_|gho_|ghu_|ghs_|ghr_)/.exec(t);
+  return { type: m ? m[1] : 'unknown', length: t.length };
+}
+
+function githubError(code, r, cause, cfg) {
   const detail = {};
   if (r && r.status) detail.githubStatus = r.status;
   if (r && r.json && typeof r.json.message === 'string') detail.githubMessage = r.json.message.slice(0, 200);
   if (cause) detail.cause = String(cause && cause.message ? cause.message : cause).slice(0, 120);
+  // Only for "Bad credentials": the kind and length of the token (never its characters) show a truncated or wrong paste.
+  if (cfg && r && r.status === 401) detail.token = tokenShape(cfg.token);
   return Object.assign(new Error(code), { status: 502, detail });
 }
 
@@ -105,7 +113,7 @@ async function githubFetch(cfg, method, path, body) {
 async function readDesignFile(cfg) {
   const r = await github(cfg, 'GET', '/contents/' + DESIGN_PATH + '?ref=' + encodeURIComponent(cfg.branch));
   if (r.status === 404) return { exists: false };
-  if (r.status === 401 || r.status === 403) throw githubError('github_auth_failed', r);
+  if (r.status === 401 || r.status === 403) throw githubError('github_auth_failed', r, null, cfg);
   if (r.status !== 200 || !r.json || typeof r.json.content !== 'string') throw githubError('github_read_failed', r);
   const text = Buffer.from(r.json.content, 'base64').toString('utf8');
   return { exists: true, sha: r.json.sha, text };
@@ -172,7 +180,7 @@ async function actionSave(cfg, body) {
     if (!revision) return { status: 502, body: { ok: false, error: 'github_write_unconfirmed' } };
     return { status: 200, body: { ok: true, committed: true, revision, commit: put.json.commit && put.json.commit.sha, branch: cfg.branch } };
   }
-  if (put.status === 401 || put.status === 403) return { status: 502, body: { ok: false, error: 'github_auth_failed', detail: githubError('x', put).detail } };
+  if (put.status === 401 || put.status === 403) return { status: 502, body: { ok: false, error: 'github_auth_failed', detail: githubError('x', put, null, cfg).detail } };
   if (put.status === 409 || put.status === 422) {
     // Someone changed the file between our read and write, or our own earlier attempt landed. Re-check, never overwrite.
     const again = await readDesignFile(cfg);
