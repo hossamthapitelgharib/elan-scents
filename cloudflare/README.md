@@ -19,7 +19,7 @@
 |---|---|---|
 | `SUPABASE_SERVICE_ROLE_KEY` | نعم | بدونه لا تعمل دوال `/api` ولا دخول المحرر بالبريد. من Supabase ← Project Settings ← API Keys، أو انسخه من Variables في خدمة Railway `elan-editor` |
 | `GITHUB_TOKEN` | للمحرر | بدونه يعمل المحرر للقراءة فقط ولا يحفظ على `main`. صلاحية Contents: Read and write على هذا المستودع |
-| `STORE_ORDER_WEBHOOK_SECRET` | عند ربط أول متجر | غير مضبوط عمداً الآن (لا متاجر)؛ الـ webhooks ترد 503 وهذا آمن. عند ربط متجر يُولَّد سرّ عشوائي جديد ويُعطى للمتجر |
+| `STORE_ORDER_WEBHOOK_SECRET` | للـ webhooks | بدونه ترد الـ webhooks بـ 503 (آمن). مضبوط الآن (فحص `live-check`). يُعطى للمتجر عند ربطه |
 | `GUEST_HASH_SECRET` | لا | إن لم يُضبط يُستعمل `SUPABASE_SERVICE_ROLE_KEY` وهو القيمة التي كان مضبوطاً عليها على Railway، فيستمر سجل الضيوف. لا تضعه بقيمة أخرى |
 
 `SUPABASE_URL` و`SUPABASE_ANON_KEY` (قيمتان عامتان يستلمهما متصفح كل زائر من `/api/config`) و`EDITOR_ENV` و`EDITOR_TARGET_BRANCH` و`GITHUB_REPO` موجودة في `wrangler.jsonc`، فلا تضفها. أما `EDITOR_SITE_ORIGIN` و`ELAN_EDITOR_ORIGIN` و`ELAN_STORE_ORIGIN` فإن لم تُضبط يستعمل الـ Worker العنوان الذي زرتَه به (المحرر والمتجر على أصل واحد)؛ اضبطها فقط إن استعملت أكثر من نطاق.
