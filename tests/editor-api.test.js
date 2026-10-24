@@ -236,7 +236,7 @@ test('a GitHub refusal on read says what GitHub answered, never the token', asyn
   const r = await run({ method: 'GET', query: { action: 'state' }, github: gh });
   assert.equal(r.res.statusCode, 502);
   assert.equal(r.res.body.error, 'github_auth_failed');
-  assert.deepEqual(r.res.body.detail, { githubStatus: 401, githubMessage: 'Bad credentials', token: { type: 'ghp_', length: 8 } });
+  assert.deepEqual(r.res.body.detail, { githubStatus: 401, githubMessage: 'Bad credentials', token: { type: 'ghp_', length: 8, last4: 'test' } });
   assert.doesNotMatch(JSON.stringify(r.res.body), /ghp_test/);
 });
 

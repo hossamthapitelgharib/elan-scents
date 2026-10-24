@@ -73,7 +73,8 @@ async function localDesign() {
 function tokenShape(token) {
   const t = String(token || '');
   const m = /^(github_pat_|ghp_|gho_|ghu_|ghs_|ghr_)/.exec(t);
-  return { type: m ? m[1] : 'unknown', length: t.length };
+  // The last four characters let the owner tell whether the Worker holds the token he just created or an older one.
+  return { type: m ? m[1] : 'unknown', length: t.length, last4: t.slice(-4) };
 }
 
 function githubError(code, r, cause, cfg) {
@@ -81,7 +82,7 @@ function githubError(code, r, cause, cfg) {
   if (r && r.status) detail.githubStatus = r.status;
   if (r && r.json && typeof r.json.message === 'string') detail.githubMessage = r.json.message.slice(0, 200);
   if (cause) detail.cause = String(cause && cause.message ? cause.message : cause).slice(0, 120);
-  // Only for "Bad credentials": the kind and length of the token (never its characters) show a truncated or wrong paste.
+  // Only for "Bad credentials": the kind, length and last four characters of the token show a truncated, wrong or stale paste.
   if (cfg && r && r.status === 401) detail.token = tokenShape(cfg.token);
   return Object.assign(new Error(code), { status: 502, detail });
 }

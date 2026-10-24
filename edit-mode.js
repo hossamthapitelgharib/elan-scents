@@ -739,7 +739,7 @@
   function stateErrorText(status, j) {
     var code = j && typeof j.error === 'string' ? j.error : '';
     var d = j && j.detail && typeof j.detail === 'object' ? j.detail : {};
-    var extra = (d.githubStatus ? ' GitHub ' + d.githubStatus : '') + (d.githubMessage ? ': ' + String(d.githubMessage).slice(0, 120) : '') + (d.cause ? ' (' + String(d.cause).slice(0, 80) + ')' : '') + (d.token && d.token.length ? ' — المفتاح المحفوظ: نوعه ' + String(d.token.type).slice(0, 12) + ' وطوله ' + Number(d.token.length) + ' حرف.' : '');
+    var extra = (d.githubStatus ? ' GitHub ' + d.githubStatus : '') + (d.githubMessage ? ': ' + String(d.githubMessage).slice(0, 120) : '') + (d.cause ? ' (' + String(d.cause).slice(0, 80) + ')' : '') + (d.token && d.token.length ? ' — المفتاح المحفوظ: نوعه ' + String(d.token.type).slice(0, 12) + ' وطوله ' + Number(d.token.length) + ' حرف وآخره «' + String(d.token.last4 || '').slice(0, 4) + '».' : '');
     if (code === 'github_auth_failed') return 'GitHub رفض المفتاح GITHUB_TOKEN: غلط أو منتهي أو صلاحيته ناقصة (لازم Contents: Read and write على مستودع elan-scents).' + extra;
     if (code === 'github_unreachable') return 'السيرفر ما قدرش يوصل لـ GitHub.' + extra;
     if (code === 'github_read_failed') return 'GitHub ردّ بشيء غير متوقع عند قراءة design/home.json.' + extra;
