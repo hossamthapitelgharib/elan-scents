@@ -3,8 +3,8 @@
    Imports base theme then applies current desired overrides.
    Frontend display only. Do not add backend/DB rules here.
    ============================================================ */
-@import url('/style-3.css?v=20261025-02');
-@import url('/footer-9x16.css?v=20261025-02');
+@import url('/style-3.css?v=20261025-03');
+@import url('/footer-9x16.css?v=20261025-03');
 
 /* ---------- Menu: slightly narrower panel + slightly larger items ---------- */
 #menu {
@@ -13,8 +13,8 @@
   max-width: 135px !important;
 }
 #menu a:not(.mlogo) {
-  font-size: 13px !important;
-  padding: 9px 0 !important;
+  font-size: 15px !important;
+  padding: 8px 0 !important;
 }
 #menu a.mlogo {
   padding-top: 4px !important;
@@ -356,8 +356,8 @@ body.sheet-open {
     gap: 4px !important;
   }
   header .ic { gap: 6px !important; }
-  header .ic button { padding: 2px !important; }
-  header .ic svg { width: 20px !important; height: 20px !important; }
+  header .ic button { padding: 0 !important; }
+  header .ic svg { width: 24px !important; height: 24px !important; }
   header .logo { min-width: 0 !important; overflow: hidden !important; }
   header .logo > div { white-space: nowrap !important; }
   header .logo b { font-size: 48px !important; }
@@ -368,7 +368,7 @@ body.sheet-open {
     display: block !important;
   }
   header .logo i { width: 60% !important; }
-  #lg { font-size: 11px !important; }
+  #lg { font-size: 13px !important; }
 
   #hero {
     height: calc(var(--app-vh, 1vh) * 100) !important;
@@ -444,7 +444,7 @@ body.sheet-open {
     display: block !important;
   }
   header .ic { gap: 4px !important; }
-  header .ic svg { width: 20px !important; height: 20px !important; }
+  header .ic svg { width: 24px !important; height: 24px !important; }
 
   #hero {
     height: calc(var(--app-vh, 1vh) * 100) !important;
@@ -523,8 +523,8 @@ body.sheet-open {
     padding-top: 56px !important;
   }
   #menu a:not(.mlogo) {
-    font-size: 13px !important;
-    padding: 9px 0 !important;
+    font-size: 15px !important;
+    padding: 8px 0 !important;
   }
 
   section {
@@ -611,13 +611,6 @@ button,a,input,select,textarea{-webkit-tap-highlight-color:transparent}
 @supports not (scrollbar-gutter:stable){html{overflow-y:scroll}}
 .orders-list{display:grid;gap:8px}.order-card{display:grid;grid-template-columns:1fr auto;gap:3px 10px;padding:12px;border:1px solid #e6d9b6;border-radius:12px;background:#fffdf8}.order-card div{display:grid;gap:2px}.order-card small{color:var(--gray);font-size:11px}.order-status{color:var(--gold3);font-size:11px;font-weight:600;align-self:center}
 @media(max-width:680px){.grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.grid .card{min-width:0}}
-
-/* Keep hero playback control present in every browser; the poster remains visible if autoplay is blocked. */
-#heroPlay{position:absolute;z-index:3;right:18px;bottom:calc(18px + env(safe-area-inset-bottom,0px));width:42px;height:42px;border:1px solid rgba(255,255,255,.72);border-radius:50%;background:rgba(20,12,4,.48);color:#fff;font:700 16px/1 Arial,sans-serif;display:grid;place-items:center;cursor:pointer;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
-#heroPlay:focus-visible{outline:2px solid #fff;outline-offset:3px}
-
-/* Hero play button hides itself once playback starts (the [hidden] attribute must beat display:grid above). */
-#heroPlay[hidden]{display:none!important}
 
 /* Cross-browser normalisation: identical text sizing, font smoothing and positioning in every engine. */
 html{-webkit-text-size-adjust:100%;-moz-text-size-adjust:100%;text-size-adjust:100%}
