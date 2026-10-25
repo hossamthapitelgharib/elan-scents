@@ -57,7 +57,7 @@
   }
   function tidy() {
     scopes().forEach(tidyScope);
-    Object.keys(work.pages || {}).forEach(function (key) { var pg = work.pages[key]; if (!(pg.blocks || []).length && !pg.edits) delete work.pages[key]; });
+    Object.keys(work.pages || {}).forEach(function (key) { var pg = work.pages[key]; if (!(pg.blocks || []).length && !pg.edits && !pg.cardOrder) delete work.pages[key]; });
     if (work.pages && !Object.keys(work.pages).length) delete work.pages;
   }
 
@@ -104,12 +104,14 @@
     '.eo-dlg button{font:inherit;padding:6px 12px;border:1px solid #c2a66a;border-radius:7px;background:#fff;cursor:pointer;margin-inline-end:6px}' +
     '.eo-tag{position:absolute;top:-24px;right:-2px;background:#c8962a;color:#fff;font-size:11px;padding:2px 8px;border-radius:5px 5px 0 0;white-space:nowrap;pointer-events:none}' +
     '.eo-open{position:absolute;bottom:-26px;right:-2px;background:#29251c;color:#fff;font-size:12px;padding:3px 10px;border-radius:0 0 6px 6px;white-space:nowrap;cursor:pointer;pointer-events:auto;display:none;user-select:none}.eo-open:hover{background:#c8962a}' +
+    '.eo-drop{position:fixed;display:none;background:#b48b38;border-radius:3px;box-shadow:0 0 0 3px rgba(180,139,56,.28);pointer-events:none}' +
     '[contenteditable]{outline:2px dashed #c8962a;outline-offset:2px}' +
-    '</style><div class="eo-box"><span class="eo-tag"></span><span class="eo-open">فتح الصفحة ⤢</span><i class="eo-h" data-h="se"></i></div><div class="eo-msg"></div>' +
+    '</style><div class="eo-drop"></div><div class="eo-box"><span class="eo-tag"></span><span class="eo-open">فتح الصفحة ⤢</span><i class="eo-h" data-h="se"></i></div><div class="eo-msg"></div>' +
     '<div class="eo-dlg"><div><b class="eo-dt"></b><input type="text" class="eo-di" dir="ltr"><p class="eo-dh" style="margin:0 0 8px;color:#7a6a52"></p><button class="eo-ok">تأكيد</button><button class="eo-no">إلغاء</button></div></div>';
   document.body.appendChild(root);
 
   var tagEl = root.querySelector('.eo-tag'), openEl = root.querySelector('.eo-open');
+  var dropEl = root.querySelector('.eo-drop');
   var box = root.querySelector('.eo-box'), msgEl = root.querySelector('.eo-msg'), dlg = root.querySelector('.eo-dlg');
 
   var msgTimer = null;
@@ -201,6 +203,72 @@
 
   function base(id) { var e = cur(id); return { dx: e.dx || 0, dy: e.dy || 0 }; }
 
+  /* ---------- automatic displacement (the original editor's flow) ----------
+     Cards (inside their strip) and the page's sections and extra blocks sit in the page's own flow. Dropping one between others
+     puts it there and every other one shifts to make room, and the new order is saved. Titles, texts, the hero and the footer
+     parts are free-form: they only move by an offset. Hold Alt while dragging to place a flow element freely instead. */
+  function boxOf(el) { var r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && el.style.display !== 'none' ? r : null; }
+  function flowOf(e) {
+    if (!e) return null;
+    var main = document.getElementById('main'), list = entries();
+    if (e.kind === 'card' && e.el.parentNode) {
+      return { type: 'card', axis: 'xy', rtl: getComputedStyle(e.el.parentNode).direction === 'rtl',
+        siblings: list.filter(function (x) { return x.kind === 'card' && x.id !== e.id && x.el.parentNode === e.el.parentNode && boxOf(x.el); }) };
+    }
+    if ((e.kind === 'section' || e.kind === 'block') && main && e.el.parentNode === main) {
+      return { type: 'section', axis: 'y', rtl: false,
+        siblings: list.filter(function (x) { return (x.kind === 'section' || x.kind === 'block') && x.id !== e.id && x.el.parentNode === main && boxOf(x.el); }) };
+    }
+    return null;
+  }
+  function slotAt(flow, x, y) {
+    var rects = flow.siblings.map(function (s) { var r = s.el.getBoundingClientRect(); return { id: s.id, left: r.left, top: r.top, width: r.width, height: r.height }; });
+    var slot = Geometry.dropSlot ? Geometry.dropSlot(rects, { x: x, y: y }, { axis: flow.axis, rtl: flow.rtl }) : null;
+    if (slot) slot.rect = rects.filter(function (r) { return r.id === slot.id; })[0];
+    return slot;
+  }
+  function showDrop(flow, slot) {
+    if (!slot || !slot.rect) { dropEl.style.display = 'none'; return; }
+    var r = slot.rect, bar = 5, s = dropEl.style;
+    s.display = 'block';
+    if (flow.axis === 'y') { s.left = r.left + 'px'; s.width = r.width + 'px'; s.height = bar + 'px'; s.top = ((slot.after ? r.top + r.height : r.top) - bar / 2) + 'px'; }
+    else {
+      var right = flow.rtl ? !slot.after : slot.after;      // which vertical edge of the target the dragged card will sit against
+      s.top = r.top + 'px'; s.height = r.height + 'px'; s.width = bar + 'px'; s.left = ((right ? r.left + r.width : r.left) - bar / 2) + 'px';
+    }
+  }
+  function hideDrop() { dropEl.style.display = 'none'; }
+  function stripOf(e) { return e && e.kind === 'card' && e.el.closest ? e.el.closest('.strip') : null; }
+
+  /* Put the dropped element into the flow next to `slot.id`, forget its free offset, and save the order. */
+  function commitFlow(g, slot) {
+    var key = null, listed = null;
+    var e = entryById(g.id);
+    if (g.flow.type === 'card') {
+      var holder = e.el.closest('section[id]') || document.getElementById('view');
+      key = holder && holder.tagName === 'SECTION' ? holder.id : 'view';
+      listed = entries().filter(function (x) { return x.kind === 'card' && holder && holder.contains(x.el); }).map(function (x) { return x.id; });
+    }
+    var order = g.flow.type === 'section' ? fullOrder() : null, moved = sectionOf(g.id), target = sectionOf(slot.id);
+    mutate(function (d) {
+      var scope = pageScope(g.id, true);
+      ['all', device()].forEach(function (dev) {
+        var t = scope.edits && scope.edits[dev] && scope.edits[dev][g.id];
+        if (t) { delete t.dx; delete t.dy; }
+      });
+      if (g.flow.type === 'section') { d.order = Geometry.reorder(order, moved, target, slot.after); return; }
+      var next = Geometry.reorder(listed, g.id, slot.id, slot.after);
+      if (JSON.stringify(next) === JSON.stringify(listed) && !(scope.cardOrder && scope.cardOrder[key])) return;
+      scope.cardOrder = scope.cardOrder || {};
+      scope.cardOrder[key] = next;
+    });
+    say('اتنقل العنصر، وباقي العناصر اتزاحت تلقائي. (Alt مع السحب = تحريك حر)');
+  }
+  function endGesture(g) {
+    hideDrop();
+    if (g && g.strip) { if (g.strip.base) g.strip.node.setAttribute('style', g.strip.base); else g.strip.node.removeAttribute('style'); g.strip = null; }
+  }
+
   /* The open chip explicitly enters a dynamic page; a normal left click remains a selection/drag gesture. */
   function dynamicTarget(e) { return e && layer.goTargetOf ? layer.goTargetOf(e.el) : null; }
   function pageName() { var h = document.querySelector('#view h3'); return (h && h.textContent.trim()) || ''; }
@@ -236,6 +304,7 @@
     if (editing) { if (editing.node.contains(ev.target)) return; commitText(); }
     var handle = ev.target.classList && ev.target.classList.contains('eo-h') ? ev.target.getAttribute('data-h') : null;
     ev.preventDefault(); ev.stopPropagation();
+    try { window.focus(); } catch (_) { /* keys (Esc, Delete, Ctrl+Z) must reach this frame after a click on the page */ }
     if (ev.button !== undefined && ev.button !== 0) return;
     if (ev.pointerType === 'touch') {
       if (touchPress) clearTimeout(touchPress.timer);
@@ -255,7 +324,7 @@
     }
     if (!e) return;
     var r = e.el.getBoundingClientRect(), b = base(e.id);
-    gesture = { id: e.id, el: e.el, mode: mode, handle: handle, sx: ev.clientX, sy: ev.clientY, r: r, b: b, moved: false, dx: b.dx, dy: b.dy, w: null, h: null, startOffset: e.el.style.transform };
+    gesture = { id: e.id, el: e.el, mode: mode, handle: handle, sx: ev.clientX, sy: ev.clientY, r: r, b: b, moved: false, dx: b.dx, dy: b.dy, w: null, h: null, startOffset: e.el.style.transform, flow: mode === 'move' ? flowOf(e) : null, slot: null, strip: null };
     try { (handle ? ev.target : document.documentElement).setPointerCapture && ev.target.setPointerCapture(ev.pointerId); } catch (_) { /* optional */ }
   }, true);
 
@@ -267,11 +336,14 @@
     var g = gesture, ddx = ev.clientX - g.sx, ddy = ev.clientY - g.sy;
     if (!g.moved && Math.abs(ddx) + Math.abs(ddy) < 3) return;
     g.moved = true; ev.preventDefault();
-    g.el.style.position = g.el.style.position || 'relative'; g.el.style.zIndex = '3';
+    g.el.style.position = g.el.style.position || 'relative'; g.el.style.zIndex = '3'; g.el.style.transition = 'none'; // follows the pointer exactly, no easing
     if (g.mode === 'move') {
       var next = Geometry.move(g.r, g.b, { x: ddx, y: ddy });
       g.dx = next.dx; g.dy = next.dy;
       g.el.style.transform = 'translate(' + g.dx + 'px,' + g.dy + 'px)';
+      if (g.flow && g.flow.type === 'card' && !g.strip) { var strip = stripOf(entryById(g.id)); if (strip) { g.strip = { node: strip, base: strip.getAttribute('style') || '' }; strip.style.overflow = 'visible'; } }
+      if (g.flow && g.flow.siblings.length && !ev.altKey) { g.slot = slotAt(g.flow, ev.clientX, ev.clientY); showDrop(g.flow, g.slot); }
+      else { g.slot = null; hideDrop(); }
     } else {
       var h = g.handle, w = g.r.width, hh = g.r.height;
       if (h.indexOf('e') !== -1) w = g.r.width + ddx; if (h.indexOf('w') !== -1) w = g.r.width - ddx;
@@ -296,6 +368,12 @@
     var g = gesture; gesture = null;
     if (!g.moved) return;                      // A plain click selects; only a drag commits offsets.
     ev.preventDefault();
+    if (g.mode === 'move' && g.flow && g.flow.siblings.length && !ev.altKey) {
+      var drop = slotAt(g.flow, ev.clientX, ev.clientY);
+      endGesture(g);
+      if (drop) { commitFlow(g, drop); return; }
+    }
+    endGesture(g);
     mutate(function () {
       var e = edit(device(), g.id);
       if (g.dx) e.dx = g.dx; else delete e.dx;
@@ -307,6 +385,7 @@
 
   window.addEventListener('pointercancel', function (ev) {
     if (touchPress && touchPress.pointerId === ev.pointerId) { clearTimeout(touchPress.timer); touchPress = null; }
+    if (gesture) { endGesture(gesture); if (gesture.moved) repaint(); }
     gesture = null;
   }, true);
 
@@ -359,6 +438,7 @@
       else if (ev.key === 'Escape') { ev.preventDefault(); editing.node.textContent = editing.before; editing.node.removeAttribute('contenteditable'); editing = null; }
       return;
     }
+    if (gesture && gesture.moved && ev.key === 'Escape') { ev.preventDefault(); endGesture(gesture); gesture = null; repaint(); return; }
     if (inUi(ev.target)) return;
     var mod = ev.ctrlKey || ev.metaKey;
     if (mod && !ev.shiftKey && ev.key.toLowerCase() === 'z') { ev.preventDefault(); undo(); }

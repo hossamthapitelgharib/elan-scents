@@ -64,6 +64,7 @@ class Element {
   appendChild(child) { if (child.parentNode) child.remove(); child.parentNode = this; this.children.push(child); return child; }
   append(...children) { children.forEach((c) => this.appendChild(typeof c === 'string' ? Object.assign(new Element('span'), { textContent: c }) : c)); }
   insertBefore(child, ref) { if (!ref) return this.appendChild(child); if (child.parentNode) child.remove(); child.parentNode = this; this.children.splice(this.children.indexOf(ref), 0, child); return child; }
+  replaceChild(child, old) { if (child.parentNode) child.remove(); const at = this.children.indexOf(old); child.parentNode = this; this.children.splice(at, 1, child); old.parentNode = null; return old; }
   replaceChildren(...children) { this.textContent = ''; this.append(...children); }
   remove() { if (this.parentNode) this.parentNode.children = this.parentNode.children.filter((c) => c !== this); this.parentNode = null; }
   contains(node) { return this === node || this.children.some((c) => c.contains(node)); }
@@ -103,7 +104,7 @@ function browser() {
   body.innerHTML = read('index.html').split('<body>')[1].split('</body>')[0];
   const document = {
     documentElement: html, head, body, hidden: false, listeners: {},
-    createElement: (tag) => new Element(tag), getElementById: (id) => html.querySelector('#' + id),
+    createElement: (tag) => new Element(tag), createComment: () => new Element('#comment'), getElementById: (id) => html.querySelector('#' + id),
     querySelector: (s) => html.querySelector(s), querySelectorAll: (s) => html.querySelectorAll(s),
     addEventListener(type, fn) { (this.listeners[type] ||= []).push(fn); }
   };

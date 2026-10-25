@@ -376,6 +376,7 @@
 
     // Only touch the order when the design asks for it or adds blocks.
     plan.order.forEach(function (id) { if (nodes[id]) main.appendChild(nodes[id]); });
+    applyCardOrder(); // the cards the owner dropped between others, in the order he dropped them
     applyEdits(); // free-form edits from the visual editor, for the current screen size
   }
 
@@ -417,12 +418,48 @@
     return n ? n.getAttribute('data-go') : null;
   }
 
+  /* Automatic displacement saved by the editor: the cards of one container in the order the owner dropped them.
+     Cards a saved list does not know about (a new product, say) keep their natural order after the listed ones.
+     Cards swap places with each other, so buttons or other things that sit between them stay where they are. */
+  function sortCards(root, ids) {
+    var cards = elements().filter(function (e) { return e.kind === 'card' && root.contains(e.el); });
+    var groups = [];
+    cards.forEach(function (e) {
+      var parent = e.el.parentNode, g = groups.filter(function (x) { return x.parent === parent; })[0];
+      if (!g) groups.push(g = { parent: parent, cards: [] });
+      g.cards.push(e.el);
+    });
+    groups.forEach(function (g) {
+      var rank = function (el) { var e = cards.filter(function (c) { return c.el === el; })[0], i = e ? ids.indexOf(e.id) : -1; return i === -1 ? 1e6 : i; };
+      var natural = Array.prototype.filter.call(g.parent.children, function (c) { return g.cards.indexOf(c) !== -1; });
+      var wanted = natural.map(function (el, i) { return { el: el, i: i, r: rank(el) }; })
+        .sort(function (a, b) { return a.r - b.r || a.i - b.i; }).map(function (x) { return x.el; });
+      if (wanted.every(function (el, i) { return el === natural[i]; })) return;
+      var slots = natural.map(function (el) { var m = document.createComment(''); g.parent.insertBefore(m, el); return m; });
+      wanted.forEach(function (el, i) { g.parent.replaceChild(el, slots[i]); });
+    });
+  }
+  function applyCardOrder() {
+    if (!design) return;
+    var inner = document.body.classList.contains('inner'), view = document.getElementById('view');
+    if (!inner) {
+      var map = design.cardOrder || {};
+      Object.keys(map).forEach(function (key) {
+        var section = document.getElementById(key);
+        if (section && section.tagName === 'SECTION' && section.parentNode && section.parentNode.id === 'main') sortCards(section, map[key]);
+      });
+    } else if (view) {
+      var pg = design.pages && design.pages[pageKey()];
+      if (pg && pg.cardOrder && pg.cardOrder.view) sortCards(view, pg.cardOrder.view);
+    }
+  }
+
   function wrapView() {
     var orig = window.view;
     if (typeof orig !== 'function' || orig.__elanDesign) return;
     var wrapped = function () {
       var r = orig.apply(this, arguments);
-      try { applyPage(); applyEdits(); } catch (e) { console.error('design layer', e); }
+      try { applyPage(); applyCardOrder(); applyEdits(); } catch (e) { console.error('design layer', e); }
       return r;
     };
     wrapped.__elanDesign = true;

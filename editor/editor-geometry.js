@@ -30,5 +30,37 @@
     };
   }
 
-  return { move: move, resize: resize, MIN_WIDTH: MIN_WIDTH, MIN_HEIGHT: MIN_HEIGHT, MAX_SIZE: MAX_SIZE };
+  /* Automatic displacement (the original editor's flow): a dragged card or section is dropped next to the sibling that is
+     closest to the pointer, and every other sibling shifts to make room. `rects` are the siblings' boxes on screen
+     ({id, left, top, width, height}); `point` is the pointer. The rule is the original `reflowAt` rule:
+     nearest centre wins, and the dragged element goes AFTER it when the pointer is in the lower quarter of the target or,
+     on the target's own row, on its far side. `axis: 'y'` is for full-width stacks (page sections): the middle line decides.
+     `rtl` is the page direction: in a right-to-left row the next card in the flow sits on the LEFT. */
+  function dropSlot(rects, point, opts) {
+    var list = (rects || []).filter(function (r) { return r && r.width > 0 && r.height > 0; });
+    if (!list.length || !point) return null;
+    var px = Number(point.x) || 0, py = Number(point.y) || 0, best = Infinity, target = null;
+    list.forEach(function (r) {
+      var d = Math.hypot(px - (r.left + r.width / 2), py - (r.top + r.height / 2));
+      if (d < best) { best = d; target = r; }
+    });
+    var cx = target.left + target.width / 2, after;
+    if (opts && opts.axis === 'y') after = py > target.top + target.height / 2;
+    else {
+      var farSide = opts && opts.rtl ? px < cx : px > cx;
+      after = py > target.top + target.height * 0.75 || (py >= target.top && farSide);
+    }
+    return { id: target.id, after: !!after };
+  }
+
+  /* The list `ids` with `id` moved right before (or after) `targetId`. Pure: never changes its input. */
+  function reorder(ids, id, targetId, after) {
+    var out = (ids || []).filter(function (x) { return x !== id; });
+    var at = out.indexOf(targetId);
+    if (at === -1 || (ids || []).indexOf(id) === -1) return (ids || []).slice();
+    out.splice(at + (after ? 1 : 0), 0, id);
+    return out;
+  }
+
+  return { move: move, resize: resize, dropSlot: dropSlot, reorder: reorder, MIN_WIDTH: MIN_WIDTH, MIN_HEIGHT: MIN_HEIGHT, MAX_SIZE: MAX_SIZE };
 });

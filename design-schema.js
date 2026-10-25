@@ -38,6 +38,10 @@
   var EFFECTS = ['none', 'soft', 'gold', 'deep'];
   var EDIT_LIMITS = { ids: 400, offset: 4000, size: 4000, minSize: 16, font: [8, 120], radius: 80 };
   var BREAKPOINTS = { mobile: 640, tablet: 1024 };
+  /* Order of the cards inside one container (a home section, or the open inner page as "view"): the automatic displacement
+     the editor does when a card is dropped between others. Ids are the same element ids that edits use. */
+  var CONTAINER_RE = /^[a-z][a-z0-9_-]{0,39}$/;
+  var CARD_ORDER_LIMITS = { containers: 20, cards: 100 };
 
   function isObj(x) { return x !== null && typeof x === 'object' && !Array.isArray(x); }
   function has(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }
@@ -202,6 +206,26 @@
     return out;
   }
 
+  function cardOrderOf(raw, errors, where) {
+    var out = {};
+    if (!isObj(raw)) { errors.push(where + ': not an object'); return out; }
+    var keys = Object.keys(raw);
+    if (keys.length > CARD_ORDER_LIMITS.containers) errors.push(where + ': too many containers');
+    keys.slice(0, CARD_ORDER_LIMITS.containers).forEach(function (key) {
+      if (!CONTAINER_RE.test(key)) { errors.push(where + '.' + key + ': invalid container'); return; }
+      if (!Array.isArray(raw[key])) { errors.push(where + '.' + key + ': not a list'); return; }
+      if (raw[key].length > CARD_ORDER_LIMITS.cards) errors.push(where + '.' + key + ': too many cards');
+      var seen = {}, ids = [];
+      raw[key].slice(0, CARD_ORDER_LIMITS.cards).forEach(function (id) {
+        if (typeof id !== 'string' || !EDIT_ID_RE.test(id)) { errors.push(where + '.' + key + ': invalid card id'); return; }
+        if (seen[id]) { errors.push(where + '.' + key + ': duplicate card id'); return; }
+        seen[id] = true; ids.push(id);
+      });
+      if (ids.length > 1) out[key] = ids;
+    });
+    return out;
+  }
+
   /* Which bucket matches a screen width. */
   function deviceOf(width) {
     return width < BREAKPOINTS.mobile ? 'mobile' : width < BREAKPOINTS.tablet ? 'tablet' : 'desktop';
@@ -275,9 +299,11 @@
           list.push(b);
         });
         var pageEdits = pg.edits !== undefined ? editsOf(pg.edits, errors) : {};
-        if (list.length || Object.keys(pageEdits).length) {
+        var pageCards = pg.cardOrder !== undefined ? cardOrderOf(pg.cardOrder, errors, 'pages.' + key + '.cardOrder') : {};
+        if (list.length || Object.keys(pageEdits).length || Object.keys(pageCards).length) {
           design.pages = design.pages || {}; design.pages[key] = { blocks: list };
           if (Object.keys(pageEdits).length) design.pages[key].edits = pageEdits;
+          if (Object.keys(pageCards).length) design.pages[key].cardOrder = pageCards;
         }
       });
       var total = design.blocks.length + Object.keys(design.pages || {}).reduce(function (n, k) { return n + design.pages[k].blocks.length; }, 0);
@@ -312,6 +338,10 @@
       var ed = editsOf(input.edits, errors);
       if (Object.keys(ed).length) design.edits = ed;
     }
+    if (input.cardOrder !== undefined) {
+      var cards = cardOrderOf(input.cardOrder, errors, 'cardOrder');
+      if (Object.keys(cards).length) design.cardOrder = cards;
+    }
 
     var ok = isObj(input) && input.version === VERSION && (!strict || errors.length === 0);
     return { ok: ok, design: design, errors: errors };
@@ -320,7 +350,7 @@
   function isEmpty(design) {
     return !design || (!Object.keys(design.sections || {}).length && !(design.blocks || []).length &&
       !(design.order || []).length && !Object.keys(design.texts || {}).length && !Object.keys(design.pages || {}).length &&
-      !Object.keys(design.edits || {}).length);
+      !Object.keys(design.edits || {}).length && !Object.keys(design.cardOrder || {}).length);
   }
 
   /* Canonical text that gets committed. Throws if it would be unsafe to commit. */
