@@ -30,11 +30,14 @@ test('HSTS is sent only when the proxy says the request came over HTTPS', async 
   });
 });
 
-test('the baseline headers never block framing or inline scripts, because the editor opens the site inside itself', async () => {
+test('the baseline headers never block framing, because the editor opens the site inside itself', async () => {
   await withServer(async base => {
     const page = await fetch(base + '/');
     assert.equal(page.headers.get('x-frame-options'), null);
-    assert.equal(page.headers.get('content-security-policy'), null);
+    // The page policy (tests/page-csp.test.js) lets only the site itself frame the page: the editor and the storefront share one origin.
+    assert.match(page.headers.get('content-security-policy'), /frame-ancestors 'self'(;|$)/);
+    const { BASELINE_HEADERS } = require('../cloudflare/worker-core.js');
+    assert.equal(Object.keys(BASELINE_HEADERS).some(k => /content-security-policy|x-frame-options/i.test(k)), false, 'the policy belongs to the pages, not to every response');
   });
 });
 

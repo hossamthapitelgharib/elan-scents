@@ -8,16 +8,17 @@ const { browser } = require('./browser-fixture');
 const root = path.join(__dirname, '..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 const index = read('index.html');
+const heroScript = read('hero-video.js');
 const style = read('style.css');
 const core = loadCoreSource();
 
 test('hero video retries after browser-initiated pauses and unlocks on a real gesture', () => {
-  assert.match(index, /v\.addEventListener\('pause'/);
-  assert.match(index, /pauseRetries>=10/);
-  assert.match(index, /v\.addEventListener\('ended'/);
-  assert.match(index, /\['touchend','pointerup','click','keydown'\]/);
-  assert.match(index, /window\.addEventListener\('pageshow'/);
-  assert.match(index, /v\.defaultMuted=true/);
+  assert.match(heroScript, /v\.addEventListener\('pause'/);
+  assert.match(heroScript, /pauseRetries>=10/);
+  assert.match(heroScript, /v\.addEventListener\('ended'/);
+  assert.match(heroScript, /\['touchend','pointerup','click','keydown'\]/);
+  assert.match(heroScript, /window\.addEventListener\('pageshow'/);
+  assert.match(heroScript, /v\.defaultMuted=true/);
 });
 
 test('hero autoplays by itself and has no play or pause button', () => {
@@ -65,7 +66,7 @@ test('storefront is full width, prevents horizontal overflow, and locks scroll f
   assert.doesNotMatch(read('index.html'), /heroPlay/);
 });
 
-// Runs the real inline hero script against the fake browser; `heroBottom` is where the hero ends on screen and the header ends at 95px.
+// Runs the real hero script (hero-video.js, an external file because the page policy forbids inline scripts) against the fake browser; `heroBottom` is where the hero ends on screen and the header ends at 95px.
 function heroScroll() {
   const b = browser(), timers = [];
   const video = b.document.getElementById('heroVideo'), hero = b.document.getElementById('hero'), header = b.document.querySelector('header');
@@ -73,7 +74,7 @@ function heroScroll() {
   hero.getBoundingClientRect = () => ({ top: at.heroBottom - 800, bottom: at.heroBottom, left: 0, right: 300, width: 300, height: 800 });
   header.getBoundingClientRect = () => ({ top: 32, bottom: at.headerBottom, left: 0, right: 300, width: 300, height: at.headerBottom - 32 });
   b.context.setTimeout = (fn, ms) => { timers.push({ fn, ms }); return timers.length; };
-  b.run(index.match(/<script>([\s\S]*?)<\/script>/)[1]);
+  b.run(read('hero-video.js'));
   const scrollTo = (heroBottom) => { at.heroBottom = heroBottom; b.window.listeners.scroll.forEach((fn) => fn()); };
   return { b, video, timers, scrollTo, at };
 }

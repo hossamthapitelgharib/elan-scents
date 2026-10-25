@@ -16,6 +16,10 @@
         {
           "key": "Cache-Control",
           "value": "no-store, max-age=0, must-revalidate"
+        },
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self'; script-src-attr 'none'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' https: data: blob:; media-src 'self'; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://sbgdtuqfrnfeggkwqtrw.supabase.co; frame-ancestors 'self'; base-uri 'self'; form-action 'self'; object-src 'none'"
         }
       ]
     },
@@ -29,7 +33,16 @@
       ]
     },
     {
-      "source": "/(style.css|style-3.css|fonts.css|portal.css|dashboard.css|app.js|app-core.js|guest-identity.js|auth-session.js|texts.js|portal.js|account.js|dashboard.js|store-dashboard.js|platform-dashboard.js|design-schema.js|design-layer.js|edit-boot.js|edit-mode.js|elan-host-bridge.js|editor/edit-model.js|customers-dashboard.js|stores-dashboard.js|footer-9x16.css)",
+      "source": "/(index.html|account.html|dashboard.html|store-dashboard.html|platform-dashboard.html|customers-dashboard.html|stores-dashboard.html)",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self'; script-src-attr 'none'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' https: data: blob:; media-src 'self'; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://sbgdtuqfrnfeggkwqtrw.supabase.co; frame-ancestors 'self'; base-uri 'self'; form-action 'self'; object-src 'none'"
+        }
+      ]
+    },
+    {
+      "source": "/(style.css|style-3.css|fonts.css|portal.css|dashboard.css|app.js|hero-video.js|app-core.js|guest-identity.js|auth-session.js|texts.js|portal.js|account.js|dashboard.js|store-dashboard.js|platform-dashboard.js|design-schema.js|design-layer.js|edit-boot.js|edit-mode.js|elan-host-bridge.js|editor/edit-model.js|customers-dashboard.js|stores-dashboard.js|footer-9x16.css)",
       "headers": [
         {
           "key": "Cache-Control",

@@ -34,6 +34,15 @@ async function probe(base, fetchImpl) {
   const home = await call('/');
   add('the storefront page is served', REQUIRED, home.status === 200 && /<html/i.test(home.text), home.status);
 
+  // The pages carry a Content-Security-Policy that allows scripts from the site itself only (vercel.json -> _headers on Cloudflare).
+  const csp = String((home.headers && home.headers.get && home.headers.get('content-security-policy')) || '');
+  const scriptSrc = (csp.split(';').map((part) => part.trim().split(/\s+/)).find((tokens) => tokens[0] === 'script-src') || []).slice(1);
+  add('the storefront is served with a Content-Security-Policy that allows scripts from the site itself only', REQUIRED,
+    scriptSrc.length === 1 && scriptSrc[0] === "'self'" && /(^|;)\s*script-src-attr 'none'/.test(csp) && !/<script(?![^>]*\bsrc=)[^>]*>/i.test(home.text),
+    csp ? 'script-src ' + (scriptSrc.join(' ') || '(none)') + (/<script(?![^>]*\bsrc=)[^>]*>/i.test(home.text) ? ', but the page has an inline script' : '') : 'no Content-Security-Policy header');
+  const heroScript = await call('/hero-video.js');
+  add('the hero video script is served as a file (the page has no inline script)', REQUIRED, heroScript.status === 200 && /heroVideo/.test(heroScript.text), heroScript.status);
+
   // Without a token the auth helper answers 503 when SUPABASE_SERVICE_ROLE_KEY is missing and 401 when it is set.
   const orders = await call('/api/customer-orders');
   const ordersBody = jsonOf(orders.text);

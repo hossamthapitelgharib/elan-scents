@@ -5,13 +5,14 @@ const http = require('node:http');
 const { probe, summarize } = require('../scripts/live-check.js');
 
 /* A fake site that answers like the Worker does, with or without its service-role key and webhook secret. */
-function fakeSite({ serviceKey, webhookSecret }) {
+function fakeSite({ serviceKey, webhookSecret, csp = "default-src 'self'; script-src 'self'; script-src-attr 'none'", inlineScript = false }) {
   return http.createServer((req, res) => {
     req.resume();
     const send = (status, body, headers) => { res.writeHead(status, Object.assign({ 'Content-Type': 'application/json' }, headers)); res.end(body); };
     if (req.url === '/health') return send(200, 'ok', { 'Content-Type': 'text/plain' });
     if (req.url === '/api/config') return send(200, JSON.stringify({ url: 'https://example.supabase.co', key: 'public-anon' }));
-    if (req.url === '/') return send(200, '<html lang="ar"></html>', { 'Content-Type': 'text/html' });
+    if (req.url === '/') return send(200, '<html lang="ar">' + (inlineScript ? '<script>alert(1)</script>' : '<script src="/hero-video.js"></script>') + '</html>', Object.assign({ 'Content-Type': 'text/html' }, csp ? { 'Content-Security-Policy': csp } : {}));
+    if (req.url === '/hero-video.js') return send(200, "document.getElementById('heroVideo')", { 'Content-Type': 'text/javascript' });
     if (req.url === '/api/customer-orders') return serviceKey ? send(401, '{"error":"unauthorized"}') : send(503, '{"error":"supabase_service_configuration_missing"}');
     if (req.url === '/api/store-order-status') return webhookSecret ? send(401, '{"error":"unauthorized"}') : send(503, '{"error":"webhook_secret_not_configured"}');
     if (req.url === '/editor') return send(200, '<html></html>', { 'Content-Type': 'text/html', 'X-Frame-Options': 'DENY' });
@@ -56,4 +57,13 @@ test('an unreachable site fails every required check instead of throwing', async
   const results = await probe('http://127.0.0.1:1', undefined);
   assert.equal(summarize(results).ok, false);
   assert.ok(results.every((r) => typeof r.detail === 'string'));
+});
+
+test('a storefront without the page policy, with unsafe-inline scripts or with an inline script fails the check', async () => {
+  for (const options of [{ csp: '' }, { csp: "default-src 'self'; script-src 'self' 'unsafe-inline'; script-src-attr 'none'" }, { csp: "default-src 'self'; script-src 'self'" }, { inlineScript: true }]) {
+    const results = await runAgainst(Object.assign({ serviceKey: true, webhookSecret: false }, options));
+    const summary = summarize(results);
+    assert.equal(summary.ok, false, JSON.stringify(options));
+    assert.deepEqual(summary.failed.map((r) => r.name), ['the storefront is served with a Content-Security-Policy that allows scripts from the site itself only'], JSON.stringify(options));
+  }
 });
