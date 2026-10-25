@@ -40,6 +40,13 @@ async function probe(base, fetchImpl) {
   add('the storefront is served with a Content-Security-Policy that allows scripts from the site itself only', REQUIRED,
     scriptSrc.length === 1 && scriptSrc[0] === "'self'" && /(^|;)\s*script-src-attr 'none'/.test(csp) && !/<script(?![^>]*\bsrc=)[^>]*>/i.test(home.text),
     csp ? 'script-src ' + (scriptSrc.join(' ') || '(none)') + (/<script(?![^>]*\bsrc=)[^>]*>/i.test(home.text) ? ', but the page has an inline script' : '') : 'no Content-Security-Policy header');
+  // Cloudflare attaches headers per file (_headers), so the other pages are looked at too, not only the root address.
+  const unprotected = [];
+  for (const page of ['/index.html', '/account.html', '/dashboard.html', '/store-dashboard.html', '/platform-dashboard.html']) {
+    const r = await call(page);
+    if (r.status !== 200 || !/script-src 'self'(;|$)/.test(String((r.headers && r.headers.get && r.headers.get('content-security-policy')) || ''))) unprotected.push(page + ' (' + r.status + ')');
+  }
+  add('every page carries the same Content-Security-Policy', REQUIRED, unprotected.length === 0, unprotected.length ? 'missing on ' + unprotected.join(', ') : 'index, account and the dashboards');
   const heroScript = await call('/hero-video.js');
   add('the hero video script is served as a file (the page has no inline script)', REQUIRED, heroScript.status === 200 && /heroVideo/.test(heroScript.text), heroScript.status);
 

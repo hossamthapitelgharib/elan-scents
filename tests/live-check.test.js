@@ -12,6 +12,7 @@ function fakeSite({ serviceKey, webhookSecret, csp = "default-src 'self'; script
     if (req.url === '/health') return send(200, 'ok', { 'Content-Type': 'text/plain' });
     if (req.url === '/api/config') return send(200, JSON.stringify({ url: 'https://example.supabase.co', key: 'public-anon' }));
     if (req.url === '/') return send(200, '<html lang="ar">' + (inlineScript ? '<script>alert(1)</script>' : '<script src="/hero-video.js"></script>') + '</html>', Object.assign({ 'Content-Type': 'text/html' }, csp ? { 'Content-Security-Policy': csp } : {}));
+    if (/^\/(index|account|dashboard|store-dashboard|platform-dashboard)\.html$/.test(req.url)) return send(200, '<html></html>', Object.assign({ 'Content-Type': 'text/html' }, csp ? { 'Content-Security-Policy': csp } : {}));
     if (req.url === '/hero-video.js') return send(200, "document.getElementById('heroVideo')", { 'Content-Type': 'text/javascript' });
     if (req.url === '/api/customer-orders') return serviceKey ? send(401, '{"error":"unauthorized"}') : send(503, '{"error":"supabase_service_configuration_missing"}');
     if (req.url === '/api/store-order-status') return webhookSecret ? send(401, '{"error":"unauthorized"}') : send(503, '{"error":"webhook_secret_not_configured"}');
@@ -64,6 +65,26 @@ test('a storefront without the page policy, with unsafe-inline scripts or with a
     const results = await runAgainst(Object.assign({ serviceKey: true, webhookSecret: false }, options));
     const summary = summarize(results);
     assert.equal(summary.ok, false, JSON.stringify(options));
-    assert.deepEqual(summary.failed.map((r) => r.name), ['the storefront is served with a Content-Security-Policy that allows scripts from the site itself only'], JSON.stringify(options));
+    assert.ok(summary.failed.map((r) => r.name).includes('the storefront is served with a Content-Security-Policy that allows scripts from the site itself only'), JSON.stringify(options));
   }
+});
+
+test('a page that lost its policy (a missing _headers rule) fails the check even when the root address has it', async () => {
+  const server = http.createServer((req, res) => {
+    req.resume();
+    const csp = { 'Content-Security-Policy': "default-src 'self'; script-src 'self'; script-src-attr 'none'" };
+    const send = (status, body, headers) => { res.writeHead(status, Object.assign({ 'Content-Type': 'text/html' }, headers)); res.end(body); };
+    if (req.url === '/') return send(200, '<html lang="ar"></html>', csp);
+    if (req.url === '/account.html') return send(200, '<html></html>', {});
+    if (/\.html$/.test(req.url)) return send(200, '<html></html>', csp);
+    send(404, '{}', {});
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  try {
+    const results = await probe('http://127.0.0.1:' + server.address().port);
+    const row = results.find((r) => r.name === 'every page carries the same Content-Security-Policy');
+    assert.equal(row.ok, false);
+    assert.match(row.detail, /\/account\.html/);
+    assert.doesNotMatch(row.detail, /\/dashboard\.html/);
+  } finally { server.close(); }
 });
