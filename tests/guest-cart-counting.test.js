@@ -43,19 +43,31 @@ test('many different shoppers behind one address are not blocked, one browser ha
   assert.ok(blocked > 0);
 });
 
-test('claim asks the database to drop the guest analytics and falls back to the old function until it is applied', async () => {
+test('claim asks the database to drop the guest analytics and never falls back to the dropped two-argument function', async () => {
   env(); const rpcBodies = [];
   global.fetch = async (url, options = {}) => {
     const u = String(url);
     if (u.endsWith('/auth/v1/user')) return reply({ id: userId });
     rpcBodies.push(JSON.parse(options.body));
-    return rpcBodies.length === 1 ? reply({ message: 'not found' }, 404) : reply({ claimed: true, cart: 1 });
+    return reply({ claimed: true, cart: 1 });
   };
   const res = recorder();
   await handler({ method: 'POST', headers: { 'user-agent': 'Mozilla/5.0', authorization: 'Bearer t' }, body: { action: 'claim', visitorKey: key() } }, res);
   assert.equal(res.out.status, 200); assert.equal(res.out.body.claimed, true);
+  assert.equal(rpcBodies.length, 1);
   assert.match(rpcBodies[0].p_analytics_hash, /^[a-f0-9]{64}$/);
-  assert.equal('p_analytics_hash' in rpcBodies[1], false);
+
+  // If the database does not know the function, the claim fails visibly instead of silently using an older one.
+  const failed = [];
+  global.fetch = async (url, options = {}) => {
+    const u = String(url);
+    if (u.endsWith('/auth/v1/user')) return reply({ id: userId });
+    failed.push(JSON.parse(options.body));
+    return reply({ message: 'not found' }, 404);
+  };
+  const res2 = recorder();
+  await handler({ method: 'POST', headers: { 'user-agent': 'Mozilla/5.0', authorization: 'Bearer t' }, body: { action: 'claim', visitorKey: key() } }, res2);
+  assert.equal(res2.out.status, 502); assert.equal(failed.length, 1);
 });
 
 test('requests that come from another website are refused', async () => {

@@ -197,7 +197,7 @@ module.exports = async (req, res) => {
       const response = await admin(`rpc/${rpc}`, payload);
       if (!response.ok) return json(res, 502, { error: 'guest_profile_unavailable' });
       const profile = await response.json();
-      return json(res, 200, { ok: true, visitorId: profile.visitorId, status: profile.status, cart: cleanCart(profile.cart || []), ...(canonicalKey ? { visitorKey: canonicalKey } : {}) });
+      return json(res, 200, { ok: true, visitorId: profile.visitorId, status: profile.status, cart: cleanCart(profile.cart || []), ...(profile.limited === true ? { limited: true } : {}), ...(canonicalKey ? { visitorKey: canonicalKey } : {}) });
     }
 
     if (action === 'track') {
@@ -226,16 +226,13 @@ module.exports = async (req, res) => {
     const user = await userResponse.json();
     if (!UUID.test(String(user.id || ''))) return json(res, 401, { error: 'login_required' });
 
-    // The newer function also removes this browser's guest analytics, so the same person is not
-    // counted as a guest and as a customer. Until that migration is applied the old one is used.
-    let response = await admin('rpc/claim_guest_browser_cart', {
+    // The claim also removes this browser's guest analytics, so the same person is not counted as a guest and as a
+    // customer. The older two-argument function that skipped that step was dropped (guest_identity_hardening).
+    const response = await admin('rpc/claim_guest_browser_cart', {
       p_fingerprint_hash: fingerprintHash,
       p_user_id: user.id,
       p_analytics_hash: analyticsHash
     });
-    if (response.status === 404 || response.status === 400) {
-      response = await admin('rpc/claim_guest_browser_cart', { p_fingerprint_hash: fingerprintHash, p_user_id: user.id });
-    }
     if (!response.ok) return json(res, 502, { error: 'cart_transfer_failed' });
     const result = await response.json();
     return json(res, 200, { ok: true, claimed: !!result.claimed, cart: Number(result.cart) || 0 });
