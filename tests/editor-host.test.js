@@ -209,7 +209,7 @@ test('touch long-press opens the context tools while a moving finger cancels the
   assert.match(edit, /ev\.pointerType === 'touch'/);
   assert.match(edit, /timer: setTimeout\([\s\S]*?550\)/);
   assert.match(edit, /Math\.hypot\(ev\.clientX - touchPress\.x, ev\.clientY - touchPress\.y\) > 8/);
-  assert.match(edit, /hostApi\.context\(\{ x: touchPress\.x, y: touchPress\.y/);
+  assert.match(edit, /openMenu\(\{ x: touchPress\.x, y: touchPress\.y/);   // openMenu sends hostApi.context and remembers the menu is open
   assert.match(edit, /suppressContextUntil = Date\.now\(\) \+ 900/);
   assert.match(edit, /window\.addEventListener\('pointercancel'/);
 });

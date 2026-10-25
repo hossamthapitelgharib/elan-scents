@@ -98,6 +98,7 @@
     if (type === 'text') {
       b.text = loc(raw.text, LIMITS.text);
       if (!b.text.ar && !b.text.en) { errors.push(where + ': empty text'); return null; }
+      if (raw.float === true) b.float = true;  // a free text laid over the page: it takes no room in the flow, so nothing is displaced
     } else if (type === 'banner') {
       b.title = loc(raw.title, LIMITS.title);
       b.subtitle = loc(raw.subtitle, LIMITS.text);

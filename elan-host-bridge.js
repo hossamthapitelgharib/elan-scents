@@ -14,6 +14,6 @@ if(!allowedActions.has(m.action)){send('response',{id:m.id,ok:false,error:'Unsup
 processing=processing.then(async()=>{try{if(await options.authorize({origin:e.origin,ticket:session.ticket})!==true)throw Error('Authorization expired');const result=await options.execute(m.action,m.payload||{}, {expectedRevision:m.expectedRevision,requestId:m.id});if(m.action==='page.save'&&(result?.revision===undefined||result?.published!==true))throw Error('Save must confirm a committed published revision');send('response',{id:m.id,ok:true,result:result??null});}catch(err){send('response',{id:m.id,ok:false,error:err?.message||'Action failed'});}});
 }
 window.addEventListener('message',receive);
-return {selection(element){send('selection',{element});},context(info){send('context',{info});},dirty(value){send('dirty',{dirty:!!value});},revision(revision){send('revision',{revision});},dispose(){window.removeEventListener('message',receive);session=null;}};
+return {selection(element){send('selection',{element});},context(info){send('context',{info});},menuClose(){send('menu-close',{});},dirty(value){send('dirty',{dirty:!!value});},revision(revision){send('revision',{revision});},dispose(){window.removeEventListener('message',receive);session=null;}};
 }};
 })();

@@ -23,7 +23,10 @@
     '.elan-banner>*{position:relative}.elan-banner h3,.elan-banner p{margin:6px 0;color:#fff}',
     '.elan-image img{max-width:100%;height:auto;display:block;margin:0 auto;border-radius:12px}',
     '.elan-block a{color:inherit;text-decoration:none;display:block}',
-    '.elan-smart{max-width:1200px}.elan-smart h3{margin:0 0 12px;text-align:start}'
+    '.elan-smart{max-width:1200px}.elan-smart h3{margin:0 0 12px;text-align:start}',
+    /* A free text: a zero-height slot in the flow (nothing moves for it) and the text itself laid over the page from that slot. */
+    '.elan-float{position:relative;height:0;max-width:none;margin:0;padding:0;overflow:visible;z-index:100}',
+    '.elan-float p{position:absolute;top:0;inset-inline-start:16px;width:320px;min-height:90px;max-width:calc(100% - 32px);margin:0;padding:8px;box-sizing:border-box}'
   ].join('\n');
 
   function lang() { return document.documentElement.lang === 'en' ? 'en' : 'ar'; }
@@ -133,6 +136,7 @@
       var p = el('p');
       p.textContent = pick(b.text);
       inner.appendChild(p);
+      if (b.float) root.classList.add('elan-float');
     } else if (b.type === 'banner') {
       if (b.image) root.style.backgroundImage = 'url("' + b.image + '")';
       var t = pick(b.title);
@@ -151,6 +155,9 @@
 
   function hash(str) { var h = 5381, i; for (i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) >>> 0; return h.toString(36); }
 
+  /* A free text has no box of its own (its slot is zero high), so the text inside is the element the editor selects and moves. */
+  function blockNode(b) { return b.classList && b.classList.contains('elan-float') && b.firstElementChild ? b.firstElementChild : b; }
+
   /* Every element the editor can touch, with a stable id that does not change between renders. */
   function elements() {
     var out = [], seen = {};
@@ -165,7 +172,7 @@
     if (V && document.body.classList.contains('inner')) {
       var pk = hash(pageKey() || 'page'), vn = 0;
       var vt = V.querySelector('h3'); if (vt) add('pg:' + pk + ':title', vt, 'title', 'عنوان الصفحة');
-      Array.prototype.slice.call(V.querySelectorAll('[data-elan-custom]')).forEach(function (b) { add(b.getAttribute('data-elan-id'), b, 'block', 'بلوك إضافي'); });
+      Array.prototype.slice.call(V.querySelectorAll('[data-elan-custom]')).forEach(function (b) { add(b.getAttribute('data-elan-id'), blockNode(b), 'block', 'بلوك إضافي'); });
       Array.prototype.slice.call(V.querySelectorAll('.card')).forEach(function (card, i) {
         var base = 'pcard:' + pk + hash(card.getAttribute('data-go') || 'i' + i), id = base;
         while (seen[id]) id = base + '-' + (++vn);
@@ -200,7 +207,7 @@
     var main = document.getElementById('main');
     if (!main) return out;
     Array.prototype.slice.call(main.children).forEach(function (c) {
-      if (c.hasAttribute('data-elan-custom')) { add(c.getAttribute('data-elan-id'), c, 'block', 'بلوك إضافي'); return; }
+      if (c.hasAttribute('data-elan-custom')) { add(c.getAttribute('data-elan-id'), blockNode(c), 'block', 'بلوك إضافي'); return; }
       if (c.tagName !== 'SECTION' || !c.id || ED.BUILTIN.indexOf(c.id) === -1) return;
       add('sec:' + c.id, c, 'section', 'سيكشن ' + (SEC_NAMES[c.id] || c.id));
       add('sec:' + c.id + ':title', c.querySelector('h3'), 'title', 'عنوان ' + (SEC_NAMES[c.id] || c.id));
@@ -219,7 +226,7 @@
     if (e.kind === 'title' || e.kind === 'text-area') return e.el;
     if (e.kind === 'hero-text') return e.el.querySelector('h2');
     if (e.kind === 'card') return e.el.querySelector('h4');
-    if (e.kind === 'block') return e.el.querySelector('p, h3');
+    if (e.kind === 'block') return e.el.matches && e.el.matches('p, h3') ? e.el : e.el.querySelector('p, h3');
     return null;
   }
 

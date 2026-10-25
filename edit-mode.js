@@ -28,6 +28,10 @@
 
   /* ---------- working design ---------- */
   function emptyDesign() { return ED.normalize({ version: ED.VERSION }).design; }
+  /* The right-click menu lives in the editor window. Esc, a left click or a scroll on the page closes it, like the original editor. */
+  var menuOpen = false;
+  function openMenu(info) { menuOpen = true; if (hostApi) hostApi.context(info); }
+  function closeMenu() { if (!menuOpen) return; menuOpen = false; if (hostApi && hostApi.menuClose) hostApi.menuClose(); }
   function setDirty(v) { if (!!v === dirty) return; dirty = !!v; if (hostApi) hostApi.dirty(dirty); }
   function checkDirty() { setDirty(JSON.stringify(work) !== baseJson); }
   function entries() { return layer.elements(); }
@@ -161,7 +165,7 @@
     var type = blk ? ({ text: 'text_block', banner: 'banner', image: 'image' })[blk.type] : (TYPE_OF[e.kind] || 'text');
     var media = st.media || (current.media && current.media.src) || (blk && (blk.src || blk.image)) || '';
     return {
-      id: e.id, name: e.name, kind: e.kind, type: type, text: String(node.textContent || '').trim().slice(0, 120), media: media, canText: !!layer.textTarget(e), isBlock: !!blk, dynamic: !!dynamicTarget(e),
+      id: e.id, name: e.name, kind: e.kind, type: type, text: String(node.textContent || '').trim().slice(0, 120), media: media, canText: !!layer.textTarget(e), textId: textProxy(e), copyKind: blk ? null : copyKindOf(e), isBlock: !!blk, dynamic: !!dynamicTarget(e),
       style: {
         fontFamily: st.fontFamily || (cs.fontFamily || '').split(',')[0].replace(/["']/g, '').trim(),
         fontSize: st.fontSize || Math.round(parseFloat(cs.fontSize) || 16),
@@ -171,6 +175,15 @@
       }
     };
   }
+  /* An element that holds no text itself hands the keyboard edit to the text it owns: a section to its title, the hero to its headline. */
+  function textProxy(e) {
+    if (!e) return null;
+    if (layer.textTarget(e)) return e.id;
+    var tries = [e.id + ':title', e.id === 'hero' ? 'hero:magic' : null, e.id === 'about' ? 'about:p' : null];
+    for (var i = 0; i < tries.length; i++) { var t = tries[i] && entryById(tries[i]); if (t && layer.textTarget(t)) return t.id; }
+    return null;
+  }
+  function copyKindOf(e) { return e.kind === 'card' ? 'card' : (e.kind === 'title' || e.kind === 'text-area' || e.kind === 'hero-text') ? 'text' : e.kind === 'image-el' ? 'image' : null; }
   function reselect() {
     if (selectedId && !entryById(selectedId)) selectedId = null;
     placeBox();
@@ -306,6 +319,7 @@
     ev.preventDefault(); ev.stopPropagation();
     try { window.focus(); } catch (_) { /* keys (Esc, Delete, Ctrl+Z) must reach this frame after a click on the page */ }
     if (ev.button !== undefined && ev.button !== 0) return;
+    closeMenu();
     if (ev.pointerType === 'touch') {
       if (touchPress) clearTimeout(touchPress.timer);
       touchPress = { x: ev.clientX, y: ev.clientY, pointerId: ev.pointerId, timer: setTimeout(function () {
@@ -313,7 +327,7 @@
         suppressContextUntil = Date.now() + 900; gesture = null;
         var target = pick(touchPress.x, touchPress.y);
         select(target ? target.id : null);
-        if (hostApi) hostApi.context({ x: touchPress.x, y: touchPress.y, element: info(target), tools: toolList(info(target)) });
+        openMenu({ x: touchPress.x, y: touchPress.y, element: info(target), tools: toolList(info(target)) });
       }, 550) };
     }
     var e, mode = 'move';
@@ -403,7 +417,7 @@
     if (editing) commitText();
     var e = pick(ev.clientX, ev.clientY);
     select(e ? e.id : null);
-    if (hostApi) hostApi.context({ x: ev.clientX, y: ev.clientY, element: info(e), tools: toolList(info(e)) });
+    openMenu({ x: ev.clientX, y: ev.clientY, element: info(e), tools: toolList(info(e)) });
   }, true);
 
   function startText(id) {
@@ -433,6 +447,7 @@
     ev.preventDefault(); ev.stopPropagation(); select(e.id); startText(e.id);
   }, true);
   window.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Escape') closeMenu();
     if (editing) {
       if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); commitText(); }
       else if (ev.key === 'Escape') { ev.preventDefault(); editing.node.textContent = editing.before; editing.node.removeAttribute('contenteditable'); editing = null; }
@@ -445,7 +460,7 @@
     else if (mod && (ev.key.toLowerCase() === 'y' || (ev.shiftKey && ev.key.toLowerCase() === 'z'))) { ev.preventDefault(); redo(); }
     else if (selectedId && ev.key === 'Delete') { ev.preventDefault(); archive(selectedId); }
   }, true);
-  window.addEventListener('scroll', placeBox, true);
+  window.addEventListener('scroll', function () { closeMenu(); placeBox(); }, true);
   window.addEventListener('resize', function () { placeBox(); });
   try { new MutationObserver(function () { requestAnimationFrame(reselect); }).observe(document.getElementById('main'), { childList: true }); } catch (_) { /* optional */ }
 
@@ -461,9 +476,24 @@
 
   function validBlock(b) { var n = ED.normalize({ version: ED.VERSION, blocks: [b] }, { strict: true }); return n.ok && n.design.blocks.length === 1; }
 
-  function insertAfterSelected(blockId) {
-    var seq = fullOrder(), anchor = sectionOf(selectedId), i = seq.indexOf(anchor);
-    seq.splice(i === -1 ? 0 : i + 1, 0, blockId);
+  /* Where a new block enters the page: next to the section the click was on (or nearest to it) and every other one makes room,
+     like the original editor's flow. Without a click point it goes after the selected section. */
+  function insertAfterSelected(blockId, at) {
+    var seq = fullOrder(), i = -1, after = true;
+    if (at) {
+      var main = document.getElementById('main'), rects = [], inside = null;
+      entries().forEach(function (x) {
+        if ((x.kind !== 'section' && x.kind !== 'block') || x.el.parentNode !== main) return;
+        var r = boxOf(x.el); if (!r) return;
+        var rect = { id: sectionOf(x.id), left: r.left, top: r.top, width: r.width, height: r.height };
+        rects.push(rect);
+        if (at.x >= r.left && at.x <= r.left + r.width && at.y >= r.top && at.y <= r.top + r.height) inside = rect;
+      });
+      var slot = inside ? { id: inside.id, after: at.y > inside.top + inside.height / 2 } : (Geometry.dropSlot ? Geometry.dropSlot(rects, at, { axis: 'y' }) : null);
+      if (slot) { i = seq.indexOf(slot.id); after = slot.after; }
+    }
+    if (i === -1) { i = seq.indexOf(sectionOf(selectedId)); after = true; }
+    seq.splice(i === -1 ? 0 : i + (after ? 1 : 0), 0, blockId);
     return seq;
   }
   async function editorData(action, payload) {
@@ -609,16 +639,16 @@
     opts = opts || {};
     var id = 'x-' + rid(), b;
     if (kind === 'banner') b = { id: id, type: 'banner', title: { ar: opts.title || 'عنوان جديد' }, subtitle: { ar: opts.subtitle || 'سطر تعريفي قصير' }, style: { align: 'center', size: 'md' } };
-    else if (kind === 'text_block' || kind === 'text') b = { id: id, type: 'text', text: { ar: opts.text || 'نص جديد' }, style: { align: 'center', size: 'md' } };
+    else if (kind === 'text_block' || kind === 'text') { b = { id: id, type: 'text', text: { ar: opts.text || 'نص جديد' }, style: { align: opts.float ? 'start' : 'center', size: 'md' } }; if (opts.float) b.float = true; }
     else if (kind === 'image') b = { id: id, type: 'image', src: opts.src, alt: {}, style: { align: 'center', size: 'md' } };
     else if (kind === 'smart') b = { id: id, type: 'smart', ref: opts.ref, style: { align: 'center', size: 'md' }, kind: opts.semanticKind || 'section' };
     else throw new Error('نوع غير مدعوم هنا');
     if (opts.image) b.image = opts.image;
     if (!validBlock(b)) throw new Error('بيانات البلوك غير صالحة (راجعي رابط الصورة).');
-    var order = insertAfterSelected(id);
+    var order = insertAfterSelected(id, opts.at);
     mutate(function (d) { d.blocks.push(b); d.order = order; });
     select(id);
-    if (opts.at) placeAt(id, opts.at);
+    if (opts.at && b.float) placeAt(id, opts.at);   // only a free text sits exactly at the click; the others enter the flow there
     return { elementId: id };
   }
 
@@ -697,6 +727,26 @@
     select(id);
     return { elementId: id };
   }
+  /* Copy of an element that is not an extra block: a card becomes a banner with the same title, text and picture, a text becomes a
+     text block, a picture becomes an image block. The copy goes right after the section it came from and can be edited freely. */
+  function copyNative(e) {
+    var kind = copyKindOf(e), b = null, node = layer.textTarget(e) || e.el, text = String(node.textContent || '').trim().slice(0, 600);
+    var imgEl = e.el.tagName === 'IMG' ? e.el : e.el.querySelector('img'), img = imgEl && (imgEl.getAttribute('src') || '');
+    var okImg = function (src) { return src && ED.normalize({ version: ED.VERSION, blocks: [{ id: 'x-probe', type: 'image', src: src }] }).design.blocks.length === 1 ? src : ''; };
+    var id = 'x-' + rid();
+    if (kind === 'card') {
+      var desc = e.el.querySelector('p'), banner = { id: id, type: 'banner', title: { ar: text.slice(0, 160) || 'نسخة' }, subtitle: { ar: String(desc && desc.textContent || '').trim().slice(0, 600) }, style: { align: 'center', size: 'md' } };
+      if (okImg(img)) banner.image = img;
+      b = banner;
+    } else if (kind === 'text' && text) b = { id: id, type: 'text', text: { ar: text }, style: { align: 'center', size: 'md' } };
+    else if (kind === 'image' && okImg(img)) b = { id: id, type: 'image', src: img, alt: {}, style: { align: 'center', size: 'md' } };
+    if (!b || !validBlock(b)) throw new Error('نسخ العنصر ده مش متاح.');
+    var anchor = sectionOf(e.id), order = fullOrder(), at = order.indexOf(anchor);
+    order.splice(at === -1 ? order.length : at + 1, 0, id);
+    mutate(function (d) { d.blocks.push(b); d.order = order; });
+    select(id);
+    return { elementId: id };
+  }
   function deleteMedia(c) {
     var block = work.blocks.filter(function (b) { return b.id === c.id; })[0];
     if (!c.info || !c.info.media) { archive(c.id); return { archived: true }; }
@@ -723,27 +773,27 @@
   var TOOLS = [];
   function registerTool(t) { TOOLS = TOOLS.filter(function (x) { return x.id !== t.id; }).concat([t]); }
   function toolList(i) {
-    return TOOLS.map(function (t) { return { id: t.id, label: t.label, ui: t.ui || null, enabled: t.when ? !!t.when(i) : true }; });
+    return TOOLS.filter(function (t) { return !t.show || t.show(i); }).map(function (t) { return { id: t.id, label: t.label, ui: t.ui || null, enabled: t.when ? !!t.when(i) : true }; });
   }
   function has(i) { return !!i; }
   function hasText(i) { return !!(i && i.canText); }
   registerTool({ id: 'format', label: 'تنسيق النص: الخط • اللون • الحجم • 3D', ui: 'format', when: has });
-  registerTool({ id: 'open', label: 'فتح العنصر (الدخول لصفحته)', when: function (i) { return !!(i && i.dynamic); }, run: function (c) { enterPage(entryById(c.id)); return null; } });
-  registerTool({ id: 'go_back', label: 'رجوع للصفحة السابقة', when: inner, run: function () { goBack(); return null; } });
-  registerTool({ id: 'go_home', label: 'رجوع للصفحة الرئيسية', when: inner, run: function () { goHome(); return null; } });
   [['create_section', 'إنشاء سيكشن'], ['create_brand', 'إنشاء كارت براند'], ['create_store', 'إنشاء كارت متجر'], ['create_perfume', 'إنشاء كارت عطر'], ['create_occasion', 'إنشاء مناسبة'], ['create_note', 'إنشاء نوتة عطر']].forEach(function (x) { registerTool({ id: x[0], label: x[1], run: function (c) { return createSmart(x[0].replace('create_', ''), c); } }); });
   registerTool({ id: 'create_text_block', label: 'إنشاء كتلة نصية', run: function (c) { return createBlock('text_block', { at: c.at }); } });
   registerTool({ id: 'create_banner', label: 'إنشاء بانر صورة', ui: 'media_new', run: function (c) { return createBlock('banner', { at: c.at, image: c.src }); } });
-  registerTool({ id: 'create_image', label: 'إنشاء صورة', ui: 'media_new', run: function (c) { if (!c.src) throw new Error('اختاري صورة الأول.'); return createBlock('image', { at: c.at, src: c.src }); } });
-  registerTool({ id: 'create_text', label: 'إنشاء نص', run: function (c) { return createBlock('text_block', { at: c.at }); } });
+  registerTool({ id: 'create_text', label: 'إنشاء نص', run: function (c) { return createBlock('text', { at: c.at, float: true, text: 'اكتب نصك هنا' }); } });
   registerTool({ id: 'media', label: 'تغيير صورة العنصر أو الواجهة', ui: 'media', when: function (i) { return !!i && ['text', 'text_block'].indexOf(i.type) === -1; }, run: function (c) { return mediaPrompt().then(function (src) { setMedia(c.id, src); return null; }); } });
   registerTool({ id: 'media_delete', label: 'حذف ميديا العنصر إلى الأرشيف', when: function (i) { return !!i && !!i.media; }, run: deleteMedia });
-  registerTool({ id: 'edit_text', label: 'تعديل النص بالكيبورد', when: hasText, run: function (c) { startText(c.id); return null; } });
-  registerTool({ id: 'copy', label: 'نسخ العنصر', when: has, run: function (c) { return execute('element.duplicate', { elementId: c.id }, {}); } });
+  registerTool({ id: 'edit_text', label: 'تعديل النص بالكيبورد', when: function (i) { return !!(i && i.textId && i.type !== 'image'); }, run: function (c) { var id = (c.info && c.info.textId) || c.id; select(id); startText(id); return null; } });
+  registerTool({ id: 'copy', label: 'نسخ العنصر', when: function (i) { return !!(i && (i.isBlock || i.copyKind)); }, run: function (c) { return execute('element.duplicate', { elementId: c.id }, {}); } });
   registerTool({ id: 'archive', label: 'حذف العنصر إلى الأرشيف', when: has, run: function (c) { archive(c.id); return null; } });
   registerTool({ id: 'library_save', label: 'حفظ العنصر في المكتبة', when: has, run: saveToLibrary });
   registerTool({ id: 'library_download', label: 'تنزيل العنصر للمكتبة كملف', when: has, run: downloadFromLibrary });
-  window.ElanEditTools = { register: registerTool, list: function () { return TOOLS.slice(); } };
+  registerTool({ id: 'create_image', label: 'إنشاء صورة', ui: 'media_new', run: function (c) { if (!c.src) throw new Error('اختاري صورة الأول.'); return createBlock('image', { at: c.at, src: c.src }); } });
+  registerTool({ id: 'open', show: function (i) { return !!(i && i.dynamic); }, label: 'فتح العنصر (الدخول لصفحته)', when: function (i) { return !!(i && i.dynamic); }, run: function (c) { enterPage(entryById(c.id)); return null; } });
+  registerTool({ id: 'go_back', show: inner, label: 'رجوع للصفحة السابقة', when: inner, run: function () { goBack(); return null; } });
+  registerTool({ id: 'go_home', show: inner, label: 'رجوع للصفحة الرئيسية', when: inner, run: function () { goHome(); return null; } });
+  window.ElanEditTools = { register: registerTool, list: function () { return TOOLS.slice(); }, menu: toolList };
 
   /* ---------- commands from the editor ---------- */
   function archiveList() {
@@ -769,7 +819,7 @@
       case 'element.create': return createBlock(p.kind, p);
       case 'element.duplicate': {
         var e6 = need(p.elementId || selectedId), src = work.blocks.filter(function (b) { return b.id === e6.id; })[0];
-        if (!src) throw new Error('التكرار متاح للبلوكات الإضافية بس.');
+        if (!src) return copyNative(e6);
         var copy = clone(src); copy.id = 'x-' + rid(); var order = fullOrder(), b0 = base(src.id); order.splice(order.indexOf(src.id) + 1, 0, copy.id);
         var r0 = e6.el.getBoundingClientRect();
         mutate(function (d) { d.blocks.push(copy); d.order = order; var from = d.edits && ((d.edits.all || {})[src.id]); if (from) d.edits.all[copy.id] = JSON.parse(JSON.stringify(from)); });
@@ -805,7 +855,8 @@
       case 'ui.openFormatPanel': if (p.elementId) select(need(p.elementId).id); if (!selectedId) throw new Error('اضغطي على عنصر في الصفحة الأول.'); return null;
       case 'ui.openMediaPanel': { var id7 = p.elementId || selectedId; if (!id7) throw new Error('اختاري بانر أو صورة الأول.'); setMedia(id7, await mediaPrompt(id7)); return null; }
       case 'ui.openCreatePanel':
-        if (p.kind === 'banner' || p.kind === 'text_block' || p.kind === 'text') return createBlock(p.kind === 'text' ? 'text_block' : p.kind, { at: p.at });
+        if (p.kind === 'text') return createBlock('text', { at: p.at, float: true, text: 'اكتب نصك هنا' });
+        if (p.kind === 'banner' || p.kind === 'text_block') return createBlock(p.kind, { at: p.at });
         if (p.kind === 'image') { var src8 = await mediaPrompt(); return createBlock('image', { src: src8, at: p.at }); }
         if (['section', 'brand', 'store', 'perfume', 'occasion', 'note'].indexOf(p.kind) !== -1) return createSmart(p.kind, { at: p.at });
         throw new Error('نوع إنشاء غير مدعوم: ' + p.kind);

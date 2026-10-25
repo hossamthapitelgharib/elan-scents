@@ -37,6 +37,7 @@ class Element {
   get className() { return this.attributes.class || ''; } set className(v) { this.attributes.class = v; }
   get hidden() { return this.hasAttribute('hidden'); } set hidden(v) { v ? this.setAttribute('hidden', '') : this.removeAttribute('hidden'); }
   get parentElement() { return this.parentNode; }
+  get firstElementChild() { return this.children.find((c) => c.tagName !== '#COMMENT') || null; }
   get firstChild() { return this.children[0] || null; } get lastChild() { return this.children.at(-1) || null; }
   get nextSibling() { return this.parentNode && this.parentNode.children[this.parentNode.children.indexOf(this) + 1] || null; }
   get childNodes() { return (this._text ? [Object.assign(new Element('span'), { textContent: this._text })] : []).concat(this.children); }
