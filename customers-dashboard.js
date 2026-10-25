@@ -131,7 +131,7 @@ function renderRankTable(rows, actor, key, page) {
     ? `<div class="activity-table-wrap"><table class="activity-table rank-table"><thead><tr><th>العطر وبياناته</th><th>مرات العملية</th><th>${peopleLabel}</th></tr></thead><tbody>${rows.map(row => `<tr><td class="activity-product-cell">${productSummary(row.product)}</td><td>${numberP(row.operations)}</td><td>${numberP(row.people)}</td></tr>`).join('')}</tbody></table></div>`
     : '<div class="empty">لا توجد بيانات في هذه الفترة</div>';
   if (!page) return table;
-  const more = page.hasMore ? `<button class="ghost" type="button" data-rank-more data-rank-actor="${actor}" data-rank-key="${key}">تحميل المزيد</button>` : '';
+  const more = page.hasMore ? `<button class="ghost" type="button" data-rank-more data-rank-actor="${escP(actor)}" data-rank-key="${escP(key)}">تحميل المزيد</button>` : '';
   return `${table}<div class="rank-pagination"><span>عرض ${numberP((rows || []).length)} من ${numberP(page.total)}</span>${more}</div>`;
 }
 function renderAnalytics(actor, data) {
