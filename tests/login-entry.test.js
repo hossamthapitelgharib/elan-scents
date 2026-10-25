@@ -11,7 +11,7 @@ test('app-core.js is self-contained (no external script loading)', () => {
 });
 
 test('login and signup menu entries open their sheets', () => {
-  assert.match(core, /data-sheet="'\+\(i==13\?'login':'signup'\)/);
+  assert.match(core, /<a data-sheet="signup">'\+t\.menu\[14\]\+'<\/a><a data-sheet="login">'\+t\.menu\[13\]\+'<\/a>/);
   assert.match(core, /function sheet\(k\)/);
   assert.match(core, /closest\('\[data-sheet\]'\)/);
   assert.match(core, /data-auth-form/);

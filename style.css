@@ -514,8 +514,7 @@ body.sheet-open {
     border-radius: 16px !important;
   }
 
-  .card.pf { flex: 0 0 160px !important; }
-  .card.pf .pim { height: 120px !important; }
+  .card.pf { flex: 0 0 116px !important; }
 
   #menu {
     width: 52% !important;

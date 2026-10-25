@@ -61,8 +61,8 @@ test('the filter panel has its own quiet styling: compact header, line icons, st
   assert.match(css, /\.filter-panel\[open\] \.filter-chev/);
 });
 
-test('the old unused filter styles are gone and the product grid rules stay', () => {
+test('the old unused filter styles are gone and the product grid keeps stretching its cards', () => {
   assert.doesNotMatch(css, /\.flt-head|\.filter-field|\.filter-count|\.filter-reset/);
-  assert.match(css, /#res\.grid\{gap:16px/);
-  assert.match(css, /@media\(min-width:1000px\)\{#res\.grid\{grid-template-columns:repeat\(4/);
+  assert.match(css, /#res\.grid\{align-items:stretch\}/);
+  assert.match(css, /@media\(min-width:1000px\)\{#res\.grid,[^{]*\{grid-template-columns:repeat\(6/);
 });
