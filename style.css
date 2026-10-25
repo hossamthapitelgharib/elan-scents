@@ -3,8 +3,8 @@
    Imports base theme then applies current desired overrides.
    Frontend display only. Do not add backend/DB rules here.
    ============================================================ */
-@import url('/style-3.css?v=20261025-03');
-@import url('/footer-9x16.css?v=20261025-03');
+@import url('/style-3.css?v=20261025-04');
+@import url('/footer-9x16.css?v=20261025-04');
 
 /* ---------- Menu: slightly narrower panel + slightly larger items ---------- */
 #menu {
@@ -433,7 +433,7 @@ body.sheet-open {
   }
   #bar {
     height: 28px !important;
-    font-size: 12px !important;
+    font-size: 13.5px !important;
     padding: 5px 0 !important;
   }
   header .logo b { font-size: 40px !important; }

@@ -16,7 +16,8 @@ test('the strip text above the header is flat gold with no 3D look', () => {
   assert.doesNotMatch(rule, /gradient/);
   assert.match(rule, /filter:none/);
   assert.match(rule, /text-shadow:none/);
-  assert.match(rule, /-webkit-text-fill-color:#c8962a/);
+  assert.match(rule, /-webkit-text-fill-color:#[0-9a-f]{6}/);
+  assert.equal(rule.match(/[^-]color:(#[0-9a-f]{6})/)[1], rule.match(/-webkit-text-fill-color:(#[0-9a-f]{6})/)[1], 'one solid colour, no transparent fill');
   assert.doesNotMatch(top, /#bar[^{]*\.gold[^{]*\{[^}]*gradient/);
 });
 
@@ -59,4 +60,13 @@ test('menu items are slightly larger than the old 13px, while the menu logo and 
   assert.doesNotMatch(rules.join('\n'), /mlogo[^)]/);
   assert.match(base, /#menu a\.mlogo \.logo>div b\{font-size:32px!important\}/);
   assert.match(base, /#menu a\.mlogo \.logo small\{[^}]*font-size:6\.5px!important/);
+});
+
+test('the strip above the header is a little darker and a little larger than the first flat version', () => {
+  const lum = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)).reduce((sum, c, i) => sum + c * [0.2126, 0.7152, 0.0722][i], 0);
+  const colour = base.match(/#bar \.gold\{[^}]*-webkit-text-fill-color:(#[0-9a-f]{6})/)[1];
+  assert.ok(lum(colour) < lum('#c8962a'), 'darker than the brand gold used for the icons');
+  assert.ok(lum(colour) > lum('#8a5e0c'), 'still gold, not brown');
+  assert.ok(px(base, /#bar\{[^}]*font-size:([\d.]+)px/) >= 14);
+  assert.ok(px(top, /#bar \{[^}]*font-size: ([\d.]+)px/) >= 13);
 });
