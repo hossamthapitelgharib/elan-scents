@@ -78,10 +78,19 @@ async function login(email, password, ip) {
   return { status: 200, id };
 }
 
-/* TEMPORARY owner access without email/password, only while the owner turns it on in Railway:
-   EDITOR_AUTH_BYPASS=1 AND a secret phrase in EDITOR_ACCESS_KEY (at least 16 characters).
-   The owner opens /editor?key=<phrase> once. The session lives in server memory only. */
-function accessKeyEnabled() { return process.env.EDITOR_AUTH_BYPASS === '1' && String(process.env.EDITOR_ACCESS_KEY || '').length >= 16; }
+/* TEMPORARY owner access without email/password. It is temporary by construction: it works only while the owner has set
+   EDITOR_AUTH_BYPASS=1, a secret phrase of at least 16 characters in EDITOR_ACCESS_KEY AND EDITOR_ACCESS_KEY_UNTIL, the moment
+   (an ISO date and time) it stops working, at most 24 hours from now. A forgotten switch therefore dies by itself instead of
+   leaving a standing owner-level login behind, and a far-future date does not turn it on at all.
+   The owner opens /editor?key=<phrase> once. The session lives in server memory only and never outlives that moment. */
+const ACCESS_KEY_MAX_WINDOW_MS = 24 * 60 * 60 * 1000;
+function accessKeyDeadline() {
+  if (process.env.EDITOR_AUTH_BYPASS !== '1' || String(process.env.EDITOR_ACCESS_KEY || '').length < 16) return 0;
+  const until = Date.parse(String(process.env.EDITOR_ACCESS_KEY_UNTIL || ''));
+  const left = until - clock();
+  return Number.isFinite(until) && left > 0 && left <= ACCESS_KEY_MAX_WINDOW_MS ? until : 0;
+}
+function accessKeyEnabled() { return accessKeyDeadline() > 0; }
 function keyLogin(given, ip) {
   if (!accessKeyEnabled()) return { status: 404, error: 'not_enabled' };
   if (tooManyAttempts(ip)) return { status: 429, error: 'too_many_attempts' };
@@ -93,7 +102,7 @@ function keyLogin(given, ip) {
   if (!serviceKey) return { status: 503, error: 'supabase_service_configuration_missing' };
   const id = crypto.randomBytes(32).toString('hex');
   const now = clock();
-  sessions.set(id, { token: serviceKey, bypass: true, expiresAt: now + ABSOLUTE_MS, created: now, last: now, email: 'access-key' });
+  sessions.set(id, { token: serviceKey, bypass: true, expiresAt: Math.min(now + ABSOLUTE_MS, accessKeyDeadline()), created: now, last: now, email: 'access-key' });
   return { status: 200, id };
 }
 
@@ -141,6 +150,7 @@ async function get(id) {
   const now = clock();
   const last = s.last || s.created;
   if (now - last > IDLE_MS || now - s.created > ABSOLUTE_MS) { sessions.delete(id); return null; }
+  if (s.bypass && now >= s.expiresAt) { sessions.delete(id); return null; } // an access-key session ends at the moment the owner set (EDITOR_ACCESS_KEY_UNTIL)
   let renew = !memory && now - last > RENEW_AFTER_MS;
   if (s.expiresAt - now < REFRESH_MARGIN_MS && s.refresh && !s.bypass) {
     const r = await refreshTokens(s.refresh);

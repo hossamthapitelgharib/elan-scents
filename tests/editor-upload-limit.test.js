@@ -12,8 +12,9 @@ test('the editor upload is cut off one byte over the largest allowed image', () 
 });
 
 test('an oversized upload is refused with 413', async () => {
-  const previous = { bypass: process.env.EDITOR_AUTH_BYPASS, key: process.env.EDITOR_ACCESS_KEY, service: process.env.SUPABASE_SERVICE_ROLE_KEY };
+  const previous = { until: process.env.EDITOR_ACCESS_KEY_UNTIL, bypass: process.env.EDITOR_AUTH_BYPASS, key: process.env.EDITOR_ACCESS_KEY, service: process.env.SUPABASE_SERVICE_ROLE_KEY };
   process.env.EDITOR_AUTH_BYPASS = '1';
+  process.env.EDITOR_ACCESS_KEY_UNTIL = new Date(Date.now() + 3600 * 1000).toISOString();
   process.env.EDITOR_ACCESS_KEY = 'access-key-fake-phrase-123';
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role-fake-key-0123456789';
   try {
@@ -38,7 +39,7 @@ test('an oversized upload is refused with 413', async () => {
     assert.deepEqual(JSON.parse(res.body), { ok: false, error: 'file_too_large' });
     assert.ok(seen >= 11);
   } finally {
-    for (const [name, key] of [['bypass', 'EDITOR_AUTH_BYPASS'], ['key', 'EDITOR_ACCESS_KEY'], ['service', 'SUPABASE_SERVICE_ROLE_KEY']]) {
+    for (const [name, key] of [['until', 'EDITOR_ACCESS_KEY_UNTIL'], ['bypass', 'EDITOR_AUTH_BYPASS'], ['key', 'EDITOR_ACCESS_KEY'], ['service', 'SUPABASE_SERVICE_ROLE_KEY']]) {
       if (previous[name] === undefined) delete process.env[key]; else process.env[key] = previous[name];
     }
   }

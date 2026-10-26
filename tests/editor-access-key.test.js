@@ -8,11 +8,41 @@ function withEnv(vars, fn) {
   Object.keys(vars).forEach((k) => { old[k] = process.env[k]; if (vars[k] === undefined) delete process.env[k]; else process.env[k] = vars[k]; });
   return Promise.resolve(fn()).finally(() => Object.keys(old).forEach((k) => { if (old[k] === undefined) delete process.env[k]; else process.env[k] = old[k]; }));
 }
-const FAKE = { SUPABASE_URL: 'https://example.invalid', SUPABASE_SERVICE_ROLE_KEY: 'test-service-key', EDITOR_ACCESS_KEY: 'a-long-test-phrase-123', EDITOR_AUTH_BYPASS: '1' };
+const inHours = (h) => new Date(Date.now() + h * 3600 * 1000).toISOString();
+const FAKE = { SUPABASE_URL: 'https://example.invalid', SUPABASE_SERVICE_ROLE_KEY: 'test-service-key', EDITOR_ACCESS_KEY: 'a-long-test-phrase-123', EDITOR_AUTH_BYPASS: '1', EDITOR_ACCESS_KEY_UNTIL: inHours(2) };
 
 test('access-key login is off unless the owner turns it on with a long enough phrase', async () => {
   await withEnv({ ...FAKE, EDITOR_AUTH_BYPASS: undefined }, () => assert.equal(sessions.keyLogin('a-long-test-phrase-123', 'ip1').error, 'not_enabled'));
   await withEnv({ ...FAKE, EDITOR_ACCESS_KEY: 'short' }, () => assert.equal(sessions.keyLogin('short', 'ip2').error, 'not_enabled'));
+});
+
+test('access-key login is temporary by construction: it needs an end moment at most 24 hours ahead and stops there', async () => {
+  const phrase = 'a-long-test-phrase-123';
+  // no end moment, an unreadable one, one in the past and one far in the future: all of them leave the login off
+  for (const until of [undefined, '', 'tomorrow-ish', inHours(-1), inHours(24.5), '2099-01-01T00:00:00Z', 'Infinity']) {
+    await withEnv({ ...FAKE, EDITOR_ACCESS_KEY_UNTIL: until }, () => {
+      assert.equal(sessions.accessKeyEnabled(), false, String(until));
+      assert.equal(sessions.keyLogin(phrase, 'ipu-' + String(until)).error, 'not_enabled', String(until));
+    });
+  }
+  await withEnv({ ...FAKE, EDITOR_ACCESS_KEY_UNTIL: inHours(23) }, () => assert.equal(sessions.accessKeyEnabled(), true));
+
+  // a session opened with the key ends at the moment the owner set, even though normal sessions last hours
+  const until = new Date(Date.now() + 30 * 60 * 1000);
+  let now = Date.now();
+  sessions.__setClock(() => now);
+  try {
+    await withEnv({ ...FAKE, EDITOR_ACCESS_KEY_UNTIL: until.toISOString() }, async () => {
+      const ok = sessions.keyLogin(phrase, 'ip-expiry');
+      assert.equal(ok.status, 200);
+      assert.ok(await sessions.get(ok.id), 'open before the end moment');
+      now = until.getTime() - 1000;
+      assert.ok(await sessions.get(ok.id), 'still open a second before it');
+      now = until.getTime() + 1000;
+      assert.equal(await sessions.get(ok.id), null, 'closed after it');
+      assert.equal(sessions.accessKeyEnabled(), false, 'and the login itself is off again');
+    });
+  } finally { sessions.__setClock(null); }
 });
 
 test('only the right phrase opens a session, wrong tries are limited', async () => {
