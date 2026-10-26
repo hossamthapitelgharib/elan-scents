@@ -62,5 +62,22 @@
     return out;
   }
 
-  return { move: move, resize: resize, dropSlot: dropSlot, reorder: reorder, MIN_WIDTH: MIN_WIDTH, MIN_HEIGHT: MIN_HEIGHT, MAX_SIZE: MAX_SIZE };
+  /* Like `reorder`, for a list where some ids are glued to the id before them (the original editor's overlays follow the element
+     under them): the element travels with the glued ids that follow it, and dropping it "after" a target goes after the target's
+     own glued ids, so they never end up following the wrong element. A glued id is never moved on its own. */
+  function reorderSticky(ids, id, targetId, after, sticky) {
+    var glued = {}, groups = [], list = ids || [];
+    (sticky || []).forEach(function (x) { glued[x] = true; });
+    list.forEach(function (x) { if (glued[x] && groups.length) groups[groups.length - 1].push(x); else groups.push([x]); });
+    var from = -1, i;
+    for (i = 0; i < groups.length; i++) if (groups[i][0] === id) from = i;
+    if (from === -1) return list.slice();
+    var group = groups.splice(from, 1)[0], to = -1;
+    for (i = 0; i < groups.length; i++) if (groups[i][0] === targetId) to = i;
+    if (to === -1) return list.slice();
+    groups.splice(to + (after ? 1 : 0), 0, group);
+    return [].concat.apply([], groups);
+  }
+
+  return { move: move, resize: resize, dropSlot: dropSlot, reorder: reorder, reorderSticky: reorderSticky, MIN_WIDTH: MIN_WIDTH, MIN_HEIGHT: MIN_HEIGHT, MAX_SIZE: MAX_SIZE };
 });

@@ -269,7 +269,12 @@
         var t = scope.edits && scope.edits[dev] && scope.edits[dev][g.id];
         if (t) { delete t.dx; delete t.dy; }
       });
-      if (g.flow.type === 'section') { d.order = Geometry.reorder(order, moved, target, slot.after); return; }
+      if (g.flow.type === 'section') {
+        // free texts laid over a section travel with it (the original editor: an overlay follows the element under it)
+        var floats = (d.blocks || []).filter(function (b) { return b.float; }).map(function (b) { return b.id; });
+        d.order = Geometry.reorderSticky ? Geometry.reorderSticky(order, moved, target, slot.after, floats) : Geometry.reorder(order, moved, target, slot.after);
+        return;
+      }
       var next = Geometry.reorder(listed, g.id, slot.id, slot.after);
       if (JSON.stringify(next) === JSON.stringify(listed) && !(scope.cardOrder && scope.cardOrder[key])) return;
       scope.cardOrder = scope.cardOrder || {};
@@ -476,9 +481,16 @@
 
   function validBlock(b) { var n = ED.normalize({ version: ED.VERSION, blocks: [b] }, { strict: true }); return n.ok && n.design.blocks.length === 1; }
 
+  /* A free text is glued to the element before it in the page order and travels with it. A new flow element that goes right after
+     that element must go after its free texts too, or it would take them over. */
+  function afterFloats(seq, idx) {
+    var floats = {}; ((work && work.blocks) || []).forEach(function (b) { if (b.float) floats[b.id] = true; });
+    while (idx < seq.length && floats[seq[idx]]) idx++;
+    return idx;
+  }
   /* Where a new block enters the page: next to the section the click was on (or nearest to it) and every other one makes room,
      like the original editor's flow. Without a click point it goes after the selected section. */
-  function insertAfterSelected(blockId, at) {
+  function insertAfterSelected(blockId, at, float) {
     var seq = fullOrder(), i = -1, after = true;
     if (at) {
       var main = document.getElementById('main'), rects = [], inside = null;
@@ -489,11 +501,13 @@
         rects.push(rect);
         if (at.x >= r.left && at.x <= r.left + r.width && at.y >= r.top && at.y <= r.top + r.height) inside = rect;
       });
-      var slot = inside ? { id: inside.id, after: at.y > inside.top + inside.height / 2 } : (Geometry.dropSlot ? Geometry.dropSlot(rects, at, { axis: 'y' }) : null);
+      var slot = inside ? { id: inside.id, after: float || at.y > inside.top + inside.height / 2 } : (Geometry.dropSlot ? Geometry.dropSlot(rects, at, { axis: 'y' }) : null);
       if (slot) { i = seq.indexOf(slot.id); after = slot.after; }
     }
     if (i === -1) { i = seq.indexOf(sectionOf(selectedId)); after = true; }
-    seq.splice(i === -1 ? 0 : i + (after ? 1 : 0), 0, blockId);
+    var idx = i === -1 ? 0 : i + (after ? 1 : 0);
+    if (!float && after && i !== -1) idx = afterFloats(seq, idx);
+    seq.splice(idx, 0, blockId);
     return seq;
   }
   async function editorData(action, payload) {
@@ -645,7 +659,7 @@
     else throw new Error('نوع غير مدعوم هنا');
     if (opts.image) b.image = opts.image;
     if (!validBlock(b)) throw new Error('بيانات البلوك غير صالحة (راجعي رابط الصورة).');
-    var order = insertAfterSelected(id, opts.at);
+    var order = insertAfterSelected(id, opts.at, !!b.float);
     mutate(function (d) { d.blocks.push(b); d.order = order; });
     select(id);
     if (opts.at && b.float) placeAt(id, opts.at);   // only a free text sits exactly at the click; the others enter the flow there
@@ -742,7 +756,7 @@
     else if (kind === 'image' && okImg(img)) b = { id: id, type: 'image', src: img, alt: {}, style: { align: 'center', size: 'md' } };
     if (!b || !validBlock(b)) throw new Error('نسخ العنصر ده مش متاح.');
     var anchor = sectionOf(e.id), order = fullOrder(), at = order.indexOf(anchor);
-    order.splice(at === -1 ? order.length : at + 1, 0, id);
+    order.splice(at === -1 ? order.length : afterFloats(order, at + 1), 0, id);
     mutate(function (d) { d.blocks.push(b); d.order = order; });
     select(id);
     return { elementId: id };
@@ -820,7 +834,7 @@
       case 'element.duplicate': {
         var e6 = need(p.elementId || selectedId), src = work.blocks.filter(function (b) { return b.id === e6.id; })[0];
         if (!src) return copyNative(e6);
-        var copy = clone(src); copy.id = 'x-' + rid(); var order = fullOrder(), b0 = base(src.id); order.splice(order.indexOf(src.id) + 1, 0, copy.id);
+        var copy = clone(src); copy.id = 'x-' + rid(); var order = fullOrder(), b0 = base(src.id); var at0 = order.indexOf(src.id) + 1; order.splice(src.float ? at0 : afterFloats(order, at0), 0, copy.id);
         var r0 = e6.el.getBoundingClientRect();
         mutate(function (d) { d.blocks.push(copy); d.order = order; var from = d.edits && ((d.edits.all || {})[src.id]); if (from) d.edits.all[copy.id] = JSON.parse(JSON.stringify(from)); });
         select(copy.id); placeAt(copy.id, { x: r0.left + 20, y: r0.top + 20 }); return { elementId: copy.id };

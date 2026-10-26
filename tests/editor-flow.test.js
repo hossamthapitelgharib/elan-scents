@@ -127,3 +127,17 @@ test('other things between the cards stay where they are when the cards swap pla
   const strip = main.querySelector('.strip');
   assert.deepEqual(strip.children.filter((c) => c.tagName !== '#COMMENT').map((c) => c.tagName === 'I' ? 'gap' : c.querySelector('h4').textContent), ['b', 'gap', 'a']);
 });
+
+test('reorderSticky moves an element together with the free texts glued to it and never splits a target from its own', () => {
+  const sticky = ['f1', 'f2'];
+  assert.deepEqual(G.reorderSticky(['a', 'f1', 'b', 'c', 'f2'], 'a', 'c', true, sticky), ['b', 'c', 'f2', 'a', 'f1'], 'a travels with f1; after c means after c and its own f2');
+  assert.deepEqual(G.reorderSticky(['a', 'b', 'f1', 'c'], 'c', 'b', false, sticky), ['a', 'c', 'b', 'f1'], 'before b: b keeps its f1');
+  assert.deepEqual(G.reorderSticky(['a', 'b', 'f1', 'c'], 'b', 'a', false, sticky), ['b', 'f1', 'a', 'c']);
+  assert.deepEqual(G.reorderSticky(['a', 'f1', 'b'], 'f1', 'b', true, sticky), ['a', 'f1', 'b'], 'a glued id is never moved on its own');
+  assert.deepEqual(G.reorderSticky(['a', 'b'], 'x', 'a', true, sticky), ['a', 'b']);
+  assert.deepEqual(G.reorderSticky(['a', 'b'], 'a', 'x', true, sticky), ['a', 'b']);
+  assert.deepEqual(G.reorderSticky(['a', 'b', 'c'], 'a', 'c', true), ['b', 'c', 'a'], 'with nothing glued it is the plain reorder');
+  const ids = ['a', 'f1', 'b'];
+  G.reorderSticky(ids, 'a', 'b', true, sticky);
+  assert.deepEqual(ids, ['a', 'f1', 'b'], 'the input list is never changed');
+});

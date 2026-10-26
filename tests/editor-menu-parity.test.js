@@ -170,3 +170,21 @@ test('the editor window hides its menu on the close message and on Esc', () => {
   assert.match(host, /m\.type==='menu-close'\)\{menu\.style\.display='none';\}/);
   assert.match(host, /document\.addEventListener\('keydown',e=>\{if\(e\.key==='Escape'\)menu\.style\.display='none';\}\);/);
 });
+
+test('a free text belongs to the section it was created on, even from the upper half, and stays glued to it', async () => {
+  const b = await liveEditor(); stack(b);
+  const free = (await b.mode.execute('ui.openCreatePanel', { kind: 'text', at: { x: 40, y: 210 } })).elementId;   // upper half of "offers"
+  assert.deepEqual(plain(b.mode.state().design.order), ['brands', 'offers', free, 'new'], 'right after offers, not before it');
+  // a flow block created after "offers" goes after its free text, so the text keeps following offers
+  const flow = (await b.mode.execute('ui.openCreatePanel', { kind: 'text_block', at: { x: 40, y: 480 } })).elementId; // lower half of "offers"
+  assert.deepEqual(plain(b.mode.state().design.order), ['brands', 'offers', free, flow, 'new']);
+  // copying a block that has a free text after it does the same
+  const copy = (await b.mode.execute('element.duplicate', { elementId: flow })).elementId;
+  assert.deepEqual(plain(b.mode.state().design.order), ['brands', 'offers', free, flow, copy, 'new']);
+});
+
+test('dragging a section takes the free texts laid over it along', () => {
+  const editMode = read('edit-mode.js');
+  assert.match(editMode, /Geometry\.reorderSticky\(order, moved, target, slot\.after, floats\)/);
+  assert.match(editMode, /filter\(function \(b\) \{ return b\.float; \}\)/);
+});
