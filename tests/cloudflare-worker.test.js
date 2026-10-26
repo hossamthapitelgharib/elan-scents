@@ -448,3 +448,9 @@ test('parseRange mirrors the rules railway/server.js applies', () => {
   assert.equal(core.parseRange(null, size), null);
   assert.ok(core.RANGE_EXTENSIONS.test('/a/b.MP4') && core.RANGE_EXTENSIONS.test('/x.webm') && !core.RANGE_EXTENSIONS.test('/x.mp4.js'));
 });
+
+test('the smoke-test workflow gives the editor access key an expiry, because the key does nothing without one', () => {
+  const workflow = fs.readFileSync(path.join(root, '.github', 'workflows', 'cloudflare-worker.yml'), 'utf8');
+  assert.match(workflow, /EDITOR_ACCESS_KEY=/);
+  assert.match(workflow, /EDITOR_ACCESS_KEY_UNTIL=\$\(date -u -d '\+1 hour'/, 'an expiry less than 24 hours ahead');
+});

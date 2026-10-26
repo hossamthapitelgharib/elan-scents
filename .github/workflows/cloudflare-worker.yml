@@ -51,6 +51,8 @@ jobs:
           EDITOR_ENV=production
           EDITOR_SITE_ORIGIN=https://smoke.example
           VARS
+          # The access key only works until EDITOR_ACCESS_KEY_UNTIL (at most 24 hours ahead), so the smoke run sets one an hour out.
+          echo "EDITOR_ACCESS_KEY_UNTIL=$(date -u -d '+1 hour' +%Y-%m-%dT%H:%M:%SZ)" >> .dev.vars
           nohup npx --yes wrangler@4 dev --port 8787 --ip 127.0.0.1 > "$RUNNER_TEMP/wrangler-dev.log" 2>&1 &
           echo "started wrangler dev"
       - name: Smoke test against the running Worker
