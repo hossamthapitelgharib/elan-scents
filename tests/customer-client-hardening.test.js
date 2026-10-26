@@ -57,3 +57,8 @@ test('sign-up and sign-in failures are shown in Arabic instead of the raw server
   assert.match(run({ error_code: 'over_request_rate_limit' }, 'login'), /محاولات كثيرة/);
   assert.equal(run({}, 'login'), 'تعذر تسجيل الدخول');
 });
+
+test('the sign-up password needs 8 characters, the sign-in one has no minimum (older 6-7 character passwords must still log in), both stop at 72', () => {
+  assert.match(core, /placeholder="'\+t\.pw\+'"'\+\(k=='signup'\?' minlength="8"':''\)\+' maxlength="72" required>/);
+  assert.doesNotMatch(core, /minlength="6"/);
+});
