@@ -46,7 +46,8 @@ const signIn = store => { store.elan_auth_session = JSON.stringify({ access_toke
 const json = (status, body) => ({ ok: status >= 200 && status < 300, status, headers: { get: () => '' }, json: async () => body });
 
 const ACCOUNT_IDS = ['#loginForm', '#archiveForm', '#loadMoreOrders', '#loadMoreArchive', '#message', '#appMessage', '#login', '#app', '#logout',
-  '#ordersCount', '#stats', '#activeOrders', '#recentOrders', '#archiveOrders', '#archiveSearch', '#archiveYear', '#cartShortcut'];
+  '#ordersCount', '#stats', '#activeOrders', '#recentOrders', '#archiveOrders', '#archiveSearch', '#archiveYear', '#cartShortcut',
+  '#refreshOrders', '#lastUpdated', '#forgotLink', '#resetForm', '#newPasswordForm', '.auth-links'];
 const DASHBOARD_IDS = ['#authForm', '#authCard', '#authError', '#dashboard', '#ordersError', '#logout', '#lastUpdated', '#refreshBtn', '#loadMoreOrders',
   '#saveSettingsBtn', '#statusFilter', '#matchFilter', '#searchFilter', '#stats', '#orders', '#storeSettings', '#settingsNotice'];
 const CUSTOMERS_IDS = ['#customerTabs', '#registeredAnalytics', '#guestAnalytics', '#loginForm', '#login', '#app', '#logout', '#message', '#platformError', '#stats',
@@ -85,7 +86,7 @@ test('portal sign-in shows Arabic for a wrong password, a network failure and an
   assert.equal(wrong.store.elan_auth_session, undefined);
 
   assert.match((await attempt(new TypeError('Failed to fetch'))).error.message, /تعذر الاتصال/);
-  assert.match((await attempt(json(422, { error_code: 'weak_password', msg: 'Password is too weak' }))).error.message, /تعذر تسجيل الدخول/);
+  assert.match((await attempt(json(422, { error_code: 'some_new_unlisted_code', msg: 'Something new' }))).error.message, /تعذر تسجيل الدخول/);
 
   const ok = await attempt(json(200, { access_token: 'fake-token', refresh_token: 'fake-refresh' }));
   assert.equal(ok.error, null);

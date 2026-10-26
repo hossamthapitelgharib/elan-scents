@@ -214,7 +214,9 @@ test('polling timers skip hidden tabs and catch up once when the tab comes back'
   assert.match(core, /setInterval\(function\(\)\{if\(!document\.hidden\)loadData\(\)\},60000\)/);
   assert.doesNotMatch(core, /setInterval\(loadData,60000\)/);
   assert.match(core, /addEventListener\('visibilitychange'/);
-  assert.match(account, /setInterval\(\(\) => \{ if \(!document\.hidden && Portal\.session\(\)\) loadAccount\(\)/);
+  // The orders page polls with a self-rescheduling timer (a minute, backing off on failure): a hidden tab is skipped.
+  assert.match(account, /if \(!document\.hidden && Portal\.session\(\) && !resettingPassword\) \{\s*try \{ await loadAccount\(false, true\)/);
+  assert.doesNotMatch(account, /setInterval/);
   assert.match(account, /addEventListener\('visibilitychange'/);
 });
 

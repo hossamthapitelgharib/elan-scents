@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>طلباتي · Élan Scents</title>
-  <link rel="stylesheet" href="/fonts.css?v=20261025-08">
-<link rel="stylesheet" href="/portal.css?v=20261025-08">
+  <link rel="stylesheet" href="/fonts.css?v=20261026-02">
+<link rel="stylesheet" href="/portal.css?v=20261026-02">
 </head>
 <body>
   <header>
@@ -21,6 +21,18 @@
         <input name="password" type="password" placeholder="كلمة المرور" required>
         <button class="primary">دخول</button>
       </form>
+      <p class="auth-links"><a href="#" id="forgotLink">نسيت كلمة المرور؟</a> · ليس لديك حساب؟ <a href="/">أنشئ حسابًا من المتجر</a></p>
+      <form id="resetForm" class="reset-form" hidden>
+        <p class="muted">اكتب بريدك الإلكتروني وسنرسل إليه رابطًا لاختيار كلمة مرور جديدة.</p>
+        <input name="email" type="email" placeholder="البريد الإلكتروني" autocomplete="email" maxlength="254" required>
+        <button class="primary">أرسل رابط الاستعادة</button>
+      </form>
+      <form id="newPasswordForm" class="reset-form" hidden>
+        <p class="muted">اختر كلمة مرور جديدة (8 أحرف على الأقل).</p>
+        <input name="password" type="password" placeholder="كلمة المرور الجديدة" autocomplete="new-password" minlength="8" maxlength="72" required>
+        <input name="confirm" type="password" placeholder="أعد كتابة كلمة المرور" autocomplete="new-password" minlength="8" maxlength="72" required>
+        <button class="primary">حفظ كلمة المرور</button>
+      </form>
       <p id="message" role="alert"></p>
     </section>
     <section id="app" hidden>
@@ -29,6 +41,7 @@
         <div><span class="eyebrow">مساحة مختصرة</span><h2>كل طلباتك في مكان واحد</h2><p>الحالة الحالية أولًا، والطلبات السابقة عند الحاجة.</p></div>
         <span class="orders-count" id="ordersCount"></span>
       </div>
+      <div class="orders-tools"><button id="refreshOrders" class="ghost" type="button">تحديث الآن</button><small id="lastUpdated" class="muted"></small></div>
       <div id="stats" class="stats orders-stats"></div>
       <section class="orders-section" aria-labelledby="activeTitle">
         <div class="section-heading"><h2 id="activeTitle">طلباتك الحالية</h2><span>تحتاج متابعة أو لم تُستلم بعد</span></div>
@@ -52,9 +65,9 @@
     </section>
   </main>
   <a id="cartShortcut" class="cart-shortcut" href="/"><span>سلة Élan Scents</span><b>0</b></a>
-  <script src="/auth-session.js?v=20261025-08"></script>
-  <script src="/portal.js?v=20261025-08"></script>
-  <script src="/guest-identity.js?v=20261025-08"></script>
-  <script src="/account.js?v=20261025-08"></script>
+  <script src="/auth-session.js?v=20261026-02"></script>
+  <script src="/portal.js?v=20261026-02"></script>
+  <script src="/guest-identity.js?v=20261026-02"></script>
+  <script src="/account.js?v=20261026-02"></script>
 </body>
 </html>

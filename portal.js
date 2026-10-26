@@ -75,7 +75,13 @@ Portal.errorMessages = {
   customer_dashboard_failed: 'تعذر تحميل طلباتك الآن، حاول بعد قليل.',
   method_not_allowed: 'الطلب غير مدعوم.',
   invalid_status: 'حالة الطلب المطلوبة غير صحيحة.',
-  invalid_store_id: 'المتجر المطلوب غير صحيح.'
+  invalid_store_id: 'المتجر المطلوب غير صحيح.',
+  weak_password: 'كلمة المرور ضعيفة، اختر كلمة أطول وأصعب في التخمين.',
+  same_password: 'كلمة المرور الجديدة يجب أن تختلف عن القديمة.',
+  email_address_invalid: 'البريد الإلكتروني غير صحيح.',
+  validation_failed: 'البيانات المدخلة غير صحيحة.',
+  session_not_found: 'انتهت صلاحية الرابط، اطلب رابطًا جديدًا.',
+  bad_jwt: 'انتهت صلاحية الرابط، اطلب رابطًا جديدًا.'
 };
 Portal.errorText = (error, fallback) => {
   const raw = String(error && error.message !== undefined ? error.message : error == null ? '' : error).trim();
