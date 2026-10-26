@@ -26,7 +26,7 @@ test('header icons and the language button are flat: no gradient stroke, shadow 
   assert.equal(svgs.length, 5, 'menu, notifications, search, favourites and cart icons');
   for (const svg of svgs) assert.match(svg, /stroke="currentColor"/);
   assert.doesNotMatch(headerHtml, /url\(#gg\)/);
-  assert.match(base, /\.ic button\{[^}]*color:var\(--gold2\)/);
+  assert.match(base, /\.ic button\{[^}]*color:#8f6b25/);
   for (const css of [base, top]) {
     for (const rule of css.match(/[^{}]*(?:header \.ic|\.ic button|#lg)[^{}]*\{[^}]*\}/g) || []) {
       assert.doesNotMatch(rule, /drop-shadow|text-shadow:\s*[^n\s;]|box-shadow|filter:\s*[^n\s;]/, rule);
@@ -69,4 +69,16 @@ test('the strip above the header is a little darker and a little larger than the
   assert.ok(lum(colour) > lum('#8a5e0c'), 'still gold, not brown');
   assert.ok(px(base, /#bar\{[^}]*font-size:([\d.]+)px/) >= 14);
   assert.ok(px(top, /#bar \{[^}]*font-size: ([\d.]+)px/) >= 13);
+});
+
+test('the header icons and the strip text use one rich deep gold, not the yellowish golds', () => {
+  const rich = '#8f6b25';
+  assert.match(base, /\.ic button\{[^}]*color:#8f6b25/);
+  assert.match(base.match(/#bar \.gold\{[^}]*\}/)[0], /color:#8f6b25;-webkit-text-fill-color:#8f6b25/);
+  assert.match(base.match(/#menu a\{[^}]*\}/)[0], /-webkit-text-fill-color:#8f6b25/);
+  for (const rule of [base.match(/\.ic button\{[^}]*\}/)[0], base.match(/#bar \.gold\{[^}]*\}/)[0], base.match(/#menu a\{[^}]*\}/)[0]]) {
+    assert.doesNotMatch(rule, /#c8962a|#a8770f|#b8821a|#f0c04a|var\(--gold2\)|gradient/i, rule);
+    assert.ok(rule.includes(rich), rule);
+  }
+  assert.doesNotMatch(base, /#a8770f|#b8821a/i, 'the older yellowish accent golds are gone from the storefront CSS');
 });

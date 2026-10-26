@@ -65,21 +65,25 @@ test('menu: MASTERPIECES sits right under Categories, in Arabic and English', ()
   }
 });
 
-test('menu: signed out shows Create account then Sign in; signed in shows Sign out instead', () => {
+test('menu: Create account, Sign in and Sign out are always listed in that order; the one that does not apply is dimmed', () => {
   const out = harness();
   out.run('buildMenu()');
   const t = out.context.D.ar.menu, signedOut = labels(out.menu.innerHTML);
-  assert.deepEqual(signedOut.slice(-2), [t[14], t[13]], 'Create account first, then Sign in');
-  assert.match(out.menu.innerHTML, /<a data-sheet="signup">[^<]*<\/a><a data-sheet="login">/);
-  assert.doesNotMatch(out.menu.innerHTML, /data-logout/);
+  assert.deepEqual(signedOut.slice(-3), [t[14], t[13], t[15]], 'Create account, Sign in, Sign out');
+  assert.match(out.menu.innerHTML, /<a data-sheet="signup">[^<]*<\/a><a data-sheet="login">[^<]*<\/a><a class="off" data-menu-note="notin">تسجيل الخروج<\/a>/);
+  assert.doesNotMatch(out.menu.innerHTML, /data-logout/, 'signed out: sign out only explains itself');
   const inn = harness({ auth: { access_token: 'token', user: { id: 'u1' } } });
   inn.run('buildMenu()');
   const signedIn = labels(inn.menu.innerHTML);
-  assert.equal(signedIn.at(-1), t[15]);
+  assert.deepEqual(signedIn.slice(-3), [t[14], t[13], t[15]], 'same order when signed in');
   assert.equal(t[15], 'تسجيل الخروج');
-  assert.ok(!signedIn.includes(t[13]) && !signedIn.includes(t[14]), 'sign in / create account are hidden once signed in');
-  assert.match(inn.menu.innerHTML, /<a data-logout>تسجيل الخروج<\/a>/);
+  assert.match(inn.menu.innerHTML, /<a class="off" data-menu-note="already">[^<]*<\/a><a class="off" data-menu-note="already">[^<]*<\/a><a data-logout>تسجيل الخروج<\/a>/);
+  assert.doesNotMatch(inn.menu.innerHTML, /data-sheet="(login|signup)"/, 'signed in: no sign-in forms are opened from the menu');
   assert.equal(inn.context.D.en.menu[15], 'Sign Out');
+  assert.match(core, /var mn=e\.target\.closest\('\[data-menu-note\]'\);if\(mn\)\{e\.preventDefault\(\);toast\(LB\[lang\]\[mn\.dataset\.menuNote\]\|\|''\);return\}/);
+  assert.match(core, /notin:'أنت غير مسجّل الدخول حاليًا',already:'أنت مسجّل الدخول بالفعل'/);
+  assert.match(core, /notin:'You are not signed in',already:'You are already signed in'/);
+  assert.match(css, /#menu a\.off\{opacity:\.4;cursor:default\}/);
 });
 
 test('menu follows the sign-in state after login, expiry and sign-in from another tab', () => {
@@ -185,7 +189,7 @@ test('card CSS is compact, calm and image-first: about half the old footprint', 
   assert.ok(Number(card.match(/flex:0 0 (\d+)px/)[1]) <= 140, 'narrow tile in strips');
   assert.doesNotMatch(card, /gradient/);
   assert.match(card, /box-shadow:none/);
-  assert.match(css, /\.card\.pf \.pim\{[^}]*aspect-ratio:1\/1/);
+  assert.match(css, /\.card\.pf \.pim\{[^}]*aspect-ratio:5\/6;background:#fff/);
   assert.match(top, /\.card\.pf \{ flex: 0 0 116px !important; \}/);
   assert.doesNotMatch(css, /\.card\.pf \.pim\{height:150px/);
   const cart = css.match(/\.cartb\{[^}]*\}/)[0];
@@ -200,4 +204,30 @@ test('product page CSS keeps Arabic letters joined (no letter-spacing on Arabic 
   const plain = page.replace(/\[dir=ltr\][^}]*\}/g, '');
   assert.doesNotMatch(plain, /letter-spacing/);
   assert.match(css, /\.pdadd\{[^}]*background:#2b2418/);
+});
+
+test('page and cards are pure white from below the hero to the footer, so white product photos blend in', () => {
+  assert.match(css, /section:nth-of-type\(3n\+2\),section:nth-of-type\(3n\),section:nth-of-type\(even\)\{background:#fff\}/);
+  assert.match(css, /\.about\{background:#fff!important\}/);
+  assert.match(css, /\n\.card\{background:#fff;border-radius:20px\}/);
+  assert.match(css.match(/\n\.card\{flex:0 0 150px[^}]*\}/)[0], /background:#fff;/);
+  assert.match(css.match(/\.card\.pf\{[^}]*\}/)[0], /background:#fff/);
+  assert.match(css.match(/\.pdi\{[^}]*\}/)[0], /background:#fff/);
+  for (const selector of ['section', '.about']) {
+    const rules = css.match(new RegExp('(?:^|\\n)' + selector.replace(/[.]/g, '\\.') + '[^{}]*\\{[^}]*\\}', 'g')) || [];
+    for (const rule of rules.filter((r) => !r.includes(':before'))) assert.doesNotMatch(rule, /gradient|var\(--off\)/, rule);
+  }
+  assert.doesNotMatch(css, /#fdfbf7,#f6efe2|#fff,#fcfaf6 60%,#fff|#fff,#f8f2e6|#fff,#fffcf6|#fff,#fffdf9/);
+});
+
+test('card footer: price and cart button share one centred line at the bottom, both flush with the text edges', () => {
+  const pbody = css.match(/\.card\.pf \.pbody\{[^}]*\}/)[0];
+  assert.match(pbody, /flex:1;display:flex;flex-direction:column/);
+  const foot = css.match(/\.card\.pf \.pfoot\{[^}]*\}/)[0];
+  assert.match(foot, /display:flex;align-items:center;justify-content:space-between/);
+  assert.match(foot, /margin-top:auto/, 'the footer sits at the bottom of every card in a row');
+  assert.match(css.match(/\.card\.pf \.price\{[^}]*\}/)[0], /align-items:center;gap:3px;height:30px/);
+  assert.match(css.match(/\.cartb\{[^}]*\}/)[0], /width:30px;height:30px/);
+  assert.match(pbody, /padding:2px 10px 10px/);
+  assert.doesNotMatch(css.match(/\.card\.pf h4\{[^}]*\}/)[0], /min-height/, 'the name and brand stay together');
 });
