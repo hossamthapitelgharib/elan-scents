@@ -17,7 +17,7 @@ test('the committed owner design is valid and retains its saved customizations',
   assert.equal(offers.align, 'start');
   assert.equal(offers.fontSize, 12);
   assert.equal(offers.color, '#17140f');
-  assert.equal(offers.background, '#000000');
+  assert.equal(offers.background, undefined, 'the offers section keeps the page white: no dark background is saved');
 });
 
 test('an empty design produces an empty plan (zero DOM changes)', () => {

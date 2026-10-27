@@ -36,7 +36,7 @@ header .logo small {
   background-size: cover !important;
   background-position: center center !important;
   background-repeat: no-repeat !important;
-  background-color: #ede8de !important;
+  background-color: #fff !important;
   background-clip: border-box !important;
   background-origin: border-box !important;
   width: 100% !important;
@@ -57,7 +57,7 @@ header .logo small {
 .card.art .artbg {
   position: absolute !important;
   inset: 0 !important;
-  background: #ede8de !important;
+  background: #fff !important;
   overflow: hidden !important;
 }
 .card.art .artbg img,

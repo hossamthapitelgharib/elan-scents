@@ -21,14 +21,14 @@ function store() {
 }
 
 function harness({ lang = 'ar', auth = null, perfumes = [] } = {}) {
-  const menu = { innerHTML: '' }, favButtons = [], badge = { attrs: {}, setAttribute(k, v) { this.attrs[k] = String(v); } };
+  const menu = { innerHTML: '' }, favButtons = [], cartButtons = [], badge = { attrs: {}, setAttribute(k, v) { this.attrs[k] = String(v); } };
   const sheetBody = { innerHTML: '' };
   const sheetEl = { hidden: true, dataset: {} };
   const localStorage = store(), calls = [];
   const document = {
     getElementById: (id) => (id === 'menu' ? menu : id === 'sheet' ? sheetEl : id === 'sheetB' ? sheetBody : null),
     querySelector: (selector) => (selector === 'button[data-sheet="fav"]' ? badge : null),
-    querySelectorAll: (selector) => (selector === '[data-fav]' ? favButtons : []),
+    querySelectorAll: (selector) => (selector === '[data-fav]' ? favButtons : selector === '.cartb[data-add]' ? cartButtons : []),
     body: { classList: { add() {}, remove() {} } }
   };
   const context = vm.createContext({ document, localStorage, window: {}, lang, AUTH: auth, PERFUMES: perfumes, console,
@@ -37,14 +37,14 @@ function harness({ lang = 'ar', auth = null, perfumes = [] } = {}) {
   context.D = texts;
   const code = [
     oneLine('var XBTN='), oneLine('var LOGO='), oneLine('var LB='), oneLine('en:{home:'),
-    oneLine('var CARTSVG='), oneLine('function ratingHTML'), oneLine('function byId'), oneLine('function nmOf'), oneLine('function sec('), oneLine('function T()'),
+    oneLine('var CARTSVG='), oneLine('var CARTADD='), oneLine('var PHB='), oneLine('function inCart'), oneLine('function cartMarks'), oneLine('function cartBadge'), oneLine('var SP_BY_ID='), oneLine('function ratingHTML'), oneLine('function byId'), oneLine('function nmOf'), oneLine('function sec('), oneLine('function T()'),
     oneLine('function taxNote'), oneLine('function best('), oneLine('function closeSheet'),
     between('var FAVS=[]', '\nvar SP_BY_ID='), between('function prodView', '\nfunction strip('),
     between('var MENU_ORDER=', 'function logoutNow'), oneLine('function logoutNow'),
     between('function sheet(k)', '\nfunction sendMsg')
   ].join('\n').replace(/^var LB=\{ar:/m, 'var LB={ar:');
   vm.runInContext(code.replace('var LB=', 'var LB='), context);
-  return { context, menu, favButtons, badge, sheetBody, sheetEl, localStorage, calls, run: (src) => vm.runInContext(src, context) };
+  return { context, menu, favButtons, cartButtons, badge, sheetBody, sheetEl, localStorage, calls, run: (src) => vm.runInContext(src, context) };
 }
 
 const sample = (extra = {}) => ({ id: 'p1', pid: 'q1', name: 'Club de Nuit Iconic', pn: 'Club de Nuit Iconic', brand: 'Armaf', sz: '105 مل', img: '/a.png', cats: [0], occs: [0, 1], notes: [0],
@@ -119,7 +119,7 @@ test('card front shows only image, heart, name, brand, size, price and add to ca
   assert.match(html, /<h4>Club de Nuit Iconic<\/h4>/);
   assert.match(html, /<span>Armaf<\/span><span>105 مل<\/span>/);
   assert.match(html, /<span class="price">1380<small>EGP<\/small><\/span>/);
-  assert.match(html, /<button type="button" class="cartb" data-add="p1" aria-label="أضف إلى العربة">/);
+  assert.match(html, /<button type="button" class="cartb" data-add="p1" aria-label="أضف إلى العربة"><svg class="i-add"/);
   assert.match(html, /data-go="prod\|p1"/);
   for (const gone of ['class="rating"', 'class="sd"', 'class="tgs"', 'class="tg"', 'Afnan Egypt', 'class="vd"', 'عرض التفاصيل', 'وصف قصير', 'نهاري', 'رجالي']) assert.ok(!html.includes(gone), gone + ' belongs on the product page');
   assert.equal((html.match(/<button/g) || []).length, 2, 'only the heart and the cart button');
@@ -189,7 +189,7 @@ test('card CSS is compact, calm and image-first: about half the old footprint', 
   assert.ok(Number(card.match(/flex:0 0 (\d+)px/)[1]) <= 140, 'narrow tile in strips');
   assert.doesNotMatch(card, /gradient/);
   assert.match(card, /box-shadow:none/);
-  assert.match(css, /\.card\.pf \.pim\{[^}]*aspect-ratio:5\/6;background:#fff/);
+  assert.match(css, /\.card\.pf \.pim\{[^}]*aspect-ratio:7\/8;background:#fff/);
   assert.match(top, /\.card\.pf \{ flex: 0 0 116px !important; \}/);
   assert.doesNotMatch(css, /\.card\.pf \.pim\{height:150px/);
   const cart = css.match(/\.cartb\{[^}]*\}/)[0];
@@ -230,4 +230,76 @@ test('card footer: price and cart button share one centred line at the bottom, b
   assert.match(css.match(/\.cartb\{[^}]*\}/)[0], /width:30px;height:30px/);
   assert.match(pbody, /padding:2px 10px 10px/);
   assert.doesNotMatch(css.match(/\.card\.pf h4\{[^}]*\}/)[0], /min-height/, 'the name and brand stay together');
+});
+
+function button(id) { const set = new Set(); return { dataset: { add: id }, attrs: {}, classList: { toggle: (c, on) => (on ? set.add(c) : set.delete(c)), has: (c) => set.has(c) }, setAttribute(k, v) { this.attrs[k] = v; } }; }
+
+test('cart mark: a perfume that is in the cart stays marked on its card, whatever else is tapped', () => {
+  const h = harness({ perfumes: [sample()] });
+  assert.doesNotMatch(h.run('pc({p:PERFUMES[0],b:best(PERFUMES[0])})'), /class="cartb in"/, 'not in the cart yet');
+  h.run("CART=[{sid:'p1',q:1}]");
+  const html = h.run('pc({p:PERFUMES[0],b:best(PERFUMES[0])})');
+  assert.match(html, /class="cartb in" data-add="p1" aria-label="في سلتك، اضغط لإضافة المزيد"/);
+  h.run("toggleFav('p1')");
+  assert.match(h.run('pc({p:PERFUMES[0],b:best(PERFUMES[0])})'), /class="cartb in"/, 'the favourite heart does not clear the cart mark');
+  assert.match(h.run('pc({p:PERFUMES[0],b:best(PERFUMES[0])})'), /class="favb on"/);
+  assert.match(html, /<svg class="i-add"[^>]*>.*<svg class="i-in"/s, 'a plus cart for adding and a ticked cart once added');
+  assert.match(html, /M10\.6 9\.2l1\.6 1\.6 2\.9-3\.1/);
+});
+
+test('cart mark follows the cart live: adding, removing and emptying update every card button', () => {
+  const h = harness({ perfumes: [sample()] });
+  const a = button('p1'), b = button('p9'); h.cartButtons.push(a, b);
+  h.run("CART=[{sid:'p1',q:2}];cartBadge()");
+  assert.equal(a.classList.has('in'), true); assert.equal(b.classList.has('in'), false);
+  assert.equal(a.attrs['aria-label'], 'في سلتك، اضغط لإضافة المزيد');
+  h.run("CART=[];cartBadge()");
+  assert.equal(a.classList.has('in'), false);
+  assert.equal(a.attrs['aria-label'], 'أضف إلى العربة');
+  assert.match(core, /function cartBadge\(\)\{[^\n]*;cartMarks\(\)\}/, 'every cart change already goes through cartBadge');
+});
+
+test('cart mark style: dark ticked circle while in the cart; hover colours only where a real hover exists', () => {
+  assert.match(css, /\.cartb \.i-in\{display:none\}\.cartb\.in \.i-add\{display:none\}\.cartb\.in \.i-in\{display:block\}/);
+  assert.match(css, /\.cartb\.in,\.cartb:active\{background:#2b2418;color:#f6efe0\}/);
+  assert.match(css, /@media\(hover:hover\)\{\.cartb:hover\{background:#2b2418;color:#f6efe0\}\}/);
+  assert.doesNotMatch(css, /(?<!\()\.cartb:hover,/, 'no sticky touch hover that fakes an added state');
+});
+
+test('card picture: one fixed frame for every image, no inner frame, a quiet bottle outline when there is no photo', () => {
+  const none = harness({ perfumes: [sample({ img: '' })] }).run('pc({p:PERFUMES[0],b:best(PERFUMES[0])})');
+  assert.match(none, /<div class="pim"><svg class="phb"/);
+  assert.doesNotMatch(none, /class="ph"|dashed/);
+  const pageNone = harness({ perfumes: [sample({ img: '' })] }).run("prodView({sid:'p1'},LB[lang],T())");
+  assert.match(pageNone, /<div class="pdi"><svg class="phb"/);
+  const pim = css.match(/\.card\.pf \.pim\{[^}]*\}/)[0];
+  assert.match(pim, /aspect-ratio:7\/8;background:#fff/);
+  assert.doesNotMatch(pim, /border|padding/, 'the frame itself has no border or padding of its own');
+  const img = css.match(/\.card\.pf \.pim img\{[^}]*\}/)[0];
+  assert.match(img, /width:100%;height:100%;object-fit:cover/, 'any catalogue image is brought to the same size');
+  assert.match(img, /border:0/);
+  assert.match(css, /\.card\.pf \.pim \.phb,\.pdi \.phb\{width:52%;height:auto;color:#e3d6b8\}/);
+});
+
+test('perfume cards under MASTERPIECES (inside .cb) keep the compact card fonts', () => {
+  assert.match(css, /\.cb \.card:not\(\.pf\) h4\{font-size:26px!important\}/);
+  assert.match(css, /\.cb \.card:not\(\.pf\) small\{font-size:13px\}\.cb \.card:not\(\.pf\) \.st\{font-size:12\.5px\}/);
+  assert.doesNotMatch(css, /\.cb \.card h4\{/, 'the big heading rule no longer reaches perfume cards');
+  assert.doesNotMatch(css, /\.cb \.card small\{|\.cb \.card \.st\{/);
+  assert.match(css.match(/\.card\.pf h4\{[^}]*\}/)[0], /font-size:12\.5px/);
+});
+
+test('no cream or black surfaces are left on the page or the inner pages (only buttons, icons and lines carry colour)', () => {
+  const surfaces = css.split('\n').filter((line) => !line.startsWith('footer')).join('\n');
+  assert.doesNotMatch(surfaces, /#fbf8f2|#fdfbf7|#fffdf7|#ede8de|#f8efd9|#f7f0e3|#fdf9ef|#f6efe2|#fcfaf6|#fffcf6|#fffdf9/i);
+  assert.match(css, /:root\{--bg:#fff;--off:#fff;/);
+  assert.match(css, /#menu\{background:#fff\}/);
+  assert.match(css, /\.flt\{background:#fff\}/);
+  assert.match(css, /\.chip\{[^}]*background:#fff/);
+  assert.match(css, /\.filter-body\{[^}]*background:#fff\}/);
+  assert.match(css, /\.pdbuy\{[^}]*background:#fff\}/);
+  assert.match(css, /\.disc\{[^}]*background:#fff;/);
+  assert.doesNotMatch(top, /#ede8de/);
+  const design = JSON.parse(read('design/home.json'));
+  for (const [id, edit] of Object.entries(design.edits.all)) assert.ok(!edit.style || !/^#0{3,6}$/i.test(edit.style.background || ''), id + ' must not carry a black background');
 });
