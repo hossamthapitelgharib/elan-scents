@@ -67,6 +67,9 @@ test('connect-src names this site and the Supabase project the Worker is configu
   // the only other hosts: the web-font service the editor can switch a design to (design-layer.js loadFont)
   assert.deepEqual(p.get('style-src'), ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com']);
   assert.deepEqual(p.get('font-src'), ["'self'", 'https://fonts.gstatic.com']);
+  // videos the owner puts on the page (editor: banner, card, hero, image block) are files in the site-media bucket of that same project
+  assert.deepEqual(p.get('media-src'), ["'self'", supabase],
+    'without the Supabase origin here every uploaded video is blocked by the browser');
 });
 
 test('every public page, and the root address, is served with the policy by the local host', async () => {

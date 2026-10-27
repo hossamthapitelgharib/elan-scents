@@ -9,7 +9,7 @@
     '#elanMediaDlg::backdrop{background:rgba(0,0,0,.35)}',
     '#elanMediaDlg .tabs{display:flex;gap:6px;margin:10px 0}#elanMediaDlg button{font:inherit;padding:7px 12px;border:1px solid #c2a66a;border-radius:7px;background:#fff;cursor:pointer}',
     '#elanMediaDlg button.on{background:#f6ecd3}#elanMediaDlg .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;max-height:46vh;overflow:auto;margin:8px 0}',
-    '#elanMediaDlg .grid img{width:100%;height:100px;object-fit:cover;border-radius:8px;border:2px solid transparent;cursor:pointer;background:#fff}#elanMediaDlg .grid img:hover{border-color:#a88032}',
+    '#elanMediaDlg .grid img,#elanMediaDlg .grid video{width:100%;height:100px;object-fit:cover;border-radius:8px;border:2px solid transparent;cursor:pointer;background:#fff}#elanMediaDlg .grid img:hover,#elanMediaDlg .grid video:hover{border-color:#a88032}',
     '#elanMediaDlg .note{font-size:13px;color:#6b4e00;min-height:18px;margin:6px 0}'
   ].join('\n');
   document.head.appendChild(css);
@@ -22,7 +22,7 @@
       var dlg = el('dialog', '', { id: 'elanMediaDlg' }), done = false;
       function finish(v) { if (done) return; done = true; try { dlg.close(); } catch (_) { /* closed */ } dlg.remove(); resolve(v || null); }
       dlg.addEventListener('cancel', function () { finish(null); }); dlg.addEventListener('close', function () { finish(null); });
-      dlg.appendChild(el('b', 'اختيار صورة'));
+      dlg.appendChild(el('b', 'اختيار صورة أو فيديو'));
       var tabs = el('div', '', { className: 'tabs' }), bLib = el('button', 'المكتبة'), bUp = el('button', 'رفع من الجهاز'), bAi = el('button', 'توليد بالذكاء الاصطناعي');
       tabs.append(bLib, bUp, bAi); dlg.appendChild(tabs);
       var body = el('div'), note = el('div', '', { className: 'note' });
@@ -36,11 +36,15 @@
         async function load() {
           note.textContent = 'بيتحمّل...';
           try {
-            var r = await fetch('/api/editor-media?offset=' + offset, { credentials: 'same-origin', cache: 'no-store' });
+            var r = await fetch('/api/editor-media?kind=all&offset=' + offset, { credentials: 'same-origin', cache: 'no-store' });
             var j = await r.json().catch(function () { return {}; });
             if (!r.ok || !j.ok) throw new Error(r.status === 401 ? 'انتهت الجلسة، سجلي الدخول تاني.' : 'تعذر تحميل المكتبة.');
-            offset += j.items.length; note.textContent = (!offset) ? 'المكتبة فاضية. ارفعي صورة من الجهاز.' : '';
-            j.items.forEach(function (it) { var im = el('img', '', { src: it.url, alt: it.title || '', loading: 'lazy' }); im.onclick = function () { finish(it.url); }; grid.appendChild(im); });
+            offset += j.items.length; note.textContent = (!offset) ? 'المكتبة فاضية. ارفعي صورة أو فيديو من الجهاز.' : '';
+            j.items.forEach(function (it) {
+              // a video shows its first frame (muted, never played here); a click picks it like a picture
+              var im = it.kind === 'video' ? el('video', '', { src: it.url + '#t=0.1', muted: true, preload: 'metadata', title: it.title || '' }) : el('img', '', { src: it.url, alt: it.title || '', loading: 'lazy' });
+              im.onclick = function () { finish(it.url); }; grid.appendChild(im);
+            });
             more.hidden = j.items.length < 24;
           } catch (e) { note.textContent = e.message; more.hidden = true; }
         }
@@ -48,16 +52,17 @@
       }
       function showUpload() {
         mark(bUp); body.textContent = '';
-        var f = el('input', '', { type: 'file', accept: 'image/jpeg,image/png,image/webp,image/gif,image/avif' });
-        note.textContent = 'صور فقط (JPG, PNG, WebP, GIF, AVIF) لحد 10 ميجا.'; body.append(f, note);
+        var f = el('input', '', { type: 'file', accept: 'image/jpeg,image/png,image/webp,image/gif,image/avif,video/mp4,video/webm' });
+        note.textContent = 'صور (JPG, PNG, WebP, GIF, AVIF) لحد 10 ميجا، أو فيديو قصير (MP4, WebM) لحد 25 ميجا.'; body.append(f, note);
         f.onchange = async function () {
           var file = f.files[0]; if (!file) return;
-          if (file.size > 10 * 1024 * 1024) { note.textContent = 'الصورة أكبر من 10 ميجا.'; return; }
+          var isVideo = /^video\//.test(file.type), limit = (isVideo ? 25 : 10) * 1024 * 1024;
+          if (file.size > limit) { note.textContent = isVideo ? 'الفيديو أكبر من 25 ميجا. قصّه أو صغّر حجمه.' : 'الصورة أكبر من 10 ميجا.'; return; }
           note.textContent = 'بيترفع...';
           try {
             var r = await fetch('/api/editor-upload', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': file.type, 'X-File-Name': encodeURIComponent(file.name) }, body: file });
             var j = await r.json().catch(function () { return {}; });
-            if (!r.ok || !j.ok) throw new Error(({ unsupported_type: 'نوع الملف مش مسموح.', file_does_not_match_type: 'الملف مش صورة صالحة.', file_too_large: 'الصورة أكبر من 10 ميجا.', unauthorized: 'انتهت الجلسة، سجلي الدخول تاني.', library_record_failed: 'الصورة اترفعت لكن تسجيلها في المكتبة فشل.' })[j.error] || 'الرفع فشل.');
+            if (!r.ok || !j.ok) throw new Error(({ unsupported_type: 'نوع الملف مش مسموح.', file_does_not_match_type: 'الملف مش صورة أو فيديو صالح.', file_too_large: isVideo ? 'الفيديو أكبر من 25 ميجا.' : 'الصورة أكبر من 10 ميجا.', unauthorized: 'انتهت الجلسة، سجلي الدخول تاني.', library_record_failed: 'الملف اترفع لكن تسجيله في المكتبة فشل.' })[j.error] || 'الرفع فشل.');
             finish(j.url);
           } catch (e) { note.textContent = e.message; }
         };

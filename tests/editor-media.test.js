@@ -79,6 +79,9 @@ test('the editor window hands media tools to its own picker', () => {
   assert.match(html, /t\.ui==='media_new'&&window\.elanLiveMediaNew/);
   assert.match(picker, /\/api\/editor-upload/);
   assert.doesNotMatch(picker, /localStorage|sessionStorage|supabase\.co/);
-  assert.match(mode, /id: 'create_banner', label: 'إنشاء بانر صورة', ui: 'media_new'/);
+  assert.match(mode, /id: 'create_banner', label: 'إنشاء بانر صورة أو فيديو', ui: 'media_new'/);
+  assert.match(picker, /video\/mp4,video\/webm/);
+  assert.match(picker, /kind=all/);
+  assert.match(picker, /isVideo \? 25 : 10\) \* 1024 \* 1024/);
   assert.match(mode, /id: 'create_image'/);
 });

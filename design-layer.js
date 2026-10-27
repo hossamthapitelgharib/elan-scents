@@ -18,10 +18,11 @@
     '.elan-text p{margin:0;line-height:1.9;white-space:pre-line}',
     '.elan-size-sm p,.elan-size-sm h3{font-size:14px}.elan-size-md p,.elan-size-md h3{font-size:17px}',
     '.elan-size-lg p,.elan-size-lg h3{font-size:22px}.elan-size-xl p,.elan-size-xl h3{font-size:30px}',
-    '.elan-banner{position:relative;overflow:hidden;border-radius:14px;padding:36px 20px;background-size:cover;background-position:center}',
+    '.elan-banner{position:relative;overflow:hidden;isolation:isolate;border-radius:14px;padding:36px 20px;background-size:cover;background-position:center}',
+    '.elan-banner>.elan-bgvideo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:-1;pointer-events:none}',
     '.elan-banner:before{content:"";position:absolute;inset:0;background:rgba(20,12,4,.35)}',
     '.elan-banner>*{position:relative}.elan-banner h3,.elan-banner p{margin:6px 0;color:#fff}',
-    '.elan-image img{max-width:100%;height:auto;display:block;margin:0 auto;border-radius:12px}',
+    '.elan-image img,.elan-image video{max-width:100%;height:auto;display:block;margin:0 auto;border-radius:12px}',
     '.elan-block a{color:inherit;text-decoration:none;display:block}',
     '.elan-smart{max-width:1200px}.elan-smart h3{margin:0 0 12px;text-align:start}',
     /* A free text: a zero-height slot in the flow (nothing moves for it) and the text itself laid over the page from that slot. */
@@ -45,6 +46,14 @@
     if (cls) e.className = cls;
     return e;
   }
+  /* A video the owner put on the page: it plays by itself, muted and looping, like a moving picture (browsers refuse sound without a tap). */
+  function videoNode(src) {
+    var v = document.createElement('video');
+    v.setAttribute('src', src); v.muted = true; v.loop = true; v.autoplay = true;
+    v.setAttribute('muted', ''); v.setAttribute('loop', ''); v.setAttribute('autoplay', ''); v.setAttribute('playsinline', ''); v.setAttribute('preload', 'metadata');
+    return v;
+  }
+  function playQuietly(v) { try { var pl = v.play && v.play(); if (pl && pl.catch) pl.catch(function () {}); } catch (_) { /* optional */ } }
 
 
   // ----- smart sections: definition + items live in Supabase (public read; RLS hides archived/expired ones) -----
@@ -139,16 +148,23 @@
       if (b.float) root.classList.add('elan-float');
     } else if (b.type === 'banner') {
       if (b.image) root.style.backgroundImage = 'url("' + b.image + '")';
+      if (b.video) { var bv = videoNode(b.video); bv.className = 'elan-bgvideo'; root.appendChild(bv); }
       var t = pick(b.title);
       var s = pick(b.subtitle);
       if (t) { var h = el('h3'); h.textContent = t; inner.appendChild(h); }
       if (s) { var sp = el('p'); sp.textContent = s; inner.appendChild(sp); }
     } else if (b.type === 'image') {
-      var img = el('img');
-      img.setAttribute('src', b.src);
-      img.setAttribute('alt', pick(b.alt));
-      img.setAttribute('loading', 'lazy');
-      inner.appendChild(img);
+      if (ED.isVideoUrl && ED.isVideoUrl(b.src)) {
+        var vv = videoNode(b.src);
+        vv.setAttribute('aria-label', pick(b.alt));
+        inner.appendChild(vv);
+      } else {
+        var img = el('img');
+        img.setAttribute('src', b.src);
+        img.setAttribute('alt', pick(b.alt));
+        img.setAttribute('loading', 'lazy');
+        inner.appendChild(img);
+      }
     }
     return root;
   }
@@ -245,7 +261,7 @@
 
   /* Replace the picture or video of an element: the hero video, a card picture, or a section background. Reversible. */
   function paintMedia(entry, m) {
-    if (typeof m === 'string') m = { src: m, kind: 'image' };
+    if (typeof m === 'string') m = { src: m, kind: ED.isVideoUrl && ED.isVideoUrl(m) ? 'video' : 'image' };
     var el = entry.el, undo = el.__elanMedia = el.__elanMedia || [];
     var video = entry.kind === 'hero' ? el.querySelector('#heroVideo, video') : null;
     if (video) {
@@ -271,6 +287,15 @@
       return;
     }
     var img = el.tagName === 'IMG' ? el : el.querySelector('.artbg img, img');
+    if (img && m.kind === 'video' && img.parentNode) {
+      // the card's (or the element's) picture is swapped for the video in the same place; the picture itself stays, hidden, for undo
+      var swap = videoNode(m.src), shown = img.style.display;
+      swap.className = img.className; swap.style.cssText = 'display:block;width:100%;height:100%;object-fit:cover';
+      img.style.display = 'none'; img.parentNode.insertBefore(swap, img.nextSibling);
+      undo.push(function () { swap.remove(); img.style.display = shown; });
+      playQuietly(swap);
+      return;
+    }
     if (img && m.kind !== 'video') {
       var old = { src: img.getAttribute('src'), srcset: img.getAttribute('srcset') };
       undo.push(function () { img.setAttribute('src', old.src); if (old.srcset === null) img.removeAttribute('srcset'); else img.setAttribute('srcset', old.srcset); });

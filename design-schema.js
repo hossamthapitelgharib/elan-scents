@@ -61,13 +61,20 @@
     return out;
   }
 
-  function mediaUrl(v) {
+  /* A picture or a video the page may show: a file of ours (/assets/) or one in the site-media storage bucket. The type is
+     decided by the extension, and only those listed: nothing from another host, no traversal, no scripts. */
+  function fileUrl(v, ext) {
     if (typeof v !== 'string' || v.length > LIMITS.url || /[\u0000-\u0020\u007f"'<>\\]/.test(v) || v.indexOf('..') !== -1) return '';
     try { var decoded = decodeURIComponent(v.split(/[?#]/)[0]); if (decoded.indexOf('..') !== -1 || /[\u0000-\u0020\u007f"'<>\\]/.test(decoded)) return ''; } catch (_) { return ''; }
-    if (!/\.(?:jpe?g|png|webp|gif|avif)(?:[?#]|$)/i.test(v)) return '';
+    if (!ext.test(v)) return '';
     for (var i = 0; i < MEDIA_PREFIXES.length; i++) if (v.indexOf(MEDIA_PREFIXES[i]) === 0 && v.length > MEDIA_PREFIXES[i].length) return v;
     return '';
   }
+  var IMAGE_EXT = /\.(?:jpe?g|png|webp|gif|avif)(?:[?#]|$)/i, VIDEO_EXT = /\.(?:mp4|webm)(?:[?#]|$)/i;
+  function mediaUrl(v) { return fileUrl(v, IMAGE_EXT); }
+  function videoUrl(v) { return fileUrl(v, VIDEO_EXT); }
+  function anyMediaUrl(v) { return mediaUrl(v) || videoUrl(v); }
+  function isVideoUrl(v) { return typeof v === 'string' && VIDEO_EXT.test(v); }
 
   function hrefUrl(v) {
     if (typeof v !== 'string' || v.length > LIMITS.url) return '';
@@ -106,16 +113,20 @@
         var img = mediaUrl(raw.image);
         if (img) b.image = img; else errors.push(where + ': image not allowed');
       }
+      if (raw.video !== undefined && raw.video !== '') {
+        var vid = videoUrl(raw.video);
+        if (vid) b.video = vid; else errors.push(where + ': video not allowed');
+      }
       if (raw.href !== undefined && raw.href !== '') {
         var h = hrefUrl(raw.href);
         if (h) b.href = h; else errors.push(where + ': link not allowed');
       }
-      if (!b.title.ar && !b.title.en && !b.image) { errors.push(where + ': banner needs a title or an image'); return null; }
+      if (!b.title.ar && !b.title.en && !b.image && !b.video) { errors.push(where + ': banner needs a title, an image or a video'); return null; }
     } else if (type === 'smart') {
       if (typeof raw.ref !== 'string' || !REF_RE.test(raw.ref)) { errors.push(where + ': invalid section reference'); return null; }
       b.ref = raw.ref;
     } else {
-      var src = mediaUrl(raw.src);
+      var src = anyMediaUrl(raw.src);   // an image block shows a picture or a video
       if (!src) { errors.push(where + ': image src not allowed'); return null; }
       b.src = src;
       b.alt = loc(raw.alt, LIMITS.title);
@@ -149,7 +160,7 @@
       } else if (k === 'archived') {
         if (v === true) out.archived = true; else if (v !== false) errors.push(where + '.archived: invalid');
       } else if (k === 'media') {
-        errors.push(where + '.media: unsupported; use style.media for an image');
+        errors.push(where + '.media: unsupported; use style.media for an image or a video');
       } else if (k === 'text') {
         var t = loc(v, LIMITS.text);
         if (t.ar || t.en) out.text = t;
@@ -178,7 +189,7 @@
             if (typeof sv === 'number' && sv >= 0.1 && sv <= 1) st.opacity = Math.round(sv * 100) / 100; else errors.push(where + '.style.opacity: invalid');
           } else if (sk === 'media') {
             if (sv === null || sv === '') return;
-            var media = mediaUrl(sv);
+            var media = anyMediaUrl(sv);
             if (media) st.media = media; else errors.push(where + '.style.media: invalid media URL');
           } else errors.push(where + '.style.' + sk + ': not editable');
         });
@@ -398,7 +409,7 @@
   }
 
   return {
-    VERSION: VERSION, BUILTIN: BUILTIN, TEXT_KEYS: TEXT_KEYS, LIMITS: LIMITS,
+    VERSION: VERSION, BUILTIN: BUILTIN, TEXT_KEYS: TEXT_KEYS, LIMITS: LIMITS, isVideoUrl: isVideoUrl,
     DEVICES: DEVICES, FONTS: FONTS, DEVICE_FONTS: DEVICE_FONTS, LOCAL_FONTS: LOCAL_FONTS, WEB_FONTS: WEB_FONTS, EFFECTS: EFFECTS, BREAKPOINTS: BREAKPOINTS, EDIT_ID_RE: EDIT_ID_RE,
     normalize: normalize, isEmpty: isEmpty, serialize: serialize, plan: plan, applyTexts: applyTexts,
     deviceOf: deviceOf, editFor: editFor,

@@ -163,7 +163,8 @@
     var node = layer.textTarget(e) || e.el, cs = getComputedStyle(node), current = cur(e.id), st = current.style || {};
     var blk = work.blocks.filter(function (b) { return b.id === e.id; })[0];
     var type = blk ? ({ text: 'text_block', banner: 'banner', image: 'image' })[blk.type] : (TYPE_OF[e.kind] || 'text');
-    var media = st.media || (current.media && current.media.src) || (blk && (blk.src || blk.image)) || '';
+    if (blk && blk.type === 'image' && ED.isVideoUrl && ED.isVideoUrl(blk.src)) type = 'video';
+    var media = st.media || (current.media && current.media.src) || (blk && (blk.src || blk.image || blk.video)) || '';
     return {
       id: e.id, name: e.name, kind: e.kind, type: type, text: String(node.textContent || '').trim().slice(0, 120), media: media, canText: !!layer.textTarget(e), textId: textProxy(e), copyKind: blk ? null : copyKindOf(e), isBlock: !!blk, dynamic: !!dynamicTarget(e),
       style: {
@@ -657,7 +658,7 @@
     else if (kind === 'image') b = { id: id, type: 'image', src: opts.src, alt: {}, style: { align: 'center', size: 'md' } };
     else if (kind === 'smart') b = { id: id, type: 'smart', ref: opts.ref, style: { align: 'center', size: 'md' }, kind: opts.semanticKind || 'section' };
     else throw new Error('نوع غير مدعوم هنا');
-    if (opts.image) b.image = opts.image;
+    if (opts.image) { if (ED.isVideoUrl && ED.isVideoUrl(opts.image)) b.video = opts.image; else b.image = opts.image; }   // a banner shows a picture or a video
     if (!validBlock(b)) throw new Error('بيانات البلوك غير صالحة (راجعي رابط الصورة).');
     var order = insertAfterSelected(id, opts.at, !!b.float);
     mutate(function (d) { d.blocks.push(b); d.order = order; });
@@ -667,7 +668,7 @@
   }
 
   function mediaPrompt(forId) {
-    return ask('رابط الصورة', 'لازم يبدأ بـ /assets/ أو برابط صورة من مكتبة سابابيس (site-media).', '/assets/').then(function (v) {
+    return ask('رابط الصورة أو الفيديو', 'لازم يبدأ بـ /assets/ أو برابط من مكتبة سابابيس (site-media): صورة أو فيديو MP4/WebM.', '/assets/').then(function (v) {
       if (!v) throw new Error('اتلغى');
       return v;
     });
@@ -678,9 +679,9 @@
     if (!b) {
       var en = entryById(id);
       if (en) {
-        if (['hero', 'card', 'section', 'image-el'].indexOf(en.kind) === -1) throw new Error('تغيير الصورة غير متاح لهذا العنصر.');
+        if (['hero', 'card', 'section', 'image-el'].indexOf(en.kind) === -1) throw new Error('تغيير الصورة أو الفيديو غير متاح لهذا العنصر.');
         var probe2 = { version: ED.VERSION, edits: { all: {} } }; probe2.edits.all[id] = { style: { media: src } };
-        if (!ED.normalize(probe2, { strict: true }).ok) throw new Error('رابط الصورة مش مسموح.');
+        if (!ED.normalize(probe2, { strict: true }).ok) throw new Error('رابط الصورة أو الفيديو مش مسموح.');
         mutate(function () { var e = edit('all', id); e.style = e.style || {}; e.style.media = src; });
         return;
       }
@@ -688,13 +689,13 @@
     if (b) {
       var probe = clone(b);
       if (b.type === 'image') probe.src = src;
-      else if (b.type === 'banner') probe.image = src;
+      else if (b.type === 'banner') { if (ED.isVideoUrl(src)) { probe.video = src; delete probe.image; } else { probe.image = src; delete probe.video; } }
       else { probe.style = probe.style || {}; probe.style.media = src; }
-      if (!validBlock(probe)) throw new Error('رابط الصورة مش مسموح.');
+      if (!validBlock(probe)) throw new Error('رابط الصورة أو الفيديو مش مسموح.');
       mutate(function (d) {
         var t = d.blocks.filter(function (x) { return x.id === id; })[0];
         if (t.type === 'image') t.src = src;
-        else if (t.type === 'banner') t.image = src;
+        else if (t.type === 'banner') { if (ED.isVideoUrl(src)) { t.video = src; delete t.image; } else { t.image = src; delete t.video; } }
         else { t.style = t.style || {}; t.style.media = src; }
       });
       return;
@@ -750,10 +751,11 @@
     var id = 'x-' + rid();
     if (kind === 'card') {
       var desc = e.el.querySelector('p'), banner = { id: id, type: 'banner', title: { ar: text.slice(0, 160) || 'نسخة' }, subtitle: { ar: String(desc && desc.textContent || '').trim().slice(0, 600) }, style: { align: 'center', size: 'md' } };
-      if (okImg(img)) banner.image = img;
+      var shown = info(e).media || img;   // the picture or video the card shows now
+      if (okImg(shown)) { if (ED.isVideoUrl(shown)) banner.video = shown; else banner.image = shown; }
       b = banner;
     } else if (kind === 'text' && text) b = { id: id, type: 'text', text: { ar: text }, style: { align: 'center', size: 'md' } };
-    else if (kind === 'image' && okImg(img)) b = { id: id, type: 'image', src: img, alt: {}, style: { align: 'center', size: 'md' } };
+    else if (kind === 'image' && okImg(info(e).media || img)) b = { id: id, type: 'image', src: info(e).media || img, alt: {}, style: { align: 'center', size: 'md' } };
     if (!b || !validBlock(b)) throw new Error('نسخ العنصر ده مش متاح.');
     var anchor = sectionOf(e.id), order = fullOrder(), at = order.indexOf(anchor);
     order.splice(at === -1 ? order.length : afterFloats(order, at + 1), 0, id);
@@ -765,10 +767,10 @@
     var block = work.blocks.filter(function (b) { return b.id === c.id; })[0];
     if (!c.info || !c.info.media) { archive(c.id); return { archived: true }; }
     if (block && (block.type === 'image' || block.type === 'video')) { archive(c.id); return { archived: true }; }
-    if (block && block.type === 'banner' && block.image) {
-      var candidate = clone(block); delete candidate.image;
+    if (block && block.type === 'banner' && (block.image || block.video)) {
+      var candidate = clone(block); delete candidate.image; delete candidate.video;
       if (!validBlock(candidate)) { archive(c.id); return { archived: true }; }
-      mutate(function (d) { var target = d.blocks.filter(function (b) { return b.id === c.id; })[0]; if (target) delete target.image; });
+      mutate(function (d) { var target = d.blocks.filter(function (b) { return b.id === c.id; })[0]; if (target) { delete target.image; delete target.video; } });
       return { mediaRemoved: true };
     }
     mutate(function (d) {
@@ -794,16 +796,16 @@
   registerTool({ id: 'format', label: 'تنسيق النص: الخط • اللون • الحجم • 3D', ui: 'format', when: has });
   [['create_section', 'إنشاء سيكشن'], ['create_brand', 'إنشاء كارت براند'], ['create_store', 'إنشاء كارت متجر'], ['create_perfume', 'إنشاء كارت عطر'], ['create_occasion', 'إنشاء مناسبة'], ['create_note', 'إنشاء نوتة عطر']].forEach(function (x) { registerTool({ id: x[0], label: x[1], run: function (c) { return createSmart(x[0].replace('create_', ''), c); } }); });
   registerTool({ id: 'create_text_block', label: 'إنشاء كتلة نصية', run: function (c) { return createBlock('text_block', { at: c.at }); } });
-  registerTool({ id: 'create_banner', label: 'إنشاء بانر صورة', ui: 'media_new', run: function (c) { return createBlock('banner', { at: c.at, image: c.src }); } });
+  registerTool({ id: 'create_banner', label: 'إنشاء بانر صورة أو فيديو', ui: 'media_new', run: function (c) { return createBlock('banner', { at: c.at, image: c.src }); } });
   registerTool({ id: 'create_text', label: 'إنشاء نص', run: function (c) { return createBlock('text', { at: c.at, float: true, text: 'اكتب نصك هنا' }); } });
-  registerTool({ id: 'media', label: 'تغيير صورة العنصر أو الواجهة', ui: 'media', when: function (i) { return !!i && ['text', 'text_block'].indexOf(i.type) === -1; }, run: function (c) { return mediaPrompt().then(function (src) { setMedia(c.id, src); return null; }); } });
-  registerTool({ id: 'media_delete', label: 'حذف ميديا العنصر إلى الأرشيف', when: function (i) { return !!i && !!i.media; }, run: deleteMedia });
-  registerTool({ id: 'edit_text', label: 'تعديل النص بالكيبورد', when: function (i) { return !!(i && i.textId && i.type !== 'image'); }, run: function (c) { var id = (c.info && c.info.textId) || c.id; select(id); startText(id); return null; } });
+  registerTool({ id: 'media', label: 'رفع صورة أو فيديو داخل العناصر أو الهيرو', ui: 'media', when: function (i) { return !!i && ['text', 'text_block'].indexOf(i.type) === -1; }, run: function (c) { return mediaPrompt().then(function (src) { setMedia(c.id, src); return null; }); } });
+  registerTool({ id: 'media_delete', label: 'حذف ميديا الكارت أو الهيرو إلى الأرشيف', when: function (i) { return !!i && !!i.media; }, run: deleteMedia });
+  registerTool({ id: 'edit_text', label: 'تعديل النص بالكيبورد', when: function (i) { return !!(i && i.textId && i.type !== 'image' && i.type !== 'video'); }, run: function (c) { var id = (c.info && c.info.textId) || c.id; select(id); startText(id); return null; } });
   registerTool({ id: 'copy', label: 'نسخ العنصر', when: function (i) { return !!(i && (i.isBlock || i.copyKind)); }, run: function (c) { return execute('element.duplicate', { elementId: c.id }, {}); } });
   registerTool({ id: 'archive', label: 'حذف العنصر إلى الأرشيف', when: has, run: function (c) { archive(c.id); return null; } });
   registerTool({ id: 'library_save', label: 'حفظ العنصر في المكتبة', when: has, run: saveToLibrary });
   registerTool({ id: 'library_download', label: 'تنزيل العنصر للمكتبة كملف', when: has, run: downloadFromLibrary });
-  registerTool({ id: 'create_image', label: 'إنشاء صورة', ui: 'media_new', run: function (c) { if (!c.src) throw new Error('اختاري صورة الأول.'); return createBlock('image', { at: c.at, src: c.src }); } });
+  registerTool({ id: 'create_image', label: 'إنشاء صورة أو فيديو', ui: 'media_new', run: function (c) { if (!c.src) throw new Error('اختاري صورة أو فيديو الأول.'); return createBlock('image', { at: c.at, src: c.src }); } });
   registerTool({ id: 'open', show: function (i) { return !!(i && i.dynamic); }, label: 'فتح العنصر (الدخول لصفحته)', when: function (i) { return !!(i && i.dynamic); }, run: function (c) { enterPage(entryById(c.id)); return null; } });
   registerTool({ id: 'go_back', show: inner, label: 'رجوع للصفحة السابقة', when: inner, run: function () { goBack(); return null; } });
   registerTool({ id: 'go_home', show: inner, label: 'رجوع للصفحة الرئيسية', when: inner, run: function () { goHome(); return null; } });

@@ -52,13 +52,25 @@ Same mouse model as the original editor: **right-click = the tools menu, left-cl
 | Drag the corner handle of the selected element | Resize |
 | **Left-click** a dynamic element (a card that opens another page) | Enters that page inside the editor box. Each page keeps its own edits, and the home page is untouched. Menu → **رجوع للصفحة السابقة / الرئيسية** to leave |
 | **Double-click** text | Edit it with the keyboard (Enter saves, Esc cancels) |
-| Menu → **إنشاء كتلة نصية / بانر صورة** | Creates a block in the page flow at the click point; the sections around it make room |
+| Menu → **إنشاء كتلة نصية / بانر صورة أو فيديو** | Creates a block in the page flow at the click point; the sections around it make room |
 | Menu → **إنشاء نص** | Creates a free text laid over the page exactly where you clicked; it takes no room in the flow, so nothing is displaced |
 | Menu → **نسخ العنصر** | Copies an extra block (20px down and to the side, like the original), or turns a card into a banner / a title into a text block / a picture into an image block, right after its section. A section or the hero cannot be copied yet |
 | Menu → **تعديل النص بالكيبورد** on a section / the hero | Edits the text the element owns: its title, or the headline of the hero |
 | **Esc**, a left click or a scroll | Closes the tools menu; during a drag, Esc cancels it and puts the element back |
 
-Not in the live editor yet (the page and the server handle images only): uploading or deleting **video** in cards and the hero, and creating a video banner. The menu says "صورة" where the original said "صورة أو فيديو" so it never promises more than it does.
+## Pictures and videos
+
+Menu → **رفع صورة أو فيديو داخل العناصر أو الهيرو**, **إنشاء بانر صورة أو فيديو** and **إنشاء صورة أو فيديو** open the same picker: the library (pictures and videos, a video shows its first frame), upload from the device, or AI generation (pictures only, needs a key and your approval of the cost).
+
+| | Pictures | Videos |
+|--|----------|--------|
+| Types | JPG, PNG, WebP, GIF, AVIF | MP4 (H.264) and WebM |
+| Size | up to 10 MB | up to 25 MB (short clips; the file passes through the Worker, whose memory is limited) |
+| Storage | the `site-media` bucket (it also accepts the two video types, 50 MB at most) and a row in `media_library` (`file_type` image / video) | same |
+| Checked by the server | MIME type **and** the file's own first bytes must agree (an AVIF cannot pass as MP4, a Matroska file cannot pass as WebM) | same |
+| Where it can go | a card, a section background, the hero, a banner, an image block | a card or element picture is swapped for the video in place; the hero keeps its video element; a banner plays it behind its text (`video` field, one of picture / video at a time); an image block shows it as a moving picture |
+
+A video on the page plays by itself, muted and looping, inline (browsers refuse sound without a tap). Undo restores what was there before. Videos from the bucket are allowed in the public pages' policy (`media-src` in `vercel.json`); a new video host would need to be added there too. If a bigger file is ever needed the upload should go straight to the bucket with a signed URL instead of through the Worker.
 
 ## Adding a new tool (future capabilities)
 
