@@ -36,8 +36,8 @@ window.Portal = {
     try { if (window.ElanAuth) await window.ElanAuth.signOut(); } catch (_) {}
     localStorage.removeItem('elan_auth_session');
     // The cart is saved in the account, so the browser's copy of it is only a cache. A later sign-in on a shared device
-    // would merge it into somebody else's cart, so it goes. The orders copy (elan_orders, elan_order_outbox) is left as it
-    // is: the order history lives in the database and logging out never touches it.
+    // would merge it into somebody else's cart, so it goes. The orders copy (elan_orders) is left as it is: the
+    // order history lives in the database and logging out never touches it.
     try { localStorage.removeItem('elan_cart'); } catch (_) {}
     location.reload();
   },

@@ -63,8 +63,8 @@ test('frontend order persistence uses the authenticated Supabase identity', () =
   const migration = fs.readFileSync(path.join(root, 'supabase/migrations/20261010014304_harden_order_user_binding.sql'), 'utf8');
   assert.match(core, /function authUserId\(\)\{return AUTH&&AUTH\.user&&AUTH\.user\.id\|\|''\}/);
   assert.match(core, /Authorization:'Bearer '\+\(AUTH&&AUTH\.access_token\|\|SB\.key\)/);
-  assert.match(core, /\/rpc\/create_checkout_session/);
-  assert.match(core, /\/rpc\/create_store_order_request/);
+  assert.match(core, /\/rpc\/place_store_order/);
+  assert.doesNotMatch(core, /\/rpc\/create_checkout_session|\/rpc\/create_store_order_request/, 'the browser makes one server call; the two older functions are not used');
   assert.match(migration, /v_user uuid := auth\.uid\(\)/);
   assert.match(migration, /c\.id = v_checkout_session_id and c\.user_id = v_user_id/);
 });
