@@ -303,3 +303,18 @@ test('no cream or black surfaces are left on the page or the inner pages (only b
   const design = JSON.parse(read('design/home.json'));
   for (const [id, edit] of Object.entries(design.edits.all)) assert.ok(!edit.style || !/^#0{3,6}$/i.test(edit.style.background || ''), id + ' must not carry a black background');
 });
+
+test('second white pass: no cream fill remains on buttons, pills, cards or sheets, and the closed menu casts no shadow onto the page', () => {
+  const both = css + '\n' + top;
+  // every background declaration in the storefront stylesheets, minus the dark footer, the hero fallback and red error tint
+  const fills = [...both.matchAll(/background(?:-color)?\s*:\s*(#[0-9a-fA-F]{3,8})\b/g)].map((m) => m[1].toLowerCase());
+  const cream = fills.filter((c) => /^#(f[5-9a-f][0-9a-f]{4}|f[5-9a-f][0-9a-f]|e[0-9a-f]{5})$/.test(c) && !/^#(fff|ffffff|f{1,2})$/.test(c)).filter((c) => c !== '#fdecea' && c !== '#f9e9cf' && c !== '#e9d3b0');
+  assert.deepStrictEqual([...new Set(cream)], [], 'no cream fills left: ' + cream.join(' '));
+  assert.match(css, /\.cartb\{[^}]*border:1px solid #e6dcc6;[^}]*background:#fff/);
+  assert.match(css, /\.cq\{[^}]*background:#fff/);
+  assert.match(css, /html\{background:#fff\}/);
+  assert.match(css, /#menu:not\(\.open\)\{box-shadow:none!important\}/, 'the closed menu panel must not leak a grey edge onto the page');
+  assert.match(top, /\.sheet-close \{[^}]*background: #fff !important/);
+  assert.doesNotMatch(top, /#f5efe3|#ebe3d0|#fffdf8/);
+});
+
