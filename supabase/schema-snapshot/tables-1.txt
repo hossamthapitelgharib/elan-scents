@@ -1,4 +1,4 @@
-TABLE analytics_events  rls=on  grants: anon=a authenticated=rawd service_role=rawdDxt
+TABLE analytics_events  rls=on  grants: anon=- authenticated=rawd service_role=rawdDxt
   id uuid NOT NULL DEFAULT gen_random_uuid()
   event_type text NOT NULL
   product_id uuid
@@ -17,7 +17,7 @@ TABLE analytics_events  rls=on  grants: anon=a authenticated=rawd service_role=r
   CREATE INDEX idx_analytics_product_size_id ON analytics_events USING btree (product_size_id)
   CREATE INDEX idx_analytics_user_id ON analytics_events USING btree (user_id)
   POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
-  POLICY event_insert PERMISSIVE FOR INSERT TO anon,authenticated WITH CHECK (((user_id IS NULL) OR (user_id = ( SELECT auth.uid() AS uid))))
+  POLICY event_insert PERMISSIVE FOR INSERT TO authenticated WITH CHECK ((((user_id IS NULL) OR (user_id = ( SELECT auth.uid() AS uid))) AND (pg_column_size(metadata) <= 2048)))
   CREATE TRIGGER set_updated_at BEFORE UPDATE ON analytics_events FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
 
 TABLE aromatic_notes  rls=on  grants: anon=r authenticated=rawd service_role=rawdDxt
@@ -62,6 +62,7 @@ TABLE cart_items  rls=on  grants: anon=- authenticated=d service_role=rawdDxt
   CONSTRAINT cart_items_store_product_id_fkey FOREIGN KEY (store_product_id) REFERENCES store_products(id) ON DELETE CASCADE
   CONSTRAINT cart_items_user_id_fkey FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE
   CONSTRAINT cart_items_quantity_check CHECK ((quantity > 0))
+  CONSTRAINT cart_items_quantity_max CHECK ((quantity <= 99))
   CREATE INDEX idx_cart_items_store_product_id ON cart_items USING btree (store_product_id)
   COLUMN GRANTS authenticated=insert,authenticated=select: user_id
   COLUMN GRANTS authenticated=insert,authenticated=select,authenticated=update: store_product_id,quantity
@@ -100,8 +101,14 @@ TABLE checkout_sessions  rls=on  grants: anon=- authenticated=- service_role=raw
   CONSTRAINT checkout_sessions_pkey PRIMARY KEY (id)
   CONSTRAINT checkout_sessions_tracking_number_key UNIQUE (tracking_number)
   CONSTRAINT checkout_sessions_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+  CONSTRAINT checkout_sessions_address_len CHECK (((char_length(customer_address) >= 1) AND (char_length(customer_address) <= 500)))
+  CONSTRAINT checkout_sessions_currency_fmt CHECK ((currency ~ '^[A-Z]{3}$'::text))
+  CONSTRAINT checkout_sessions_email_len CHECK (((customer_email IS NULL) OR (char_length(customer_email) <= 254)))
+  CONSTRAINT checkout_sessions_name_len CHECK (((char_length(customer_name) >= 1) AND (char_length(customer_name) <= 120)))
+  CONSTRAINT checkout_sessions_phone_len CHECK (((char_length(customer_phone) >= 1) AND (char_length(customer_phone) <= 32)))
   CONSTRAINT checkout_sessions_status_check CHECK ((status = ANY (ARRAY['open'::text, 'transferred'::text, 'partially_cancelled'::text, 'completed'::text, 'closed'::text, 'needs_review'::text])))
   CONSTRAINT checkout_sessions_subtotal_check CHECK ((subtotal >= (0)::numeric))
+  CONSTRAINT checkout_sessions_tracking_len CHECK (((char_length(tracking_number) >= 1) AND (char_length(tracking_number) <= 64)))
   CREATE INDEX checkout_sessions_user_idx ON checkout_sessions USING btree (user_id, created_at DESC)
   POLICY checkout_sessions_admin_all PERMISSIVE FOR ALL TO authenticated USING (private.is_platform_admin()) WITH CHECK (private.is_platform_admin())
   POLICY checkout_sessions_owner_read PERMISSIVE FOR SELECT TO authenticated USING ((user_id = ( SELECT auth.uid() AS uid)))
@@ -135,6 +142,10 @@ TABLE contact_messages  rls=on  grants: anon=- authenticated=rawd service_role=r
   created_at timestamp with time zone NOT NULL DEFAULT now()
   updated_at timestamp with time zone NOT NULL DEFAULT now()
   CONSTRAINT contact_messages_pkey PRIMARY KEY (id)
+  CONSTRAINT contact_messages_email_len CHECK (((email IS NULL) OR (char_length(email) <= 254)))
+  CONSTRAINT contact_messages_message_len CHECK (((char_length(message) >= 1) AND (char_length(message) <= 4000)))
+  CONSTRAINT contact_messages_name_len CHECK (((name IS NULL) OR (char_length(name) <= 120)))
+  CONSTRAINT contact_messages_phone_len CHECK (((phone IS NULL) OR (char_length(phone) <= 32)))
   POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
   POLICY auth_insert PERMISSIVE FOR INSERT TO authenticated WITH CHECK ((( SELECT auth.uid() AS uid) IS NOT NULL))
   CREATE TRIGGER set_updated_at BEFORE UPDATE ON contact_messages FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()

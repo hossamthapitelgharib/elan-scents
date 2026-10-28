@@ -170,6 +170,9 @@ TABLE profiles  rls=on  grants: anon=- authenticated=rawd service_role=rawdDxt
   updated_at timestamp with time zone NOT NULL DEFAULT now()
   CONSTRAINT profiles_pkey PRIMARY KEY (id)
   CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE
+  CONSTRAINT profiles_avatar_url_fmt CHECK (((avatar_url IS NULL) OR ((char_length(avatar_url) <= 1000) AND (avatar_url ~ '^https://[^[:space:]]+$'::text))))
+  CONSTRAINT profiles_full_name_len CHECK (((full_name IS NULL) OR (char_length(full_name) <= 120)))
+  CONSTRAINT profiles_phone_len CHECK (((phone IS NULL) OR (char_length(phone) <= 32)))
   CONSTRAINT profiles_role_check CHECK ((role = ANY (ARRAY['customer'::text, 'store_admin'::text, 'platform_admin'::text])))
   POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
   POLICY own_read PERMISSIVE FOR SELECT TO authenticated USING ((id = ( SELECT auth.uid() AS uid)))
@@ -190,6 +193,7 @@ TABLE reviews  rls=on  grants: anon=r authenticated=rawd service_role=rawdDxt
   CONSTRAINT reviews_user_id_product_id_key UNIQUE (user_id, product_id)
   CONSTRAINT reviews_product_id_fkey FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
   CONSTRAINT reviews_user_id_fkey FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE
+  CONSTRAINT reviews_comment_len CHECK (((comment IS NULL) OR (char_length(comment) <= 2000)))
   CONSTRAINT reviews_rating_check CHECK (((rating >= 1) AND (rating <= 5)))
   CREATE INDEX idx_reviews_product_id ON reviews USING btree (product_id)
   POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
@@ -250,6 +254,17 @@ TABLE store_integrations  rls=on  grants: anon=- authenticated=- service_role=ra
   CONSTRAINT store_integrations_catalog_endpoint_length CHECK ((char_length(catalog_endpoint) <= 2048))
   CONSTRAINT store_integrations_notes_length CHECK ((char_length(notes) <= 10000))
   CONSTRAINT store_integrations_webhook_secret_length CHECK ((char_length(webhook_secret) <= 4096))
+
+TABLE store_order_cancellation_requests  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
+  request_id uuid NOT NULL
+  user_id uuid NOT NULL
+  reason text
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT store_order_cancellation_requests_pkey PRIMARY KEY (request_id)
+  CONSTRAINT store_order_cancellation_requests_request_id_fkey FOREIGN KEY (request_id) REFERENCES store_order_requests(id) ON DELETE CASCADE
+  CONSTRAINT store_order_cancellation_requests_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+  CONSTRAINT store_order_cancellation_requests_reason_check CHECK (((reason IS NULL) OR (char_length(reason) <= 500)))
+  CREATE INDEX store_order_cancellation_requests_user_idx ON store_order_cancellation_requests USING btree (user_id, created_at DESC)
 
 TABLE store_order_cart_restorations  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
   id uuid NOT NULL DEFAULT gen_random_uuid()

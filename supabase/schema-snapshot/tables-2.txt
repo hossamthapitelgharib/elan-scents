@@ -121,6 +121,7 @@ TABLE guest_visitors  rls=on  grants: anon=- authenticated=- service_role=rawdDx
   CONSTRAINT guest_visitors_status_check CHECK ((status = ANY (ARRAY['guest'::text, 'converted'::text])))
   CREATE INDEX guest_visitors_active_identity_idx ON guest_visitors USING btree (identity_version, last_seen_at DESC) WHERE (status = 'guest'::text)
   CREATE INDEX guest_visitors_converted_user_idx ON guest_visitors USING btree (converted_user_id) WHERE (converted_user_id IS NOT NULL)
+  CREATE INDEX guest_visitors_first_seen_idx ON guest_visitors USING btree (first_seen_at DESC)
   CREATE INDEX guest_visitors_last_seen_idx ON guest_visitors USING btree (last_seen_at DESC)
   POLICY guest_visitors_platform_admin_read PERMISSIVE FOR SELECT TO authenticated USING (private.is_platform_admin())
 
