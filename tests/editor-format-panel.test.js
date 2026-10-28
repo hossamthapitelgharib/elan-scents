@@ -29,7 +29,7 @@ test('format apply only sends what the owner changed and opens with the real val
   assert.equal(ui.document.getElementById('font').value, 'Cairo');
   assert.equal(Number(ui.document.getElementById('size').value), 31);
   assert.equal(ui.document.getElementById('color').value, '#123456');
-  assert.equal(ui.document.getElementById('bg').value, '#fffdf9', 'transparent background has a UI placeholder, not a saved colour');
+  assert.equal(ui.document.getElementById('bg').value, '#ffffff', 'transparent background has a plain white UI placeholder (never a cream one), not a saved colour');
   ui.document.getElementById('apply').click();
   assert.equal(ui.calls.length, 0, 'opening and applying without changes must not overwrite computed styles');
   ui.run('openLiveFormat()');
