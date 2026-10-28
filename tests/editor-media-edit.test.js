@@ -126,7 +126,15 @@ test('style.media replaces the actual image, resets cleanly, and validates befor
   assert.equal(video.style.display, 'none');
   assert.match(hero.style.backgroundImage, /hero-poster\.jpg/);
   assert.equal(hero.querySelectorAll('video').length, 1, 'image editing must not add video support');
+  // style.css pins the hero background and its video's display with !important; a plain inline value loses to that, which once made a
+  // hero picture save without ever showing (the old video kept playing). So the inline values must be !important too.
+  const css = read('style.css');
+  assert.match(css, /#hero\s*\{[^}]*background:[^;}]*!important/, 'the premise: the stylesheet pins the hero background');
+  assert.match(css, /#heroVideo\s*\{[^}]*display:\s*block\s*!important/, 'the premise: the stylesheet pins the hero video as shown');
+  assert.equal(video.style.getPropertyPriority('display'), 'important');
+  for (const prop of ['background-image', 'background-size', 'background-position']) assert.equal(hero.style.getPropertyPriority(prop), 'important', prop);
   await b.mode.execute('history.undo');
   assert.equal(video.style.display, '');
   assert.equal(hero.style.backgroundImage, '');
+  assert.equal(video.style.getPropertyPriority('display'), '', 'undo leaves no inline override behind');
 });

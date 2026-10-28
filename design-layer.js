@@ -279,10 +279,14 @@
         try { video.load(); var p2 = video.play(); if (p2 && p2.catch) p2.catch(function () {}); } catch (_) { /* optional */ }
       } else {
         try { video.pause(); } catch (_) { /* optional */ }
-        video.style.display = 'none';
-        var base = el.getAttribute('style') || '';
+        /* style.css pins the hero's background and its video's display with !important, and a plain inline value loses to that: the
+           picture was saved but never showed (the old video kept playing over it). Only an inline !important wins. Undo clears it
+           again with `video.style.display = prev.display`, and the hero's own style is restored by unpaint. */
+        video.style.setProperty('display', 'none', 'important');
         undo.push(function () { /* hero style is restored by unpaint */ });
-        el.style.backgroundImage = 'url("' + m.src + '")'; el.style.backgroundSize = 'cover'; el.style.backgroundPosition = 'center';
+        el.style.setProperty('background-image', 'url("' + m.src + '")', 'important');
+        el.style.setProperty('background-size', 'cover', 'important');
+        el.style.setProperty('background-position', 'center', 'important');
       }
       return;
     }

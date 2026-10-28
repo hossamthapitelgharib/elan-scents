@@ -8,13 +8,15 @@ const read = (name) => fs.readFileSync(path.join(root, name), 'utf8');
 const plain = (value) => JSON.parse(JSON.stringify(value));
 
 class Style {
-  constructor() { this.values = {}; }
+  constructor() { this.values = {}; this.priorities = {}; }
   get cssText() { return Object.entries(this.values).map(([k, v]) => `${k}:${v}`).join(';'); }
   set cssText(text) {
-    this.values = {};
+    this.values = {}; this.priorities = {};
     String(text || '').split(';').forEach((item) => { const p = item.indexOf(':'); if (p >= 0) this.values[item.slice(0, p).trim()] = item.slice(p + 1).trim(); });
   }
-  setProperty(name, value) { this.values[name] = String(value); }
+  // like the real CSSStyleDeclaration: a plain assignment is not !important, and an empty value removes the declaration
+  setProperty(name, value, priority) { this.values[name] = String(value); this.priorities[name] = priority === 'important' ? 'important' : ''; }
+  getPropertyPriority(name) { return this.priorities[name] || ''; }
 }
 function style() {
   return new Proxy(new Style(), {
