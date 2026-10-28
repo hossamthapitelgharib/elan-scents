@@ -4,18 +4,14 @@ const editorHost = require('../railway/editor-host.js');
 const media = require('../railway/editor-media.js');
 
 // The upload route reads the whole body before checking the file, so it needs a real size limit while reading.
-// (It once read `media.MAX_VIDEO_BYTES`, a name editor-media.js did not export, which made the limit NaN: no limit at all.
-// Videos are supported again, with their own exported limit.)
-test('the editor upload is cut off one byte over the largest file allowed for its type', () => {
+// (It once read `media.MAX_VIDEO_BYTES`, a name editor-media.js did not export, which made the limit NaN: no limit at all.)
+// Only pictures come through this route now; a video is uploaded straight to storage (tests/editor-direct-upload.test.js).
+test('the editor upload route is cut off one byte over the largest picture, whatever type is claimed', () => {
   assert.equal(typeof media.MAX_BYTES, 'number');
-  assert.equal(typeof media.MAX_VIDEO_BYTES, 'number');
-  assert.equal(media.MAX_VIDEO_BYTES, 25 * 1024 * 1024);
-  assert.equal(editorHost.uploadLimit('image/png'), media.MAX_BYTES + 1);
-  assert.equal(editorHost.uploadLimit('video/mp4'), media.MAX_VIDEO_BYTES + 1);
-  assert.equal(editorHost.uploadLimit('video/webm'), media.MAX_VIDEO_BYTES + 1);
-  assert.equal(editorHost.uploadLimit('text/html'), media.MAX_BYTES + 1, 'an unsupported type gets the small limit and a 415 afterwards');
-  assert.equal(editorHost.UPLOAD_LIMIT, media.MAX_VIDEO_BYTES + 1);
-  assert.ok(Number.isFinite(editorHost.UPLOAD_LIMIT) && editorHost.UPLOAD_LIMIT > 1024 * 1024);
+  assert.equal(media.MAX_BYTES, 10 * 1024 * 1024);
+  assert.equal(media.MAX_VIDEO_BYTES, 50 * 1024 * 1024, 'the bucket ceiling, applied by Supabase itself');
+  for (const type of ['image/png', 'video/mp4', 'text/html']) assert.equal(editorHost.uploadLimit(type), media.MAX_BYTES + 1, type);
+  assert.ok(Number.isFinite(editorHost.uploadLimit()) && editorHost.uploadLimit() > 1024 * 1024);
 });
 
 /* Streams `megabytes` of zeros to the upload route as the signed-in owner and returns the answer. */
@@ -57,11 +53,9 @@ test('an oversized picture is refused with 413', async () => {
   assert.deepEqual(r.body, { ok: false, error: 'file_too_large' });
 });
 
-test('a video of 12 MB is read in full (pictures are cut off at 10), a video over 25 MB is refused with 413', async () => {
-  const fits = await postUpload('video/mp4', 12);
-  assert.notEqual(fits.status, 413, 'the size is fine; the next check (storage) decides');
-  assert.equal(fits.seen, 12);
-  const big = await postUpload('video/webm', 27);
-  assert.equal(big.status, 413);
-  assert.deepEqual(big.body, { ok: false, error: 'file_too_large' });
+test('a video sent to this route is turned away without reading its body', async () => {
+  const r = await postUpload('video/mp4', 12);
+  assert.equal(r.status, 415);
+  assert.deepEqual(r.body, { ok: false, error: 'video_needs_direct_upload' });
+  assert.equal(r.seen, 12, 'the test fed the stream, but the route answered at once');
 });

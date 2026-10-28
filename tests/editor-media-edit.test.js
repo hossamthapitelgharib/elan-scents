@@ -4,7 +4,7 @@ const ED = require('../design-schema.js');
 const media = require('../railway/editor-media.js');
 const { editBrowser, plain, read } = require('./browser-fixture');
 
-// The live editor handles pictures (up to 10 MB) and short videos (MP4 or WebM, up to 25 MB). Both live in the site-media bucket.
+// The live editor handles pictures (up to 10 MB) and videos (MP4 or WebM, up to the bucket's 50 MB, uploaded straight to storage). Both live in the site-media bucket.
 test('media edits use style.media with an allowed picture or video URL only', () => {
   const ok = ED.normalize({ version: 1, edits: { all: { hero: { style: { media: '/assets/hero-poster.jpg' } }, 'sec:cats': { style: { media: '/assets/a.webp' } }, card1: { style: { media: '/assets/hero.mp4' } }, card2: { style: { media: '/assets/loop.webm' } } } } }, { strict: true });
   assert.equal(ok.ok, true, ok.errors.join());
@@ -32,7 +32,7 @@ test('banners and image blocks can hold a video; nothing else can', () => {
   assert.equal(ok([{ id: 'x-g', type: 'banner' }]).ok, false, 'still needs a title, a picture or a video');
 });
 
-test('uploads accept picture and video MIME with matching magic bytes only, and refuse the rest before any network access', async () => {
+test('uploads accept picture and video MIME with matching magic bytes only (videos are checked after a direct upload), and refuse the rest before any network access', async () => {
   const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(40, 1)]);
   const mp4 = Buffer.concat([Buffer.from([0, 0, 0, 24]), Buffer.from('ftypmp42'), Buffer.alloc(30, 2)]);
   const avifAsMp4 = Buffer.concat([Buffer.from([0, 0, 0, 24]), Buffer.from('ftypavif'), Buffer.alloc(30, 2)]);
@@ -52,7 +52,7 @@ test('uploads accept picture and video MIME with matching magic bytes only, and 
   assert.equal(media.looksLike(Buffer.from('<html><script>alert(1)</script></html>'), 'video/mp4'), false);
   assert.deepEqual(Object.keys(media.TYPES).sort(), ['image/avif', 'image/gif', 'image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/webm']);
   assert.equal(media.MAX_BYTES, 10 * 1024 * 1024);
-  assert.equal(media.MAX_VIDEO_BYTES, 25 * 1024 * 1024);
+  assert.equal(media.MAX_VIDEO_BYTES, 50 * 1024 * 1024);
   assert.equal(media.limitFor('image/png'), media.MAX_BYTES);
   assert.equal(media.limitFor('video/mp4'), media.MAX_VIDEO_BYTES);
   const previous = { url: process.env.SUPABASE_URL, anon: process.env.SUPABASE_ANON_KEY, fetch: global.fetch };
@@ -64,22 +64,15 @@ test('uploads accept picture and video MIME with matching magic bytes only, and 
       assert.equal((await media.upload({ token: 'admin' }, bytes, type, 'test')).status, 415, type);
     }
     assert.equal((await media.upload({ token: 'admin' }, Buffer.alloc(media.MAX_BYTES + 1, 1), 'image/png', 'big')).status, 413, 'a 10 MB+ picture');
-    const bigVideo = Buffer.concat([mp4, Buffer.alloc(media.MAX_VIDEO_BYTES)]);
-    assert.equal((await media.upload({ token: 'admin' }, bigVideo, 'video/mp4', 'big')).status, 413, 'a 25 MB+ video');
+    assert.equal((await media.upload({ token: 'admin' }, mp4, 'video/mp4', 'clip')).error, 'video_needs_direct_upload', 'videos never go through the server upload');
+    assert.equal((await media.upload({ token: 'admin' }, webm, 'video/webm', 'clip')).status, 415);
     assert.equal(calls, 0);
-    // an accepted video goes to the site-media bucket and into the library as a video
+    // an accepted picture goes to the site-media bucket and into the library
     const seen = [];
     global.fetch = async (url, init) => { seen.push([String(url), init && init.method, init && init.headers && init.headers['Content-Type'], init && init.body]); return { ok: true, status: 200 }; };
-    const done = await media.upload({ token: 'admin' }, Buffer.concat([mp4, Buffer.alloc(2 * 1024 * 1024)]), 'video/mp4', 'clip.mp4');
-    assert.equal(done.status, 200);
-    assert.match(done.url, /^https:\/\/sb\.example\.test\/storage\/v1\/object\/public\/site-media\/uploads\/\d{4}\/[0-9a-f]{20}\.mp4$/);
-    assert.match(seen[0][0], /\/storage\/v1\/object\/site-media\/uploads\/\d{4}\/[0-9a-f]{20}\.mp4$/);
-    assert.equal(seen[0][2], 'video/mp4');
-    const row = JSON.parse(seen[1][3]);
-    assert.equal(row.file_type, 'video'); assert.equal(row.mime_type, 'video/mp4'); assert.equal(row.title, 'clip.mp4'); assert.equal(row.size_bytes, 2 * 1024 * 1024 + mp4.length);
-    seen.length = 0;
     const pic = await media.upload({ token: 'admin' }, png, 'image/png', '');
     assert.equal(pic.status, 200);
+    assert.match(seen[0][0], /\/storage\/v1\/object\/site-media\/uploads\/\d{4}\/[0-9a-f]{20}\.png$/);
     assert.equal(JSON.parse(seen[1][3]).file_type, 'image');
   } finally {
     global.fetch = previous.fetch;

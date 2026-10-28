@@ -65,12 +65,17 @@ Menu → **رفع صورة أو فيديو داخل العناصر أو الهي
 | | Pictures | Videos |
 |--|----------|--------|
 | Types | JPG, PNG, WebP, GIF, AVIF | MP4 (H.264) and WebM |
-| Size | up to 10 MB | up to 25 MB (short clips; the file passes through the Worker, whose memory is limited) |
-| Storage | the `site-media` bucket (it also accepts the two video types, 50 MB at most) and a row in `media_library` (`file_type` image / video) | same |
-| Checked by the server | MIME type **and** the file's own first bytes must agree (an AVIF cannot pass as MP4, a Matroska file cannot pass as WebM) | same |
+| Size | up to 10 MB | up to 50 MB: the `site-media` bucket's own limit (`storage.buckets.file_size_limit`), which Supabase enforces itself |
+| Path | browser → `/api/editor-upload` (the Worker) → the bucket | browser → the bucket **directly** (see below); the Worker never holds the video |
+| Storage | the `site-media` bucket and a row in `media_library` (`file_type` image / video) | same |
+| Checked by the server | MIME type **and** the file's own first bytes must agree (an AVIF cannot pass as MP4, a Matroska file cannot pass as WebM) | same, but after the upload: the server reads the first 256 bytes and the size of the stored file; a file that fails is deleted from the bucket and never reaches the library |
 | Where it can go | a card, a section background, the hero, a banner, an image block | a card or element picture is swapped for the video in place; the hero keeps its video element; a banner plays it behind its text (`video` field, one of picture / video at a time); an image block shows it as a moving picture |
 
-A video on the page plays by itself, muted and looping, inline (browsers refuse sound without a tap). Undo restores what was there before. Videos from the bucket are allowed in the public pages' policy (`media-src` in `vercel.json`); a new video host would need to be added there too. If a bigger file is ever needed the upload should go straight to the bucket with a signed URL instead of through the Worker.
+A video on the page plays by itself, muted and looping, inline (browsers refuse sound without a tap). Undo restores what was there before. Videos from the bucket are allowed in the public pages' policy (`media-src` in `vercel.json`); a new video host would need to be added there too.
+
+**How a video is uploaded.** (1) The picker asks `POST /api/editor-upload-sign` (`{type, size}`); the server picks the file name and asks Supabase Storage for a one-time signed upload address, as the admin's own session (no service key). (2) The picker `PUT`s the file (a form with `cacheControl` and the file, the same request `supabase-js` `uploadToSignedUrl` sends) to that address with the public anon key, and shows the progress. (3) The picker calls `POST /api/editor-upload-done` (`{path, type, name}`); the server fetches `bytes=0-255` of the public file, checks the signature and the real size, then inserts the `media_library` row. The editor page's policy allows `connect-src` to the Supabase origin for this (`railway/editor-host.js`); the Worker only handles small JSON. Pictures are small and keep going through the server.
+
+**Limits and types are the bucket's, not the Worker's.** The server's `MAX_VIDEO_BYTES` (`railway/editor-media.js`) mirrors the bucket's 50 MB so the answer comes early with a clear message. To allow bigger videos raise the bucket limit in Supabase (the project's global storage limit also applies and depends on the plan), then that constant and the 50 in `editor/editor-media.js`. To allow another video type (for example `video/quicktime`) add it to the bucket's allowed MIME types, to `VIDEO_TYPES` and `looksLike` in the server file, and test that browsers can play it: MP4 (H.264) and WebM are the only two every browser plays; a phone's `.mov` is often HEVC, which Chrome and Firefox do not play.
 
 ## Adding a new tool (future capabilities)
 

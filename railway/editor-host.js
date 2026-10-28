@@ -13,10 +13,14 @@ const { DEFAULT_SITE_ORIGIN } = require('../lib/site-origin.js');
 // Workers have no disk and no __dirname: the Cloudflare bundle supplies the editor files with setFileProvider() instead.
 const ROOT = typeof __dirname === 'string' ? path.resolve(__dirname, '..') : '/';
 const COOKIE = 'elan_sess';
-// One byte over the largest file editor-media.js accepts for that type (a picture or a video), so an oversized upload is cut off while it is still being read.
-const uploadLimit = (type) => media.limitFor(type) + 1;
+// One byte over the largest picture editor-media.js accepts, so an oversized upload is cut off while it is still being read.
+// (Videos never come through this route: they are uploaded straight to storage, see /api/editor-upload-sign.)
+const uploadLimit = () => media.MAX_BYTES + 1;
 const LOGIN_FILES = { '/editor-login.js': 'text/javascript; charset=utf-8', '/editor-login.css': 'text/css; charset=utf-8', '/editor-guard.js': 'text/javascript; charset=utf-8', '/editor-media.js': 'text/javascript; charset=utf-8' };
 
+function storageOrigin() {
+  try { const u = new URL(String(process.env.SUPABASE_URL || '').trim()); return u.protocol === 'https:' ? u.origin : ''; } catch (_) { return ''; }
+}
 function editorSiteOrigin() {
   let selfOrigin = '';
   try {
@@ -61,7 +65,8 @@ function buildPage() {
     "font-src 'self' https://fonts.gstatic.com data:",
     "img-src 'self' data: blob: https:",
     "media-src 'self' blob: https:",
-    "connect-src 'self'",
+    // the picker uploads a video straight to our own Supabase storage (see editor-media.js); nothing else outside the site is reachable
+    "connect-src 'self'" + (storageOrigin() ? ' ' + storageOrigin() : ''),
     "frame-src 'self' " + siteOrigin,
     "frame-ancestors 'none'", "base-uri 'none'", "form-action 'self'", "object-src 'none'"
   ].join('; ');
@@ -159,10 +164,27 @@ async function handle(req, res, pathname) {
     renewCookie(req, res, s);
     if (req.method !== 'POST' || !sameOrigin(req)) return json(res, 403, { ok: false, error: 'forbidden' }), true;
     const type = String(req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
-    const buf = await readRaw(req, uploadLimit(type));
+    // a video must not be read into the Worker's memory at all: it goes to storage directly (the two routes below)
+    if (media.kindOf(type) === 'video') return json(res, 415, { ok: false, error: 'video_needs_direct_upload' }), true;
+    const buf = await readRaw(req, uploadLimit());
     if (!buf) return json(res, 413, { ok: false, error: 'file_too_large' }), true;
     let name = ''; try { name = decodeURIComponent(String(req.headers['x-file-name'] || '')); } catch (_) { name = ''; }
     const r = await media.upload(s, buf, type, name);
+    return (r.error ? json(res, r.status, { ok: false, error: r.error }) : json(res, 200, { ok: true, url: r.url })), true;
+  }
+  if (pathname === '/api/editor-upload-sign' || pathname === '/api/editor-upload-done') {
+    const s = await sessions.get(sid);
+    if (!s) return json(res, 401, { ok: false, error: 'unauthorized' }), true;
+    renewCookie(req, res, s);
+    if (req.method !== 'POST' || !sameOrigin(req)) return json(res, 403, { ok: false, error: 'forbidden' }), true;
+    const body = await readJson(req);
+    if (!body || typeof body !== 'object') return json(res, 400, { ok: false, error: 'invalid_request' }), true;
+    const type = String(body.type || '').toLowerCase();
+    if (pathname === '/api/editor-upload-sign') {
+      const r = await media.signVideoUpload(s, type, body.size);
+      return (r.error ? json(res, r.status, { ok: false, error: r.error }) : json(res, 200, { ok: true, path: r.path, uploadUrl: r.uploadUrl, apikey: r.apikey })), true;
+    }
+    const r = await media.finishVideoUpload(s, body.path, type, String(body.name || ''));
     return (r.error ? json(res, r.status, { ok: false, error: r.error }) : json(res, 200, { ok: true, url: r.url })), true;
   }
   if (pathname === '/api/editor-session') {
@@ -220,4 +242,4 @@ async function handle(req, res, pathname) {
   return false;
 }
 
-module.exports = { handle, attachSession, attachBridgeTicket, buildPage, editorSiteOrigin, bridgeTickets, setFileProvider, uploadLimit, UPLOAD_LIMIT: media.MAX_VIDEO_BYTES + 1 };
+module.exports = { handle, attachSession, attachBridgeTicket, buildPage, editorSiteOrigin, bridgeTickets, setFileProvider, uploadLimit };
