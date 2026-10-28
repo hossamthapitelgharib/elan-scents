@@ -4,10 +4,11 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 const STORE_ACCOUNT_PAGE = 500;
 const MAX_OFFSET = 1000000;
 const STATUSES = new Set(['awaiting_store_confirmation', 'store_confirmed', 'processing', 'shipped', 'delivered', 'store_rejected', 'store_cancelled', 'needs_review', 'completed', 'cancelled']);
-const ORDER_SELECT = 'id,store_id,tracking_number,checkout_tracking_number,customer_name,customer_phone,customer_address,status,subtotal,shipping_amount,total_amount,currency,reconciliation_status,created_at,updated_at,stores(name),store_order_request_items(id,request_id,product_name,brand_name,size_label,quantity,unit_price,line_total,currency,created_at),store_order_notifications(id,request_id,tracking_number,event_type,store_status,match_status,received_at),store_shipments(id,request_id,carrier_name,tracking_code,shipping_status,status_note,estimated_delivery_at,delivered_at,created_at,updated_at)';
+const ORDER_SELECT = 'id,store_id,tracking_number,checkout_tracking_number,customer_name,customer_phone,customer_address,status,subtotal,shipping_amount,total_amount,currency,reconciliation_status,created_at,updated_at,stores(name),store_order_request_items(id,request_id,product_name,brand_name,size_label,quantity,unit_price,line_total,currency,created_at),store_order_notifications(id,request_id,tracking_number,event_type,store_status,match_status,received_at),store_order_cancellation_requests(request_id,reason,created_at),store_shipments(id,request_id,carrier_name,tracking_code,shipping_status,status_note,estimated_delivery_at,delivered_at,created_at,updated_at)';
 const ORDER_FIELDS = ['id', 'store_id', 'tracking_number', 'checkout_tracking_number', 'customer_name', 'customer_phone', 'customer_address', 'status', 'subtotal', 'shipping_amount', 'total_amount', 'currency', 'reconciliation_status', 'created_at', 'updated_at'];
 const ITEM_FIELDS = ['id', 'request_id', 'product_name', 'brand_name', 'size_label', 'quantity', 'unit_price', 'line_total', 'currency', 'created_at'];
 const NOTIFICATION_FIELDS = ['id', 'request_id', 'tracking_number', 'event_type', 'store_status', 'match_status', 'received_at'];
+const CANCELLATION_FIELDS = ['request_id', 'reason', 'created_at'];
 const SHIPMENT_FIELDS = ['id', 'request_id', 'carrier_name', 'tracking_code', 'shipping_status', 'status_note', 'estimated_delivery_at', 'delivered_at', 'created_at', 'updated_at'];
 
 function reply(res, status, body) {
@@ -39,6 +40,8 @@ function sanitizeOrders(rows) {
     safe.stores = order.stores && typeof order.stores === 'object' ? pick(order.stores, ['name']) : null;
     safe.store_order_request_items = (Array.isArray(order.store_order_request_items) ? order.store_order_request_items : []).map(item => pick(item, ITEM_FIELDS));
     safe.store_order_notifications = (Array.isArray(order.store_order_notifications) ? order.store_order_notifications : []).map(item => pick(item, NOTIFICATION_FIELDS));
+    const cancellation = order.store_order_cancellation_requests;
+    safe.store_order_cancellation_requests = (Array.isArray(cancellation) ? cancellation : cancellation && typeof cancellation === 'object' ? [cancellation] : []).map(item => pick(item, CANCELLATION_FIELDS));
     safe.store_shipments = (Array.isArray(order.store_shipments) ? order.store_shipments : []).map(item => pick(item, SHIPMENT_FIELDS));
     return safe;
   });

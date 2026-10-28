@@ -16,6 +16,20 @@ const shippingBadgeA = status => { const value = shippingA[status] || ['غير �
 const moneyA = (amount, currency = 'EGP') => `${Number(amount || 0).toFixed(2)} ${escA(currency)}`;
 const stateA = request => { const restoration = (request.store_order_cart_restorations || [])[0]; if (restoration && restoration.status === 'restored') return 'restored'; return request.status || 'awaiting_store_confirmation'; };
 const shipmentA = request => (request.store_shipments || [])[0] || null;
+// Cancellation is a REQUEST to the store. What the customer sees is derived from the order itself: the request is
+// waiting while the store has not answered, accepted when the store rejected/cancelled the order, declined when it went on.
+const cancelAskedA = request => ((request.store_order_cancellation_requests || [])[0]) || null;
+const cancelEndedA = new Set(['store_rejected', 'cancelled', 'store_cancelled', 'restored']);
+function cancelLine(request) {
+  const state = stateA(request), asked = cancelAskedA(request);
+  if (asked) {
+    if (state === 'awaiting_store_confirmation') return `<div class="cancel-box cancel-pending" role="status"><b>طلب الإلغاء</b><span>تم إرسال طلب الإلغاء إلى المتجر وهو بانتظار رده. لن يُلغى الطلب إلا إذا وافق المتجر.</span></div>`;
+    if (cancelEndedA.has(state)) return `<div class="cancel-box cancel-accepted" role="status"><b>طلب الإلغاء</b><span>وافق المتجر وأُلغي الطلب.</span></div>`;
+    return `<div class="cancel-box cancel-declined" role="status"><b>طلب الإلغاء</b><span>أكمل المتجر تنفيذ الطلب قبل أن يصله طلب الإلغاء، فلم يُلغَ. للاستفسار تواصل مع المتجر.</span></div>`;
+  }
+  if (state === 'awaiting_store_confirmation') return `<div class="cancel-box"><span>تستطيع طلب الإلغاء ما دام المتجر لم يؤكد الطلب.</span><button class="ghost order-cancel" type="button" data-cancel="${escA(request.id)}">طلب إلغاء الطلب</button></div>`;
+  return '';
+}
 const dateA = value => { try { return new Date(value).toLocaleDateString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric' }); } catch (_) { return ''; } };
 const dateTimeA = value => { try { return new Date(value).toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' }); } catch (_) { return ''; } };
 const PAGE_SIZE = 100;
@@ -49,7 +63,7 @@ function requestLine(request) {
   const names = items.slice(0, 2).map(item => `${escA(item.product_name)}${Number(item.quantity) > 1 ? ` × ${item.quantity}` : ''}`).join('، ');
   const shipping = request.shipping_amount == null ? '' : `<div><span>الشحن</span><b>${moneyA(request.shipping_amount, request.currency)}</b></div>`;
   const canReorder = items.some(item => /^[0-9a-f-]{36}$/i.test(String(item.product_size_id || '')));
-  return `<article class="compact-order"><div class="compact-order-main"><div><span class="order-store">${escA(request.stores && request.stores.name || 'متجر')}</span><h3>${escA(request.tracking_number)}</h3><p>${names || 'تفاصيل المنتجات متاحة داخل الطلب'}${items.length > 2 ? ` <span class="muted">+${items.length - 2} أخرى</span>` : ''}</p></div><div class="compact-order-side">${badgeA(state)}<strong>${moneyA(request.total_amount ?? request.subtotal, request.currency)}</strong></div></div>${shipmentLine(request)}<div class="compact-order-foot"><span>${dateA(request.created_at)}</span><details><summary>التفاصيل</summary><div class="order-detail">${items.map(itemLine).join('')}<hr><div><span>المجموع الفرعي</span><b>${moneyA(request.subtotal, request.currency)}</b></div>${shipping}<div><span>الإجمالي</span><b>${moneyA(request.total_amount ?? request.subtotal, request.currency)}</b></div><hr><div><span>المتجر</span><b>${escA(request.stores && request.stores.name || '—')}</b></div><div><span>رقم التتبع الموحد</span><b dir="ltr">${escA(request.tracking_number)}</b></div><div><span>وقت الطلب</span><b>${dateTimeA(request.created_at)}</b></div>${canReorder ? `<button class="ghost order-reorder" type="button" data-reorder="${escA(request.id)}">اطلب مرة أخرى</button>` : ''}</div></details></div></article>`;
+  return `<article class="compact-order"><div class="compact-order-main"><div><span class="order-store">${escA(request.stores && request.stores.name || 'متجر')}</span><h3>${escA(request.tracking_number)}</h3><p>${names || 'تفاصيل المنتجات متاحة داخل الطلب'}${items.length > 2 ? ` <span class="muted">+${items.length - 2} أخرى</span>` : ''}</p></div><div class="compact-order-side">${badgeA(state)}<strong>${moneyA(request.total_amount ?? request.subtotal, request.currency)}</strong></div></div>${shipmentLine(request)}${cancelLine(request)}<div class="compact-order-foot"><span>${dateA(request.created_at)}</span><details><summary>التفاصيل</summary><div class="order-detail">${items.map(itemLine).join('')}<hr><div><span>المجموع الفرعي</span><b>${moneyA(request.subtotal, request.currency)}</b></div>${shipping}<div><span>الإجمالي</span><b>${moneyA(request.total_amount ?? request.subtotal, request.currency)}</b></div><hr><div><span>المتجر</span><b>${escA(request.stores && request.stores.name || '—')}</b></div><div><span>رقم التتبع الموحد</span><b dir="ltr">${escA(request.tracking_number)}</b></div><div><span>وقت الطلب</span><b>${dateTimeA(request.created_at)}</b></div>${canReorder ? `<button class="ghost order-reorder" type="button" data-reorder="${escA(request.id)}">اطلب مرة أخرى</button>` : ''}</div></details></div></article>`;
 }
 function flatten(sessions) { return sessions.flatMap(session => (session.store_order_requests || []).map(request => ({ ...request, session }))); }
 function mergeSessions(newer, older) {
@@ -162,6 +176,44 @@ function reorder(requestId) {
   location.href = '/';
 }
 
+let cancelling = false;
+const cancelErrors = [
+  ['no longer waiting', 'المتجر بدأ في معالجة الطلب، فلم يعد إلغاؤه ممكنًا من هنا. تواصل مع المتجر.'],
+  ['Reason is too long', 'سبب الإلغاء طويل، اختصره وحاول مرة أخرى.'],
+  ['Order not found', 'لم نجد هذا الطلب، حدّث الصفحة وحاول مرة أخرى.'],
+  ['Authentication required', 'انتهت جلسة الدخول، سجّل الدخول من جديد.'],
+  ['JWT', 'انتهت جلسة الدخول، سجّل الدخول من جديد.']
+];
+async function cancelOrder(requestId, button) {
+  if (cancelling) return;
+  const request = flatten([...accountSessions, ...archiveSessions]).find(item => String(item.id) === String(requestId));
+  if (!request || stateA(request) !== 'awaiting_store_confirmation' || cancelAskedA(request)) return;
+  const session = Portal.session();
+  if (!session || !session.access_token) { showMessage('انتهت جلسة الدخول، سجّل الدخول من جديد.'); return; }
+  const reason = window.prompt('سبب طلب الإلغاء (اختياري). سيصل الطلب إلى المتجر، ولا يُلغى الطلب إلا إذا وافق المتجر.', '');
+  if (reason === null) return;
+  cancelling = true; if (button) button.disabled = true;
+  try {
+    const config = await authConfig();
+    const response = await fetch(`${config.url}/rest/v1/rpc/request_store_order_cancellation`, {
+      method: 'POST',
+      headers: { apikey: config.key, Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ p_request_id: request.id, p_reason: String(reason).trim().slice(0, 500) || null })
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const text = String(data.message || data.error || '');
+      const hit = cancelErrors.find(row => text.includes(row[0]));
+      throw new Error(hit ? hit[1] : 'تعذر إرسال طلب الإلغاء، حاول مرة أخرى.');
+    }
+    await loadAccount();
+  } catch (error) {
+    // Refresh first (the order may have moved on), then show why the request failed: a successful refresh clears the message box.
+    await loadAccount().catch(() => {});
+    showMessage(error);
+  } finally { cancelling = false; if (button) button.disabled = false; }
+}
+
 async function authConfig() {
   const response = await fetch('/api/config');
   const config = await response.json();
@@ -199,6 +251,7 @@ document.querySelector('#refreshOrders').addEventListener('click', async event =
   try { await loadAccount(); } catch (error) { showMessage(error); } finally { button.disabled = false; }
 });
 document.addEventListener('click', event => { const button = event.target.closest('[data-reorder]'); if (button) reorder(button.dataset.reorder); });
+document.addEventListener('click', event => { const button = event.target.closest('[data-cancel]'); if (button) cancelOrder(button.dataset.cancel, button); });
 
 document.querySelector('#forgotLink').addEventListener('click', event => {
   event.preventDefault();

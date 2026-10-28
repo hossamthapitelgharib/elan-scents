@@ -27,10 +27,20 @@ function renderStats() {
   summary.textContent = `تم تحميل ${orders.length.toLocaleString('ar-EG')} من ${total} طلب. الإحصاءات أعلاه تخص الطلبات المحمّلة.`;
   summary.hidden = false;
 }
+// The customer may ask to cancel while the order waits for the store. It is only a request: the store answers it with the
+// actions it already has («مرفوض» accepts the cancellation, «تم التأكيد» goes on with the order and so declines it).
+function cancelNoticeS(order) {
+  const asked = (order.store_order_cancellation_requests || [])[0];
+  if (!asked) return '';
+  const reason = asked.reason ? `<br>السبب: ${escS(asked.reason)}` : '';
+  if (order.status === 'awaiting_store_confirmation') return `<div class="cancel-box cancel-pending" role="status"><b>طلب إلغاء من العميل</b><span>طلب العميل إلغاء هذا الطلب قبل تأكيده.${reason}<br>للموافقة على الإلغاء اختر «${labelS.store_rejected}»، واختيار «${labelS.store_confirmed}» يعني متابعة الطلب دون إلغائه.</span></div>`;
+  if (['store_rejected', 'store_cancelled', 'cancelled'].includes(order.status)) return `<div class="cancel-box cancel-accepted" role="status"><b>طلب إلغاء من العميل</b><span>طلب العميل إلغاء هذا الطلب وقد أُلغي.${reason}</span></div>`;
+  return `<div class="cancel-box cancel-declined" role="status"><b>طلب إلغاء من العميل</b><span>طلب العميل الإلغاء قبل التأكيد، ومضى الطلب في التنفيذ.${reason}</span></div>`;
+}
 function renderStore(order) {
   const actions = (nextS[order.status] || []).map(status => `<button class="action" data-update="${escS(order.id)}" data-status="${status}">${labelS[status]}</button>`).join('');
   const items = (order.store_order_request_items || []).map(item => `<div class="item"><span>${escS(item.product_name)}${item.brand_name ? ` · ${escS(item.brand_name)}` : ''}${item.size_label ? ` · ${escS(item.size_label)}` : ''} × ${Number(item.quantity || 0).toLocaleString('ar-EG')}<small>سعر الوحدة: ${moneyS(item.unit_price, item.currency)}</small></span><b>${moneyS(item.line_total, item.currency)}</b></div>`).join('');
-  return `<article class="order"><h3>${escS(order.customer_name || 'عميل')} · <span dir="ltr">${escS(order.tracking_number || '—')}</span></h3><div class="meta"><span>${escS(order.stores && order.stores.name || '')}</span>${badgeS(order.status)}<span>المطابقة: ${escS(order.reconciliation_status || '—')}</span></div><div class="grid"><div><b>بيانات التسليم الضرورية لهذا الطلب</b><p>الهاتف: ${escS(order.customer_phone || '—')}<br>العنوان: ${escS(order.customer_address || '—')}</p></div><div><b>المنتجات</b>${items || '<p class="meta">لا توجد بنود محفوظة.</p>'}<p><b>الإجمالي: ${moneyS(order.total_amount ?? order.subtotal, order.currency)}</b></p></div></div>${shipmentForm(order)}${actions ? `<div class="actions">${actions}</div>` : '<p class="meta">لا توجد خطوة متاحة لهذا الطلب الآن.</p>'}</article>`;
+  return `<article class="order"><h3>${escS(order.customer_name || 'عميل')} · <span dir="ltr">${escS(order.tracking_number || '—')}</span></h3><div class="meta"><span>${escS(order.stores && order.stores.name || '')}</span>${badgeS(order.status)}<span>المطابقة: ${escS(order.reconciliation_status || '—')}</span></div><div class="grid"><div><b>بيانات التسليم الضرورية لهذا الطلب</b><p>الهاتف: ${escS(order.customer_phone || '—')}<br>العنوان: ${escS(order.customer_address || '—')}</p></div><div><b>المنتجات</b>${items || '<p class="meta">لا توجد بنود محفوظة.</p>'}<p><b>الإجمالي: ${moneyS(order.total_amount ?? order.subtotal, order.currency)}</b></p></div></div>${cancelNoticeS(order)}${shipmentForm(order)}${actions ? `<div class="actions">${actions}</div>` : '<p class="meta">لا توجد خطوة متاحة لهذا الطلب الآن.</p>'}</article>`;
 }
 function renderOrders() {
   const container = document.querySelector('#orders');

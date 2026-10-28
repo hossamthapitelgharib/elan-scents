@@ -130,3 +130,48 @@ test('store portal paginates and displays only delivery contact fields', () => {
   assert.doesNotMatch(script, /customer_email|customer_notes/);
   assert.match(html, /id="loadMoreOrders"/);
 });
+
+test('the store sees the customer cancellation request (reason included) and nothing else is added to the order', async () => {
+  const asked = { request_id: 'request-1', reason: 'غيرت رأيي', created_at: '2026-10-27T10:00:00Z', user_id: 'must-not-return', extra: 'must-not-return' };
+  const readWith = async cancellation => {
+    const { res, calls } = await run('store_admin', {}, async (url) => {
+      if (url.pathname.endsWith('/store_accounts')) return response([{ store_id: storeId }]);
+      if (url.pathname.endsWith('/store_order_requests')) return response([{ ...privateOrder, status: 'awaiting_store_confirmation', store_order_cancellation_requests: cancellation }]);
+      throw new Error(`unexpected ${url.pathname}`);
+    });
+    assert.equal(res.status, 200);
+    return { order: res.body.orders[0], calls };
+  };
+  const array = await readWith([asked]);
+  assert.match(array.calls.find(call => call.url.pathname.endsWith('/store_order_requests')).url.searchParams.get('select'), /store_order_cancellation_requests\(request_id,reason,created_at\)/);
+  assert.deepEqual(array.order.store_order_cancellation_requests, [{ request_id: 'request-1', reason: 'غيرت رأيي', created_at: '2026-10-27T10:00:00Z' }]);
+  assert.equal(JSON.stringify(array.order).includes('must-not-return'), false, 'only the three fields leave the API');
+  const object = await readWith(asked);
+  assert.equal(object.order.store_order_cancellation_requests.length, 1, 'a one-to-one answer from the database is still a list');
+  assert.equal((await readWith(null)).order.store_order_cancellation_requests.length, 0);
+  assert.equal((await readWith(undefined)).order.store_order_cancellation_requests.length, 0);
+});
+
+test('the store card tells the store how to answer a cancellation request, escapes the reason, and shows nothing without a request', () => {
+  const vm = require('node:vm');
+  const root = path.join(__dirname, '..');
+  const script = fs.readFileSync(path.join(root, 'store-dashboard.js'), 'utf8');
+  const code = [script.match(/^const escS = .*$/m)[0], script.match(/^const labelS = .*$/m)[0], script.match(/function cancelNoticeS[\s\S]*?\n}\n/)[0]].join('\n');
+  const context = vm.createContext({});
+  vm.runInContext(code, context);
+  const notice = (status, requests) => vm.runInContext(`cancelNoticeS(${JSON.stringify({ status, store_order_cancellation_requests: requests })})`, context);
+  const asked = [{ reason: '<img src=x onerror=1>', created_at: 'x' }];
+  assert.equal(notice('awaiting_store_confirmation', []), '');
+  assert.equal(notice('processing', undefined), '');
+  const waiting = notice('awaiting_store_confirmation', asked);
+  assert.match(waiting, /cancel-pending/);
+  assert.match(waiting, /«مرفوض»/);
+  assert.match(waiting, /«تم التأكيد»/);
+  assert.equal(waiting.includes('<img'), false, 'the reason is escaped');
+  assert.match(waiting, /&lt;img/);
+  assert.match(notice('store_rejected', asked), /cancel-accepted/);
+  assert.match(notice('processing', asked), /cancel-declined/);
+  assert.match(notice('awaiting_store_confirmation', [{ reason: null }]), /cancel-pending/);
+  assert.equal(notice('awaiting_store_confirmation', [{ reason: null }]).includes('السبب'), false, 'no reason line when none was given');
+  assert.match(script, /\$\{cancelNoticeS\(order\)\}/, 'the card shows the notice');
+});

@@ -38,7 +38,7 @@ function page({ hash = '', session = null, cart = [], responder } = {}) {
       }
       return elements.get(selector);
     },
-    addEventListener(type, handler) { docHandlers[type] = handler; }
+    addEventListener(type, handler) { (docHandlers[type] = docHandlers[type] || []).push(handler); }
   };
   const context = {
     document, console, URLSearchParams, URL, Date, Math, Number, String, JSON, Set, Array, Object, Promise, Error, encodeURIComponent, isNaN,
@@ -62,7 +62,14 @@ function page({ hash = '', session = null, cart = [], responder } = {}) {
   vm.createContext(context);
   vm.runInContext(source, context, { filename: 'account.js' });
   const run = code => vm.runInContext(code, context);
-  return { context, document, elements, store, writes, calls, timers, timerFns, replaced, docHandlers, run, el: selector => document.querySelector(selector) };
+  // A click on a button that carries one data attribute, delivered to every click listener of the page (the page uses delegation).
+  const click = (attribute, value) => {
+    const button = { dataset: { [attribute]: value }, disabled: false };
+    const event = { target: { closest: selector => (selector === `[data-${attribute}]` ? button : null) } };
+    for (const handler of docHandlers.click || []) handler(event);
+    return button;
+  };
+  return { context, document, elements, store, writes, calls, timers, timerFns, replaced, docHandlers, click, run, el: selector => document.querySelector(selector) };
 }
 const tick = () => new Promise(resolve => setImmediate(resolve));
 
@@ -186,4 +193,108 @@ test('an order with no usable product reference offers no reorder button, and ev
   const withButton = p.run(`requestLine({ id: 'r2', tracking_number: 'T', status: 'processing', subtotal: 10, currency: 'EGP', store_order_request_items: [{ product_name: 'A', product_size_id: '${SIZE_A}', quantity: 1, line_total: 10 }], store_shipments: [] })`);
   assert.equal((withButton.match(/data-reorder/g) || []).length, 1);
   assert.equal((withButton.match(/class="shipment-box/g) || []).length, 1, 'the shipment box is shown once, not repeated in the details');
+});
+
+const ORDER = (extra = '') => `{ id: 'r1', tracking_number: 'ELN-20261027-123456', subtotal: 10, currency: 'EGP', store_order_request_items: [{ product_name: 'A', product_size_id: '${SIZE_A}', quantity: 1, line_total: 10 }], store_shipments: [] ${extra} }`;
+
+test('the cancellation button shows only while the store has not confirmed, and the note follows what the store did', () => {
+  const p = page();
+  const card = (status, requests) => p.run(`requestLine(${ORDER(`, status: '${status}', store_order_cancellation_requests: ${JSON.stringify(requests)}`)})`);
+  const asked = [{ created_at: '2026-10-27T10:00:00Z' }];
+  const awaiting = card('awaiting_store_confirmation', []);
+  assert.equal((awaiting.match(/data-cancel="r1"/g) || []).length, 1, 'the button is offered while the order waits for the store');
+  assert.equal(awaiting.includes('cancel-pending'), false);
+  for (const status of ['store_confirmed', 'processing', 'shipped', 'delivered', 'store_rejected']) {
+    const html = card(status, []);
+    assert.equal(html.includes('data-cancel'), false, `no button once the order is ${status}`);
+    assert.equal(html.includes('cancel-box'), false, `no cancellation box for ${status} without a request`);
+  }
+  const pending = card('awaiting_store_confirmation', asked);
+  assert.equal(pending.includes('data-cancel'), false, 'a second request is not offered');
+  assert.match(pending, /cancel-pending[\s\S]*بانتظار رده/);
+  assert.match(pending, /لن يُلغى الطلب إلا إذا وافق المتجر/);
+  assert.match(card('store_rejected', asked), /cancel-accepted[\s\S]*وافق المتجر/);
+  assert.match(card('cancelled', asked), /cancel-accepted/);
+  for (const status of ['store_confirmed', 'processing', 'shipped', 'delivered']) assert.match(card(status, asked), /cancel-declined[\s\S]*فلم يُلغَ/, status);
+  assert.equal(card('store_confirmed', asked).includes('data-cancel'), false);
+});
+
+test('the order id in the cancellation button is escaped', () => {
+  const p = page();
+  const html = p.run(`requestLine({ id: '"><img src=x onerror=1>', tracking_number: 'T', status: 'awaiting_store_confirmation', subtotal: 1, store_order_request_items: [], store_shipments: [] })`);
+  assert.equal(html.includes('<img'), false);
+  assert.match(html, /data-cancel="&quot;&gt;&lt;img/);
+});
+
+test('asking to cancel sends the reason to the database function with the customer token, then refreshes the list', async () => {
+  const orderCalls = [];
+  const p = page({ session: { access_token: 'customer-jwt' }, responder: async (url, options) => {
+    if (url.startsWith('/api/customer-orders')) { orderCalls.push(url); return new Response('{"ok":true,"sessions":[],"pagination":{"total":0,"hasMore":false}}', { status: 200 }); }
+    if (url.endsWith('/rest/v1/rpc/request_store_order_cancellation')) return new Response('{"requestId":"r1","duplicate":false}', { status: 200 });
+    return null;
+  } });
+  await tick(); await tick(); await tick();
+  const before = orderCalls.length;
+  p.context.prompt = () => '  غيرت رأيي  ';
+  p.run(`accountSessions = [{ id: 's1', store_order_requests: [${ORDER(", status: 'awaiting_store_confirmation'")}] }]`);
+  const button = p.click('cancel', 'r1');
+  assert.equal(button.disabled, true, 'the button is locked while the request is in flight');
+  await tick(); await tick(); await tick(); await tick();
+  const call = p.calls.find(item => item.url.endsWith('/rest/v1/rpc/request_store_order_cancellation'));
+  assert.ok(call, 'the database function is called');
+  assert.equal(call.url.startsWith('https://project.supabase.example.invalid'), true, 'straight to the project the CSP allows, not to another host');
+  assert.equal(call.options.method, 'POST');
+  assert.equal(call.options.headers.Authorization, 'Bearer customer-jwt');
+  assert.equal(call.options.headers.apikey, 'public-anon-key');
+  assert.deepEqual(JSON.parse(call.options.body), { p_request_id: 'r1', p_reason: 'غيرت رأيي' });
+  assert.equal(orderCalls.length > before, true, 'the list is read again so the card shows the waiting note');
+  assert.equal(button.disabled, false);
+});
+
+test('a blank reason is sent as null, a long one is cut to 500 characters, and closing the box sends nothing', async () => {
+  const p = page({ session: { access_token: 't' } });
+  await tick(); await tick();
+  p.run(`accountSessions = [{ id: 's1', store_order_requests: [${ORDER(", status: 'awaiting_store_confirmation'")}] }]`);
+  const bodies = () => p.calls.filter(item => item.url.endsWith('/request_store_order_cancellation')).map(item => JSON.parse(item.options.body));
+  p.context.prompt = () => null;
+  p.click('cancel', 'r1'); await tick(); await tick();
+  assert.equal(bodies().length, 0, 'cancelling the box is not a request');
+  p.context.prompt = () => '   ';
+  p.click('cancel', 'r1'); await tick(); await tick(); await tick(); await tick();
+  assert.deepEqual(bodies()[0], { p_request_id: 'r1', p_reason: null });
+  p.context.prompt = () => 'x'.repeat(900);
+  p.click('cancel', 'r1'); await tick(); await tick(); await tick(); await tick();
+  assert.equal(bodies()[1].p_reason.length, 500);
+});
+
+test('a refused request shows the reason in Arabic, refreshes the orders, and nothing is asked for an order that is not waiting', async () => {
+  const orderCalls = [];
+  const p = page({ session: { access_token: 't' }, responder: async url => {
+    if (url.startsWith('/api/customer-orders')) { orderCalls.push(url); return new Response('{"ok":true,"sessions":[],"pagination":{"total":0,"hasMore":false}}', { status: 200 }); }
+    if (url.endsWith('/request_store_order_cancellation')) return new Response('{"code":"P0001","message":"Order is no longer waiting for the store"}', { status: 400 });
+    return null;
+  } });
+  await tick(); await tick(); await tick();
+  p.run('document.querySelector("#app").hidden = false');
+  const before = orderCalls.length;
+  p.context.prompt = () => 'x';
+  p.run(`accountSessions = [{ id: 's1', store_order_requests: [${ORDER(", status: 'awaiting_store_confirmation'")}, { id: 'r2', status: 'processing', store_order_request_items: [] }, { id: 'r3', status: 'awaiting_store_confirmation', store_order_cancellation_requests: [{ created_at: 'x' }], store_order_request_items: [] }] }]`);
+  p.click('cancel', 'r1');
+  for (let i = 0; i < 8; i += 1) await tick();
+  assert.match(p.el('#appMessage').textContent, /المتجر بدأ في معالجة الطلب/);
+  assert.equal(orderCalls.length > before, true, 'the list is refreshed so the card shows the real state');
+  const sent = () => p.calls.filter(item => item.url.endsWith('/request_store_order_cancellation')).length;
+  const asked = sent();
+  p.click('cancel', 'r2'); p.click('cancel', 'r3'); p.click('cancel', 'unknown');
+  for (let i = 0; i < 4; i += 1) await tick();
+  assert.equal(sent(), asked, 'an order that is not waiting, already asked, or unknown sends nothing');
+});
+
+test('without a saved session the cancellation asks to sign in again and sends nothing', async () => {
+  const p = page({ session: null });
+  p.context.prompt = () => { throw new Error('the box must not open without a session'); };
+  p.run(`accountSessions = [{ id: 's1', store_order_requests: [${ORDER(", status: 'awaiting_store_confirmation'")}] }]`);
+  p.click('cancel', 'r1');
+  await tick(); await tick();
+  assert.equal(p.calls.some(item => item.url.includes('request_store_order_cancellation')), false);
 });

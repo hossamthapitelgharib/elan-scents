@@ -85,3 +85,20 @@ test('customer orders expose the item lines and shipping amount the orders page 
   for (const field of ['brand_name', 'size_label', 'product_size_id', 'unit_price', 'shipping_amount']) assert.equal(select.includes(field), true, field);
   for (const field of ['customer_', 'user_id', 'store_product_id']) assert.equal(select.includes(field), false, field);
 });
+
+test('the customer sees only the time of his own cancellation request, as a list, and never the reason or the user id', async () => {
+  const send = async cancellation => {
+    const { res, requests } = await run('customer', {}, async () => response([{ id: 'session-1', created_at: '2026-10-27T00:00:00Z', store_order_requests: [{ id: 'request-1', tracking_number: 'ELN-20261027-123456', status: 'awaiting_store_confirmation', subtotal: 100, currency: 'EGP', store_order_cancellation_requests: cancellation, store_order_request_items: [], store_shipments: [] }] }]));
+    assert.equal(res.status, 200);
+    return { request: res.body.sessions[0].store_order_requests[0], requests };
+  };
+  const row = { created_at: '2026-10-27T10:00:00Z', reason: 'private reason', user_id: 'private-user', request_id: 'private' };
+  const array = await send([row]);
+  assert.match(array.requests.find(item => item.url.pathname.endsWith('/checkout_sessions')).url.searchParams.get('select'), /store_order_cancellation_requests\(created_at\)/);
+  assert.deepEqual(array.request.store_order_cancellation_requests, [{ created_at: '2026-10-27T10:00:00Z' }]);
+  assert.deepEqual((await send(row)).request.store_order_cancellation_requests, [{ created_at: '2026-10-27T10:00:00Z' }], 'an object answer becomes a list');
+  assert.deepEqual((await send(null)).request.store_order_cancellation_requests, []);
+  assert.deepEqual((await send(undefined)).request.store_order_cancellation_requests, []);
+  const serialized = JSON.stringify(array.request);
+  for (const secret of ['private reason', 'private-user', 'private']) assert.equal(serialized.includes(secret), false, secret);
+});
