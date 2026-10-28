@@ -81,8 +81,10 @@ module.exports = async function platformCustomers(req, res) {
     const registeredCustomers = customers.map(customer => Object.assign({}, customer, cartStats.get(customer.id) || { cartItems: 0, cartUnits: 0 }));
     const guestVisitors = visitors.map(visitor => {
       const items = Array.isArray(visitor.cart_snapshot) ? visitor.cart_snapshot : [];
-      const { cart_snapshot: _cartSnapshot, ...visitorSummary } = visitor;
+      // The full browser hash never reaches the page: the dashboard only needs a short label to tell visitors apart.
+      const { cart_snapshot: _cartSnapshot, fingerprint_hash: fingerprintHash, ...visitorSummary } = visitor;
       return Object.assign({}, visitorSummary, {
+        visitor_label: String(fingerprintHash || '').slice(0, 12),
         cart_items_count: items.length,
         cart_units: items.reduce((sum, item) => sum + Math.max(0, Number(item && (item.q || item.quantity)) || 0), 0)
       });

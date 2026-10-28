@@ -58,6 +58,9 @@ test('customer lists expose exact totals and independently page registered users
   assert.deepEqual(res.out.body.pagination.registered, { offset: 50, limit: 50, total: 501, hasMore: true });
   assert.deepEqual(res.out.body.pagination.visitors, { offset: 100, limit: 50, total: 501, hasMore: true });
   assert.equal(Object.hasOwn(res.out.body.guestVisitors[0], 'cart_snapshot'), false);
+  assert.equal(Object.hasOwn(res.out.body.guestVisitors[0], 'fingerprint_hash'), false, 'the full browser hash is not sent to the page');
+  assert.equal(res.out.body.guestVisitors[0].visitor_label, 'a'.repeat(12), 'only a short label is');
+  assert.equal(JSON.stringify(res.out.body).includes('a'.repeat(13)), false);
   assert.ok(requests.filter(request => /\/(profiles|guest_visitors)$/.test(new URL(request.target).pathname)).every(request => request.headers.Prefer === 'count=exact'));
   assert.ok(requests.some(request => new URL(request.target).pathname.endsWith('/profiles') && new URL(request.target).searchParams.get('offset') === '50'));
   assert.ok(requests.some(request => new URL(request.target).pathname.endsWith('/guest_visitors') && new URL(request.target).searchParams.get('offset') === '100'));

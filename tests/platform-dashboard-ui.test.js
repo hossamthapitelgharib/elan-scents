@@ -278,3 +278,17 @@ test('customer analytics fetch and append additional pages for each ranked produ
   assert.match(nodes.get('#guestTopProducts').innerHTML, /عرض ٢ من ٢/);
   assert.doesNotMatch(nodes.get('#guestTopProducts').innerHTML, /data-rank-more/);
 });
+
+test('the visitors list shows a short escaped label and never a full browser hash', () => {
+  const { context, nodes } = loadDashboard();
+  context.visitorFixture = {
+    registeredCustomers: [], counts: { registered: 0, visitors: 1 },
+    guestVisitors: [{ id: 'g1', visitor_label: '<b>0123456789</b>', first_seen_at: '2026-10-20T00:00:00Z', last_seen_at: '2026-10-21T00:00:00Z', cart_items_count: 1, cart_units: 2 }],
+    pagination: { registered: { offset: 0, limit: 50, total: 0, hasMore: false }, visitors: { offset: 0, limit: 50, total: 1, hasMore: false } },
+  };
+  vm.runInContext('renderCustomers(visitorFixture)', context);
+  const html = nodes.get('#guestCustomers').innerHTML;
+  assert.match(html, /<code>&lt;b&gt;0123456789&lt;\/b&gt;<\/code>/);
+  assert.equal(html.includes('<b>0123456789'), false, 'the label is escaped');
+  assert.equal(html.includes('title='), false, 'no tooltip carries a hash');
+});
