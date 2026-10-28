@@ -163,7 +163,7 @@ if(m.footer_tagline)FT.ar.ph=m.footer_tagline;if(m.developer_credit)FT.ar.cr=m.d
 refreshAll();if(AUTH){if(window.GuestIdentity)await GuestIdentity.claim(AUTH.access_token);await syncCartFromCloud(!CART_FIRST_SYNC_DONE)}else if(window.GuestIdentity&&GuestIdentity.enabled())await syncGuestCartFromCloud();
 }catch(e){}
 }
-var FT={ar:{a:'تصفح',b:[['العلامات','#brands'],['المختارات','#master'],['قصتنا','#about']],c:'تابعنا',ct:'تواصل',cs:'خدمة العملاء',ph:'من الخليج، بروح عالمية',tm:'الشروط',pv:'الخصوصية',cr:'إنشاء وتطوير'},en:{a:'Explore',b:[['Brands','#brands'],['Selections','#master'],['Our Story','#about']],c:'Follow us',ct:'Contact',cs:'Customer service',ph:'From the Gulf, with a global soul',tm:'Terms',pv:'Privacy',cr:'Created and developed'}};
+var FT={ar:{a:'تصفح',b:[['العلامات','#brands'],['المختارات','#master'],['قصتنا','#about']],c:'تابعنا',ct:'تواصل',cs:'خدمة العملاء',ph:'من الخليج، بروح عالمية',tm:'الشروط',pv:'الخصوصية',ps:'إعدادات الخصوصية',cr:'إنشاء وتطوير'},en:{a:'Explore',b:[['Brands','#brands'],['Selections','#master'],['Our Story','#about']],c:'Follow us',ct:'Contact',cs:'Customer service',ph:'From the Gulf, with a global soul',tm:'Terms',pv:'Privacy',ps:'Privacy settings',cr:'Created and developed'}};
 function footer18(t){var f=FT[lang];
 var icons={
 facebook:'<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#fff" d="M13.7 21v-7h2.35l.35-2.73H13.7V9.53c0-.79.22-1.33 1.36-1.33h1.46V5.76c-.25-.03-1.1-.1-2.08-.1-2.06 0-3.47 1.26-3.47 3.58v2.03H8.64V14h2.33v7z"/></svg>',
@@ -176,7 +176,7 @@ var em=CFG.email?'<a href="mailto:'+esc(CFG.email)+'">'+esc(CFG.email)+'</a>':'<
 var wd=String(CFG.waNumber||'').replace(/\D/g,''),cs=wd?'<a href="https://wa.me/'+wd+'" target="_blank" rel="noopener">'+f.cs+'</a>':'<span>'+f.cs+'</span>';
 document.getElementById('fcols').innerHTML='<div><h5>'+f.a+'</h5>'+f.b.map(function(x){return '<a href="'+x[1]+'">'+x[0]+'</a>'}).join('')+'<h5 style="margin-top:16px">'+f.c+'</h5>'+soText+'</div><div class="fgap"></div><div><h5>'+f.ct+'</h5>'+em+cs+'</div>';
 document.getElementById('fph').innerHTML='<div class="fsocial">'+soIcon+'</div>'+esc(f.ph);
-document.getElementById('fbar').innerHTML='<span>\u00a9 \u00c9lan Scents 2026</span><span>'+f.tm+'</span><span>'+f.pv+'</span>';
+document.getElementById('fbar').innerHTML='<span>\u00a9 \u00c9lan Scents 2026</span><span>'+f.tm+'</span><a href="/privacy.html">'+f.pv+'</a><button type="button" class="consent-open" data-consent-open>'+f.ps+'</button>';
 document.getElementById('fcr').innerHTML='<span>'+(lang=='ar'?'الانشاء والتطوير':'Created and developed')+'</span><img class="growthmark-img" src="/assets/growthmark.png" alt="GrowthMark"><small>'+(lang=='ar'?'الوكيل الرسمى للاعلان والتسويق':'Official Advertising & Marketing Agency')+'</small>'}
 function T(){return D[lang]}
 var MENU_ORDER=[1,2,3,4,6,5,7,8,9,10,11,12],MENU_HASH={2:'brands',3:'offers',4:'new',5:'master',6:'cats',7:'occ',8:'notes',9:'stores',11:'about',12:'contact'};

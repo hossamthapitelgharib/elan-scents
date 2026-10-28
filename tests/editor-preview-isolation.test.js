@@ -58,7 +58,7 @@ test('editor iframe preview does not start guest identity, analytics, or persist
 });
 
 test('editor preview mode does not activate when the storefront is opened as a normal top-level page', () => {
-  const window = { parent: null, location: { search: '?elan_editor=1' }, addEventListener() {} };
+  const window = { parent: null, location: { search: '?elan_editor=1' }, addEventListener() {}, ElanConsent: { analytics: () => true, decided: () => true, onChange() {} } };
   window.parent = window;
   const context = {
     window,

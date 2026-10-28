@@ -42,13 +42,19 @@ async function probe(base, fetchImpl) {
     csp ? 'script-src ' + (scriptSrc.join(' ') || '(none)') + (/<script(?![^>]*\bsrc=)[^>]*>/i.test(home.text) ? ', but the page has an inline script' : '') : 'no Content-Security-Policy header');
   // Cloudflare attaches headers per file (_headers), so the other pages are looked at too, not only the root address.
   const unprotected = [];
-  for (const page of ['/index.html', '/account.html', '/dashboard.html', '/store-dashboard.html', '/platform-dashboard.html']) {
+  for (const page of ['/index.html', '/privacy.html', '/account.html', '/dashboard.html', '/store-dashboard.html', '/platform-dashboard.html']) {
     const r = await call(page);
     if (r.status !== 200 || !/script-src 'self'(;|$)/.test(String((r.headers && r.headers.get && r.headers.get('content-security-policy')) || ''))) unprotected.push(page + ' (' + r.status + ')');
   }
-  add('every page carries the same Content-Security-Policy', REQUIRED, unprotected.length === 0, unprotected.length ? 'missing on ' + unprotected.join(', ') : 'index, account and the dashboards');
+  add('every page carries the same Content-Security-Policy', REQUIRED, unprotected.length === 0, unprotected.length ? 'missing on ' + unprotected.join(', ') : 'index, privacy, account and the dashboards');
   const heroScript = await call('/hero-video.js');
   add('the hero video script is served as a file (the page has no inline script)', REQUIRED, heroScript.status === 200 && /heroVideo/.test(heroScript.text), heroScript.status);
+  // The visitor's consent: the notice script and the policy it links to must be there, or tracking would start without a choice.
+  const consentScript = await call('/consent.js');
+  const policyPage = await call('/privacy.html');
+  add('the privacy policy and the consent notice script are served', REQUIRED,
+    consentScript.status === 200 && /ElanConsent/.test(consentScript.text) && policyPage.status === 200 && /elan_guest_browser_key_v2/.test(policyPage.text),
+    'consent.js ' + consentScript.status + ', privacy.html ' + policyPage.status);
 
   // Without a token the auth helper answers 503 when SUPABASE_SERVICE_ROLE_KEY is missing and 401 when it is set.
   const orders = await call('/api/customer-orders');

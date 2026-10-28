@@ -23,7 +23,7 @@ function loadIdentity() {
   const local = storage({ elan_auth_session: JSON.stringify({ access_token: 'registered-token' }), elan_visit_v1: JSON.stringify({ id: oldSessionId, last: Date.now() }) });
   const requests = [];
   let uuidIndex = 0;
-  const window = { location: { search: '' }, crypto: { randomUUID: () => UUIDs[uuidIndex++ % UUIDs.length] }, addEventListener() {} };
+  const window = { location: { search: '' }, crypto: { randomUUID: () => UUIDs[uuidIndex++ % UUIDs.length] }, addEventListener() {}, ElanConsent: { analytics: () => true, decided: () => true, onChange() {} } };
   window.parent = window;
   const document = { visibilityState: 'visible', addEventListener() {} };
   const context = {

@@ -50,9 +50,12 @@ function cookieKey(req) {
   const m = String((req.headers && req.headers.cookie) || '').match(/(?:^|;\s*)elan_gid=([^;]+)/);
   return m && UUID.test(m[1]) ? m[1] : null;
 }
+const secureFlag = (req) => (String((req.headers && req.headers['x-forwarded-proto']) || '').includes('https') ? '; Secure' : '');
 function setKeyCookie(req, res, key) {
-  const secure = String((req.headers && req.headers['x-forwarded-proto']) || '').includes('https') ? '; Secure' : '';
-  res.setHeader('Set-Cookie', `elan_gid=${key}; Max-Age=34560000; Path=/; HttpOnly; SameSite=Lax${secure}`);
+  res.setHeader('Set-Cookie', `elan_gid=${key}; Max-Age=34560000; Path=/; HttpOnly; SameSite=Lax${secureFlag(req)}`);
+}
+function expireKeyCookie(req, res) {
+  res.setHeader('Set-Cookie', `elan_gid=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax${secureFlag(req)}`);
 }
 
 // Server-side signals are stored only as keyed hashes. IPv4 keeps its /24, IPv6 its /48 prefix.
@@ -146,6 +149,12 @@ module.exports = async (req, res) => {
   if (String((req.headers && req.headers['sec-fetch-site']) || '') === 'cross-site') return json(res, 403, { error: 'cross_site_not_allowed' });
   const body = req.body || {};
   const action = String(body.action || 'resolve');
+  // The visitor withdrew consent: the HttpOnly cookie cannot be removed by a script, so the server expires it.
+  // Nothing is read or written in the database, so there is nothing to rate-limit and no key is needed.
+  if (action === 'forget') {
+    expireKeyCookie(req, res);
+    return json(res, 200, { ok: true });
+  }
   let visitorKey = String(body.visitorKey || '');
   if (!UUID.test(visitorKey)) return json(res, 400, { error: 'invalid_browser_key' });
   if (!['resolve', 'save', 'claim', 'track', 'identify'].includes(action)) return json(res, 400, { error: 'unsupported_action' });

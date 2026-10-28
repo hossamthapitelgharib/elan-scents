@@ -34,7 +34,7 @@ function openTab(browser, now = () => Date.now(), respond = null) {
       if (/max-age=0/i.test(line)) browser.cookies.delete(k); else browser.cookies.set(k, v);
     }
   };
-  const window = { location: { search: '', protocol: 'https:' }, crypto: { randomUUID: uuid }, addEventListener(type, fn) { listeners[type] = fn; } };
+  const window = { location: { search: '', protocol: 'https:' }, crypto: { randomUUID: uuid }, addEventListener(type, fn) { listeners[type] = fn; }, ElanConsent: { analytics: () => true, decided: () => true, onChange() {} } };
   window.parent = window;
   const realNow = Date.now;
   const context = {

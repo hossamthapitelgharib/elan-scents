@@ -91,3 +91,19 @@ test('the vendor folder for the ThumbmarkJS build exists and CLAUDE.md tells Man
   assert.match(fs.readFileSync(path.join(root, 'CLAUDE.md'), 'utf8'), /vendor\/thumbmark\.js/);
   assert.match(fs.readFileSync(path.join(root, 'guest-identity.js'), 'utf8'), /\/vendor\/thumbmark\.js/);
 });
+
+test('forget (consent withdrawn) expires the server cookie without a key, a database call or a cross-site request', async () => {
+  let fetched = 0;
+  global.fetch = async () => { fetched += 1; return response({}); };
+  const headers = {};
+  const res = { out: {}, status(n) { this.out.status = n; return this; }, setHeader(k, v) { headers[k] = v; }, json(body) { this.out.body = body; return this; } };
+  await handler({ method: 'POST', headers: { 'x-forwarded-proto': 'https' }, body: { action: 'forget' } }, res);
+  assert.equal(res.out.status, 200);
+  assert.equal(res.out.body.ok, true);
+  assert.equal(headers['Set-Cookie'], 'elan_gid=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax; Secure');
+  assert.equal(fetched, 0, 'nothing is read or written in the database');
+  const other = {}; const blocked = { out: {}, status(n) { this.out.status = n; return this; }, setHeader(k, v) { other[k] = v; }, json(body) { this.out.body = body; return this; } };
+  await handler({ method: 'POST', headers: { 'sec-fetch-site': 'cross-site' }, body: { action: 'forget' } }, blocked);
+  assert.equal(blocked.out.status, 403);
+  assert.equal(other['Set-Cookie'], undefined);
+});

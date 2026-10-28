@@ -14,7 +14,7 @@ async function identifyWith(windowExtras, { scriptFails = true, fireLoadTimeout 
   const scriptLoads = [];
   const storage = new Map();
   const context = {
-    window: Object.assign({ crypto: { randomUUID: () => '44444444-4444-4444-8444-444444444444' }, addEventListener() {} }, windowExtras),
+    window: Object.assign({ crypto: { randomUUID: () => '44444444-4444-4444-8444-444444444444' }, addEventListener() {}, ElanConsent: { analytics: () => true, decided: () => true, onChange() {} } }, windowExtras),
     localStorage: {
       getItem(key) { return storage.has(key) ? storage.get(key) : null; },
       setItem(key, value) { storage.set(key, String(value)); },

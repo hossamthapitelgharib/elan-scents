@@ -5,13 +5,15 @@ const http = require('node:http');
 const { probe, summarize } = require('../scripts/live-check.js');
 
 /* A fake site that answers like the Worker does, with or without its service-role key and webhook secret. */
-function fakeSite({ serviceKey, webhookSecret, csp = "default-src 'self'; script-src 'self'; script-src-attr 'none'", inlineScript = false }) {
+function fakeSite({ serviceKey, webhookSecret, csp = "default-src 'self'; script-src 'self'; script-src-attr 'none'", inlineScript = false, consent = true }) {
   return http.createServer((req, res) => {
     req.resume();
     const send = (status, body, headers) => { res.writeHead(status, Object.assign({ 'Content-Type': 'application/json' }, headers)); res.end(body); };
     if (req.url === '/health') return send(200, 'ok', { 'Content-Type': 'text/plain' });
     if (req.url === '/api/config') return send(200, JSON.stringify({ url: 'https://example.supabase.co', key: 'public-anon' }));
     if (req.url === '/') return send(200, '<html lang="ar">' + (inlineScript ? '<script>alert(1)</script>' : '<script src="/hero-video.js"></script>') + '</html>', Object.assign({ 'Content-Type': 'text/html' }, csp ? { 'Content-Security-Policy': csp } : {}));
+    if (req.url === '/privacy.html') return send(200, '<html><code>elan_guest_browser_key_v2</code></html>', Object.assign({ 'Content-Type': 'text/html' }, csp ? { 'Content-Security-Policy': csp } : {}));
+    if (consent && req.url === '/consent.js') return send(200, 'window.ElanConsent = {}', { 'Content-Type': 'text/javascript' });
     if (/^\/(index|account|dashboard|store-dashboard|platform-dashboard)\.html$/.test(req.url)) return send(200, '<html></html>', Object.assign({ 'Content-Type': 'text/html' }, csp ? { 'Content-Security-Policy': csp } : {}));
     if (req.url === '/hero-video.js') return send(200, "document.getElementById('heroVideo')", { 'Content-Type': 'text/javascript' });
     if (req.url === '/api/customer-orders') return serviceKey ? send(401, '{"error":"unauthorized"}') : send(503, '{"error":"supabase_service_configuration_missing"}');
@@ -87,4 +89,12 @@ test('a page that lost its policy (a missing _headers rule) fails the check even
     assert.match(row.detail, /\/account\.html/);
     assert.doesNotMatch(row.detail, /\/dashboard\.html/);
   } finally { server.close(); }
+});
+
+test('a site that lost its consent script or its policy page fails the check', async () => {
+  const results = await runAgainst({ serviceKey: true, webhookSecret: false, consent: false });
+  const row = results.find((r) => r.name === 'the privacy policy and the consent notice script are served');
+  assert.ok(row);
+  assert.equal(row.ok, false);
+  assert.match(row.detail, /consent\.js 404/);
 });

@@ -15,7 +15,7 @@ function createBrowser(storage, generatedKey) {
     removeItem(key) { storage.delete(key); }
   };
   const context = {
-    window: { crypto: { randomUUID: () => generatedKey }, addEventListener() {} },
+    window: { crypto: { randomUUID: () => generatedKey }, addEventListener() {}, ElanConsent: { analytics: () => true, decided: () => true, onChange() {} } },
     localStorage,
     fetch: async (_url, options) => {
       requests.push(JSON.parse(options.body));
