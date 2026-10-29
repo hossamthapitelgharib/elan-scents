@@ -17,7 +17,7 @@ The md5 is the md5 of the file **without its final newline**, which is exactly w
 | `tables-1.txt` | `7e402ddf5e1c542d808a45ef0892c9eb` | Tables `analytics_events` to `editor_sections` (15) |
 | `tables-2.txt` | `a47b5839e3023f597c9c022d27063a45` | Tables `favorites` to `order_operation_events` (14) |
 | `tables-3.txt` | `b81ac5ebd6cfc5cf97b846f34cddcbc2` | Tables `order_reconciliation_checks` to `store_order_cart_restorations` (16) |
-| `tables-4.txt` | `19b93f517c0fd05c17b1b1d9d4d7d778` | Tables `store_order_item_adjustments` to `sync_logs` (8) |
+| `tables-4.txt` | `53488ca4c910ca34e5b4003aff3693c6` | Tables `store_order_item_adjustments` to `sync_logs` (8) |
 | `functions.txt` | `618b1afdb19528111f29bda8a095a28c` | Functions in `public` and `private` (59) |
 | `misc.txt` | `9765ba881bf22cb8ca08cf2579c31354` | Extensions, schema and default privileges, views, pg_cron jobs, storage buckets, policies outside `public`, triggers on `auth` tables, realtime tables |
 
