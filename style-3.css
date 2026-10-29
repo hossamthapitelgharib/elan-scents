@@ -1,4 +1,4 @@
-:root{--bg:#fff;--off:#fff;--ink:#1c1a17;--gray:#77726a;--gold1:#f0c04a;--gold2:#c8962a;--gold3:#8a5e0c;--ivory:#f6efe0;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+:root{--cw:45.5vw;--cg:2.6vw;--cp:3.2vw;--bg:#fff;--off:#fff;--ink:#1c1a17;--gray:#77726a;--gold1:#f0c04a;--gold2:#c8962a;--gold3:#8a5e0c;--ivory:#f6efe0;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#fff;--off:#fff}}
 *{box-sizing:border-box;margin:0}
 html{scroll-behavior:smooth;scroll-padding-top:env(safe-area-inset-top,0px)}
@@ -174,35 +174,34 @@ footer .fch div{border-bottom-color:#3a3022}footer .fch span{color:#cbbf9f}
 .card.round{flex-basis:150px;height:150px}.card.round.art h4{font-size:15px!important}.card.round.art .st{font-size:9.5px}
 .cb .card.art h4{font-size:24px!important}
 /* Perfume card: a compact boutique tile. Front = image, favourite heart, name, brand, size, price, add to cart. The rest is on the product page. */
-.card.pf{flex:0 0 132px;min-height:0;padding:0;gap:0;text-align:start;justify-content:flex-start;overflow:hidden;border:1px solid #efe9db;border-radius:14px;background:#fff;box-shadow:none;scroll-snap-align:start;transition:border-color .2s,box-shadow .2s}
+.card.pf{flex:0 0 var(--cw);width:var(--cw);aspect-ratio:541/1169;min-height:0;padding:0;gap:0;text-align:start;justify-content:flex-start;overflow:hidden;border:1px solid #efe9db;border-radius:14px;background:#fff;box-shadow:none;scroll-snap-align:start;transition:border-color .2s,box-shadow .2s}
 .card.pf:hover,.card.pf.near{transform:none;border-color:#c8962a;box-shadow:0 8px 18px rgba(80,55,15,.10)}
-.card.pf .pim{position:relative;aspect-ratio:7/8;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;margin:0}
+.card.pf .pim{position:relative;aspect-ratio:541/674;flex:none;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;margin:0}
 .card.pf .pim img{display:block;width:100%;height:100%;object-fit:cover;object-position:center;border:0;border-radius:0}
 .card.pf .pim .phb,.pdi .phb{width:52%;height:auto;color:#e3d6b8}.pdi .phb{width:34%}
-.card.pf .pbody{flex:1;display:flex;flex-direction:column;gap:3px;padding:2px 10px 10px}
-.card.pf h4{font-family:inherit;font-size:12.5px;font-weight:600;line-height:1.35;color:#2b2418;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.card.pf .pmeta{display:flex;flex-wrap:wrap;gap:0 5px;margin:0;font-size:10.5px;line-height:1.45;color:#85775c}
+.card.pf .pbody{flex:1;min-height:0;display:flex;flex-direction:column;gap:4px;padding:10px 9px 10px}
+.card.pf h4{font-family:inherit;font-size:15px;font-weight:600;line-height:1.4;color:#2b2418;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.card.pf .pmeta{display:flex;flex-wrap:wrap;gap:0 5px;margin:0;font-size:12.5px;line-height:1.5;color:#85775c}
 .card.pf .pmeta span+span:before{content:'\00b7';margin-inline-end:5px}
-.card.pf .pfoot{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:auto;padding-top:6px;min-height:36px}
-.card.pf .price{display:inline-flex;align-items:center;gap:3px;height:30px;line-height:1;font-size:13px;font-weight:700;color:#2b2418}
-.card.pf .price small{font-size:9.5px;font-weight:500;color:#85775c}
-.card.pf .st{font-size:11px;color:#85775c}
+.card.pf .pfoot{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:auto;padding-top:9px;min-height:46px;border-top:1px solid #f3eee2}
+.card.pf .price{display:inline-flex;align-items:center;gap:3px;height:34px;line-height:1;font-size:16px;font-weight:700;color:#2b2418}
+.card.pf .price small{font-size:11px;font-weight:500;color:#85775c}
+.card.pf .st{font-size:12px;color:#85775c}
 .tgs{display:flex;flex-wrap:wrap;gap:4px}.tg{font-size:11px;padding:3px 10px;border:1px solid #e6dcc6;border-radius:999px;color:#6b5b3e;background:#fff}
-.cartb{position:relative;flex:none;width:30px;height:30px;padding:0;border:1px solid #e6dcc6;border-radius:50%;background:#fff;color:#a37e2c;display:grid;place-items:center;cursor:pointer;transition:background .2s,color .2s,border-color .2s}
-.cartb svg{width:16px;height:16px}
+.cartb{position:relative;flex:none;width:34px;height:34px;padding:0;border:1px solid #e6dcc6;border-radius:50%;background:#fff;color:#a37e2c;display:grid;place-items:center;cursor:pointer;transition:background .2s,color .2s,border-color .2s}
+.cartb svg{width:18px;height:18px}
 .cartb:before{content:'';position:absolute;inset:-5px}
 .cartb .i-in{display:none}.cartb.in .i-add{display:none}.cartb.in .i-in{display:block}
 .cartb.in,.cartb:active{background:#2b2418;color:#f6efe0}
 @media(hover:hover){.cartb:hover{background:#2b2418;color:#f6efe0}}
-.favb{position:absolute;top:6px;inset-inline-end:6px;z-index:2;width:26px;height:26px;padding:0;border:0;border-radius:50%;background:rgba(255,255,255,.84);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);display:grid;place-items:center;color:#85775c;cursor:pointer;transition:color .2s,background .2s}
+.favb{position:absolute;top:8px;inset-inline-end:8px;z-index:2;width:30px;height:30px;padding:0;border:0;border-radius:50%;background:rgba(255,255,255,.84);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);display:grid;place-items:center;color:#85775c;cursor:pointer;transition:color .2s,background .2s}
 .favb:before{content:'';position:absolute;inset:-6px}
-.favb svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.favb svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 .favb:hover{color:#b04a3f;background:#fff}
 .favb.on{color:#b04a3f}.favb.on svg{fill:currentColor}
 .grid .card.pf{width:auto;min-width:0}
-#res.grid,.grid.section-perfume-grid,.grid.fav-grid,.grid.rel-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:8px 0}
-@media(min-width:680px){#res.grid,.grid.section-perfume-grid,.grid.fav-grid,.grid.rel-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}}
-@media(min-width:1000px){#res.grid,.grid.section-perfume-grid,.grid.fav-grid,.grid.rel-grid{grid-template-columns:repeat(6,minmax(0,1fr));gap:14px}}
+#res.grid,.grid.section-perfume-grid,.grid.fav-grid,.grid.rel-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--cg);padding:8px 0}
+@media(min-width:680px){#res.grid,.grid.section-perfume-grid,.grid.fav-grid,.grid.rel-grid{grid-template-columns:repeat(auto-fill,var(--cw));justify-content:center;gap:var(--cg)}}
 #toast{position:fixed;left:50%;bottom:calc(90px + env(safe-area-inset-bottom,0px));transform:translateX(-50%) translateY(20px);background:#1a1610;color:#f6efe0;padding:10px 18px;border-radius:999px;font-size:13px;opacity:0;pointer-events:none;transition:.3s;z-index:80;max-width:88vw;text-align:center}#toast.show{opacity:1;transform:translateX(-50%)}
 button[data-n]:not([data-n="0"]){position:relative}button[data-n]:not([data-n="0"]):after{content:attr(data-n);position:absolute;top:-4px;right:-4px;min-width:16px;height:16px;border-radius:8px;background:#c8962a;color:#fff;font:700 10px/16px sans-serif;text-align:center;padding:0 3px}
 .pd{max-width:520px;margin:0 auto;display:grid;gap:14px}
@@ -373,3 +372,8 @@ html{background:#fff}
 #menu:not(.open){box-shadow:none!important}
 .cartb.in,.cartb:active{border-color:#2b2418}
 @media(hover:hover){.cartb:hover{border-color:#2b2418}}
+/* Card size measured from the reference screenshot: a card is 45.5% of the phone screen wide (two per row) and 2.16 times as tall,
+   its picture is 4:5; from 680px up the same card is a fixed 200px wide. */
+@media(max-width:679px){section,#view{padding-inline:var(--cp)}.strip{gap:var(--cg);padding-inline:0}}
+@media(min-width:680px){:root{--cw:200px;--cg:16px;--cp:18px}.strip{gap:var(--cg)}}
+.ph:empty{display:none}

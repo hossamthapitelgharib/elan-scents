@@ -64,5 +64,5 @@ test('the filter panel has its own quiet styling: compact header, line icons, st
 test('the old unused filter styles are gone and the product grid keeps stretching its cards', () => {
   assert.doesNotMatch(css, /\.flt-head|\.filter-field|\.filter-count|\.filter-reset/);
   assert.match(css, /#res\.grid\{align-items:stretch\}/);
-  assert.match(css, /@media\(min-width:1000px\)\{#res\.grid,[^{]*\{grid-template-columns:repeat\(6/);
+  assert.match(css, /@media\(min-width:680px\)\{#res\.grid,[^{]*\{grid-template-columns:repeat\(auto-fill,var\(--cw\)\)/, 'wide screens keep one fixed card width');
 });

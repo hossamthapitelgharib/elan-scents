@@ -547,7 +547,7 @@ body.sheet-open {
     border-radius: 16px !important;
   }
 
-  .card.pf { flex: 0 0 116px !important; }
+  .card.pf { flex: 0 0 var(--cw) !important; }
 
   #menu {
     width: 52% !important;
@@ -695,3 +695,12 @@ footer .fbar {
 html,body{overflow-x:clip!important}
 
 .fresh-start{display:block;margin:10px auto 0;background:none;border:0;color:#c8962a;font:inherit;font-size:.82rem;text-decoration:underline;cursor:pointer}
+
+/* ---------- One frame for every card: the perfume card's ----------
+   hairline border, 14px corners, white, no gold ring or shadow; the gold hairline and a soft shadow on hover.
+   Applies to brand, category, masterpieces, occasion, notes and store cards (their size and picture stay their own).
+   The :not(#_f):not(#_g) pairs only raise the specificity above the per-section size rules above. */
+.card:not(#_f):not(#_g){border:1px solid #efe9db !important;border-radius:14px !important;box-shadow:none !important;background-color:#fff;transform:none !important;transition:border-color .2s,box-shadow .2s}
+.card:not(#_f):not(#_g):hover,.card.near:not(#_f):not(#_g){border-color:#c8962a !important;box-shadow:0 8px 18px rgba(80,55,15,.10) !important}
+.card.art:not(#_f):not(#_g),.cb>.card.msel:not(#_f):not(#_g){overflow:hidden !important;background-clip:border-box !important}
+

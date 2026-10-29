@@ -184,18 +184,20 @@ test('favourites never reach the cloud and stay out of the editor preview', () =
   assert.doesNotMatch(between('var FAVS=[]', 'function pc('), /fetch\(|GuestIdentity|trackGuest/);
 });
 
-test('card CSS is compact, calm and image-first: about half the old footprint', () => {
+test('card CSS is calm and image-first and has the reference size (45.5% of the screen wide, 2.16 times as tall, picture 4:5)', () => {
   const card = css.match(/\.card\.pf\{[^}]*\}/)[0];
-  assert.ok(Number(card.match(/flex:0 0 (\d+)px/)[1]) <= 140, 'narrow tile in strips');
+  assert.match(card, /flex:0 0 var\(--cw\);width:var\(--cw\);aspect-ratio:541\/1169/, 'reference card: 541 x 1169');
+  assert.match(css, /:root\{--cw:45\.5vw;--cg:2\.6vw;--cp:3\.2vw;/, 'two per row on a phone');
+  assert.match(css, /@media\(min-width:680px\)\{:root\{--cw:200px/, 'a fixed 200px card from 680px up');
   assert.doesNotMatch(card, /gradient/);
   assert.match(card, /box-shadow:none/);
-  assert.match(css, /\.card\.pf \.pim\{[^}]*aspect-ratio:7\/8;background:#fff/);
-  assert.match(top, /\.card\.pf \{ flex: 0 0 116px !important; \}/);
+  assert.match(css, /\.card\.pf \.pim\{[^}]*aspect-ratio:541\/674;[^}]*background:#fff/, 'the picture is 4:5 like the reference');
+  assert.match(top, /\.card\.pf \{ flex: 0 0 var\(--cw\) !important; \}/, 'the phone rule must not shrink the card again');
   assert.doesNotMatch(css, /\.card\.pf \.pim\{height:150px/);
   const cart = css.match(/\.cartb\{[^}]*\}/)[0];
   assert.doesNotMatch(cart, /gradient|box-shadow/);
   assert.match(css, /\.favb\.on\{color:#b04a3f\}/);
-  assert.ok(Number(css.match(/\.grid\.rel-grid\{grid-template-columns:repeat\((\d)/)[1]) >= 3, 'three or more cards per row on phones');
+  assert.strictEqual(Number(css.match(/\.grid\.rel-grid\{grid-template-columns:repeat\((\d)/)[1]), 2, 'two cards per row on phones, like the reference');
   for (const grid of ['#res.grid', '.grid.section-perfume-grid', '.grid.fav-grid', '.grid.rel-grid']) assert.ok(css.includes(grid), grid);
 });
 
@@ -222,13 +224,13 @@ test('page and cards are pure white from below the hero to the footer, so white 
 
 test('card footer: price and cart button share one centred line at the bottom, both flush with the text edges', () => {
   const pbody = css.match(/\.card\.pf \.pbody\{[^}]*\}/)[0];
-  assert.match(pbody, /flex:1;display:flex;flex-direction:column/);
+  assert.match(pbody, /flex:1;min-height:0;display:flex;flex-direction:column/);
   const foot = css.match(/\.card\.pf \.pfoot\{[^}]*\}/)[0];
   assert.match(foot, /display:flex;align-items:center;justify-content:space-between/);
   assert.match(foot, /margin-top:auto/, 'the footer sits at the bottom of every card in a row');
-  assert.match(css.match(/\.card\.pf \.price\{[^}]*\}/)[0], /align-items:center;gap:3px;height:30px/);
-  assert.match(css.match(/\.cartb\{[^}]*\}/)[0], /width:30px;height:30px/);
-  assert.match(pbody, /padding:2px 10px 10px/);
+  assert.match(css.match(/\.card\.pf \.price\{[^}]*\}/)[0], /align-items:center;gap:3px;height:34px/);
+  assert.match(css.match(/\.cartb\{[^}]*\}/)[0], /width:34px;height:34px/);
+  assert.match(pbody, /padding:10px 9px 10px/);
   assert.doesNotMatch(css.match(/\.card\.pf h4\{[^}]*\}/)[0], /min-height/, 'the name and brand stay together');
 });
 
@@ -273,7 +275,7 @@ test('card picture: one fixed frame for every image, no inner frame, a quiet bot
   const pageNone = harness({ perfumes: [sample({ img: '' })] }).run("prodView({sid:'p1'},LB[lang],T())");
   assert.match(pageNone, /<div class="pdi"><svg class="phb"/);
   const pim = css.match(/\.card\.pf \.pim\{[^}]*\}/)[0];
-  assert.match(pim, /aspect-ratio:7\/8;background:#fff/);
+  assert.match(pim, /aspect-ratio:541\/674;flex:none;background:#fff/);
   assert.doesNotMatch(pim, /border|padding/, 'the frame itself has no border or padding of its own');
   const img = css.match(/\.card\.pf \.pim img\{[^}]*\}/)[0];
   assert.match(img, /width:100%;height:100%;object-fit:cover/, 'any catalogue image is brought to the same size');
@@ -286,13 +288,13 @@ test('perfume cards under MASTERPIECES (inside .cb) keep the compact card fonts'
   assert.match(css, /\.cb \.card:not\(\.pf\) small\{font-size:13px\}\.cb \.card:not\(\.pf\) \.st\{font-size:12\.5px\}/);
   assert.doesNotMatch(css, /\.cb \.card h4\{/, 'the big heading rule no longer reaches perfume cards');
   assert.doesNotMatch(css, /\.cb \.card small\{|\.cb \.card \.st\{/);
-  assert.match(css.match(/\.card\.pf h4\{[^}]*\}/)[0], /font-size:12\.5px/);
+  assert.match(css.match(/\.card\.pf h4\{[^}]*\}/)[0], /font-size:15px/);
 });
 
 test('no cream or black surfaces are left on the page or the inner pages (only buttons, icons and lines carry colour)', () => {
   const surfaces = css.split('\n').filter((line) => !line.startsWith('footer')).join('\n');
   assert.doesNotMatch(surfaces, /#fbf8f2|#fdfbf7|#fffdf7|#ede8de|#f8efd9|#f7f0e3|#fdf9ef|#f6efe2|#fcfaf6|#fffcf6|#fffdf9/i);
-  assert.match(css, /:root\{--bg:#fff;--off:#fff;/);
+  assert.match(css, /--bg:#fff;--off:#fff;/);
   assert.match(css, /#menu\{background:#fff\}/);
   assert.match(css, /\.flt\{background:#fff\}/);
   assert.match(css, /\.chip\{[^}]*background:#fff/);
@@ -316,5 +318,20 @@ test('second white pass: no cream fill remains on buttons, pills, cards or sheet
   assert.match(css, /#menu:not\(\.open\)\{box-shadow:none!important\}/, 'the closed menu panel must not leak a grey edge onto the page');
   assert.match(top, /\.sheet-close \{[^}]*background: #fff !important/);
   assert.doesNotMatch(top, /#f5efe3|#ebe3d0|#fffdf8/);
+});
+
+test('one frame for every card: brand, category, masterpieces, occasion, notes and store cards wear the perfume card frame', () => {
+  const frame = top.match(/\.card:not\(#_f\):not\(#_g\)\{[^}]*\}/)[0];
+  assert.match(frame, /border:1px solid #efe9db !important;border-radius:14px !important;box-shadow:none !important/);
+  assert.match(css.match(/\.card\.pf\{[^}]*\}/)[0], /border:1px solid #efe9db;border-radius:14px/, 'the model: the perfume card');
+  assert.match(top, /\.card:not\(#_f\):not\(#_g\):hover[^{]*\{border-color:#c8962a !important;box-shadow:0 8px 18px/);
+  assert.match(css, /\.ph:empty\{display:none\}/, 'no dashed inner frame in store cards');
+  // no card keeps the old gold ring as its frame
+  const ring = top.split('\n').filter((l) => /box-shadow: 0 0 0 2px #c8962a/.test(l) && !/:not\(#_f\)/.test(l));
+  assert.ok(ring.length <= 1, 'the old ring is overridden by the unified frame');
+});
+
+test('the card footer is set apart by one hairline and the picture box is the reference 4:5', () => {
+  assert.match(css.match(/\.card\.pf \.pfoot\{[^}]*\}/)[0], /border-top:1px solid #f3eee2/);
 });
 
