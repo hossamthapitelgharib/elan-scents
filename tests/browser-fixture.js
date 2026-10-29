@@ -15,7 +15,11 @@ class Style {
     String(text || '').split(';').forEach((item) => { const p = item.indexOf(':'); if (p >= 0) this.values[item.slice(0, p).trim()] = item.slice(p + 1).trim(); });
   }
   // like the real CSSStyleDeclaration: a plain assignment is not !important, and an empty value removes the declaration
-  setProperty(name, value, priority) { this.values[name] = String(value); this.priorities[name] = priority === 'important' ? 'important' : ''; }
+  setProperty(name, value, priority) {
+    if (value === '' || value === null) { delete this.values[name]; delete this.priorities[name]; return; }
+    this.values[name] = String(value); this.priorities[name] = priority === 'important' ? 'important' : '';
+  }
+  removeProperty(name) { const old = this.values[name] || ''; delete this.values[name]; delete this.priorities[name]; return old; }
   getPropertyPriority(name) { return this.priorities[name] || ''; }
 }
 function style() {

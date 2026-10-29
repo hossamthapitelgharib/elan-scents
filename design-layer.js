@@ -259,6 +259,16 @@
     if (el.__elanStrip) { var st = el.__elanStrip; if (st.base) st.node.setAttribute('style', st.base); else st.node.removeAttribute('style'); delete el.__elanStrip; }
   }
 
+  /* A card's own artwork (a picture or a drawing) sits over the card; to show anything else, or to leave the white base, it is hidden.
+     style.css gives the card its own !important rules, so only an inline !important wins. */
+  function hideArt(el, undo) {
+    var art = el.querySelector('.artbg');
+    if (!art) return;
+    var shown = art.style.display;
+    art.style.setProperty('display', 'none', 'important');
+    undo.push(function () { art.style.setProperty('display', shown || ''); });
+  }
+
   /* Replace the picture or video of an element: the hero video, a card picture, or a section background. Reversible. */
   function paintMedia(entry, m) {
     if (typeof m === 'string') m = { src: m, kind: ED.isVideoUrl && ED.isVideoUrl(m) ? 'video' : 'image' };
@@ -266,7 +276,11 @@
     var video = entry.kind === 'hero' ? el.querySelector('#heroVideo, video') : null;
     if (video) {
       var prev = { src: video.getAttribute('src'), poster: video.getAttribute('poster'), display: video.style.display, srcs: Array.prototype.map.call(video.querySelectorAll('source'), function (n) { return [n, n.getAttribute('src')]; }) };
+      /* The hero is a white slot; the picture or the video sits on top of it. data-media tells style.css so (it drops the white-slot
+         look: the dark overlay and the dark text are only for a hero with nothing behind them to cover). */
+      el.setAttribute('data-media', m.kind === 'video' ? 'video' : 'image');
       undo.push(function () {
+        el.removeAttribute('data-media');
         video.style.display = prev.display;
         if (prev.poster !== null) video.setAttribute('poster', prev.poster);
         prev.srcs.forEach(function (p) { p[0].setAttribute('src', p[1]); });
@@ -306,6 +320,7 @@
       img.removeAttribute('srcset'); img.setAttribute('src', m.src);
       return;
     }
+    if (entry.kind === 'card') hideArt(el, undo);   // the card's drawing would otherwise stay on top of the new picture or video
     if (m.kind === 'video') {
       var v = document.createElement('video');
       v.src = m.src; v.muted = true; v.loop = true; v.autoplay = true; v.setAttribute('playsinline', '');
@@ -336,7 +351,10 @@
     var el = entry.el, st = ed.style || {};
     el.__elanBase = el.getAttribute('style') || '';
     el.setAttribute('data-elan-edited', '1');
-    if (ed.hidden || ed.archived) { el.style.setProperty('display', 'none', 'important'); return; }
+    if (ed.hidden || ed.archived) {
+      if (entry.kind === 'hero') return;   // the hero is the page's white base: deleting it only removes what sat on top of it
+      el.style.setProperty('display', 'none', 'important'); return;
+    }
     if (ed.dx || ed.dy) {
       el.style.transform = 'translate(' + (ed.dx || 0) + 'px,' + (ed.dy || 0) + 'px)';
       if (!el.style.position && getComputedStyle(el).position === 'static') el.style.position = 'relative';
@@ -359,6 +377,12 @@
     if (st.effect === 'deep') { el.style.textShadow = '1px 1px 0 rgba(255,255,255,.6),2px 3px 3px rgba(0,0,0,.3)'; el.style.boxShadow = '0 4px 0 rgba(0,0,0,.13),0 14px 26px rgba(0,0,0,.2)'; }
     if (st.opacity !== undefined) el.style.opacity = String(st.opacity);
     if (ed.media && ed.media.src) paintMedia(entry, ed.media);
+    if (ed.noMedia && entry.kind === 'card' && !st.media && !(ed.media && ed.media.src)) {
+      /* the card's own picture was deleted in the editor: the card is its white base until a picture or a video is added */
+      el.__elanMedia = el.__elanMedia || [];
+      hideArt(el, el.__elanMedia); el.setAttribute('data-no-media', '1');
+      el.__elanMedia.push(function () { el.removeAttribute('data-no-media'); });
+    }
     if (ed.text) {
       var node = textTarget(entry), t = ed.text[lang()] || ed.text.ar || ed.text.en;
       if (node && t) { el.__elanText = { node: node, value: node.textContent, children: Array.prototype.slice.call(node.childNodes) }; node.textContent = t; }

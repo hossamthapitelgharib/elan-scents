@@ -101,8 +101,23 @@
     });
   };
 
+  /* A picture or a video is only added where there is none (the white base), so replaced files never pile up. This tells the owner so
+     before any picking or uploading starts, and offers the delete that clears the way. */
+  function busyNotice(element) {
+    var dlg = el('dialog', '', { id: 'elanMediaDlg' });
+    dlg.appendChild(el('b', 'العنصر ده فيه ميديا بالفعل'));
+    dlg.appendChild(el('div', 'مينفعش ترفعي صورة أو فيديو فوق الموجود، عشان ما يتراكمش حاجات على المنصة. احذفي الميديا الحالية الأول، وبعدين ارفعي الجديدة.', { className: 'note' }));
+    var foot = el('div'), del = el('button', 'حذف الميديا الحالية'), close = el('button', 'إلغاء');
+    function end() { try { dlg.close(); } catch (_) { /* closed */ } dlg.remove(); }
+    del.onclick = function () { end(); if (typeof runLive === 'function') runLive('tool.run', { id: 'media_delete', elementId: element.id }); };
+    close.onclick = end; dlg.addEventListener('cancel', end);
+    foot.append(del, close); dlg.appendChild(foot);
+    document.body.appendChild(dlg); dlg.showModal();
+  }
+
   // Menu tool: put a picked image into the selected element.
   window.elanLiveMedia = async function (element, tool) {
+    if (element && element.hasMedia) { busyNotice(element); return; }
     var url = await window.elanPickMedia();
     if (url && typeof runLive === 'function') runLive('element.setMedia', { elementId: element && element.id, src: url });
   };

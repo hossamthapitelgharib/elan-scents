@@ -164,9 +164,9 @@
     var blk = work.blocks.filter(function (b) { return b.id === e.id; })[0];
     var type = blk ? ({ text: 'text_block', banner: 'banner', image: 'image' })[blk.type] : (TYPE_OF[e.kind] || 'text');
     if (blk && blk.type === 'image' && ED.isVideoUrl && ED.isVideoUrl(blk.src)) type = 'video';
-    var media = st.media || (current.media && current.media.src) || (blk && (blk.src || blk.image || blk.video)) || '';
+    var shown = mediaOf(e), media = shown.url;
     return {
-      id: e.id, name: e.name, kind: e.kind, type: type, text: String(node.textContent || '').trim().slice(0, 120), media: media, canText: !!layer.textTarget(e), textId: textProxy(e), copyKind: blk ? null : copyKindOf(e), isBlock: !!blk, dynamic: !!dynamicTarget(e),
+      id: e.id, name: e.name, kind: e.kind, type: type, text: String(node.textContent || '').trim().slice(0, 120), media: media, hasMedia: shown.has, canText: !!layer.textTarget(e), textId: textProxy(e), copyKind: blk ? null : copyKindOf(e), isBlock: !!blk, dynamic: !!dynamicTarget(e),
       style: {
         fontFamily: st.fontFamily || (cs.fontFamily || '').split(',')[0].replace(/["']/g, '').trim(),
         fontSize: st.fontSize || Math.round(parseFloat(cs.fontSize) || 16),
@@ -176,6 +176,23 @@
       }
     };
   }
+  /* What an element shows today as its own picture or video, and the rule built on it: a picture or a video is only ever added to
+     an element that shows none (its white base); one that is still there has to be deleted first, so replaced files never pile up
+     on the platform. A card's own artwork counts as its picture. Nothing is deleted from the storage: the file stays in the library. */
+  function mediaOf(e) {
+    var current = cur(e.id), st = current.style || {}, blk = work.blocks.filter(function (b) { return b.id === e.id; })[0];
+    var url = st.media || (current.media && current.media.src) || (blk && (blk.src || blk.image || blk.video || (blk.style && blk.style.media))) || '';
+    if (url) return { has: true, url: url };
+    return { has: e.kind === 'card' && !current.noMedia && !!e.el.querySelector('.artbg'), url: '' };
+  }
+  function mediaBusy(url) {
+    var video = !!(url && ED.isVideoUrl && ED.isVideoUrl(url));
+    return 'العنصر ده فيه ' + (video ? 'فيديو' : 'صورة') + ' بالفعل. ' + (video ? 'احذفه' : 'احذفيها') + ' الأول من «حذف ميديا…» أو «حذف العنصر إلى الأرشيف»، وبعدين ارفعي الجديد. كده مفيش حاجة بتتراكم على المنصة.';
+  }
+  function dropNoMedia(id) {
+    scopes().forEach(function (d) { Object.keys(d.edits || {}).forEach(function (dev) { var x = d.edits[dev] && d.edits[dev][id]; if (x) delete x.noMedia; }); });
+  }
+
   /* An element that holds no text itself hands the keyboard edit to the text it owns: a section to its title, the hero to its headline. */
   function textProxy(e) {
     if (!e) return null;
@@ -204,7 +221,15 @@
     mutate(function (d) { seq.splice(i, 1); seq.splice(j, 0, key); d.order = seq; });
   }
   function resetElement(id) { mutate(function () { scopes().forEach(function (d) { if (d.edits) Object.keys(d.edits).forEach(function (dev) { delete d.edits[dev][id]; }); }); }); }
-  function archive(id) { mutate(function () { edit('all', id).archived = true; }); selectedId = null; reselect(); say('اتحط في الأرشيف. تقدر ترجّعه من الأرشيف.'); }
+  function archive(id) {
+    if (id === 'hero') {
+      /* The hero is the page's white base: it keeps its room. Deleting it deletes what sits on top of it, and the white base returns. */
+      var h = entryById('hero');
+      if (!h || !mediaOf(h).has) { say('الواجهة بيضاء أصلاً، مفيش ميديا عليها تتحذف.'); return; }
+      return deleteMedia({ id: 'hero' });
+    }
+    mutate(function () { edit('all', id).archived = true; }); selectedId = null; reselect(); say('اتحط في الأرشيف. تقدر ترجّعه من الأرشيف.');
+  }
 
   /* ---------- picking, drag, resize, text ---------- */
   function inUi(t) { return t && t.nodeType === 1 && root.contains(t); }
@@ -668,6 +693,9 @@
   }
 
   function mediaPrompt(forId) {
+    /* refuse before asking for anything: there is no point in picking a file for an element that still shows one */
+    var target = forId && entryById(forId), shown = target && mediaOf(target);
+    if (shown && shown.has) return Promise.reject(new Error(mediaBusy(shown.url)));
     return ask('رابط الصورة أو الفيديو', 'لازم يبدأ بـ /assets/ أو برابط من مكتبة سابابيس (site-media): صورة أو فيديو MP4/WebM.', '/assets/').then(function (v) {
       if (!v) throw new Error('اتلغى');
       return v;
@@ -676,13 +704,15 @@
 
   function setMedia(id, src) {
     var b = work.blocks.filter(function (x) { return x.id === id; })[0];
+    var shown = entryById(id) ? mediaOf(entryById(id)) : b ? { has: !!(b.src || b.image || b.video), url: b.src || b.image || b.video } : { has: false };
+    if (shown.has) throw new Error(mediaBusy(shown.url));
     if (!b) {
       var en = entryById(id);
       if (en) {
         if (['hero', 'card', 'section', 'image-el'].indexOf(en.kind) === -1) throw new Error('تغيير الصورة أو الفيديو غير متاح لهذا العنصر.');
         var probe2 = { version: ED.VERSION, edits: { all: {} } }; probe2.edits.all[id] = { style: { media: src } };
         if (!ED.normalize(probe2, { strict: true }).ok) throw new Error('رابط الصورة أو الفيديو مش مسموح.');
-        mutate(function () { var e = edit('all', id); e.style = e.style || {}; e.style.media = src; });
+        mutate(function () { var e = edit('all', id); e.style = e.style || {}; e.style.media = src; dropNoMedia(id); });
         return;
       }
     }
@@ -701,7 +731,7 @@
       return;
     }
     if (!entryById(id)) throw new Error('العنصر غير موجود.');
-    mutate(function () { var e = edit('all', id); e.style = e.style || {}; e.style.media = src; });
+    mutate(function () { var e = edit('all', id); e.style = e.style || {}; e.style.media = src; dropNoMedia(id); });
   }
 
   function libraryElement(c) {
@@ -764,8 +794,9 @@
     return { elementId: id };
   }
   function deleteMedia(c) {
-    var block = work.blocks.filter(function (b) { return b.id === c.id; })[0];
-    if (!c.info || !c.info.media) { archive(c.id); return { archived: true }; }
+    var block = work.blocks.filter(function (b) { return b.id === c.id; })[0], here = entryById(c.id);
+    var had = here ? mediaOf(here) : { has: !!(block && (block.src || block.image || block.video)) };
+    if (!had.has) { archive(c.id); return { archived: true }; }
     if (block && (block.type === 'image' || block.type === 'video')) { archive(c.id); return { archived: true }; }
     if (block && block.type === 'banner' && (block.image || block.video)) {
       var candidate = clone(block); delete candidate.image; delete candidate.video;
@@ -773,14 +804,20 @@
       mutate(function (d) { var target = d.blocks.filter(function (b) { return b.id === c.id; })[0]; if (target) { delete target.image; delete target.video; } });
       return { mediaRemoved: true };
     }
-    mutate(function (d) {
-      Object.keys(d.edits || {}).forEach(function (dev) {
-        var entry = d.edits[dev] && d.edits[dev][c.id];
-        if (!entry) return;
-        delete entry.media;
-        if (entry.style) { delete entry.style.media; delete entry.style.fit; }
+    var card = !!here && here.kind === 'card';
+    mutate(function () {
+      scopes().forEach(function (d) {
+        Object.keys(d.edits || {}).forEach(function (dev) {
+          var entry = d.edits[dev] && d.edits[dev][c.id];
+          if (!entry) return;
+          delete entry.media;
+          if (entry.style) { delete entry.style.media; delete entry.style.fit; }
+        });
       });
+      if (card) edit('all', c.id).noMedia = true;   // the card's own picture is deleted too: it shows its white base until one is added
     });
+    var base = c.id === 'hero' || card;
+    say(base ? 'اتحذفت الميديا ورجعت الخلفية البيضاء. تقدري ترفعي ميديا جديدة.' : 'اتحذفت الميديا.');
     return { mediaRemoved: true };
   }
 
@@ -798,8 +835,8 @@
   registerTool({ id: 'create_text_block', label: 'إنشاء كتلة نصية', run: function (c) { return createBlock('text_block', { at: c.at }); } });
   registerTool({ id: 'create_banner', label: 'إنشاء بانر صورة أو فيديو', ui: 'media_new', run: function (c) { return createBlock('banner', { at: c.at, image: c.src }); } });
   registerTool({ id: 'create_text', label: 'إنشاء نص', run: function (c) { return createBlock('text', { at: c.at, float: true, text: 'اكتب نصك هنا' }); } });
-  registerTool({ id: 'media', label: 'رفع صورة أو فيديو داخل العناصر أو الهيرو', ui: 'media', when: function (i) { return !!i && ['text', 'text_block'].indexOf(i.type) === -1; }, run: function (c) { return mediaPrompt().then(function (src) { setMedia(c.id, src); return null; }); } });
-  registerTool({ id: 'media_delete', label: 'حذف ميديا الكارت أو الهيرو إلى الأرشيف', when: function (i) { return !!i && !!i.media; }, run: deleteMedia });
+  registerTool({ id: 'media', label: 'رفع صورة أو فيديو داخل العناصر أو الهيرو', ui: 'media', when: function (i) { return !!i && ['text', 'text_block'].indexOf(i.type) === -1; }, run: function (c) { return mediaPrompt(c.id).then(function (src) { setMedia(c.id, src); return null; }); } });
+  registerTool({ id: 'media_delete', label: 'حذف ميديا الكارت أو الهيرو إلى الأرشيف', when: function (i) { return !!i && !!i.hasMedia; }, run: deleteMedia });
   registerTool({ id: 'edit_text', label: 'تعديل النص بالكيبورد', when: function (i) { return !!(i && i.textId && i.type !== 'image' && i.type !== 'video'); }, run: function (c) { var id = (c.info && c.info.textId) || c.id; select(id); startText(id); return null; } });
   registerTool({ id: 'copy', label: 'نسخ العنصر', when: function (i) { return !!(i && (i.isBlock || i.copyKind)); }, run: function (c) { return execute('element.duplicate', { elementId: c.id }, {}); } });
   registerTool({ id: 'archive', label: 'حذف العنصر إلى الأرشيف', when: has, run: function (c) { archive(c.id); return null; } });

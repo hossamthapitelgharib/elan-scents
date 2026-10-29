@@ -159,6 +159,9 @@
         if (v === true) out.hidden = true; else if (v !== false) errors.push(where + '.hidden: invalid');
       } else if (k === 'archived') {
         if (v === true) out.archived = true; else if (v !== false) errors.push(where + '.archived: invalid');
+      } else if (k === 'noMedia') {
+        /* The card's own picture was deleted: the card shows its white base until a picture or a video is added. */
+        if (v === true) out.noMedia = true; else if (v !== false) errors.push(where + '.noMedia: invalid');
       } else if (k === 'media') {
         errors.push(where + '.media: unsupported; use style.media for an image or a video');
       } else if (k === 'text') {

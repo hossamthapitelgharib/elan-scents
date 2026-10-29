@@ -3,8 +3,8 @@
    Imports base theme then applies current desired overrides.
    Frontend display only. Do not add backend/DB rules here.
    ============================================================ */
-@import url('/style-3.css?v=20261028-06');
-@import url('/footer-9x16.css?v=20261028-06');
+@import url('/style-3.css?v=20261029-01');
+@import url('/footer-9x16.css?v=20261029-01');
 
 /* ---------- Menu: slightly narrower panel + slightly larger items ---------- */
 #menu {
@@ -72,7 +72,7 @@ header .logo small {
 /* ---------- Hero video full cover ---------- */
 #hero {
   overflow: hidden !important;
-  background: #1a1208 !important;
+  background: #fff !important;
   aspect-ratio: auto !important;
   max-height: none !important;
   height: calc(var(--app-vh, 1vh) * 100) !important;
@@ -88,7 +88,7 @@ header .logo small {
   object-fit: cover !important;
   object-position: center center !important;
   z-index: 0 !important;
-  background: #1a1208 !important;
+  background: #fff !important;
   display: block !important;
   opacity: 1 !important;
   visibility: visible !important;
@@ -109,6 +109,38 @@ header .logo small {
 #hero .counters {
   position: relative !important;
   z-index: 2 !important;
+}
+
+/* The hero is a plain white slot first: it keeps the room for the picture or video and is the base the page falls back to.
+   A picture or a video only sits on top of it when one was added in the editor (design-layer.js sets data-media on #hero), and
+   deleting it returns this white slot. Without media there is nothing to cover the text, so the dark overlay goes and the text turns dark. */
+#hero #heroVideo:not([src]),
+#hero:not([data-media]) .hero-overlay {
+  display: none !important;
+}
+#hero:not([data-media]) .magic h2,
+#hero:not([data-media]) .magic p:not(.sub),
+#hero:not([data-media]) .counters b,
+#hero:not([data-media]) .counters span {
+  color: #1a1208 !important;
+  text-shadow: none !important;
+}
+
+/* A card whose picture was deleted in the editor is a white slot with a hairline, and its text turns dark (the picture's dark
+   gradient and white text only make sense over a picture). */
+.card.art[data-no-media] {
+  background: #fff !important;
+  box-shadow: inset 0 0 0 1px #eadfc2 !important;
+}
+.card.art[data-no-media]:after {
+  display: none !important;
+}
+.card.art[data-no-media] h4,
+.card.art[data-no-media] small,
+.card.art[data-no-media] .st {
+  color: #1a1208 !important;
+  -webkit-text-fill-color: #1a1208 !important;
+  text-shadow: none !important;
 }
 
 /* ---------- Round / occasion / notes cards (default strip size) ---------- */
@@ -376,7 +408,7 @@ body.sheet-open {
     max-height: none !important;
     aspect-ratio: auto !important;
     min-height: 460px !important;
-    background: #1a1208 !important;
+    background: #fff !important;
     padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)) !important;
   }
   .magic h2 { font-size: 22px !important; }
@@ -452,7 +484,7 @@ body.sheet-open {
     min-height: calc(var(--app-vh, 1vh) * 100) !important;
     max-height: none !important;
     aspect-ratio: auto !important;
-    background: #1a1208 !important;
+    background: #fff !important;
     padding: 0 14px calc(10px + env(safe-area-inset-bottom, 0px)) !important;
   }
   .magic { padding: 10px !important; }

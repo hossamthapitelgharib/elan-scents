@@ -109,21 +109,28 @@ test('style.media replaces the actual image, resets cleanly, and validates befor
   main.innerHTML = '<section id="cats"><div class="card" data-go="col|cats|0"><img src="/assets/original.png"><h4>الفئة</h4></div></section>';
   const entry = b.layer.elements().find((e) => e.kind === 'card');
   const img = entry.el.querySelector('img');
+  // input that is not an allowed picture or video is refused before anything changes (the card has no artwork box, so it shows no media yet)
+  const empty = plain(b.mode.state().design);
+  for (const src of ['https://evil.example/attack.png', 'https://evil.example/attack.mp4', '/assets/hero.mov', '/assets/hero.mp4.html']) {
+    await assert.rejects(b.mode.execute('element.setMedia', { elementId: entry.id, src }), /مش مسموح/);
+    assert.deepEqual(plain(b.mode.state().design), empty, 'rejected input must not change the draft or undo history');
+  }
   await b.mode.execute('element.setMedia', { elementId: entry.id, src: '/assets/replacement.webp' });
   assert.equal(b.mode.state().design.edits.all[entry.id].style.media, '/assets/replacement.webp');
   assert.equal(img.getAttribute('src'), '/assets/replacement.webp', 'replacing a card image must not paint behind the unchanged image');
   const before = plain(b.mode.state().design);
-  for (const src of ['https://evil.example/attack.png', 'https://evil.example/attack.mp4', '/assets/hero.mov', '/assets/hero.mp4.html']) {
-    await assert.rejects(b.mode.execute('element.setMedia', { elementId: entry.id, src }), /مش مسموح/);
-    assert.deepEqual(plain(b.mode.state().design), before, 'rejected input must not change the draft or undo history');
-  }
+  await assert.rejects(b.mode.execute('element.setMedia', { elementId: entry.id, src: '/assets/another.webp' }), /فيه صورة بالفعل/, 'a card that shows a picture takes no second one');
+  assert.deepEqual(plain(b.mode.state().design), before, 'a refused upload changes nothing');
   await b.mode.execute('history.undo');
   assert.equal(img.getAttribute('src'), '/assets/original.png');
   await b.mode.execute('history.redo');
   assert.equal(img.getAttribute('src'), '/assets/replacement.webp');
-  await b.mode.execute('element.setMedia', { elementId: 'hero', src: '/assets/hero-poster.jpg' });
+  // the hero is a white base with no picture or video of its own, so a picture can be put on it
   const hero = b.document.getElementById('hero'), video = b.document.getElementById('heroVideo');
+  assert.equal(hero.getAttribute('data-media'), null, 'the white base: nothing on it');
+  await b.mode.execute('element.setMedia', { elementId: 'hero', src: '/assets/hero-poster.jpg' });
   assert.equal(video.style.display, 'none');
+  assert.equal(hero.getAttribute('data-media'), 'image');
   assert.match(hero.style.backgroundImage, /hero-poster\.jpg/);
   assert.equal(hero.querySelectorAll('video').length, 1, 'image editing must not add video support');
   // style.css pins the hero background and its video's display with !important; a plain inline value loses to that, which once made a
@@ -136,5 +143,6 @@ test('style.media replaces the actual image, resets cleanly, and validates befor
   await b.mode.execute('history.undo');
   assert.equal(video.style.display, '');
   assert.equal(hero.style.backgroundImage, '');
+  assert.equal(hero.getAttribute('data-media'), null, 'undo gives the white base back');
   assert.equal(video.style.getPropertyPriority('display'), '', 'undo leaves no inline override behind');
 });

@@ -18,23 +18,29 @@ test('the menu says "image or video" where the original editor said it', async (
   for (const l of ['إنشاء بانر صورة أو فيديو', 'رفع صورة أو فيديو داخل العناصر أو الهيرو', 'حذف ميديا الكارت أو الهيرو إلى الأرشيف']) assert.ok(original.includes(l), l + ' is the original wording');
 });
 
-test('a video replaces the hero video and undo brings the old one back', async () => {
+test('a video goes on the hero\'s white base and undo gives the white base back', async () => {
   const b = await editBrowser();
-  const video = b.document.getElementById('heroVideo'), before = video.getAttribute('src');
+  const video = b.document.getElementById('heroVideo'), hero = b.document.getElementById('hero');
+  assert.equal(video.getAttribute('src'), null, 'the hero ships no video of its own');
+  assert.equal(hero.getAttribute('data-media'), null);
   await b.mode.execute('element.setMedia', { elementId: 'hero', src: WEBM });
   assert.equal(b.mode.state().design.edits.all.hero.style.media, WEBM);
   assert.equal(video.getAttribute('src'), WEBM);
-  assert.equal(video.getAttribute('poster'), null, 'the old poster must not show over the new video');
+  assert.equal(hero.getAttribute('data-media'), 'video');
+  assert.equal(video.getAttribute('poster'), null, 'no poster shows over the new video');
   assert.notEqual(video.style.display, 'none');
   await b.mode.execute('history.undo');
-  assert.equal(video.getAttribute('src'), before);
+  assert.equal(video.getAttribute('src'), null);
+  assert.equal(hero.getAttribute('data-media'), null);
 });
 
-test('a video replaces a card picture in the same place and undo brings the picture back', async () => {
+test('a card takes a video in place of its picture; the picture comes back only by undo, and a second file needs the first deleted', async () => {
   const b = await editBrowser();
   b.document.getElementById('main').innerHTML = '<section id="cats"><div class="card" data-go="col|cats|0"><div class="artbg"><img class="pic" src="/assets/original.png"></div><h4>الفئة</h4></div></section>';
   const entry = b.layer.elements().find((e) => e.kind === 'card');
   const img = entry.el.querySelector('img');
+  await assert.rejects(b.mode.execute('element.setMedia', { elementId: entry.id, src: MP4 }), /فيه صورة بالفعل/, 'the card\'s own picture is still there: delete it first');
+  await b.mode.execute('tool.run', { id: 'media_delete', elementId: entry.id });
   await b.mode.execute('element.setMedia', { elementId: entry.id, src: MP4 });
   const video = entry.el.querySelector('video');
   assert.ok(video, 'the card shows a video now');
@@ -42,17 +48,16 @@ test('a video replaces a card picture in the same place and undo brings the pict
   assert.equal(video.className, 'pic');
   assert.equal(img.style.display, 'none');
   assert.equal(['muted', 'loop', 'autoplay', 'playsinline'].every((a) => video.hasAttribute(a)), true, 'plays by itself, muted, looping, inline');
+  await assert.rejects(b.mode.execute('element.setMedia', { elementId: entry.id, src: '/assets/new.webp' }), /فيه فيديو بالفعل/);
   await b.mode.execute('history.undo');
   assert.equal(entry.el.querySelector('video'), null);
-  assert.equal(img.style.display, '');
-  // and a picture after a video swaps back cleanly
-  await b.mode.execute('element.setMedia', { elementId: entry.id, src: MP4 });
+  // back to the state after the delete: the card is its white base
   await b.mode.execute('element.setMedia', { elementId: entry.id, src: '/assets/new.webp' });
   assert.equal(entry.el.querySelector('video'), null);
   assert.equal(img.getAttribute('src'), '/assets/new.webp');
 });
 
-test('a banner takes a picture or a video (one at a time) and the media tools follow what it holds', async () => {
+test('a banner takes a picture or a video (one at a time, only when it holds none) and the media tools follow what it holds', async () => {
   const b = await editBrowser();
   const { elementId } = await b.mode.execute('element.create', { kind: 'banner' });
   const block = () => plain(b.mode.state().design.blocks.find((x) => x.id === elementId));
@@ -60,8 +65,12 @@ test('a banner takes a picture or a video (one at a time) and the media tools fo
   assert.equal((await tools()).media_delete, false, 'nothing to delete yet');
   await b.mode.execute('element.setMedia', { elementId, src: '/assets/a.webp' });
   assert.equal(block().image, '/assets/a.webp'); assert.equal(block().video, undefined);
+  await assert.rejects(b.mode.execute('element.setMedia', { elementId, src: MP4 }), /فيه صورة بالفعل/, 'a second file is refused');
+  assert.equal(block().image, '/assets/a.webp', 'and nothing changed');
+  await b.mode.execute('tool.run', { id: 'media_delete', elementId });
+  assert.equal(block().image, undefined);
   await b.mode.execute('element.setMedia', { elementId, src: MP4 });
-  assert.equal(block().video, MP4); assert.equal(block().image, undefined, 'the video takes the place of the picture');
+  assert.equal(block().video, MP4); assert.equal(block().image, undefined);
   assert.equal((await tools()).media_delete, true);
   const node = b.layer.elements().find((e) => e.id === elementId).el;
   assert.equal(node.querySelector('video').className, 'elan-bgvideo');
