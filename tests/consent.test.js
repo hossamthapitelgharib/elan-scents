@@ -1,4 +1,6 @@
-// consent.js: the visitor's choice about device signals. Runs the real file against a small fake browser.
+// consent.js: the visitor's one choice, REFUSE (owner decision of 2026-10-29). There is no notice and no accept button:
+// device signals run by default, and a refusal erases what was recorded about the browser and stops recording.
+// Runs the real file against a small fake browser.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -6,33 +8,29 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 const source = fs.readFileSync(path.join(__dirname, '..', 'consent.js'), 'utf8');
+const KEY = '8ac7c4ab-02f0-4c2c-9cde-b29151ee7712';
+const flush = () => new Promise((resolve) => setImmediate(resolve));
 
-function makeNode(tag) {
+function makeNode(attrs = {}) {
   return {
-    tagName: String(tag).toUpperCase(), nodeType: 1, attrs: {}, children: [], parentNode: null, _text: '',
-    setAttribute(k, v) { this.attrs[k] = String(v); },
+    nodeType: 1, attrs: { ...attrs }, hidden: attrs.hidden === '' ? true : false,
     getAttribute(k) { return Object.prototype.hasOwnProperty.call(this.attrs, k) ? this.attrs[k] : null; },
-    appendChild(c) { c.parentNode = this; this.children.push(c); return c; },
-    removeChild(c) { this.children = this.children.filter((x) => x !== c); c.parentNode = null; return c; },
-    get textContent() { return this._text + this.children.map((c) => c.textContent).join(''); },
-    set textContent(v) { this._text = String(v); },
-    matches(sel) { const m = /^\[([a-z-]+)\]$/.exec(sel); return m ? Object.prototype.hasOwnProperty.call(this.attrs, m[1]) : this.tagName === sel.toUpperCase(); },
-    closest(sel) { for (let n = this; n; n = n.parentNode) if (n.matches && n.matches(sel)) return n; return null; },
-    all() { return this.children.flatMap((c) => [c, ...c.all()]); },
-    querySelector(sel) { return this.all().find((n) => n.matches(sel)) || null; }
+    closest(sel) { const m = /^\[([a-z-]+)\]$/.exec(sel); return m && Object.prototype.hasOwnProperty.call(this.attrs, m[1]) ? this : null; }
   };
 }
 
-function browser({ stored = null, search = '', framed = false, gpc, lang = 'ar', readyState = 'complete', blocked = false } = {}) {
-  const store = new Map();
+function browser({ stored = null, extra = {}, cookie = '', search = '', framed = false, gpc, readyState = 'complete', blocked = false, server = 'ok', page = true } = {}) {
+  const store = new Map(Object.entries(extra));
   if (stored !== null) store.set('elan_consent_v1', typeof stored === 'string' ? stored : JSON.stringify(stored));
-  const docListeners = {}, winListeners = {};
-  let observer = null, focused = null;
-  const body = makeNode('body');
-  const documentElement = { lang };
+  const docListeners = {}, winListeners = {}, cookieWrites = [], requests = [], writes = [];
+  const openState = makeNode({ 'data-consent-when': 'open' });
+  const refusedState = makeNode({ 'data-consent-when': 'refused', hidden: '' });
+  const button = makeNode({ 'data-consent-refuse': '' });
+  const nodes = page ? [openState, refusedState, button] : [];
   const document = {
-    readyState, documentElement, body,
-    createElement: (tag) => { const n = makeNode(tag); n.focus = () => { focused = n; }; return n; },
+    readyState,
+    get cookie() { return cookie; }, set cookie(line) { cookieWrites.push(String(line)); },
+    querySelectorAll: (sel) => nodes.filter((n) => (sel === '[data-consent-when]' ? n.attrs['data-consent-when'] !== undefined : sel === '[data-consent-refuse]' ? n.attrs['data-consent-refuse'] !== undefined : false)),
     addEventListener(type, fn) { (docListeners[type] = docListeners[type] || []).push(fn); }
   };
   const window = { addEventListener(type, fn) { (winListeners[type] = winListeners[type] || []).push(fn); }, location: { search } };
@@ -42,168 +40,203 @@ function browser({ stored = null, search = '', framed = false, gpc, lang = 'ar',
     window, document, navigator, URLSearchParams,
     localStorage: {
       getItem: (k) => { if (blocked) throw new Error('storage blocked'); return store.has(k) ? store.get(k) : null; },
-      setItem: (k, v) => { if (blocked) throw new Error('storage blocked'); store.set(k, String(v)); },
+      setItem: (k, v) => { if (blocked) throw new Error('storage blocked'); writes.push(k); store.set(k, String(v)); },
       removeItem: (k) => { store.delete(k); }
     },
-    MutationObserver: class { constructor(fn) { observer = fn; } observe() {} }
+    fetch: (url, options = {}) => {
+      requests.push({ url: String(url), body: JSON.parse(options.body || '{}'), keepalive: options.keepalive === true, method: options.method });
+      if (server === 'down') return Promise.reject(new Error('network'));
+      return Promise.resolve({ ok: server === 'ok', status: server === 'ok' ? 200 : 502 });
+    }
   };
   vm.runInNewContext(source, context, { filename: 'consent.js' });
-  const api = {
-    window, document, store, consent: window.ElanConsent,
-    banner: () => body.children.find((c) => c.attrs.id === 'elan-consent') || null,
+  return {
+    window, store, writes, requests, cookieWrites, consent: window.ElanConsent, nodes: { openState, refusedState, button },
     click(node) { (docListeners.click || []).forEach((fn) => fn({ target: node, preventDefault() {} })); },
-    button(which) { return api.banner().all().find((n) => n.attrs['data-consent-choice'] === which); },
     storageEvent(key) { (winListeners.storage || []).forEach((fn) => fn({ key })); },
-    relabel(next) { documentElement.lang = next; if (observer) observer(); },
-    focused: () => focused
+    ready() { (docListeners.DOMContentLoaded || []).forEach((fn) => fn()); }
   };
-  return api;
 }
 
-test('a new visitor sees the notice and nothing is switched on', () => {
+test('a new visitor is never asked: device signals are on by default, nothing is stored and nothing is sent', () => {
   const b = browser();
-  assert.equal(b.consent.decided(), false);
-  assert.equal(b.consent.analytics(), false);
-  const banner = b.banner();
-  assert.ok(banner, 'the notice is shown');
-  assert.equal(banner.attrs.lang, 'ar');
-  assert.equal(banner.attrs.dir, 'rtl');
-  assert.match(banner.textContent, /خصوصيتك تهمّنا/);
-  assert.ok(b.button('accept') && b.button('reject'), 'accept and decline are both offered');
-  assert.equal(b.button('accept').tagName, 'BUTTON');
-  assert.equal(b.button('reject').tagName, 'BUTTON');
-  const link = banner.all().find((n) => n.tagName === 'A');
-  assert.equal(link.attrs.href, '/privacy.html');
-  assert.equal(b.store.has('elan_consent_v1'), false, 'no decision is stored until the visitor makes one');
+  assert.equal(b.consent.analytics(), true);
+  assert.equal(b.consent.refused(), false);
+  assert.equal(b.consent.get().refused, false);
+  assert.deepEqual(b.writes, []);
+  assert.deepEqual(b.requests, []);
+  assert.deepEqual(b.cookieWrites, []);
 });
 
-test('accepting stores the decision, hides the notice and tells listeners', () => {
-  const b = browser();
-  const seen = [];
-  b.consent.onChange((s) => seen.push(s));
-  b.click(b.button('accept'));
-  assert.equal(b.consent.analytics(), true);
-  assert.equal(b.consent.decided(), true);
-  assert.equal(b.banner(), null);
+test('there is no notice and no accept button anywhere in the script', () => {
+  const code = source.replace(/\/\/.*$/gm, '');          // the comments explain the decision and may use the word
+  assert.doesNotMatch(code, /createElement|appendChild|innerHTML|insertAdjacentHTML/, 'it builds no interface at all');
+  assert.doesNotMatch(code, /accept|data-consent-choice|data-consent-open|elan-consent/i, 'no accept choice and no notice');
+  assert.deepEqual(Object.keys(browser().consent).sort(), ['analytics', 'get', 'onChange', 'refuse', 'refused'], 'there is a refuse() and no accept');
+});
+
+test('refusing stores only the refusal, tells listeners once, erases on the server with the browser key and then wipes this browser', async () => {
+  const b = browser({ extra: { elan_guest_browser_key_v2: KEY, elan_visit_v1: JSON.stringify({ id: KEY, last: 1 }), elan_cart: '[]', elan_favs: '["a"]' }, cookie: 'elan_vk=' + KEY });
+  const heard = [];
+  b.consent.onChange((s) => heard.push(s));
+  b.consent.refuse();
+  assert.equal(b.consent.analytics(), false);
+  assert.equal(b.consent.refused(), true);
+  assert.equal(heard.length, 1);
+  assert.equal(heard[0].analytics, false);
   const rec = JSON.parse(b.store.get('elan_consent_v1'));
-  assert.equal(rec.v, 1); assert.equal(rec.a, true); assert.ok(rec.t > 0);
-  assert.deepEqual(seen.map((s) => s.analytics), [true]);
+  assert.deepEqual({ v: rec.v, a: rec.a, s: rec.s }, { v: 1, a: false, s: 'visitor' });
+  assert.ok(rec.t > 0);
+  assert.equal(b.requests.length, 1);
+  assert.deepEqual(b.requests[0], { url: '/api/guest-cart', body: { action: 'forget', visitorKey: KEY }, keepalive: true, method: 'POST' });
+  assert.equal(b.store.has('elan_visit_v1'), false, 'the visit id of an unregistered browser is removed at once');
+  await flush();
+  assert.equal(b.store.has('elan_guest_browser_key_v2'), false, 'the key is wiped after the server answered');
+  assert.ok(b.cookieWrites.some((line) => /^elan_vk=; max-age=0/.test(line)), 'the script cookie is expired');
+  assert.equal(b.store.get('elan_cart'), '[]', 'the basket is not touched');
+  assert.equal(b.store.get('elan_favs'), '["a"]', 'the favourites are not touched');
+  b.consent.refuse();
+  assert.equal(heard.length, 1, 'refusing twice notifies once');
 });
 
-test('declining is recorded, hides the notice and tells listeners', () => {
+test('refusing with no key in this browser still asks the server (the HttpOnly cookie travels with the request)', async () => {
   const b = browser();
-  const seen = [];
-  b.consent.onChange((s) => seen.push(s));
-  b.click(b.button('reject'));
+  b.consent.refuse();
+  await flush();
+  assert.deepEqual(b.requests.map((r) => r.body), [{ action: 'forget' }]);
+});
+
+test('the script cookie alone is enough to find the key', async () => {
+  const b = browser({ cookie: 'x=1; elan_vk=' + KEY });
+  b.consent.refuse();
+  assert.equal(b.requests[0].body.visitorKey, KEY);
+});
+
+test('if the server cannot be reached the refusal still holds, the key stays, and the next page load asks again', async () => {
+  const first = browser({ extra: { elan_guest_browser_key_v2: KEY }, server: 'down' });
+  first.consent.refuse();
+  await flush();
+  assert.equal(first.consent.analytics(), false);
+  assert.equal(first.store.has('elan_guest_browser_key_v2'), true, 'kept so that the erase can be retried');
+  const failedStatus = browser({ extra: { elan_guest_browser_key_v2: KEY }, server: 'bad' });
+  failedStatus.consent.refuse();
+  await flush();
+  assert.equal(failedStatus.store.has('elan_guest_browser_key_v2'), true, 'a 502 answer keeps the key too');
+  // the next page load of a browser that already refused
+  const later = browser({ stored: { v: 1, a: false, t: 1 }, extra: { elan_guest_browser_key_v2: KEY } });
+  assert.deepEqual(later.requests.map((r) => r.body), [{ action: 'forget', visitorKey: KEY }]);
+  await flush();
+  assert.equal(later.store.has('elan_guest_browser_key_v2'), false);
+});
+
+test('a browser that refused and holds no key sends nothing when a page loads', () => {
+  const b = browser({ stored: { v: 1, a: false, t: 1 } });
   assert.equal(b.consent.analytics(), false);
-  assert.equal(b.consent.decided(), true);
-  assert.equal(b.banner(), null);
-  assert.equal(JSON.parse(b.store.get('elan_consent_v1')).a, false);
-  assert.deepEqual(seen.map((s) => [s.decided, s.analytics]), [[true, false]]);
+  assert.deepEqual(b.requests, []);
 });
 
-test('a returning visitor who accepted is not asked again', () => {
-  const b = browser({ stored: { v: 1, a: true, t: 1 } });
-  assert.equal(b.banner(), null);
-  assert.equal(b.consent.analytics(), true);
-  assert.equal(b.consent.get().decided, true);
+test('a signed-in customer who refuses keeps the visit id of the account', async () => {
+  const b = browser({ extra: { elan_auth_session: JSON.stringify({ access_token: 't' }), elan_visit_v1: JSON.stringify({ id: KEY, last: 1 }), elan_guest_browser_key_v2: KEY } });
+  b.consent.refuse();
+  await flush();
+  assert.equal(b.store.has('elan_visit_v1'), true);
+  assert.equal(b.store.has('elan_guest_browser_key_v2'), false, 'but the device key goes');
+  assert.ok(b.store.has('elan_auth_session'));
 });
 
-test('an answer to an older policy version, or a damaged record, counts as no answer', () => {
-  for (const stored of [{ v: 0, a: true, t: 1 }, { v: 1, a: 'yes', t: 1 }, '{broken']) {
+test('an older "accepted" record, another version or a damaged record means no refusal', () => {
+  for (const stored of [{ v: 1, a: true, t: 1 }, { v: 0, a: false, t: 1 }, { v: 2, a: false }, '{not json', { a: false }, 'null']) {
     const b = browser({ stored });
-    assert.equal(b.consent.analytics(), false);
-    assert.equal(b.consent.decided(), false);
-    assert.ok(b.banner(), 'the notice is shown again');
+    assert.equal(b.consent.analytics(), true, JSON.stringify(stored));
+    assert.deepEqual(b.requests, []);
   }
+  assert.equal(browser({ stored: { v: 1, a: false, t: 5 } }).consent.get().at, 5);
 });
 
-test('the Global Privacy Control signal counts as a refusal without asking', () => {
-  const b = browser({ gpc: true });
-  assert.equal(b.banner(), null);
-  assert.equal(b.consent.decided(), true);
+test('the Global Privacy Control signal counts as a refusal, is remembered as such, and erases leftovers', async () => {
+  const b = browser({ gpc: true, extra: { elan_guest_browser_key_v2: KEY } });
   assert.equal(b.consent.analytics(), false);
-  // the visitor can still opt in from the privacy settings
-  b.consent.open();
-  b.click(b.button('accept'));
-  assert.equal(b.consent.analytics(), true);
+  assert.equal(b.consent.refused(), true);
+  assert.equal(JSON.parse(b.store.get('elan_consent_v1')).s, 'gpc');
+  assert.deepEqual(b.requests.map((r) => r.body), [{ action: 'forget', visitorKey: KEY }]);
+  const off = browser({ gpc: false });
+  assert.equal(off.consent.analytics(), true);
+  const clean = browser({ gpc: true });
+  assert.deepEqual(clean.requests, [], 'nothing to erase, nothing sent');
 });
 
-test('the editor preview never shows the notice and never records a decision', () => {
-  const b = browser({ framed: true, search: '?elan_editor=1', gpc: true });
-  assert.equal(b.banner(), null);
-  assert.equal(b.store.has('elan_consent_v1'), false);
+test('the editor preview never records and never refuses or erases anything', () => {
+  const b = browser({ search: '?elan_editor=1', framed: true, gpc: true, extra: { elan_guest_browser_key_v2: KEY } });
   assert.equal(b.consent.analytics(), false);
+  b.consent.refuse();
+  assert.deepEqual(b.writes, []);
+  assert.deepEqual(b.requests, []);
+  assert.equal(b.store.has('elan_guest_browser_key_v2'), true, 'the preview does not touch a real visitor key');
 });
 
-test('the footer opener reopens the notice with the current choice and a close button', () => {
-  const b = browser({ stored: { v: 1, a: true, t: 1 } });
-  const opener = makeNode('button'); opener.setAttribute('data-consent-open', '');
-  b.click(opener);
-  const banner = b.banner();
-  assert.ok(banner);
-  assert.match(banner.textContent, /قرارك الحالي: موافق/);
-  const close = banner.all().find((n) => 'data-consent-close' in n.attrs);
-  assert.ok(close, 'a reopened notice can be closed without changing the choice');
-  assert.equal(b.focused().tagName, 'BUTTON', 'keyboard focus moves into the reopened notice');
-  b.click(close);
-  assert.equal(b.banner(), null);
-  assert.equal(b.consent.analytics(), true);
-  // withdrawing from the same place
-  b.click(opener);
-  const seen = [];
-  b.consent.onChange((s) => seen.push(s.analytics));
-  b.click(b.button('reject'));
-  assert.equal(b.consent.analytics(), false);
-  assert.deepEqual(seen, [false]);
-});
-
-test('choosing the same answer again does not notify listeners twice', () => {
-  const b = browser({ stored: { v: 1, a: true, t: 1 } });
-  const seen = [];
-  b.consent.onChange((s) => seen.push(s.analytics));
-  b.consent.open();
-  b.click(b.button('accept'));
-  assert.deepEqual(seen, []);
-});
-
-test('the notice follows the page language', () => {
-  const b = browser({ lang: 'en' });
-  assert.equal(b.banner().attrs.lang, 'en');
-  assert.equal(b.banner().attrs.dir, 'ltr');
-  assert.match(b.banner().textContent, /Your privacy matters/);
-  assert.equal(b.button('reject').textContent, 'Decline non-essential');
-  b.relabel('ar');
-  assert.match(b.banner().textContent, /خصوصيتك تهمّنا/);
-  assert.equal(b.banner().attrs.dir, 'rtl');
-});
-
-test('a decision made in another tab is followed here', () => {
-  const b = browser();
-  const seen = [];
-  b.consent.onChange((s) => seen.push(s.analytics));
-  b.store.set('elan_consent_v1', JSON.stringify({ v: 1, a: true, t: 5 }));
-  b.storageEvent('elan_consent_v1');
-  assert.equal(b.consent.analytics(), true);
-  assert.equal(b.banner(), null);
-  assert.deepEqual(seen, [true]);
-  b.storageEvent('some_other_key');
-  assert.deepEqual(seen, [true]);
-});
-
-test('the notice waits for the page body when the script runs early', () => {
+test('the refuse button on the policy page refuses, hides itself and swaps the state line', () => {
   const b = browser({ readyState: 'loading' });
-  assert.equal(b.banner(), null);
+  b.ready();
+  assert.equal(b.nodes.openState.hidden, false);
+  assert.equal(b.nodes.refusedState.hidden, true);
+  assert.equal(b.nodes.button.hidden, false);
+  b.click(b.nodes.button);
+  assert.equal(b.consent.refused(), true);
+  assert.equal(b.nodes.openState.hidden, true);
+  assert.equal(b.nodes.refusedState.hidden, false);
+  assert.equal(b.nodes.button.hidden, true, 'there is nothing to press once refused, and no way to accept');
+  // a click anywhere else does nothing
+  const other = browser();
+  other.click(makeNode({ class: 'x' }));
+  assert.equal(other.consent.refused(), false);
+  assert.deepEqual(other.requests, []);
 });
 
-test('blocked storage does not break the choice for the current page', () => {
+test('a page that loads already refused shows the refused state', () => {
+  const b = browser({ stored: { v: 1, a: false, t: 1 } });
+  assert.equal(b.nodes.openState.hidden, true);
+  assert.equal(b.nodes.refusedState.hidden, false);
+  assert.equal(b.nodes.button.hidden, true);
+});
+
+test('a refusal made in another tab is followed here and listeners hear it once', () => {
+  const b = browser();
+  const heard = [];
+  b.consent.onChange((s) => heard.push(s.analytics));
+  b.storageEvent('something_else');
+  assert.deepEqual(heard, []);
+  b.store.set('elan_consent_v1', JSON.stringify({ v: 1, a: false, t: 9 }));
+  b.storageEvent('elan_consent_v1');
+  assert.equal(b.consent.analytics(), false);
+  assert.deepEqual(heard, [false]);
+  b.storageEvent('elan_consent_v1');
+  assert.deepEqual(heard, [false], 'the same state is not announced again');
+  assert.deepEqual(b.requests, [], 'the other tab does the erasing, this one only follows');
+});
+
+test('blocked storage does not break the refusal for the current page', async () => {
   const b = browser({ blocked: true });
-  assert.ok(b.banner(), 'the notice still appears');
-  b.click(b.button('accept'));
   assert.equal(b.consent.analytics(), true);
-  assert.equal(b.banner(), null);
+  assert.doesNotThrow(() => b.consent.refuse());
+  assert.equal(b.consent.analytics(), false);
+  assert.equal(b.consent.refused(), true);
 });
 
-test('the notice is built with DOM calls only, never from markup strings', () => {
-  assert.doesNotMatch(source, /innerHTML|outerHTML|insertAdjacentHTML|document\.write/);
+test('a listener that throws does not stop the others', () => {
+  const b = browser();
+  const heard = [];
+  b.consent.onChange(() => { throw new Error('boom'); });
+  b.consent.onChange((s) => heard.push(s.analytics));
+  assert.doesNotThrow(() => b.consent.refuse());
+  assert.deepEqual(heard, [false]);
+});
+
+test('consent.js knows the same storage names the identity script and the policy page use', () => {
+  const identity = fs.readFileSync(path.join(__dirname, '..', 'guest-identity.js'), 'utf8');
+  for (const name of ['elan_guest_browser_key_v2', 'elan_visit_v1', 'elan_vk']) {
+    assert.ok(source.includes("'" + name + "'"), name + ' is wiped by consent.js');
+    assert.ok(identity.includes("'" + name + "'"), name + ' is used by guest-identity.js');
+  }
+  assert.match(source, /action: 'forget'/);
+  assert.match(source, /keepalive: true/);
 });

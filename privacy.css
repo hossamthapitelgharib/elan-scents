@@ -21,7 +21,11 @@ body{margin:0;background:#fff;color:var(--ink);font-family:'IBM Plex Sans Arabic
 .privacy-table th,.privacy-table td{padding:10px 12px;text-align:start;vertical-align:top;border-bottom:1px solid var(--line)}
 .privacy-table tr:last-child td{border-bottom:0}
 .privacy-table th{background:var(--paper);color:var(--gold-dark);font-weight:600}
-.privacy-choice{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin:14px 0}
-.privacy-choice button{min-height:44px;padding:9px 22px;border-radius:12px;border:1.5px solid var(--gold-dark);background:#1c1a17;border-color:#1c1a17;color:#fff;font:inherit;font-weight:600;cursor:pointer}
+.privacy-page [hidden]{display:none!important}
+.privacy-choice{margin:16px 0 20px;padding:16px 18px;border:1.5px solid var(--gold-dark);border-radius:16px;background:var(--paper)}
+.privacy-choice p{margin:0 0 10px}
+.privacy-choice .privacy-state{font-weight:600;color:var(--gold-dark)}
+.privacy-choice button{min-height:46px;padding:10px 26px;border-radius:12px;border:1.5px solid var(--gold-dark);background:#fff;color:var(--ink);font:inherit;font-weight:600;cursor:pointer}
+.privacy-choice button:hover{box-shadow:0 0 0 3px rgba(200,150,42,.25)}
 .privacy-choice button:focus-visible,.privacy-page a:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
 @media (max-width:520px){.privacy-page h1{font-size:25px}.privacy-page{padding-inline:16px}}

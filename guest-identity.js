@@ -25,44 +25,66 @@
     return;
   }
 
-  // Device signals run only with the visitor's consent (consent.js). Without it every call is a harmless no-op,
-  // nothing is stored in the browser and nothing is sent. A missing consent script counts as "no".
+  // Two tiers:
+  //  1. Device signals (a browser key in storage and cookies, the device fingerprint, the guest basket on the server, guest
+  //     activity) run by default and stop only when the visitor refuses in the privacy policy (consent.js; owner decision of
+  //     2026-10-29, no consent notice). After a refusal every call here is a harmless no-op, nothing is stored in the browser
+  //     and nothing is sent; consent.js erases what was recorded before. A missing consent script counts as "refused".
+  //  2. A signed-in customer's own activity (visits, products viewed, searches, basket changes) belongs to the account:
+  //     opening the account is the agreement to it (the sign-up form says so), so it is recorded with the account token
+  //     whatever the visitor's refusal is. It never uses a browser key, a cookie or the fingerprint.
   var STORAGE_KEY = 'elan_guest_browser_key_v2';
   var VISIT_KEY = 'elan_visit_v1';
   var COOKIE_NAME = 'elan_vk';
 
-  function inertApi() {
+  function savedSession() {
+    try { return JSON.parse(localStorage.getItem('elan_auth_session') || 'null'); }
+    catch (_) { return null; }
+  }
+
+  function accessToken() {
+    var session = savedSession();
+    return session && session.access_token || '';
+  }
+
+  // withAccount: the account calls wake the real API when a customer is signed in (login without a page reload).
+  function inertApi(withAccount) {
     var inert = function () { return Promise.resolve({ ok: true, tracked: false, cart: [] }); };
-    return {
-      enabled: function () { return false; },
-      resolve: inert, save: inert, claim: inert, track: inert, search: inert, identify: inert, startFresh: inert,
-      finalVisitorId: function () { return null; }, sessionId: function () { return null; }, startSession: inert, prepareLogout: inert
+    var api = null;
+    var viaAccount = function (name) {
+      if (!withAccount) return inert;
+      return function () {
+        if (!accessToken()) return inert();
+        boot();
+        var real = window.GuestIdentity;
+        return real && real !== api && typeof real[name] === 'function' ? real[name].apply(real, arguments) : inert();
+      };
     };
+    api = {
+      enabled: function () { return false; },
+      resolve: inert, save: inert, identify: inert, startFresh: inert,
+      claim: viaAccount('claim'), track: viaAccount('track'), search: viaAccount('search'),
+      startSession: viaAccount('startSession'), prepareLogout: viaAccount('prepareLogout'),
+      finalVisitorId: function () { return null; }, sessionId: function () { return null; }
+    };
+    return api;
   }
 
   var AUTOMATED = false;
   try { AUTOMATED = typeof navigator !== 'undefined' && navigator.webdriver === true; } catch (_) {}
   if (AUTOMATED) {
-    window.GuestIdentity = inertApi();
+    window.GuestIdentity = inertApi(false);
     return;
   }
 
   var consent = window.ElanConsent;
   var booted = false;
+  // device signals run unless the visitor refused
   function allowed() {
     try { return !!(consent && consent.analytics() === true); } catch (_) { return false; }
   }
-  function wipeLocal() {
-    try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
-    try { localStorage.removeItem(VISIT_KEY); } catch (_) {}
-    try { document.cookie = COOKIE_NAME + '=; max-age=0; path=/; SameSite=Lax'; } catch (_) {}
-  }
-  // The server cookie is HttpOnly, so only the server can expire it.
-  function forgetOnServer() {
-    try {
-      fetch('/api/guest-cart', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'forget' }), keepalive: true }).catch(function () {});
-    } catch (_) {}
-  }
+  // device signals, or a signed-in customer's own activity
+  function active() { return allowed() || !!accessToken(); }
 
   function boot() {
     if (booted) return;
@@ -75,16 +97,6 @@
     var cachedSessionId = null;
     var sessionStarted = false;
     var startingSession = null;
-
-    function savedSession() {
-      try { return JSON.parse(localStorage.getItem('elan_auth_session') || 'null'); }
-      catch (_) { return null; }
-    }
-
-    function accessToken() {
-      var session = savedSession();
-      return session && session.access_token || '';
-    }
 
     function createKey() {
       var cryptoApi = window.crypto;
@@ -105,7 +117,7 @@
     var lastInteraction = 0;
     function recentlyActive() { return Date.now() - lastInteraction < ACTIVE_MS; }
     function interacted() {
-      if (!allowed()) return;
+      if (!active()) return;
       var now = Date.now(), wasIdle = now - lastInteraction >= ACTIVE_MS;
       if (lastInteraction) behaviorStats.activeMs += Math.min(now - lastInteraction, 5000);
       behaviorStats.interactions += 1;
@@ -346,7 +358,8 @@
     }
 
     function sendActivity(action, data, token, keepalive) {
-      if (!allowed()) return Promise.reject(new Error('consent_required'));
+      // a signed-in customer's own activity goes with the account token; anything else needs the visitor's consent
+      if (!token && !allowed()) return Promise.reject(new Error('consent_required'));
       var headers = { 'Content-Type': 'application/json' };
       if (token) headers.Authorization = 'Bearer ' + token;
       var payload = Object.assign({}, data || {}, { action: action, sessionId: sessionId(true) });
@@ -362,7 +375,7 @@
     }
 
     function sendSession(action, keepalive) {
-      if (!allowed()) return Promise.resolve({ ok: true, tracked: false });
+      if (!active()) return Promise.resolve({ ok: true, tracked: false });
       var token = accessToken();
       if (action === 'resume') {
         // coming back after an idle gap re-opens the visit without adding the idle minutes to its active time
@@ -378,7 +391,7 @@
     }
 
     function startSession(token) {
-      if (!allowed()) return Promise.resolve({ ok: true, tracked: false });
+      if (!token && !active()) return Promise.resolve({ ok: true, tracked: false });
       if (sessionStarted && lastStartedVisit === sessionId(false)) return Promise.resolve({ ok: true });
       if (startingSession) return startingSession;
       var authToken = token || accessToken();
@@ -421,6 +434,7 @@
     // "Not your basket?": a new person on a shared browser starts as a new guest. The previous
     // person's record stays as it was (an abandoned basket); nothing is merged back into it.
     function startFresh() {
+      if (!allowed()) return Promise.resolve({ ok: true, tracked: false, cart: [] });   // a new browser key is a device signal
       return Promise.resolve(prepareLogout()).then(function () {
         var fresh = createKey();
         try { localStorage.setItem(STORAGE_KEY, fresh); } catch (_) {}
@@ -434,6 +448,8 @@
     }
 
     function claim(token) {
+      // without the visitor's consent there is no browser key and no guest basket to move: only the account's own visit starts
+      if (!allowed()) return startSession(token).catch(function () {}).then(function () { return { ok: true, claimed: false, cart: 0 }; });
       return saveQueue.catch(function () {}).then(function () { return request('claim', {}, token); }).then(function (result) {
         if (result && result.ok) clearKey();
         return startSession(token).catch(function () { return result; }).then(function () { return result; });
@@ -442,6 +458,7 @@
 
     function track(eventType, productId, productSizeId, storeProductId, quantity) {
       if (!['view', 'search', 'cart_add', 'cart_remove'].includes(eventType) || !productId) return Promise.resolve({ ok: true, tracked: false });
+      if (!accessToken() && !allowed()) return Promise.resolve({ ok: true, tracked: false });
       if (eventType === 'view') {
         var now = Date.now(), seen = recentViews[productId];
         if (seen && now - seen < 30000) return Promise.resolve({ ok: true, tracked: false });
@@ -461,6 +478,7 @@
 
     function search(searchText, products) {
       var token = accessToken();
+      if (!token && !allowed()) return Promise.resolve({ ok: true, tracked: false });
       var results = (Array.isArray(products) ? products : []).slice(0, 10).map(function (item) {
         return {
           productId: String(item.id || item.productId || ''),
@@ -474,7 +492,7 @@
     }
 
     window.GuestIdentity = {
-      enabled: function () { return true; },
+      enabled: function () { return allowed(); },
       resolve: resolve,
       save: save,
       claim: claim,
@@ -499,17 +517,17 @@
     }
 
     setInterval(function () {
-      if (allowed() && sessionStarted && document.visibilityState !== 'hidden' && recentlyActive()) sendSession('heartbeat').catch(function () {});
+      if (active() && sessionStarted && document.visibilityState !== 'hidden' && recentlyActive()) sendSession('heartbeat').catch(function () {});
     }, 30000);
     window.addEventListener('pagehide', function () {
-      if (!allowed() || !sessionStarted || !recentlyActive()) return;
+      if (!active() || !sessionStarted || !recentlyActive()) return;
       sendSession('heartbeat', true).catch(function () {});
     });
     window.addEventListener('pageshow', function () {
-      if (allowed() && !sessionStarted) startSession().catch(function () {});
+      if (active() && !sessionStarted) startSession().catch(function () {});
     });
     document.addEventListener('visibilitychange', function () {
-      if (document.visibilityState === 'visible' && allowed()) {
+      if (document.visibilityState === 'visible' && active()) {
         if (!sessionStarted || lastStartedVisit !== sessionId(false)) { sessionStarted = false; startSession().catch(function () {}); }
       }
     });
@@ -524,19 +542,20 @@
     });
   }
 
-  window.GuestIdentity = inertApi();
-  if (allowed()) boot();
-  else if (consent && consent.decided && consent.decided()) wipeLocal();
+  window.GuestIdentity = inertApi(true);
+  var deviceRan = allowed();
+  if (allowed() || accessToken()) boot();
 
+  // A refusal made in another tab. consent.js erases the stored key and the server rows; here the device timers and listeners
+  // of a running session are simplest to stop by reloading the page. A page that only ever recorded a signed-in customer's own
+  // activity has nothing of the kind to stop and carries on.
   if (consent && typeof consent.onChange === 'function') {
     consent.onChange(function () {
-      if (allowed()) { boot(); return; }
-      var wasRunning = booted;
-      window.GuestIdentity = inertApi();     // the page's own calls go inert at once, before anything else
-      wipeLocal();
-      forgetOnServer();
-      // timers and listeners of a running session are simplest to stop by reloading the page
-      if (wasRunning) { try { window.location.reload(); } catch (_) {} }
+      if (allowed()) return;
+      if (booted && deviceRan) {
+        window.GuestIdentity = inertApi(true);     // the page's own calls go inert at once, before anything else
+        try { window.location.reload(); } catch (_) {}
+      }
     });
   }
 })();

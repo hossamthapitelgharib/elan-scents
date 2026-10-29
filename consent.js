@@ -1,15 +1,23 @@
-// The visitor's choice about device signals: a browser key (storage + cookie), a hashed device fingerprint and the
-// visit / product activity counters built on them. Everything the shop needs to work (basket, favourites, login,
-// orders, language) is not covered by this choice and keeps working either way.
+// The visitor's one choice about device signals: REFUSE (owner decision of 2026-10-29).
 //
-// window.ElanConsent = { get, analytics, decided, set, onChange, open }
-// guest-identity.js starts only when analytics() is true, so the safe default for a missing or broken file is "no".
+// There is no notice and no "accept" button. Device signals (a random browser key in storage and cookies, a hashed device
+// fingerprint and the visit / product activity counters built on them) run by default, and the privacy policy page says so in
+// plain words. A visitor who presses "refuse" there (or whose browser sends the Global Privacy Control signal) gets everything
+// we hold about that browser erased, on the device and in our database, and nothing new is recorded. Browsing, the basket,
+// favourites, sign-in and orders are not affected either way.
+//
+// window.ElanConsent = { get, analytics, refused, refuse, onChange }
+// guest-identity.js starts the device signals only when analytics() is true, so a missing or broken file counts as "no".
 (function () {
   'use strict';
 
-  var KEY = 'elan_consent_v1';
-  var VERSION = 1;          // raise it when the policy changes in a way that needs a fresh answer
-  var POLICY_URL = '/privacy.html';
+  var KEY = 'elan_consent_v1';          // the refusal, kept in this browser
+  var VERSION = 1;
+  var STORAGE_KEY = 'elan_guest_browser_key_v2';
+  var VISIT_KEY = 'elan_visit_v1';
+  var COOKIE_NAME = 'elan_vk';
+  var AUTH_KEY = 'elan_auth_session';
+  var UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
   var preview = false;
   try {
@@ -17,140 +25,121 @@
       new URLSearchParams(window.location.search).get('elan_editor') === '1';
   } catch (_) {}
 
-  var TEXT = {
-    ar: {
-      label: 'الخصوصية وملفات الارتباط',
-      title: 'خصوصيتك تهمّنا',
-      body: 'نحفظ في متصفحك ما يلزم لتشغيل المتجر (السلة والمفضلة وتسجيل الدخول واللغة) دون حاجة إلى موافقتك. وبموافقتك نضيف معرّفًا للمتصفح وبصمة جهاز مجزّأة لنحفظ سلتك عندنا ونعدّ الزوار بدقة ونفهم أي العطور تهمّك. الرفض لا يمنعك من التسوّق أو الطلب.',
-      more: 'اقرأ سياسة الخصوصية',
-      accept: 'أوافق',
-      reject: 'رفض غير الضروري',
-      close: 'إغلاق',
-      now: { yes: 'قرارك الحالي: موافق.', no: 'قرارك الحالي: رافض.' }
-    },
-    en: {
-      label: 'Privacy and cookies',
-      title: 'Your privacy matters',
-      body: 'We keep in your browser what the shop needs to work (basket, favourites, sign-in, language) without asking. With your consent we also add a browser identifier and a hashed device fingerprint, to save your basket with us, count visitors accurately and learn which fragrances interest you. Declining never stops you from shopping or ordering.',
-      more: 'Read the privacy policy',
-      accept: 'Accept',
-      reject: 'Decline non-essential',
-      close: 'Close',
-      now: { yes: 'Your current choice: accepted.', no: 'Your current choice: declined.' }
-    }
-  };
-
-  function lang() { return String(document.documentElement.lang || 'ar').toLowerCase().indexOf('en') === 0 ? 'en' : 'ar'; }
-
+  // Only a refusal is ever stored. An older "accepted" record (from the short-lived consent notice) means nothing now.
   function read() {
     try {
       var rec = JSON.parse(localStorage.getItem(KEY) || 'null');
-      if (rec && rec.v === VERSION && typeof rec.a === 'boolean') return { decided: true, analytics: rec.a, at: Number(rec.t) || 0 };
+      if (rec && rec.v === VERSION && rec.a === false) return { refused: true, at: Number(rec.t) || 0 };
     } catch (_) {}
-    return { decided: false, analytics: false, at: 0 };
+    return { refused: false, at: 0 };
   }
 
   var state = read();
   var listeners = [];
-  var box = null, reopened = false;
 
-  function snapshot() { return { decided: state.decided, analytics: state.decided && state.analytics === true, at: state.at }; }
+  // the editor preview never records anything
+  function snapshot() { return { refused: state.refused, analytics: !state.refused && !preview, at: state.at }; }
   function notify() {
     var now = snapshot();
     listeners.slice().forEach(function (fn) { try { fn(now); } catch (_) {} });
   }
 
-  // A browser that sends the Global Privacy Control signal has already said no; we honour it without asking again.
-  // The person can still opt in later from "privacy settings".
+  function signedIn() {
+    try { var s = JSON.parse(localStorage.getItem(AUTH_KEY) || 'null'); return !!(s && s.access_token); } catch (_) { return false; }
+  }
+  function cookieKey() {
+    try {
+      var m = document.cookie.match(new RegExp('(?:^|; )' + COOKIE_NAME + '=([^;]+)'));
+      return m && UUID.test(m[1]) ? m[1] : '';
+    } catch (_) { return ''; }
+  }
+  // the browser key this page knows about: storage first, then the script cookie
+  function localKey() {
+    try { var v = localStorage.getItem(STORAGE_KEY); if (v && UUID.test(v)) return v; } catch (_) {}
+    return cookieKey();
+  }
+  function wipeKeys() {
+    try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
+    try { document.cookie = COOKIE_NAME + '=; max-age=0; path=/; SameSite=Lax'; } catch (_) {}
+  }
+  // the visit id of a signed-in customer belongs to the account, so only an unregistered browser's is removed
+  function wipeVisit() {
+    if (!signedIn()) { try { localStorage.removeItem(VISIT_KEY); } catch (_) {} }
+  }
+
+  // Erase what the server holds about this browser, then what this browser holds. The server cookie (elan_gid) is HttpOnly,
+  // so only the server can expire it, and it does that once the rows are gone. If the call fails the key stays here and the
+  // next page load asks again; nothing is recorded in the meantime because the refusal is already in force.
+  function erase(force) {
+    var key = localKey();
+    wipeVisit();
+    if (!key && !force) return;           // this browser never recorded anything under a key
+    try {
+      var body = { action: 'forget' };
+      if (key) body.visitorKey = key;
+      fetch('/api/guest-cart', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), keepalive: true })
+        .then(function (response) { if (response && response.ok) wipeKeys(); })
+        .catch(function () {});
+    } catch (_) {}
+  }
+
+  function persist(source) {
+    try { localStorage.setItem(KEY, JSON.stringify({ v: VERSION, a: false, t: state.at, s: source || 'visitor' })); } catch (_) {}
+  }
+
+  function refuse(source) {
+    if (preview) return;
+    var first = !state.refused;
+    state = { refused: true, at: state.refused ? state.at : Date.now() };
+    persist(source);
+    render();
+    if (first) notify();                  // everything that sends stops first ...
+    erase(true);                          // ... then the erase asks the server and wipes this browser
+  }
+
+  // A browser that sends the Global Privacy Control signal has already refused: we honour it without asking.
   var gpc = false;
   try { gpc = navigator.globalPrivacyControl === true; } catch (_) {}
-  if (!state.decided && gpc && !preview) {
-    state = { decided: true, analytics: false, at: Date.now() };
-    try { localStorage.setItem(KEY, JSON.stringify({ v: VERSION, a: false, t: state.at, s: 'gpc' })); } catch (_) {}
+  if (!state.refused && gpc && !preview) {
+    state = { refused: true, at: Date.now() };
+    persist('gpc');
   }
 
-  function set(value) {
-    var next = value === true;
-    var changed = !state.decided || state.analytics !== next;
-    state = { decided: true, analytics: next, at: Date.now() };
-    try { localStorage.setItem(KEY, JSON.stringify({ v: VERSION, a: next, t: state.at })); } catch (_) {}
-    hide();
-    if (changed) notify();
-  }
-
-  function el(tag, attrs, text) {
-    var node = document.createElement(tag);
-    Object.keys(attrs || {}).forEach(function (name) { node.setAttribute(name, attrs[name]); });
-    if (text) node.textContent = text;
-    return node;
-  }
-
-  function build() {
-    var t = TEXT[lang()];
-    var node = el('section', { id: 'elan-consent', 'class': 'elan-consent', role: 'region', 'aria-label': t.label, lang: lang(), dir: lang() === 'ar' ? 'rtl' : 'ltr' });
-    node.appendChild(el('h2', {}, t.title));
-    node.appendChild(el('p', {}, t.body));
-    if (reopened && state.decided) node.appendChild(el('p', { 'class': 'elan-consent-state' }, state.analytics ? t.now.yes : t.now.no));
-    var link = el('a', { href: POLICY_URL }, t.more);
-    var line = el('p', {});
-    line.appendChild(link);
-    node.appendChild(line);
-    var actions = el('div', { 'class': 'elan-consent-actions' });
-    actions.appendChild(el('button', { type: 'button', 'data-consent-choice': 'accept' }, t.accept));
-    actions.appendChild(el('button', { type: 'button', 'data-consent-choice': 'reject' }, t.reject));
-    if (reopened && state.decided) actions.appendChild(el('button', { type: 'button', 'class': 'elan-consent-close', 'data-consent-close': '' }, t.close));
-    node.appendChild(actions);
-    return node;
-  }
-
-  function show(focus) {
-    if (preview || !document.body) return;
-    hide();
-    box = build();
-    document.body.appendChild(box);
-    if (focus) { try { box.querySelector('button').focus(); } catch (_) {} }
-  }
-  function hide() {
-    if (box && box.parentNode) box.parentNode.removeChild(box);
-    box = null;
+  // The policy page carries both states in its markup; this only shows the right one and hides the refuse button once it is used.
+  function render() {
+    if (!document.querySelectorAll) return;
+    var when = document.querySelectorAll('[data-consent-when]');
+    for (var i = 0; i < when.length; i++) when[i].hidden = (when[i].getAttribute('data-consent-when') === 'refused') !== state.refused;
+    var buttons = document.querySelectorAll('[data-consent-refuse]');
+    for (var j = 0; j < buttons.length; j++) buttons[j].hidden = state.refused;
   }
 
   document.addEventListener('click', function (event) {
     var target = event.target && (event.target.nodeType === 1 ? event.target : event.target.parentElement);
     if (!target || !target.closest) return;
-    var choice = target.closest('[data-consent-choice]');
-    if (choice) { event.preventDefault(); set(choice.getAttribute('data-consent-choice') === 'accept'); return; }
-    if (target.closest('[data-consent-close]')) { event.preventDefault(); hide(); return; }
-    if (target.closest('[data-consent-open]')) { event.preventDefault(); reopened = true; show(true); }
+    if (target.closest('[data-consent-refuse]')) { event.preventDefault(); refuse(); }
   });
 
-  // another tab of the same browser decided: follow it
+  // another tab of the same browser refused: follow it
   window.addEventListener('storage', function (event) {
     if (event.key !== KEY) return;
     var before = snapshot();
     state = read();
-    var after = snapshot();
-    if (state.decided) hide();
-    if (before.analytics !== after.analytics) notify();
+    render();
+    if (before.analytics !== snapshot().analytics) notify();
   });
 
-  // the notice is translated with the page
-  if (typeof MutationObserver === 'function') {
-    try {
-      new MutationObserver(function () { if (box) show(false); }).observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] });
-    } catch (_) {}
-  }
+  // a refusal already in force also removes whatever an earlier visit or a failed erase left behind
+  if (state.refused && !preview) erase(false);
 
-  function start() { if (!state.decided) show(false); }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
-  else start();
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', render);
+  else render();
 
   window.ElanConsent = {
     get: snapshot,
     analytics: function () { return snapshot().analytics; },
-    decided: function () { return state.decided; },
-    set: set,
-    onChange: function (fn) { if (typeof fn === 'function') listeners.push(fn); },
-    open: function () { reopened = true; show(true); }
+    refused: function () { return state.refused; },
+    refuse: refuse,
+    onChange: function (fn) { if (typeof fn === 'function') listeners.push(fn); }
   };
 })();

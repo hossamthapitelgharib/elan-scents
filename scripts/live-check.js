@@ -49,10 +49,10 @@ async function probe(base, fetchImpl) {
   add('every page carries the same Content-Security-Policy', REQUIRED, unprotected.length === 0, unprotected.length ? 'missing on ' + unprotected.join(', ') : 'index, privacy, account and the dashboards');
   const heroScript = await call('/hero-video.js');
   add('the hero video script is served as a file (the page has no inline script)', REQUIRED, heroScript.status === 200 && /heroVideo/.test(heroScript.text), heroScript.status);
-  // The visitor's consent: the notice script and the policy it links to must be there, or tracking would start without a choice.
+  // The visitor's one choice (refuse): the script that carries it out and the policy page that offers it must be there, or a visitor could not refuse.
   const consentScript = await call('/consent.js');
   const policyPage = await call('/privacy.html');
-  add('the privacy policy and the consent notice script are served', REQUIRED,
+  add('the privacy policy and the refusal script are served', REQUIRED,
     consentScript.status === 200 && /ElanConsent/.test(consentScript.text) && policyPage.status === 200 && /elan_guest_browser_key_v2/.test(policyPage.text),
     'consent.js ' + consentScript.status + ', privacy.html ' + policyPage.status);
 

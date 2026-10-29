@@ -93,7 +93,7 @@ test('a page that lost its policy (a missing _headers rule) fails the check even
 
 test('a site that lost its consent script or its policy page fails the check', async () => {
   const results = await runAgainst({ serviceKey: true, webhookSecret: false, consent: false });
-  const row = results.find((r) => r.name === 'the privacy policy and the consent notice script are served');
+  const row = results.find((r) => r.name === 'the privacy policy and the refusal script are served');
   assert.ok(row);
   assert.equal(row.ok, false);
   assert.match(row.detail, /consent\.js 404/);
