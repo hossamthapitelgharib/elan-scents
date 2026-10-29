@@ -162,9 +162,7 @@ function renderOverview(data) {
     ['نسبة العمولة الافتراضية', `${store.commission_rate ?? '—'}%`], ['تاريخ الإنشاء', dateStore(store.created_at)],
     ['آخر تحديث', dateStore(store.updated_at)], ['الوصف', store.short_description]
   ]);
-  const accounts = data.accounts || [];
-  const accountRows = accounts.map(account => `<tr><td><code>${escStore(account.id)}</code></td><td><code>${escStore(account.user_id)}</code></td><td>${labelValue(account.role)}</td><td>${escStore(dateStore(account.created_at))}</td><td>${escStore(dateStore(account.updated_at))}</td></tr>`).join('');
-  return `<div class="store-detail-kpis">${cards}</div><section class="store-detail-block"><h3>بيانات المتجر</h3>${info}</section><section class="store-detail-block"><h3>الحسابات المرتبطة</h3><p class="muted">تظهر أدوار الحسابات ومعرّفاتها الداخلية فقط؛ لا تُعرض بيانات دخول أو رموز اعتماد.</p>${tableMarkup(['معرّف الربط', 'معرّف المستخدم الداخلي', 'الدور', 'مرتبط منذ', 'آخر تحديث'], accountRows, 'لا توجد حسابات مرتبطة بهذا المتجر')}</section>`;
+  return `<div class="store-detail-kpis">${cards}</div><section class="store-detail-block"><h3>بيانات المتجر</h3>${info}</section><section class="store-detail-block" id="storeAccountsBlock"><h3>حسابات المتجر</h3><p class="muted">الحسابات المسموح لها بدخول لوحة هذا المتجر ومتابعة طلباته. الربط وفكّه يُسجَّلان في سجل المنصة.</p><p id="storeAccountsError" class="platform-error" hidden></p><div id="storeAccountsBody"><p class="muted">جارٍ تحميل الحسابات…</p></div><form id="storeAccountForm" class="platform-filters" autocomplete="off"><input name="email" type="email" required maxlength="320" dir="ltr" placeholder="بريد حساب مسجّل ومؤكَّد في الموقع" aria-label="بريد الحساب"><button class="ghost" type="submit">ربط الحساب بالمتجر</button></form><p class="muted">الحساب لازم يكون مسجّلًا في الموقع وأكّد بريده. بعد الربط يصير حساب متجر ويفتح لوحة المتجر، ولا يستخدم «طلباتي» كعميل. حساب عميل له طلبات سابقة لا يُربط (استعمل بريدًا جديدًا للمتجر)، وعند فك آخر ربط يرجع حساب عميل عاديًا.</p></section>`;
 }
 function renderCatalogRows(rows) {
   return (rows || []).map(row => {
@@ -265,6 +263,7 @@ async function loadStoreSection(section, append = false) {
     if (!response.ok) throw new Error(data.error || 'تعذر تحميل التفاصيل');
     const html = renderSection(data);
     if (!append) document.querySelector('#storeDetailContent').innerHTML = html;
+    if (!append && section === 'overview') loadStoreAccounts();
     else {
       const rowsContainer = document.querySelector('#storeDetailContent [data-section-rows]');
       const rowsHtml = renderSectionRecords(section, data.records || []);
@@ -281,6 +280,105 @@ async function loadStoreSection(section, append = false) {
     document.querySelector('#storeDetailMore').disabled = false;
   } finally {
     stateStore.busy = false;
+  }
+}
+const accountErrors = {
+  invalid_email: 'اكتب بريدًا إلكترونيًا صحيحًا.',
+  invalid_store_id: 'المتجر المطلوب غير صحيح.',
+  invalid_account_id: 'الربط المطلوب غير صحيح.',
+  store_not_found: 'المتجر لم يعد موجودًا، حدّث القائمة.',
+  user_not_found: 'لا يوجد حساب مسجّل بهذا البريد. اطلب من صاحب المتجر أن ينشئ حسابًا في الموقع أولًا.',
+  email_not_confirmed: 'هذا الحساب لم يؤكد بريده بعد. اطلب منه فتح رسالة التأكيد ثم أعد المحاولة.',
+  platform_admin_not_linkable: 'هذا حساب مدير منصة ولا يُربط بمتجر.',
+  customer_has_order_history: 'هذا الحساب عميل لديه طلبات سابقة، وتحويله إلى حساب متجر يُخفي سجل طلباته. استخدم بريدًا جديدًا للمتجر.',
+  account_not_found: 'هذا الربط لم يعد موجودًا، حدّث القائمة.',
+  store_accounts_unavailable: 'تعذر تحميل حسابات المتجر الآن، حاول بعد قليل.',
+  store_accounts_request_failed: 'تعذر تنفيذ الطلب الآن، حاول بعد قليل.',
+  store_account_link_failed: 'تعذر ربط الحساب الآن، حاول بعد قليل.',
+  store_account_unlink_failed: 'تعذر فك الربط الآن، حاول بعد قليل.'
+};
+function accountErrorText(error) {
+  const code = String(error && error.message !== undefined ? error.message : error || '');
+  return accountErrors[code] || Portal.errorText(code, 'تعذر تنفيذ الطلب، حاول مرة أخرى.');
+}
+function showAccountsError(error) {
+  const box = document.querySelector('#storeAccountsError');
+  if (!box) return;
+  box.textContent = error ? accountErrorText(error) : '';
+  box.hidden = !error;
+}
+function accountRowsMarkup(accounts) {
+  if (!accounts.length) return '<p class="empty">لا يوجد حساب مرتبط بهذا المتجر بعد، فلا أحد يقدر يدخل لوحته.</p>';
+  const rows = accounts.map(account => `<tr><td dir="ltr">${escStore(account.email || '—')}</td><td>${escStore(account.fullName || '—')}</td><td>${labelValue(account.accountRole)}</td><td>${escStore(dateStore(account.createdAt))}</td><td><button class="ghost" type="button" data-unlink-account="${escStore(account.accountId)}" data-unlink-email="${escStore(account.email || '')}">فك الربط</button></td></tr>`).join('');
+  return `<div class="activity-table-wrap"><table class="activity-table"><thead><tr><th>البريد</th><th>الاسم</th><th>الدور</th><th>مرتبط منذ</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+async function refreshStoreCounts() {
+  try {
+    const response = await fetch('/api/platform-stores', { headers: Portal.auth() });
+    const data = await response.json();
+    if (!response.ok || !Array.isArray(data.stores)) return;
+    stateStore.stores = data.stores;
+    renderStoreStats(stateStore.stores);
+    renderStoreList();
+  } catch (_) { /* the counts refresh on the next reload; the change itself is already saved */ }
+}
+async function storeAccountsRequest(method, payload, query) {
+  const response = await fetch(`/api/platform-store-accounts${query || ''}`, {
+    method,
+    headers: payload ? { ...Portal.auth(), 'Content-Type': 'application/json' } : Portal.auth(),
+    body: payload ? JSON.stringify(payload) : undefined
+  });
+  let data = null;
+  try { data = await response.json(); } catch (_) { data = null; }
+  if (!response.ok || !data || data.ok === false) throw new Error(data && data.error || 'store_accounts_request_failed');
+  return data;
+}
+async function loadStoreAccounts() {
+  const store = stateStore.selected;
+  const body = document.querySelector('#storeAccountsBody');
+  if (!store || !body) return;
+  showAccountsError(null);
+  try {
+    const data = await storeAccountsRequest('GET', null, `?storeId=${encodeURIComponent(store.id)}`);
+    if (stateStore.selected !== store || !document.querySelector('#storeAccountsBody')) return;
+    body.innerHTML = accountRowsMarkup(data.accounts || []);
+  } catch (error) {
+    body.innerHTML = '';
+    showAccountsError(error);
+  }
+}
+async function submitStoreAccount(form) {
+  const store = stateStore.selected;
+  const button = form.querySelector('button[type="submit"]');
+  const email = form.elements.email.value.trim();
+  if (!store || !email || (button && button.disabled)) return;
+  if (button) button.disabled = true;
+  showAccountsError(null);
+  try {
+    const data = await storeAccountsRequest('POST', { storeId: store.id, email });
+    form.reset();
+    Portal.toast(data.alreadyLinked ? 'هذا الحساب مربوط بالمتجر من قبل.' : 'تم ربط الحساب بالمتجر.', 'info');
+    await loadStoreAccounts();
+    refreshStoreCounts();
+  } catch (error) {
+    showAccountsError(error);
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+async function removeStoreAccount(button) {
+  const email = button.dataset.unlinkEmail || 'هذا الحساب';
+  if (!window.confirm(`فك ربط ${email} بالمتجر؟ لن يقدر بعدها على دخول لوحة المتجر.`)) return;
+  button.disabled = true;
+  showAccountsError(null);
+  try {
+    await storeAccountsRequest('DELETE', { accountId: button.dataset.unlinkAccount });
+    Portal.toast('تم فك ربط الحساب.', 'info');
+    await loadStoreAccounts();
+    refreshStoreCounts();
+  } catch (error) {
+    button.disabled = false;
+    showAccountsError(error);
   }
 }
 function openStore(storeId) {
@@ -313,7 +411,15 @@ document.addEventListener('click', event => {
   if (event.target.closest('#storeDetailMore')) return loadStoreSection(stateStore.section, true);
   if (event.target.closest('#unlinkedNotificationsMore')) return loadUnlinked('notifications', true);
   if (event.target.closest('#unlinkedEventsMore')) return loadUnlinked('events', true);
+  const unlink = event.target.closest('[data-unlink-account]');
+  if (unlink) return removeStoreAccount(unlink);
   if (event.target.closest('#closeStoreDetail')) document.querySelector('#storeDetail').hidden = true;
+});
+document.addEventListener('submit', event => {
+  const form = event.target.closest && event.target.closest('#storeAccountForm');
+  if (!form) return;
+  event.preventDefault();
+  submitStoreAccount(form);
 });
 document.querySelector('#storeDetailFilters').addEventListener('submit', event => {
   event.preventDefault();
