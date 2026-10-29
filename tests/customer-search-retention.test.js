@@ -22,3 +22,27 @@ test('customer search retention keeps rows for 365 days and schedules a protecte
   assert.match(rollback, /cron\.unschedule/i);
   assert.match(rollback, /Already-deleted rows cannot be restored/i);
 });
+
+// Owner decision of 2026-10-28: nothing that belongs to a registered customer is deleted automatically.
+const keepName = '20261028105801_customer_searches_keep_registered_customers.sql';
+
+test('the search purge deletes only unregistered visitors, never a registered customer', () => {
+  const keep = fs.readFileSync(path.join(root, 'supabase/migrations', keepName), 'utf8');
+  const undo = fs.readFileSync(path.join(root, 'supabase/rollback', keepName), 'utf8');
+  assert.match(keep, /create or replace function public\.purge_expired_customer_searches\(\)/i);
+  assert.match(keep, /and cs\.user_id is null/i, 'only rows with no registered owner');
+  assert.match(keep, /interval '365 days'/i);
+  assert.doesNotMatch(keep, /select\s+cron\.|^\s*(revoke|grant)\s/im, 'schedule and privileges stay as they were');
+  assert.doesNotMatch(undo, /user_id is null/i, 'the rollback brings back the old, wider purge');
+  assert.match(transactionalTest, /registered customer search row/i);
+  assert.match(transactionalTest, /interval '800 days'/);
+});
+
+test('no database job or function deletes rows that belong to a registered customer', () => {
+  // the only automatic purges are for unregistered visitors; a new one must be added here on purpose
+  const dir = path.join(root, 'supabase/migrations');
+  const sql = fs.readdirSync(dir).sort().map((f) => fs.readFileSync(path.join(dir, f), 'utf8')).join('\n');
+  const jobs = [...sql.matchAll(/cron\.schedule\(\s*'([a-z0-9-]+)'/g)].map((m) => m[1]);
+  const allowed = ['customer-searches-retention-365d', 'guest-fingerprint-retention-400d', 'expire-editor-sections', 'archive-expired-editor-sections', 'order-idempotency-retention-7d'];
+  for (const job of new Set(jobs)) assert.ok(allowed.includes(job), 'unreviewed scheduled job: ' + job + ' (registered customer data is never deleted automatically)');
+});

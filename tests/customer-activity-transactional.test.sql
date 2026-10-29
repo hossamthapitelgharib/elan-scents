@@ -235,12 +235,17 @@ begin
     insert into public.customer_searches(guest_id, user_id, session_id, search_text, result_products, result_count, occurred_at)
     values
       (v_guest_id, null, v_guest_session, 'اختبار منتهي الاحتفاظ', '[]'::jsonb, 0, now() - interval '366 days'),
-      (v_guest_id, null, v_guest_session, 'اختبار داخل الاحتفاظ', '[]'::jsonb, 0, now() - interval '364 days');
+      (v_guest_id, null, v_guest_session, 'اختبار داخل الاحتفاظ', '[]'::jsonb, 0, now() - interval '364 days'),
+      (null, v_customer_id, v_customer_session, 'اختبار عميل مسجل أقدم من سنة', '[]'::jsonb, 0, now() - interval '800 days');
     v_retention_deleted := public.purge_expired_customer_searches();
     if v_retention_deleted <> 1
        or exists (select 1 from public.customer_searches where guest_id = v_guest_id and search_text = 'اختبار منتهي الاحتفاظ' limit 1)
        or not exists (select 1 from public.customer_searches where guest_id = v_guest_id and search_text = 'اختبار داخل الاحتفاظ' limit 1) then
-      raise exception '365-day retention did not delete only the expired search row';
+      raise exception '365-day retention did not delete only the expired search row of an unregistered visitor';
+    end if;
+    -- Owner decision of 2026-10-28: nothing that belongs to a registered customer is ever deleted automatically.
+    if not exists (select 1 from public.customer_searches where user_id = v_customer_id and search_text = 'اختبار عميل مسجل أقدم من سنة' limit 1) then
+      raise exception 'the search retention deleted a registered customer search row';
     end if;
 
     if not exists (
