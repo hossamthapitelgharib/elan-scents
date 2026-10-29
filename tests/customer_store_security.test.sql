@@ -74,6 +74,8 @@ begin
      or not has_column_privilege('anon', 'public.store_products', 'is_new_arrival', 'SELECT')
      or not has_column_privilege('anon', 'public.store_products', 'sync_status', 'SELECT')
      or not has_column_privilege('anon', 'public.store_products', 'is_catalog_bestseller', 'SELECT')
+     or not has_column_privilege('anon', 'public.store_products', 'is_coming_soon', 'SELECT')
+     or not has_column_privilege('authenticated', 'public.store_products', 'is_coming_soon', 'SELECT')
      or has_column_privilege('anon', 'public.store_products', 'data_source', 'SELECT')
      or has_column_privilege('anon', 'public.store_products', 'original_price', 'SELECT')
      or has_column_privilege('anon', 'public.store_products', 'discount_percentage', 'SELECT')

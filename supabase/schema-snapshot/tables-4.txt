@@ -174,7 +174,7 @@ TABLE store_products  rls=on  grants: anon=- authenticated=awd service_role=rawd
   CREATE INDEX idx_store_products_price ON store_products USING btree (price)
   CREATE INDEX idx_store_products_product_size_id ON store_products USING btree (product_size_id)
   CREATE INDEX idx_store_products_store_id ON store_products USING btree (store_id)
-  COLUMN GRANTS anon=select,authenticated=select: id,store_id,product_size_id,price,stock_quantity,is_available,is_new_arrival,price_includes_tax,price_includes_shipping,currency,sync_status,last_synced_at,is_catalog_bestseller
+  COLUMN GRANTS anon=select,authenticated=select: id,store_id,product_size_id,price,stock_quantity,is_available,is_new_arrival,price_includes_tax,price_includes_shipping,currency,sync_status,last_synced_at,is_catalog_bestseller,is_coming_soon
   POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
   POLICY member_all PERMISSIVE FOR ALL TO authenticated USING (private.is_store_member(store_id)) WITH CHECK (private.is_store_member(store_id))
   POLICY public_read PERMISSIVE FOR SELECT TO anon,authenticated USING ((is_available AND (stock_quantity > 0) AND (sync_status = 'synced'::text) AND private.store_is_active(store_id)))

@@ -39,7 +39,7 @@ function harness({ lang = 'ar', auth = null, perfumes = [] } = {}) {
     oneLine('var XBTN='), oneLine('var LOGO='), oneLine('var LB='), oneLine('en:{home:'),
     oneLine('var CARTSVG='), oneLine('var CARTADD='), oneLine('var PHB='), oneLine('function inCart'), oneLine('function cartMarks'), oneLine('function cartBadge'), oneLine('var SP_BY_ID='), oneLine('function ratingHTML'), oneLine('function byId'), oneLine('function nmOf'), oneLine('function sec('), oneLine('function T()'),
     oneLine('function taxNote'), oneLine('function best('), oneLine('function closeSheet'),
-    between('var FAVS=[]', '\nvar SP_BY_ID='), between('function prodView', '\nfunction strip('),
+    between('var FAVS=[]', '\nvar SP_BY_ID='), between('function prodView', '\nfunction strip('), oneLine('function strip('),
     between('var MENU_ORDER=', 'function logoutNow'), oneLine('function logoutNow'),
     between('function sheet(k)', '\nfunction sendMsg')
   ].join('\n').replace(/^var LB=\{ar:/m, 'var LB={ar:');
@@ -333,5 +333,35 @@ test('one frame for every card: brand, category, masterpieces, occasion, notes a
 
 test('the card footer is set apart by one hairline and the picture box is the reference 4:5', () => {
   assert.match(css.match(/\.card\.pf \.pfoot\{[^}]*\}/)[0], /border-top:1px solid #f3eee2/);
+});
+
+test('the Coming soon section lists the perfumes a store flagged as coming soon, and only those', () => {
+  const soonOffer = (flags) => [{ store: 'Afnan Egypt', storeId: 's1', storeProductId: 'sp', price: 1000, cur: 'EGP', avail: true, flags, stock: 3, tax: true, ship: false }];
+  const h = harness({ perfumes: [sample({ id: 'a', name: 'Soon One', pn: 'Soon One', offers: soonOffer(['soon']) }), sample({ id: 'b', name: 'Plain One', pn: 'Plain One', offers: soonOffer([]) }), sample({ id: 'c', name: 'New One', pn: 'New One', offers: soonOffer(['new']) })] });
+  const html = h.run('strip("soon")');
+  assert.match(html, /Soon One/);
+  assert.doesNotMatch(html, /Plain One|New One/);
+  assert.match(html, /class="card pf"/, 'the same perfume card as every other section');
+  assert.doesNotMatch(html, /class="empty"/);
+  const none = harness({ perfumes: [sample({ offers: soonOffer([]) })] }).run('strip("soon")');
+  assert.match(none, /class="empty"/, 'with nothing flagged the section keeps its waiting note');
+});
+
+test('the storefront reads is_coming_soon and marks those product sizes with the soon flag', () => {
+  assert.match(core, /ga\('store_products\?select=id,product_size_id&is_coming_soon=eq\.true&order=id\.asc'\)\]\);/, 'fetched last so no other result index moves');
+  assert.match(core, /d\[17\]\.forEach\(function\(r\)\{if\(r\.product_size_id\)soon\[r\.product_size_id\]=1\}\)/);
+  assert.strictEqual((core.match(/soon\[(?:r|o)\.product_size_id\]\?\['soon'\]:\[\]/g) || []).length, 2, 'the best offer and every store offer carry the flag');
+});
+
+test('the database lets visitors read only that one extra column, with its rollback and the real-database check', () => {
+  const dir = path.join(root, 'supabase');
+  const name = fs.readdirSync(path.join(dir, 'migrations')).find((f) => /_public_read_store_product_coming_soon_flag\.sql$/.test(f));
+  assert.ok(name, 'migration file');
+  const sql = fs.readFileSync(path.join(dir, 'migrations', name), 'utf8').replace(/--.*$/gm, '').trim();
+  assert.strictEqual(sql, 'GRANT SELECT (is_coming_soon) ON TABLE public.store_products TO anon, authenticated;');
+  const back = fs.readFileSync(path.join(dir, 'rollback', name), 'utf8');
+  assert.match(back, /revoke select \(is_coming_soon\) on table public\.store_products from anon, authenticated;/);
+  assert.match(read('tests/customer_store_security.test.sql'), /has_column_privilege\('anon', 'public\.store_products', 'is_coming_soon', 'SELECT'\)/);
+  assert.match(read('supabase/schema-snapshot/tables-4.txt'), /is_catalog_bestseller,is_coming_soon/);
 });
 
