@@ -26,7 +26,8 @@ begin
   assert not has_table_privilege('authenticated', 'public.orders', 'TRUNCATE'), 'authenticated must not truncate';
   assert has_any_column_privilege('authenticated', 'public.cart_items', 'INSERT'), 'signed-in cart sync keeps working';
   assert not has_function_privilege('anon', 'public.create_store_order_request(jsonb)', 'EXECUTE'), 'anon must not create orders';
-  assert has_function_privilege('authenticated', 'public.create_store_order_request(jsonb)', 'EXECUTE'), 'signed-in users create orders';
+  assert not has_function_privilege('authenticated', 'public.create_store_order_request(jsonb)', 'EXECUTE'), 'browsers use place_store_order; the older function (client-chosen tracking number) is server-only';
+  assert has_function_privilege('authenticated', 'public.place_store_order(jsonb)', 'EXECUTE'), 'signed-in users create orders through place_store_order';
 
   -- policies: auth.uid() must be wrapped in a sub-select ------------------------------------------
   assert (select count(*) from pg_policies where schemaname = 'public' and policyname in (
