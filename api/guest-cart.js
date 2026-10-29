@@ -11,7 +11,8 @@ const LIMITS = {
   identify: createLimiter({ max: 12, windowMs: 60000 }),
   claim: createLimiter({ max: 30, windowMs: 60000 }),
   save: createLimiter({ max: 120, windowMs: 60000 }),
-  track: createLimiter({ max: 300, windowMs: 60000 })
+  track: createLimiter({ max: 300, windowMs: 60000 }),
+  forget: createLimiter({ max: 30, windowMs: 60000 })     // keyed by address: the erase is one call per refusal
 };
 const NETWORK_LIMITS = {
   resolve: createLimiter({ max: 600, windowMs: 60000 }),
@@ -149,11 +150,40 @@ module.exports = async (req, res) => {
   if (String((req.headers && req.headers['sec-fetch-site']) || '') === 'cross-site') return json(res, 403, { error: 'cross_site_not_allowed' });
   const body = req.body || {};
   const action = String(body.action || 'resolve');
-  // The visitor withdrew consent: the HttpOnly cookie cannot be removed by a script, so the server expires it.
-  // Nothing is read or written in the database, so there is nothing to rate-limit and no key is needed.
+  // The visitor refused tracking in the privacy policy (owner decision of 2026-10-29). Everything held about this browser is
+  // erased: the rows behind the browser key the page sends and behind the HttpOnly cookie key, which is the same browser. The
+  // cookie is expired only once the rows are gone, so a failed call can be retried by the browser. Registered customers' data is
+  // never touched (forget_guest_browser works on guest rows only). No key at all means there is nothing to erase.
   if (action === 'forget') {
+    const keys = [...new Set([String(body.visitorKey || ''), cookieKey(req) || ''].filter((k) => UUID.test(k)))];
+    if (!keys.length) {
+      expireKeyCookie(req, res);
+      return json(res, 200, { ok: true, forgotten: false });
+    }
+    const ip = clientIp(req);
+    const limit = LIMITS.forget(`${ip}:forget`);
+    if (!limit.allowed) {
+      res.setHeader('Retry-After', String(limit.retryAfter));
+      return json(res, 429, { error: 'too_many_requests' });
+    }
+    const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY;
+    const hashSecret = guestHashSecret();
+    if (!supabaseUrl || !serviceKey || !hashSecret) return json(res, 503, { error: 'guest_sync_unavailable' });
+    const admin = createAdminClient(supabaseUrl, serviceKey);
+    try {
+      for (const key of keys) {
+        const response = await admin('rpc/forget_guest_browser', {
+          p_fingerprint_hash: hmac(hashSecret, 'guest-browser', key),
+          p_analytics_hash: hmac(hashSecret, 'guest-analytics', key)
+        });
+        if (!response.ok) return json(res, 502, { error: 'guest_forget_failed' });
+      }
+    } catch (_) {
+      return json(res, 502, { error: 'guest_forget_failed' });
+    }
     expireKeyCookie(req, res);
-    return json(res, 200, { ok: true });
+    return json(res, 200, { ok: true, forgotten: true });
   }
   let visitorKey = String(body.visitorKey || '');
   if (!UUID.test(visitorKey)) return json(res, 400, { error: 'invalid_browser_key' });
