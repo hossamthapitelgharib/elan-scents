@@ -68,7 +68,7 @@ body.inner #hero,body.inner #main,body.inner .about,body.inner #contact{display:
 .price{font-weight:700;color:var(--gold3)}
 .ft{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:12px 0;font-size:12px}
 .soc{display:flex;justify-content:center;gap:12px;margin:12px 0}.soc span{width:34px;height:34px;border-radius:50%;border:1px solid var(--gold2);display:grid;place-items:center;color:var(--gold1);font-size:12px}
-#bar .gold{filter:none;text-shadow:none;font-weight:700;background:none;color:#a37e2c;-webkit-text-fill-color:#a37e2c}
+#bar .gold{filter:none;text-shadow:none;font-weight:700;background:linear-gradient(100deg,#b98a2d 0%,#e6c35c 16%,#c8962a 34%,#a37e2c 52%,#d4a940 70%,#e6c35c 84%,#b98a2d 100%) 0 0/340px 100% repeat-x;-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent}
 .abg{display:grid;gap:12px;max-width:560px;margin:14px auto}.abg .card{text-align:start}
 select{font:inherit}#kind{padding:12px;border:1px solid #e3d6b8;border-radius:12px;background:#fff}
 #chan{max-width:480px;margin:0 auto 14px;text-align:center}
@@ -80,7 +80,6 @@ h3{font-family:'El Messiri','Playfair Display',sans-serif;font-size:27px;font-we
 h3:after{content:'';display:block;width:42px;height:2px;margin:9px auto 0;background:linear-gradient(90deg,transparent,var(--gold2),transparent)}
 section{position:relative;padding:46px 16px 14px;background:#fff}
 section:nth-of-type(3n+2),section:nth-of-type(3n),section:nth-of-type(even){background:#fff}
-section+section:before{content:'';position:absolute;top:0;left:20%;right:20%;height:1px;background:linear-gradient(90deg,transparent,#d9c48c,transparent)}
 .sub{display:table;margin:10px auto 18px;padding:5px 16px;border:1px solid #e3d3a4;border-radius:999px;color:#8a5e0c;font-size:12.5px;font-weight:500;letter-spacing:.4px;background:#fff}
 .sub:after{content:' →'}[dir=rtl] .sub:after{content:' ←'}
 .card{background:#fff;border-radius:20px}
@@ -137,7 +136,7 @@ header .ic{gap:8px;flex-shrink:0}header .ic button{padding:4px;flex-shrink:0}hea
 header .logo small{letter-spacing:1px!important;font-size:7.5px!important}
 #lg{font-size:14px!important;font-weight:700}
 @media(max-width:380px){.logo b{font-size:30px}.logo span{font-size:14px}}
-footer{background:linear-gradient(180deg,#fffdf7,#f6efe0)!important;color:#2b2620!important;border-top:1px solid #e3d3a4;padding:34px 16px 96px!important}
+footer{background:linear-gradient(180deg,#fffdf7,#f6efe0)!important;color:#2b2620!important;border-top:0;padding:34px 16px 96px!important}
 footer a{color:#8a5e0c!important;font-weight:500}
 .flogo{margin:0 auto}body.sc .flogo{transform:none}
 .fdiv{width:64px;height:2px;margin:18px auto;background:linear-gradient(90deg,transparent,#c8962a,transparent)}
@@ -150,7 +149,7 @@ footer .copy{font-size:11px;margin-top:16px;opacity:.7}
 .disc h4{font-family:'El Messiri',sans-serif;font-size:24px;line-height:1.5;font-weight:700}.disc h4.gold{filter:none}
 .about #abIn .disc p{font-size:17px;font-weight:600;color:#17140f;margin:4px auto 16px;line-height:1.7}
 .disc .btn{padding:11px 30px;font-size:14px}
-footer{background:linear-gradient(180deg,#1a1610,#0d0b08)!important;color:#d9cfb8!important;border-top:1px solid #8a5e0c;padding:40px 18px 100px!important}
+footer{background:linear-gradient(180deg,#1a1610,#0d0b08)!important;color:#d9cfb8!important;border-top:0;padding:40px 18px 100px!important}
 footer .logo span{color:#f6efe0}
 footer a{color:#d9cfb8!important;font-weight:400}
 .fcols{display:grid;grid-template-columns:1fr 1fr;gap:22px;max-width:340px;margin:0 auto 20px;text-align:start}
@@ -377,3 +376,20 @@ html{background:#fff}
 @media(max-width:679px){section,#view{padding-inline:var(--cp)}.strip{gap:var(--cg);padding-inline:0}}
 @media(min-width:680px){:root{--cw:200px;--cg:16px;--cp:18px}.strip{gap:var(--cg)}}
 .ph:empty{display:none}
+
+/* ---------- Header tones, black tagline, no gold lines between sections ----------
+   Header icons, the EN button and the strip text above the header: white while they sit over the hero picture, the logo's rich gold
+   once the page is white (and over the footer). body.hd-over / body.bar-over are set by hdTone() in app-core.js from the hero's
+   position; the white state needs a hero that carries a picture or a video (#hero[data-media]), otherwise the hero is a white slot
+   and white elements would vanish. #gh is the header gold gradient defined next to #gg in index.html. */
+body:has(#gh) header .ic svg{stroke:url(#gh)}
+#lg{background:linear-gradient(135deg,#e6c35c,#c8962a 45%,#a37e2c 75%,#d4a940);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent}
+body.hd-over:not(.inner):has(#hero[data-media]) header .ic svg{stroke:#fff}
+body.hd-over:not(.inner):has(#hero[data-media]) header #lg{background:none;color:#fff;-webkit-text-fill-color:#fff}
+body.bar-over:not(.inner):has(#hero[data-media]) #bar .gold{background:none;color:#fff;-webkit-text-fill-color:#fff}
+/* The tagline under the logo is plain black in the header, the menu page and the About section. */
+header .logo small,#menu .logo small,.alogo .logo small{background:none!important;-webkit-background-clip:border-box!important;background-clip:border-box!important;color:#000!important;-webkit-text-fill-color:#000!important;filter:none!important;text-shadow:none!important}
+/* The contact section has no pill under its title any more. */
+#contact h3{margin-bottom:20px}
+/* A phone field keeps its digits left-to-right but sits on the right like every other field in the Arabic form. */
+[dir=rtl] input[type=tel]{direction:ltr;text-align:right}

@@ -3,8 +3,8 @@
    Imports base theme then applies current desired overrides.
    Frontend display only. Do not add backend/DB rules here.
    ============================================================ */
-@import url('/style-3.css?v=20261029-05');
-@import url('/footer-9x16.css?v=20261029-05');
+@import url('/style-3.css?v=20261029-07');
+@import url('/footer-9x16.css?v=20261029-07');
 
 /* ---------- Menu: slightly narrower panel + slightly larger items ---------- */
 #menu {
@@ -287,7 +287,7 @@ footer {
   background: #858585 !important;
   background: linear-gradient(180deg, #8a8a8a 0%, #858585 50%, #7a7a7a 100%) !important;
   color: #f5e6c0 !important;
-  border-top: 1px solid #9a9a9a !important;
+  border-top: 0 !important;
   padding: 36px 18px 100px !important;
   text-align: center !important;
 }
@@ -661,7 +661,7 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-r
 footer {
   background: linear-gradient(180deg, #686868 0%, #777777 52%, #626262 100%) !important;
   color: #fff1cf !important;
-  border-top: 1px solid #f1d58e !important;
+  border-top: 0 !important;
 }
 footer .footer-logo {
   width: min(190px, 42vw) !important;

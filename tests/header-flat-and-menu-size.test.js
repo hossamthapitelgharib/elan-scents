@@ -11,13 +11,15 @@ const top = read('style.css');
 const headerHtml = index.slice(index.indexOf('<header>'), index.indexOf('</header>'));
 const px = (text, pattern) => Number((text.match(pattern) || [])[1]);
 
-test('the strip text above the header is flat gold with no 3D look', () => {
+test('the strip text above the header is the logo-like rich gold with no 3D look, and white while it sits over the hero picture', () => {
   const rule = base.match(/#bar \.gold\{[^}]*\}/)[0];
-  assert.doesNotMatch(rule, /gradient/);
+  assert.match(rule, /linear-gradient/);
+  assert.match(rule, /background-clip:text/);
   assert.match(rule, /filter:none/);
   assert.match(rule, /text-shadow:none/);
-  assert.match(rule, /-webkit-text-fill-color:#[0-9a-f]{6}/);
-  assert.equal(rule.match(/[^-]color:(#[0-9a-f]{6})/)[1], rule.match(/-webkit-text-fill-color:(#[0-9a-f]{6})/)[1], 'one solid colour, no transparent fill');
+  assert.doesNotMatch(rule, /#f0c04a|#f3c94f|#8a5e0c|#9a6b10/i, 'neither yellow nor brown');
+  const white = base.match(/body\.bar-over:not\(\.inner\):has\(#hero\[data-media\]\) #bar \.gold\{[^}]*\}/)[0];
+  assert.match(white, /-webkit-text-fill-color:#fff/);
   assert.doesNotMatch(top, /#bar[^{]*\.gold[^{]*\{[^}]*gradient/);
 });
 
@@ -62,23 +64,18 @@ test('menu items are slightly larger than the old 13px, while the menu logo and 
   assert.match(base, /#menu a\.mlogo \.logo small\{[^}]*font-size:6\.5px!important/);
 });
 
-test('the strip above the header is a little darker and a little larger than the first flat version', () => {
-  const lum = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)).reduce((sum, c, i) => sum + c * [0.2126, 0.7152, 0.0722][i], 0);
-  const colour = base.match(/#bar \.gold\{[^}]*-webkit-text-fill-color:(#[0-9a-f]{6})/)[1];
-  assert.ok(lum(colour) < lum('#c8962a'), 'darker than the brand gold used for the icons');
-  assert.ok(lum(colour) > lum('#8a5e0c'), 'still gold, not brown');
+test('the strip above the header is a little larger than the first flat version', () => {
   assert.ok(px(base, /#bar\{[^}]*font-size:([\d.]+)px/) >= 14);
   assert.ok(px(top, /#bar \{[^}]*font-size: ([\d.]+)px/) >= 13);
 });
 
-test('the header icons and the strip text use one rich deep gold, not the yellowish golds', () => {
-  const rich = '#a37e2c';
+test('the header icons and the strip text use one rich gold family, not the yellowish golds and not brown', () => {
   assert.match(base, /\.ic button\{[^}]*color:#a37e2c/);
-  assert.match(base.match(/#bar \.gold\{[^}]*\}/)[0], /color:#a37e2c;-webkit-text-fill-color:#a37e2c/);
   assert.match(base.match(/#menu a\{[^}]*\}/)[0], /-webkit-text-fill-color:#a37e2c/);
-  for (const rule of [base.match(/\.ic button\{[^}]*\}/)[0], base.match(/#bar \.gold\{[^}]*\}/)[0], base.match(/#menu a\{[^}]*\}/)[0]]) {
-    assert.doesNotMatch(rule, /#c8962a|#a8770f|#b8821a|#f0c04a|var\(--gold2\)|gradient/i, rule);
-    assert.ok(rule.includes(rich), rule);
+  const stops = (index.match(/<linearGradient id="gh"[\s\S]*?<\/linearGradient>/)[0].match(/stop-color="(#[0-9a-f]{6})"/g) || []).map((x) => x.slice(12, 19));
+  assert.ok(stops.length >= 3);
+  for (const colour of [...stops, ...(base.match(/#bar \.gold\{[^}]*\}/)[0].match(/#[0-9a-f]{6}/gi) || [])]) {
+    assert.doesNotMatch(colour, /^#(f0c04a|f3c94f|8a5e0c|9a6b10|a8770f|b8821a)$/i, colour + ' is a yellowish or brownish gold');
   }
   assert.doesNotMatch(base, /#a8770f|#b8821a/i, 'the older yellowish accent golds are gone from the storefront CSS');
   assert.doesNotMatch(base, /#8f6b25/, 'and so is the brownish gold');
