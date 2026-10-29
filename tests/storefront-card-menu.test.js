@@ -362,6 +362,7 @@ test('the database lets visitors read only that one extra column, with its rollb
   const back = fs.readFileSync(path.join(dir, 'rollback', name), 'utf8');
   assert.match(back, /revoke select \(is_coming_soon\) on table public\.store_products from anon, authenticated;/);
   assert.match(read('tests/customer_store_security.test.sql'), /has_column_privilege\('anon', 'public\.store_products', 'is_coming_soon', 'SELECT'\)/);
-  assert.match(read('supabase/schema-snapshot/tables-4.txt'), /is_catalog_bestseller,is_coming_soon/);
+  /* generate.sql lists the granted columns in table order, so the flag sits right after is_new_arrival */
+  assert.match(read('supabase/schema-snapshot/tables-4.txt'), /COLUMN GRANTS anon=select,authenticated=select: [^\n]*is_new_arrival,is_coming_soon,price_includes_tax/);
 });
 
