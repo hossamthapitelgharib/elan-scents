@@ -164,6 +164,11 @@
         "style": {
           "media": "https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/uploads/2026/f131f5dc5d3888717232.png"
         }
+      },
+      "hero": {
+        "style": {
+          "media": "https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/uploads/2026/dda2a7d45878f4bc54ac.png"
+        }
       }
     },
     "mobile": {
