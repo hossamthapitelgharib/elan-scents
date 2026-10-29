@@ -226,7 +226,11 @@ TABLE offers  rls=on  grants: anon=- authenticated=awd service_role=rawdDxt
   CONSTRAINT offers_pkey PRIMARY KEY (id)
   CONSTRAINT offers_product_size_id_fkey FOREIGN KEY (product_size_id) REFERENCES product_sizes(id) ON DELETE CASCADE
   CONSTRAINT offers_store_id_fkey FOREIGN KEY (store_id) REFERENCES stores(id) ON DELETE CASCADE
+  CONSTRAINT offers_dates_in_order CHECK (((start_date IS NULL) OR (end_date IS NULL) OR (end_date >= start_date)))
+  CONSTRAINT offers_description_length CHECK (((description IS NULL) OR (char_length(description) <= 2000)))
   CONSTRAINT offers_discount_type_check CHECK ((discount_type = ANY (ARRAY['percentage'::text, 'fixed'::text, 'package'::text])))
+  CONSTRAINT offers_discount_value_range CHECK (((discount_value IS NULL) OR ((discount_value > (0)::numeric) AND ((discount_type IS DISTINCT FROM 'percentage'::text) OR (discount_value <= (100)::numeric)))))
+  CONSTRAINT offers_title_length CHECK (((char_length(btrim(title)) >= 1) AND (char_length(btrim(title)) <= 200)))
   CREATE INDEX idx_offers_is_active ON offers USING btree (is_active) WHERE is_active
   CREATE INDEX idx_offers_product_size_id ON offers USING btree (product_size_id)
   CREATE INDEX idx_offers_store_id ON offers USING btree (store_id)
@@ -252,7 +256,6 @@ TABLE order_items  rls=on  grants: anon=- authenticated=awd service_role=rawdDxt
   CREATE INDEX idx_order_items_store_product_id ON order_items USING btree (store_product_id)
   POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
   POLICY member_read PERMISSIVE FOR SELECT TO authenticated USING (private.is_store_member(private.sp_store(store_product_id)))
-  POLICY own_insert PERMISSIVE FOR INSERT TO authenticated WITH CHECK ((EXISTS ( SELECT 1 FROM orders o WHERE ((o.id = order_items.order_id) AND (o.user_id = ( SELECT auth.uid() AS uid)) AND (o.status = 'pending'::text)))))
   POLICY own_read PERMISSIVE FOR SELECT TO authenticated USING ((EXISTS ( SELECT 1 FROM orders o WHERE ((o.id = order_items.order_id) AND (o.user_id = ( SELECT auth.uid() AS uid))))))
   CREATE TRIGGER order_item_price BEFORE INSERT ON order_items FOR EACH ROW EXECUTE FUNCTION private.order_item_price()
   CREATE TRIGGER set_updated_at BEFORE UPDATE ON order_items FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()

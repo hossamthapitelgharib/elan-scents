@@ -165,6 +165,7 @@ TABLE store_products  rls=on  grants: anon=- authenticated=awd service_role=rawd
   CONSTRAINT store_products_product_size_id_fkey FOREIGN KEY (product_size_id) REFERENCES product_sizes(id) ON DELETE CASCADE
   CONSTRAINT store_products_store_id_fkey FOREIGN KEY (store_id) REFERENCES stores(id) ON DELETE CASCADE
   CONSTRAINT store_products_discount_percentage_check CHECK (((discount_percentage >= (0)::numeric) AND (discount_percentage <= (100)::numeric)))
+  CONSTRAINT store_products_link_is_http CHECK (((product_url IS NULL) OR (product_url = ''::text) OR (product_url ~* '^https?://[^[:space:]]+$'::text)))
   CONSTRAINT store_products_original_price_check CHECK ((original_price >= (0)::numeric))
   CONSTRAINT store_products_price_check CHECK ((price >= (0)::numeric))
   CONSTRAINT store_products_stock_quantity_check CHECK ((stock_quantity >= 0))
@@ -174,10 +175,11 @@ TABLE store_products  rls=on  grants: anon=- authenticated=awd service_role=rawd
   CREATE INDEX idx_store_products_price ON store_products USING btree (price)
   CREATE INDEX idx_store_products_product_size_id ON store_products USING btree (product_size_id)
   CREATE INDEX idx_store_products_store_id ON store_products USING btree (store_id)
-  COLUMN GRANTS anon=select,authenticated=select: id,store_id,product_size_id,price,stock_quantity,is_available,is_new_arrival,price_includes_tax,price_includes_shipping,currency,sync_status,last_synced_at,is_catalog_bestseller,is_coming_soon
+  COLUMN GRANTS anon=select,authenticated=select: id,store_id,product_size_id,price,stock_quantity,is_available,is_new_arrival,is_coming_soon,price_includes_tax,price_includes_shipping,currency,sync_status,last_synced_at,is_catalog_bestseller
   POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
   POLICY member_all PERMISSIVE FOR ALL TO authenticated USING (private.is_store_member(store_id)) WITH CHECK (private.is_store_member(store_id))
   POLICY public_read PERMISSIVE FOR SELECT TO anon,authenticated USING ((is_available AND (stock_quantity > 0) AND (sync_status = 'synced'::text) AND private.store_is_active(store_id)))
+  CREATE TRIGGER guard_platform_columns BEFORE INSERT OR UPDATE ON store_products FOR EACH ROW EXECUTE FUNCTION private.guard_store_product_platform_columns()
   CREATE TRIGGER set_updated_at BEFORE UPDATE ON store_products FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
 
 TABLE store_shipments  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
@@ -224,6 +226,7 @@ TABLE stores  rls=on  grants: anon=- authenticated=awd service_role=rawdDxt
   CONSTRAINT stores_pkey PRIMARY KEY (id)
   CONSTRAINT stores_slug_key UNIQUE (slug)
   CONSTRAINT stores_commission_rate_check CHECK (((commission_rate >= (0)::numeric) AND (commission_rate <= (100)::numeric)))
+  CONSTRAINT stores_links_are_http CHECK ((((website_url IS NULL) OR (website_url = ''::text) OR (website_url ~* '^https?://[^[:space:]]+$'::text)) AND ((logo_url IS NULL) OR (logo_url = ''::text) OR (logo_url ~* '^https?://[^[:space:]]+$'::text)) AND ((image_url IS NULL) OR (image_url = ''::text) OR (image_url ~* '^https?://[^[:space:]]+$'::text))))
   CONSTRAINT stores_status_check CHECK ((status = ANY (ARRAY['active'::text, 'inactive'::text])))
   CREATE INDEX idx_stores_commission_rate ON stores USING btree (commission_rate)
   COLUMN GRANTS anon=select,authenticated=select: id,name,slug,logo_url,image_url,short_description,status

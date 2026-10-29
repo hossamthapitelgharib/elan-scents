@@ -33,9 +33,22 @@ TABLE orders  rls=on  grants: anon=- authenticated=awd service_role=rawdDxt
   CONSTRAINT orders_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'confirmed'::text, 'shipped'::text, 'delivered'::text, 'cancelled'::text])))
   CREATE INDEX idx_orders_user_id ON orders USING btree (user_id)
   POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
-  POLICY own_insert PERMISSIVE FOR INSERT TO authenticated WITH CHECK (((user_id = ( SELECT auth.uid() AS uid)) AND (status = 'pending'::text)))
   POLICY own_read PERMISSIVE FOR SELECT TO authenticated USING ((user_id = ( SELECT auth.uid() AS uid)))
   CREATE TRIGGER set_updated_at BEFORE UPDATE ON orders FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
+
+TABLE platform_audit_log  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
+  id uuid NOT NULL DEFAULT gen_random_uuid()
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  actor_id uuid
+  action text NOT NULL
+  target_type text NOT NULL
+  target_id uuid
+  details jsonb NOT NULL DEFAULT '{}'::jsonb
+  CONSTRAINT platform_audit_log_pkey PRIMARY KEY (id)
+  CONSTRAINT platform_audit_log_action_check CHECK (((char_length(action) >= 1) AND (char_length(action) <= 80)))
+  CONSTRAINT platform_audit_log_target_type_check CHECK (((char_length(target_type) >= 1) AND (char_length(target_type) <= 80)))
+  CREATE INDEX platform_audit_log_created_idx ON platform_audit_log USING btree (created_at DESC)
+  CREATE INDEX platform_audit_log_target_idx ON platform_audit_log USING btree (target_type, target_id, created_at DESC)
 
 TABLE product_categories  rls=on  grants: anon=r authenticated=rawd service_role=rawdDxt
   product_id uuid NOT NULL
