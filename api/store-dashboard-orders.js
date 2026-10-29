@@ -24,6 +24,11 @@ function pageNumber(value, fallback, minimum, maximum) {
   const parsed = Number(value);
   return Number.isSafeInteger(parsed) && parsed >= minimum && parsed <= maximum ? parsed : fallback;
 }
+/* The search box: letters (Arabic too), digits, spaces and - _ . @ + only. Everything else (commas, brackets, * and %, which
+   PostgREST reads as filter syntax or wildcards) is dropped, so the text can only ever be a plain "contains" match. */
+function searchText(value) {
+  return String(value || '').replace(/[^\p{L}\p{N}\s\-_.@+]/gu, '').replace(/\s+/g, ' ').trim().slice(0, 60);
+}
 function pick(row, fields) {
   const result = {};
   for (const field of fields) if (Object.prototype.hasOwnProperty.call(row || {}, field)) result[field] = row[field];
@@ -72,6 +77,8 @@ module.exports = async function storeDashboardOrders(req, res) {
     const status = queryValue(query, 'status', '');
     if (status && !STATUSES.has(status)) return reply(res, 400, { ok: false, error: 'invalid_status' });
 
+    const search = searchText(queryValue(query, 'q', ''));
+
     let storeIds;
     if (context.profile.role === 'platform_admin') {
       const requested = queryValue(query, 'storeId', '');
@@ -84,6 +91,7 @@ module.exports = async function storeDashboardOrders(req, res) {
 
     const params = new URLSearchParams({ select: ORDER_SELECT, order: 'created_at.desc,id.desc', limit: String(limit), offset: String(offset), store_id: `in.(${storeIds.join(',')})` });
     if (status) params.set('status', `eq.${status}`);
+    if (search) params.set('or', `(${['tracking_number', 'checkout_tracking_number', 'customer_name', 'customer_phone'].map(field => `${field}.ilike.*${search}*`).join(',')})`);
     const response = await fetch(`${context.supabaseUrl}/rest/v1/store_order_requests?${params}`, {
       headers: { apikey: context.serviceRoleKey, Authorization: `Bearer ${context.serviceRoleKey}`, Prefer: 'count=exact' }
     });

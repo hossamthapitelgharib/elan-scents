@@ -175,3 +175,28 @@ test('the store card tells the store how to answer a cancellation request, escap
   assert.equal(notice('awaiting_store_confirmation', [{ reason: null }]).includes('السبب'), false, 'no reason line when none was given');
   assert.match(script, /\$\{cancelNoticeS\(order\)\}/, 'the card shows the notice');
 });
+
+test('the search box is a plain "contains" match inside the store scope, and cannot inject filter syntax', async () => {
+  const read = async query => {
+    const seen = {};
+    const { res } = await run('store_admin', query, async url => {
+      if (url.pathname.endsWith('/store_accounts')) return response([{ store_id: storeId }]);
+      if (url.pathname.endsWith('/store_order_requests')) { seen.params = url.searchParams; return response([], 200, { 'content-range': '*/0' }); }
+      throw new Error(`unexpected ${url.pathname}`);
+    });
+    return { res, params: seen.params };
+  };
+  let { res, params } = await read({ q: ' ELAN-123 ' });
+  assert.equal(res.status, 200);
+  assert.equal(params.get('store_id'), `in.(${storeId})`, 'the search stays inside the store scope');
+  assert.equal(params.get('or'), '(tracking_number.ilike.*ELAN-123*,checkout_tracking_number.ilike.*ELAN-123*,customer_name.ilike.*ELAN-123*,customer_phone.ilike.*ELAN-123*)');
+  ({ params } = await read({ q: 'محمد علي', status: 'processing' }));
+  assert.match(params.get('or'), /customer_name\.ilike\.\*محمد علي\*/, 'Arabic names are searchable');
+  assert.equal(params.get('status'), 'eq.processing', 'search and status filter work together');
+  ({ params } = await read({ q: 'x),store_id.neq.0,(y' }));
+  assert.equal(params.get('or'), '(tracking_number.ilike.*xstore_id.neq.0y*,checkout_tracking_number.ilike.*xstore_id.neq.0y*,customer_name.ilike.*xstore_id.neq.0y*,customer_phone.ilike.*xstore_id.neq.0y*)', 'commas and brackets are dropped');
+  ({ params } = await read({ q: '*%,()' }));
+  assert.equal(params.get('or'), null, 'a search of only symbols is no search');
+  ({ params } = await read({ q: 'a'.repeat(200) }));
+  assert.equal(params.get('or').match(/\*(a+)\*/)[1].length, 60, 'the term is capped at 60 characters');
+});

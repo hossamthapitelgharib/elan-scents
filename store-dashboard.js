@@ -5,7 +5,11 @@ const shippingLabels = { preparing: 'قيد التجهيز', handed_to_carrier: 
 const badgeS = status => `<span class="badge ${status === 'delivered' ? 'green' : ['store_rejected', 'store_cancelled', 'returned', 'cancelled'].includes(status) ? 'red' : ['processing', 'shipped', 'in_transit', 'out_for_delivery', 'handed_to_carrier'].includes(status) ? 'blue' : status === 'delayed' ? 'orange' : ''}">${escS(labelS[status] || status || '—')}</span>`;
 const shipmentBadgeS = status => `<span class="badge ${status === 'delivered' ? 'green' : ['returned', 'cancelled'].includes(status) ? 'red' : status === 'delayed' ? 'orange' : status ? 'blue' : 'muted'}">${escS(shippingLabels[status] || 'لم تُسجل')}</span>`;
 const moneyS = (value, currency = 'EGP') => `${Number(value || 0).toLocaleString('ar-EG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${escS(currency)}`;
-const stateS = { orders: [], offset: 0, limit: 50, total: null, hasMore: false, busy: false };
+const reconS = { pending: 'بانتظار المطابقة', matched: 'مطابق', mismatched: 'غير مطابق' };
+// The store records a shipment only once it has confirmed the order, and never for an order it rejected or cancelled
+// (the API refuses the last case too).
+const shippableS = new Set(['store_confirmed', 'processing', 'shipped', 'delivered', 'needs_review', 'completed']);
+const stateS = { orders: [], offset: 0, limit: 50, total: null, hasMore: false, busy: false, linked: null, filters: { status: '', q: '' } };
 const shipmentOf = order => (order.store_shipments || [])[0] || {};
 function shipmentForm(order) {
   const shipment = shipmentOf(order);
@@ -40,11 +44,12 @@ function cancelNoticeS(order) {
 function renderStore(order) {
   const actions = (nextS[order.status] || []).map(status => `<button class="action" data-update="${escS(order.id)}" data-status="${status}">${labelS[status]}</button>`).join('');
   const items = (order.store_order_request_items || []).map(item => `<div class="item"><span>${escS(item.product_name)}${item.brand_name ? ` · ${escS(item.brand_name)}` : ''}${item.size_label ? ` · ${escS(item.size_label)}` : ''} × ${Number(item.quantity || 0).toLocaleString('ar-EG')}<small>سعر الوحدة: ${moneyS(item.unit_price, item.currency)}</small></span><b>${moneyS(item.line_total, item.currency)}</b></div>`).join('');
-  return `<article class="order"><h3>${escS(order.customer_name || 'عميل')} · <span dir="ltr">${escS(order.tracking_number || '—')}</span></h3><div class="meta"><span>${escS(order.stores && order.stores.name || '')}</span>${badgeS(order.status)}<span>المطابقة: ${escS(order.reconciliation_status || '—')}</span></div><div class="grid"><div><b>بيانات التسليم الضرورية لهذا الطلب</b><p>الهاتف: ${escS(order.customer_phone || '—')}<br>العنوان: ${escS(order.customer_address || '—')}</p></div><div><b>المنتجات</b>${items || '<p class="meta">لا توجد بنود محفوظة.</p>'}<p><b>الإجمالي: ${moneyS(order.total_amount ?? order.subtotal, order.currency)}</b></p></div></div>${cancelNoticeS(order)}${shipmentForm(order)}${actions ? `<div class="actions">${actions}</div>` : '<p class="meta">لا توجد خطوة متاحة لهذا الطلب الآن.</p>'}</article>`;
+  return `<article class="order"><h3>${escS(order.customer_name || 'عميل')} · <span dir="ltr">${escS(order.tracking_number || '—')}</span></h3><div class="meta"><span>${escS(order.stores && order.stores.name || '')}</span>${badgeS(order.status)}<span>المطابقة: ${escS(reconS[order.reconciliation_status] || '—')}</span></div><div class="grid"><div><b>بيانات التسليم الضرورية لهذا الطلب</b><p>الهاتف: ${escS(order.customer_phone || '—')}<br>العنوان: ${escS(order.customer_address || '—')}</p></div><div><b>المنتجات</b>${items || '<p class="meta">لا توجد بنود محفوظة.</p>'}<p><b>الإجمالي: ${moneyS(order.total_amount ?? order.subtotal, order.currency)}</b></p></div></div>${cancelNoticeS(order)}${shippableS.has(order.status) ? shipmentForm(order) : ''}${actions ? `<div class="actions">${actions}</div>` : '<p class="meta">لا توجد خطوة متاحة لهذا الطلب الآن.</p>'}</article>`;
 }
 function renderOrders() {
   const container = document.querySelector('#orders');
-  container.innerHTML = stateS.orders.length ? stateS.orders.map(renderStore).join('') : '<div class="empty">لا توجد طلبات لهذا المتجر</div>';
+  const filtered = Boolean(stateS.filters.status || stateS.filters.q);
+  container.innerHTML = stateS.orders.length ? stateS.orders.map(renderStore).join('') : `<div class="empty">${filtered ? 'لا توجد طلبات تطابق هذا البحث' : 'لا توجد طلبات لهذا المتجر'}</div>`;
   const more = document.querySelector('#loadMoreOrders');
   more.hidden = !stateS.hasMore;
   more.disabled = stateS.busy;
@@ -64,17 +69,22 @@ async function loadStore(append = false) {
   if (!append) document.querySelector('#orders').innerHTML = '<p class="muted">جارٍ تحميل الطلبات…</p>';
   try {
     const params = new URLSearchParams({ limit: String(stateS.limit), offset: String(offset) });
+    if (stateS.filters.status) params.set('status', stateS.filters.status);
+    if (stateS.filters.q) params.set('q', stateS.filters.q);
     const response = await fetch(`/api/store-dashboard-orders?${params}`, { headers: Portal.auth() });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || 'تعذر تحميل طلبات المتجر');
+    const data = await response.json().catch(() => null);
+    if (!response.ok || !data) throw new Error(data && data.error || 'store_dashboard_failed');
+    stateS.linked = Array.isArray(data.stores) ? data.stores.length : null;
+    showOrderAction('');
     const page = Array.isArray(data.orders) ? data.orders : [];
     stateS.orders = append ? stateS.orders.concat(page) : page;
     stateS.offset = offset + page.length;
     stateS.total = data.pagination && Number.isFinite(Number(data.pagination.total)) ? Number(data.pagination.total) : null;
     stateS.hasMore = Boolean(data.pagination && data.pagination.hasMore);
     renderOrders();
+    document.querySelector('#noStoreNotice').hidden = stateS.linked !== 0;
   } catch (cause) {
-    error.textContent = cause && cause.message || 'تعذر تحميل طلبات المتجر';
+    error.textContent = Portal.errorText(cause, 'تعذر تحميل طلبات المتجر.');
     error.hidden = false;
     if (!append) document.querySelector('#orders').innerHTML = '';
   } finally {
@@ -83,39 +93,61 @@ async function loadStore(append = false) {
     more.hidden = !stateS.hasMore;
   }
 }
+function showOrderAction(message) {
+  const box = document.querySelector('#orderActionError');
+  box.textContent = message || '';
+  box.hidden = !message;
+}
 async function updateOrder(button) {
+  const body = { requestId: button.dataset.update, status: button.dataset.status };
+  if (body.status === 'store_rejected') {
+    // Rejecting cannot be undone by the store, so it asks first; the reason is optional and is kept with the order.
+    const reason = window.prompt('رفض هذا الطلب؟ اكتب سبب الرفض (اختياري) ثم اضغط موافق، أو اضغط إلغاء للتراجع.', '');
+    if (reason === null) return;
+    if (reason.trim()) body.reason = reason.trim().slice(0, 500);
+  }
   button.disabled = true;
+  showOrderAction('');
   try {
-    const response = await fetch('/api/store-order-update', { method: 'PATCH', headers: { ...Portal.auth(), 'Content-Type': 'application/json' }, body: JSON.stringify({ requestId: button.dataset.update, status: button.dataset.status }) });
-    const data = await response.json();
-    if (!response.ok) {
-      const stale = data.error === 'order_status_changed' || data.error === 'invalid_status_transition';
-      const message = stale ? 'تغيّرت حالة الطلب قبل تنفيذ التحديث، وتم تحديث القائمة. راجع الحالة الحالية ثم أعد المحاولة.' : (data.error || 'تعذر تحديث حالة الطلب');
+    const response = await fetch('/api/store-order-update', { method: 'PATCH', headers: { ...Portal.auth(), 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const data = await response.json().catch(() => null);
+    if (!response.ok || !data) {
+      const code = data && data.error || 'store_update_failed';
+      const stale = code === 'order_status_changed' || code === 'invalid_status_transition';
       if (stale) await loadStore();
+      const message = stale ? 'تغيّرت حالة الطلب قبل تنفيذ التحديث، وتم تحديث القائمة. راجع الحالة الحالية ثم أعد المحاولة.' : Portal.errorText(code, 'تعذر تحديث حالة الطلب.');
       throw new Error(message);
     }
     await loadStore();
   } catch (error) {
-    alert(error.message || 'تعذر تحديث حالة الطلب');
+    showOrderAction(Portal.errorText(error, 'تعذر تحديث حالة الطلب.'));
     button.disabled = false;
   }
 }
 async function updateShipment(form) {
   const button = form.querySelector('button');
   button.disabled = true;
+  showOrderAction('');
   try {
     const body = Object.fromEntries(new FormData(form));
     body.requestId = form.dataset.shipmentForm;
     const response = await fetch('/api/store-shipment-update', { method: 'PATCH', headers: { ...Portal.auth(), 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error === 'invalid_shipping_transition' ? 'لا يمكن الرجوع إلى حالة شحن سابقة.' : (data.error || 'تعذر حفظ تحديث الشحن'));
+    const data = await response.json().catch(() => null);
+    if (!response.ok || !data) throw new Error(data && data.error || 'shipment_update_failed');
     await loadStore();
   } catch (error) {
-    alert(error.message || 'تعذر حفظ تحديث الشحن');
+    showOrderAction(Portal.errorText(error, 'تعذر حفظ تحديث الشحن.'));
     button.disabled = false;
   }
 }
 document.querySelector('#loadMoreOrders').addEventListener('click', () => loadStore(true));
+document.querySelector('#refreshOrders').addEventListener('click', () => loadStore());
+document.querySelector('#orderFilters').addEventListener('submit', event => {
+  event.preventDefault();
+  const form = event.target;
+  stateS.filters = { status: String(form.elements.status.value || ''), q: String(form.elements.q.value || '').trim() };
+  loadStore();
+});
 document.addEventListener('click', event => {
   const button = event.target.closest('[data-update]');
   if (button) updateOrder(button);
@@ -132,7 +164,7 @@ document.querySelector('#loginForm').addEventListener('submit', async event => {
     await Portal.login(event.target);
     await loadStore();
   } catch (error) {
-    document.querySelector('#message').textContent = error.message;
+    document.querySelector('#message').textContent = Portal.errorText(error, 'تعذر تسجيل الدخول، حاول مرة أخرى.');
   }
 });
 if (Portal.session()) loadStore();

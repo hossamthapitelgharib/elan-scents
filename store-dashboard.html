@@ -24,9 +24,26 @@
       <p id="message"></p>
     </section>
     <section id="app" hidden>
+      <p id="noStoreNotice" class="panel" role="status" hidden>هذا الحساب غير مرتبط بأي متجر بعد، فلا توجد طلبات لعرضها. اطلب من إدارة المنصة ربطه بمتجرك ثم أعد تحميل الصفحة.</p>
       <div id="stats" class="stats"></div>
+      <form id="orderFilters" class="platform-filters" aria-label="تصفية الطلبات">
+        <select name="status" aria-label="حالة الطلب">
+          <option value="">كل الحالات</option>
+          <option value="awaiting_store_confirmation">بانتظار التنفيذ</option>
+          <option value="store_confirmed">تم التأكيد</option>
+          <option value="processing">قيد التجهيز</option>
+          <option value="shipped">تم الشحن</option>
+          <option value="delivered">تم التسليم</option>
+          <option value="store_rejected">مرفوض</option>
+          <option value="store_cancelled">ملغى</option>
+        </select>
+        <input name="q" type="search" maxlength="60" placeholder="ابحث برقم التتبع أو اسم العميل أو هاتفه" aria-label="بحث في الطلبات">
+        <button class="ghost" type="submit">بحث</button>
+        <button id="refreshOrders" class="ghost" type="button">تحديث</button>
+      </form>
       <p id="ordersSummary" class="muted" hidden></p>
       <p id="storeOrdersError" class="platform-error" role="alert" hidden></p>
+      <p id="orderActionError" class="platform-error" role="alert" hidden></p>
       <div id="orders" class="stack"></div>
       <button id="loadMoreOrders" class="ghost" type="button" hidden>تحميل المزيد من الطلبات</button>
     </section>
