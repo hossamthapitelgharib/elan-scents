@@ -49,7 +49,7 @@ const ACCOUNT_IDS = ['#loginForm', '#archiveForm', '#loadMoreOrders', '#loadMore
   '#ordersCount', '#stats', '#activeOrders', '#recentOrders', '#archiveOrders', '#archiveSearch', '#archiveYear', '#cartShortcut',
   '#refreshOrders', '#lastUpdated', '#forgotLink', '#resetForm', '#newPasswordForm', '.auth-links'];
 const DASHBOARD_IDS = ['#authForm', '#authCard', '#authError', '#dashboard', '#ordersError', '#logout', '#lastUpdated', '#refreshBtn', '#loadMoreOrders',
-  '#saveSettingsBtn', '#statusFilter', '#matchFilter', '#searchFilter', '#stats', '#orders', '#storeSettings', '#settingsNotice'];
+  '#saveSettingsBtn', '#statusFilter', '#matchFilter', '#searchFilter', '#attentionFilter', '#stats', '#orders', '#storeSettings', '#settingsNotice'];
 const CUSTOMERS_IDS = ['#customerTabs', '#registeredAnalytics', '#guestAnalytics', '#loginForm', '#login', '#app', '#logout', '#message', '#platformError', '#stats',
   '#registeredCount', '#visitorCount', '#registeredCustomers', '#guestCustomers', '#registeredPagination', '#visitorPagination'];
 

@@ -20,6 +20,12 @@ function reply(res, status, body) {
   res.setHeader('Content-Type', 'application/json');
   return res.status(status).json(body);
 }
+/* Dates for the from/to filters: an ISO date or date-time. Anything else (commas and brackets would be read as filter syntax) is refused. */
+const DATE_VALUE = /^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d{1,6})?)?(?:Z|[+-]\d{2}:?\d{2})?)?$/;
+/* The search box: letters (Arabic too), digits, spaces and - _ . @ + only, so the text can only be a plain "contains" match. */
+function searchText(value) {
+  return String(Array.isArray(value) ? value[0] : value || '').replace(/[^\p{L}\p{N}\s\-_.@+]/gu, '').replace(/\s+/g, ' ').trim().slice(0, 60);
+}
 function integerQuery(value, fallback, min, max) {
   if (value === undefined || value === null || value === '') return fallback;
   const raw = Array.isArray(value) ? value[0] : value;
@@ -67,9 +73,22 @@ module.exports = async function dashboardOrders(req, res) {
     }
     const tracking = String(query.tracking || '').trim().slice(0, 120).replace(/[(),*%]/g, '');
     if (tracking) params.set('tracking_number', `ilike.*${tracking}*`);
-    if (query.from) params.set('created_at', `gte.${String(query.from).slice(0, 40)}`);
-    if (query.to) params.set('and', `(created_at.lt.${String(query.to).slice(0, 40)})`);
-    if (query.attention === '1') params.set('or', '(status.eq.needs_review,reconciliation_status.eq.mismatched)');
+    if (query.from) {
+      const from = String(query.from);
+      if (!DATE_VALUE.test(from)) return reply(res, 400, { ok: false, error: 'invalid_date' });
+      params.set('created_at', `gte.${from}`);
+    }
+    /* Conditions that must all hold, joined in one `and` so a date, the attention filter and the search can be used together. */
+    const all = [];
+    if (query.to) {
+      const to = String(query.to);
+      if (!DATE_VALUE.test(to)) return reply(res, 400, { ok: false, error: 'invalid_date' });
+      all.push(`created_at.lt.${to}`);
+    }
+    if (query.attention === '1') all.push('or(status.eq.needs_review,reconciliation_status.eq.mismatched)');
+    const search = searchText(query.q);
+    if (search) all.push(`or(tracking_number.ilike.*${search}*,checkout_tracking_number.ilike.*${search}*,customer_name.ilike.*${search}*,customer_phone.ilike.*${search}*)`);
+    if (all.length) params.set('and', `(${all.join(',')})`);
 
     const response = await fetch(`${context.supabaseUrl}/rest/v1/store_order_requests?${params}`, {
       headers: {

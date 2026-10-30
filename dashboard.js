@@ -3,34 +3,45 @@ let storeSettings = [];
 let orderOffset = 0;
 let orderHasMore = false;
 let orderLoading = false;
+let orderTotal = null;
+let orderSeq = 0;
+let searchTimer = null;
 const $ = id => document.getElementById(id);
 const escapeHtml = value => String(value == null ? '' : value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char]));
 const money = (value, currency = 'EGP') => `${Number(value || 0).toFixed(2)} ${escapeHtml(currency)}`;
 const statusLabel = { awaiting_store_confirmation: 'بانتظار المتجر', completed: 'مكتمل', store_rejected: 'مرفوض من المتجر', needs_review: 'يحتاج مراجعة', store_confirmed: 'تم التأكيد', processing: 'قيد التجهيز', shipped: 'تم الشحن', delivered: 'تم التسليم', store_cancelled: 'ملغى من المتجر', cancelled: 'ملغى' };
 function badge(text, tone = '') { return `<span class="badge ${tone}">${escapeHtml(text)}</span>`; }
 function orderStatusBadge(status) { const tone = status === 'completed' || status === 'delivered' ? 'green' : status === 'store_rejected' || status === 'cancelled' ? 'red' : status === 'needs_review' ? 'blue' : ''; return badge(statusLabel[status] || status || 'غير محدد', tone); }
-function matchBadge(status) { const tone = status === 'matched' ? 'green' : status === 'mismatched' ? 'red' : 'blue'; return badge(status === 'matched' ? 'مطابق' : status === 'mismatched' ? 'غير مطابق' : 'قيد المطابقة', tone); }
-function renderStats(filtered) {
-  const count = predicate => filtered.filter(predicate).length;
-  $('stats').innerHTML = [['إجمالي الطلبات', filtered.length, ''], ['بانتظار المتجر', count(order => order.status === 'awaiting_store_confirmation'), ''], ['مكتملة ومطابقة', count(order => order.status === 'completed' && order.reconciliation_status === 'matched'), 'green'], ['تحتاج مراجعة', count(order => order.reconciliation_status === 'mismatched' || order.status === 'needs_review'), 'red']].map(item => `<div class="stat"><small>${item[0]}</small><strong class="${item[2]}">${item[1]}</strong></div>`).join('');
+const matchLabel = { matched: 'مطابق', mismatched: 'غير مطابق', pending: 'قيد المطابقة' };
+function matchBadge(status) { const tone = status === 'matched' ? 'green' : status === 'mismatched' ? 'red' : 'blue'; return badge(matchLabel[status] || matchLabel.pending, tone); }
+/* The filters are sent to the server, so the numbers are the server's: every order that matches, and how many of them are on screen. */
+function renderStats() {
+  const shown = orders.length;
+  const total = orderTotal === null ? shown : orderTotal;
+  $('stats').innerHTML = [['الطلبات المطابقة للفلاتر', total.toLocaleString('ar-EG'), ''], ['المعروضة الآن', shown.toLocaleString('ar-EG'), '']].map(item => `<div class="stat"><small>${item[0]}</small><strong class="${item[2]}">${item[1]}</strong></div>`).join('');
 }
 function renderOrders() {
-  const query = ($('searchFilter').value || '').trim().toLowerCase();
+  renderStats();
+  $('orders').innerHTML = orders.length ? orders.map(renderOrder).join('') : '<div class="empty">لا توجد طلبات مطابقة للفلاتر الحالية</div>';
+  $('loadMoreOrders').hidden = !orderHasMore;
+}
+/* What the filter boxes ask the server for. */
+function orderFilterParams() {
+  const params = new URLSearchParams();
   const status = $('statusFilter').value;
   const match = $('matchFilter').value;
-  const filtered = orders.filter(order => {
-    const searchable = [order.tracking_number, order.customer_name, order.customer_phone, order.stores && order.stores.name].join(' ').toLowerCase();
-    return (!status || order.status === status) && (!match || order.reconciliation_status === match) && (!query || searchable.includes(query));
-  });
-  renderStats(filtered);
-  $('orders').innerHTML = filtered.length ? filtered.map(renderOrder).join('') : '<div class="empty">لا توجد طلبات مطابقة للفلاتر الحالية في الصفحات المحمّلة</div>';
-  $('loadMoreOrders').hidden = !orderHasMore;
+  const query = ($('searchFilter').value || '').trim();
+  if (status) params.set('status', status);
+  if (match) params.set('matchStatus', match);
+  if (query) params.set('q', query);
+  if ($('attentionFilter').checked) params.set('attention', '1');
+  return params;
 }
 function renderOrder(order) {
   const items = order.store_order_request_items || [];
   const notices = order.store_order_notifications || [];
   const store = order.stores && order.stores.name || '—';
-  return `<article class="order-card"><div class="order-head"><div class="order-title"><b>${escapeHtml(store)}</b><span class="tracking">${escapeHtml(order.checkout_tracking_number || order.tracking_number)}</span><small>${escapeHtml(order.tracking_number)} · ${new Date(order.created_at).toLocaleString('ar-EG')}</small></div><div class="badges">${orderStatusBadge(order.status)}${matchBadge(order.reconciliation_status)}</div></div><div class="order-body"><div class="customer"><b>بيانات العميل</b><p>الاسم: <b>${escapeHtml(order.customer_name)}</b></p><p>الهاتف: <b>${escapeHtml(order.customer_phone)}</b></p><p>البريد: ${escapeHtml(order.customer_email || '—')}</p><p>العنوان: ${escapeHtml(order.customer_address)}</p><p>ملاحظات: ${escapeHtml(order.customer_notes || '—')}</p></div><div><b>المنتجات والتكلفة</b><div class="items">${items.map(item => `<div class="item"><span>${escapeHtml(item.product_name)} × ${item.quantity}<small>${escapeHtml(item.brand_name || '')}</small></span><span>${money(item.line_total, item.currency)}</span></div>`).join('')}</div><div class="money"><span>الإجمالي الفرعي</span><b>${money(order.subtotal, order.currency)}</b></div><div class="money"><span>الشحن</span><b>${order.shipping_amount == null ? 'يحدده المتجر' : money(order.shipping_amount, order.currency)}</b></div><div class="money"><span>الإجمالي النهائي</span><b>${order.total_amount == null ? 'بانتظار المتجر' : money(order.total_amount, order.currency)}</b></div></div><div class="notifications"><b>سجل الإشعارات والمطابقة</b>${notices.length ? notices.map(notice => `<div class="notice"><span>${notice.event_type === 'initial_submitted' ? 'الإشعار المبدئي' : notice.event_type === 'store_completed' ? 'إشعار الإتمام' : notice.event_type === 'store_rejected' ? 'إشعار عدم التنفيذ' : 'تحديث متجر'} · ${escapeHtml(notice.match_status)}</span><time>${new Date(notice.received_at).toLocaleString('ar-EG')}</time></div>`).join('') : '<div class="notice">لم يصل إشعار من المتجر بعد</div>'}</div></div></article>`;
+  return `<article class="order-card"><div class="order-head"><div class="order-title"><b>${escapeHtml(store)}</b><span class="tracking">${escapeHtml(order.checkout_tracking_number || order.tracking_number)}</span><small>${escapeHtml(order.tracking_number)} · ${new Date(order.created_at).toLocaleString('ar-EG')}</small></div><div class="badges">${orderStatusBadge(order.status)}${matchBadge(order.reconciliation_status)}</div></div><div class="order-body"><div class="customer"><b>بيانات العميل</b><p>الاسم: <b>${escapeHtml(order.customer_name)}</b></p><p>الهاتف: <b>${escapeHtml(order.customer_phone)}</b></p><p>البريد: ${escapeHtml(order.customer_email || '—')}</p><p>العنوان: ${escapeHtml(order.customer_address)}</p><p>ملاحظات: ${escapeHtml(order.customer_notes || '—')}</p></div><div><b>المنتجات والتكلفة</b><div class="items">${items.map(item => `<div class="item"><span>${escapeHtml(item.product_name)} × ${item.quantity}<small>${escapeHtml(item.brand_name || '')}</small></span><span>${money(item.line_total, item.currency)}</span></div>`).join('')}</div><div class="money"><span>الإجمالي الفرعي</span><b>${money(order.subtotal, order.currency)}</b></div><div class="money"><span>الشحن</span><b>${order.shipping_amount == null ? 'يحدده المتجر' : money(order.shipping_amount, order.currency)}</b></div><div class="money"><span>الإجمالي النهائي</span><b>${order.total_amount == null ? 'بانتظار المتجر' : money(order.total_amount, order.currency)}</b></div></div><div class="notifications"><b>سجل الإشعارات والمطابقة</b>${notices.length ? notices.map(notice => `<div class="notice"><span>${notice.event_type === 'initial_submitted' ? 'الإشعار المبدئي' : notice.event_type === 'store_completed' ? 'إشعار الإتمام' : notice.event_type === 'store_rejected' ? 'إشعار عدم التنفيذ' : 'تحديث متجر'} · ${escapeHtml(matchLabel[notice.match_status] || notice.match_status)}</span><time>${new Date(notice.received_at).toLocaleString('ar-EG')}</time></div>`).join('') : '<div class="notice">لم يصل إشعار من المتجر بعد</div>'}</div></div></article>`;
 }
 function errorMessage(error, fallback = 'تعذر تحميل البيانات، حاول مرة أخرى.') {
   return typeof Portal.errorText === 'function' ? Portal.errorText(error, fallback) : (error && error.message) || fallback;
@@ -47,26 +58,32 @@ function setOrdersError(error) {
   box.hidden = false;
 }
 async function loadOrders(append = false) {
-  if (orderLoading) return;
+  if (append && orderLoading) return;
   if (!Portal.session()) {
     $('authCard').hidden = false;
     $('dashboard').hidden = true;
     return;
   }
+  /* A newer load (the filters changed) makes an older answer stale: only the latest one is shown. */
+  const seq = ++orderSeq;
   orderLoading = true;
   const button = $('loadMoreOrders');
   if (button) button.disabled = true;
   try {
     const offset = append ? orderOffset : 0;
-    const params = new URLSearchParams({ limit: '100', offset: String(offset) });
+    const params = orderFilterParams();
+    params.set('limit', '100');
+    params.set('offset', String(offset));
     const response = await fetch(`/api/dashboard-orders?${params}`, { headers: Portal.auth() });
     const data = await response.json();
+    if (seq !== orderSeq) return;
     if (!response.ok) throw new Error(data.error || 'تعذر تحميل الطلبات');
     const rows = Array.isArray(data.orders) ? data.orders : [];
     orders = append ? orders.concat(rows) : rows;
     const page = data.pagination || {};
     orderOffset = offset + rows.length;
     orderHasMore = Boolean(page.hasMore);
+    orderTotal = Number.isFinite(page.total) ? page.total : null;
     $('authCard').hidden = true;
     $('dashboard').hidden = false;
     $('logout').hidden = false;
@@ -77,13 +94,16 @@ async function loadOrders(append = false) {
     // The store settings are a separate tab: if they fail to load the orders stay usable.
     if (!append) await loadStoreSettings().catch(error => showSettingsError(error));
   } catch (error) {
+    if (seq !== orderSeq) return;
     if ($('dashboard').hidden) {
       $('authCard').hidden = false;
       setAuthError(error);
     } else setOrdersError(error);
   } finally {
-    if (button) button.disabled = false;
-    orderLoading = false;
+    if (seq === orderSeq) {
+      if (button) button.disabled = false;
+      orderLoading = false;
+    }
   }
 }
 function inputField(label, key, value, placeholder = '', type = 'text') {
@@ -137,7 +157,12 @@ $('authForm').addEventListener('submit', async event => {
 $('refreshBtn').addEventListener('click', () => loadOrders().catch(setAuthError));
 $('loadMoreOrders').addEventListener('click', () => loadOrders(true));
 $('saveSettingsBtn').addEventListener('click', saveStoreSettings);
-['statusFilter', 'matchFilter', 'searchFilter'].forEach(id => $(id).addEventListener('input', renderOrders));
+// The selects and the checkbox search at once; the text box waits for a pause in typing.
+['statusFilter', 'matchFilter', 'attentionFilter'].forEach(id => $(id).addEventListener('change', () => loadOrders().catch(setAuthError)));
+$('searchFilter').addEventListener('input', () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => loadOrders().catch(setAuthError), 350);
+});
 document.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => {
   document.querySelectorAll('.tab').forEach(item => item.classList.remove('active'));
   tab.classList.add('active');
