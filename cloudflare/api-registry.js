@@ -14,6 +14,7 @@ module.exports = {
     'guest-analytics': () => require('../api/guest-analytics.js'),
     'guest-cart': () => require('../api/guest-cart.js'),
     'notifications': () => require('../api/notifications.js'),
+    'platform-audit-log': () => require('../api/platform-audit-log.js'),
     'platform-customer-detail': () => require('../api/platform-customer-detail.js'),
     'platform-customer-summary': () => require('../api/platform-customer-summary.js'),
     'platform-customers': () => require('../api/platform-customers.js'),
