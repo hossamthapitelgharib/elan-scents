@@ -19,16 +19,16 @@ const NOT_STORAGE = new Set(['elan_editor']);
 test('the policy is a short, gentle summary for the visitor: no storage keys, tables, providers, code names or lists', () => {
   const text = privacy.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
   const words = text.trim().split(' ').length;
-  assert.ok(words < 220, 'the whole page, English included, stays very short (' + words + ' words)');
+  assert.ok(words < 200, 'the whole page, English included, stays very short (' + words + ' words)');
   const arabic = (privacy.match(/<p class="privacy-lead">([^<]*)<\/p>/) || [])[1] || '';
-  assert.ok(arabic.split(/\s+/).length < 75, 'the Arabic summary is about four lines (' + arabic.split(/\s+/).length + ' words)');
+  assert.ok(arabic.split(/\s+/).length < 80, 'the Arabic summary is about four lines (' + arabic.split(/\s+/).length + ' words)');
   assert.doesNotMatch(privacy, /<table|<code>|<ul>|<ol>/i, 'no key tables, code names or lists');
   for (const platform of ['elan_', 'HttpOnly', 'ThumbmarkJS', 'Cloudflare', 'Supabase', 'localStorage', 'HMAC', 'canvas', 'pg_cron', '151']) {
     assert.ok(!text.includes(platform), 'no platform detail on the page: ' + platform);
   }
   // it still says plainly, in the visitor's words, what is followed, that it is anonymous, that refusing is the visitor's right, and that an account comes at ordering
-  for (const need of ['منذ زيارتك الأولى', 'ما يهمّك من عطور', 'رقم مجهول لا يدل على هويتك', 'ولك كامل الحق في رفض ذلك', 'نحذف فورًا ما حفظناه عنك', 'إنشاء حساب ببياناتك الحقيقية']) assert.ok(text.includes(need), 'says: ' + need);
-  for (const need of ['from your first visit', 'an anonymous number', 'free to refuse this', 'delete what we saved about you right away', 'creating an account with your real details']) assert.ok(text.includes(need), 'says in English: ' + need);
+  for (const need of ['نحن سعداء بمرورك الكريم ويشرفنا خدمتك', 'ولتحسين وتطوير المتجر بنتابع من خلال فريق عملنا', 'ما يهمك من عطور وما يشغل خاطرك ويجول بذهنك ويجذب انتباهك', 'عن طريق منحك رقم وهمي', 'ولك كامل الحق في الرفض لتلك السياسة', 'مع حرية الاستمتاع بتصفح كافة منتجات المتجر', 'لحين تسجيلك رسميًا عن طريق إنشاء حساب ببياناتك الحقيقية']) assert.ok(text.includes(need), 'says: ' + need);
+  for (const need of ['delighted by your visit', 'follows the fragrances that interest you', 'a made-up number', 'every right to refuse this policy', 'until you register officially by creating an account with your real details']) assert.ok(text.includes(need), 'says in English: ' + need);
 });
 
 test('the retention periods the code and the database enforce are still in place (the policy page itself no longer quotes them)', () => {
@@ -69,9 +69,10 @@ test('the only choice on the policy page is to refuse: no accept button, in Arab
     assert.doesNotMatch(label, /أوافق|موافقة|Accept|Agree|Allow/i);
   }
   assert.doesNotMatch(privacy, /data-consent-choice|data-consent-open|data-consent-accept/);
-  // both states exist for the script to toggle, in both languages, and the refused one starts hidden
-  assert.equal((privacy.match(/data-consent-when="open"/g) || []).length, 2);
+  // nothing is written above the button (owner decision 30 Oct); only after a refusal a short confirmation appears BELOW it, in both languages
+  assert.equal((privacy.match(/data-consent-when="open"/g) || []).length, 0, 'no state sentence above the button');
   assert.equal((privacy.match(/data-consent-when="refused" hidden/g) || []).length, 2);
+  for (const part of privacy.split('</button>').slice(0, 2)) assert.match(part.split(/<\/p>/).pop(), /<div class="privacy-choice"[^>]*>\s*<button/, 'the button is the first thing in its box');
 });
 
 test('every page that loads the identity script loads the consent script first, with its stylesheet', () => {
@@ -123,12 +124,12 @@ test('the refuse button comes right after the summary the visitor reads, and the
   assert.ok(at('class="privacy-lead"') > -1 && at('class="privacy-lead"') < arButton, 'the Arabic summary comes before the Arabic refuse button');
   assert.ok(arButton < at('id="english"'), 'the Arabic part ends with its button, before the English summary');
   assert.ok(enButton > at('id="english"'), 'the English summary ends with its own button');
-  assert.match(privacy.split('</button>').pop(), /^\s*<\/div>\s*<\/div>\s*<\/main>/, 'nothing but closing tags follows the last button');
+  assert.match(privacy.split('</button>').pop(), /^\s*<p class="privacy-state" data-consent-when="refused" hidden>[^<]*<\/p>\s*<\/div>\s*<\/div>\s*<\/main>/, 'only the hidden confirmation and closing tags follow the last button');
 });
 
-test('the policy does not promise a purchase without an account: browsing is free, an account comes with the order', () => {
-  assert.match(privacy, /إلى أن تسجّل رسميًا بإنشاء حساب ببياناتك الحقيقية عند طلبك/);
-  assert.match(privacy, /until you register officially by creating an account with your real details when you order/);
+test('the policy does not promise a purchase without an account: browsing is free until the visitor registers', () => {
+  assert.match(privacy, /لحين تسجيلك رسميًا عن طريق إنشاء حساب ببياناتك الحقيقية/);
+  assert.match(privacy, /until you register officially by creating an account with your real details/);
   assert.doesNotMatch(privacy, /والشراء كما هو|browsing and ordering as before/);
 });
 
@@ -136,7 +137,7 @@ test('the tone is calm and friendly: nothing on the page sounds like surveillanc
   const text = privacy.replace(/<[^>]+>/g, ' ');
   for (const word of ['بصمة', 'نسجّل', 'نسجل', 'توثيق', 'نوثّق', 'تتبّع', 'تتبع', 'رصد', 'مراقبة', 'نمسح', 'تسجيل نشاط']) assert.ok(!text.includes(word), 'no alarming word on the page: ' + word);
   assert.doesNotMatch(text, /fingerprint|track|monitor|surveil|\bspy|record/i, 'no alarming English word on the page');
-  assert.match(text, /يسعدنا مرورك الكريم ويشرّفنا خدمتك/, 'it opens by welcoming the visitor');
+  assert.match(text, /نحن سعداء بمرورك الكريم/, 'it opens by welcoming the visitor');
   const texts = read('texts.js');
   assert.doesNotMatch(texts.match(/\bac:'[^']*'/g).join(' '), /تسجيل نشاطك|recording of your activity/, 'the sign-up sentence is as calm as the policy');
 });
