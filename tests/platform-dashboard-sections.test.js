@@ -247,3 +247,17 @@ test('the page has the sections, the buttons and no inline script or handler', (
     for (const expression of interpolations) assert.match(expression, /^escP\(/, `${name}: ${expression} must be escaped`);
   }
 });
+
+test('every error code the platform admin APIs can answer has an Arabic sentence', () => {
+  const codes = new Set();
+  for (const file of ['platform-store-detail', 'platform-stores', 'platform-store-unlinked', 'platform-customers', 'platform-customer-detail', 'platform-customer-summary', 'platform-order-summary', 'platform-audit-log', 'dashboard-orders']) {
+    const text = fs.readFileSync(path.join(root, 'api', `${file}.js`), 'utf8');
+    for (const match of text.matchAll(/error: '([a-z_]+)'/g)) codes.add(match[1]);
+  }
+  const context = vm.createContext({ document: { addEventListener() {}, querySelector: () => null }, localStorage: { getItem: () => null }, location: {}, fetch() {}, setTimeout, setInterval });
+  context.window = context;
+  context.window.addEventListener = () => {};
+  vm.runInContext(portalSource, context);
+  const missing = [...codes].filter(code => !vm.runInContext('Portal.errorMessages', context)[code]);
+  assert.deepEqual(missing, [], `no Arabic message for: ${missing.join(', ')}`);
+});

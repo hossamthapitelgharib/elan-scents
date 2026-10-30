@@ -52,19 +52,9 @@ function renderStoreList() {
   const stores = stateStore.stores.filter(store => (!status || store.status === status) && (!search || `${store.name || ''} ${store.slug || ''} ${store.website_url || ''}`.toLocaleLowerCase().includes(search)));
   document.querySelector('#storesBody').innerHTML = stores.length ? stores.map(storeRow).join('') : '<tr><td colspan="10" class="empty">لا توجد متاجر مطابقة</td></tr>';
 }
-function showStoreError(error) {
-  const message = error && error.message ? error.message : 'تعذر تحميل بيانات المتاجر';
-  if (document.querySelector('#login') && !document.querySelector('#login').hidden) {
-    document.querySelector('#message').textContent = message;
-    return;
-  }
-  const box = document.querySelector('#storeError');
-  box.textContent = message;
-  box.hidden = false;
-}
 function showDetailError(error) {
   const box = document.querySelector('#storeDetailError');
-  box.textContent = error && error.message ? error.message : 'تعذر تحميل تفاصيل المتجر';
+  box.textContent = Portal.errorText(error, 'تعذر تحميل تفاصيل المتجر');
   box.hidden = false;
 }
 function renderUnlinkedRows(type, records) {
@@ -94,7 +84,7 @@ async function loadUnlinked(type, append = false) {
     more.hidden = !state.hasMore;
   } catch (error) {
     const box = document.querySelector('#unlinkedStoreError');
-    box.textContent = error && error.message ? error.message : 'تعذر تحميل سجلات التشغيل غير المرتبطة';
+    box.textContent = Portal.errorText(error, 'تعذر تحميل سجلات التشغيل غير المرتبطة');
     box.hidden = false;
     if (!append) body.innerHTML = '';
   } finally {
@@ -392,11 +382,11 @@ function openStore(storeId) {
 }
 function showStoreError(error) {
   if (document.querySelector('#login') && !document.querySelector('#login').hidden) {
-    document.querySelector('#message').textContent = error && error.message || 'تعذر تسجيل الدخول';
+    document.querySelector('#message').textContent = Portal.errorText(error, 'تعذر تسجيل الدخول');
     return;
   }
   const box = document.querySelector('#storeError');
-  box.textContent = error && error.message || 'تعذر تحميل بيانات المتاجر';
+  box.textContent = Portal.errorText(error, 'تعذر تحميل بيانات المتاجر');
   box.hidden = false;
 }
 

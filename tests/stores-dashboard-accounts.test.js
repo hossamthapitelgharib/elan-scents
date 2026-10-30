@@ -17,7 +17,7 @@ function makeNode() {
   return {
     hidden: false, value: '', textContent: '', innerHTML: '', className: '', disabled: false, dataset: {}, attributes: {}, listeners: {}, children: {},
     classList: { toggle() {}, add() {}, remove() {} },
-    elements: { search: { addEventListener() {} } },
+    elements: { search: { value: '', addEventListener() {} }, status: { value: '', addEventListener() {} } },
     addEventListener(type, callback) { this.listeners[type] = callback; },
     setAttribute(name, value) { this.attributes[name] = value; },
     insertAdjacentHTML() {}, scrollIntoView() {}, reset() {},
@@ -227,4 +227,20 @@ test('the page code has no inline handlers and the unlink button is wired by del
   const js = read('stores-dashboard.js');
   assert.doesNotMatch(js, /\bonclick=|\bonsubmit=/i);
   assert.match(js, /data-unlink-account/);
+});
+
+test('a failed stores list, store detail or unlinked records list shows a sentence, never an API code', async () => {
+  let page = boot(baseRoutes({ '/api/platform-stores': json(502, { ok: false, error: 'store_data_unavailable' }) }));
+  await tick();
+  assert.equal(page.get('#storeError').textContent, 'تعذر تحميل بيانات المتاجر الآن، حاول بعد قليل.');
+  assert.equal(page.get('#storeError').hidden, false);
+
+  page = boot(baseRoutes({ '/api/platform-store-detail': json(404, { ok: false, error: 'store_not_found' }) }));
+  await openStore(page);
+  assert.equal(page.get('#storeDetailError').textContent, 'هذا المتجر لم يعد موجودًا، حدّث القائمة.');
+
+  page = boot(baseRoutes({ '/api/platform-store-unlinked': json(502, { ok: false, error: 'unlinked_store_data_unavailable' }) }));
+  await tick();
+  assert.equal(page.get('#unlinkedStoreError').textContent, 'تعذر تحميل سجلات التشغيل غير المرتبطة الآن، حاول بعد قليل.');
+  for (const selector of ['#storeError', '#storeDetailError', '#unlinkedStoreError', '#message']) assert.doesNotMatch(page.get(selector).textContent, /[a-z]+_[a-z_]+/, `${selector}: no raw code`);
 });
