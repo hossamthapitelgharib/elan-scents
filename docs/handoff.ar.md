@@ -11,6 +11,10 @@
 
 ## مفتوح
 
+### 2026-10-30: ترحيل `20261030063700_platform_audit_entries` طُبّق على القاعدة الحية بلا ملف في المستودع
+- **ما لوحظ:** `list_migrations` على المشروع `sbgdtuqfrnfeggkwqtrw` يُظهر الإصدار `20261030063700` باسم `platform_audit_entries`، ولا ملف له في `supabase/migrations`، فيفشل فحص «Supabase Preview» بالرسالة «Remote migration versions not found in local migrations directory» على كل دفعة (ظهر على `3d47cb0`). ليس من عملي: لا أعرف نصّه ولا أعيد كتابته من التخمين.
+- **المطلوب:** النسخة التي طبّقته ترفع الملف `supabase/migrations/20261030063700_platform_audit_entries.sql` ونسخة التراجع في `supabase/rollback/` كما فعلت مع غيره، ثم تنقل هذا البند إلى «مُنجَز».
+
 ### 2026-10-29: أخطاء كونسول قديمة في صفحة المحرر (غير مرتبطة بعمل الميديا)
 - **ما لوحظ:** في تجربة Chromium حقيقية لصفحة `/editor` يظهر `pageerror caption is not defined` (من `editor/elan-editor.html` السطور نحو 267 و299 و312، حيث `caption.textContent=...`) ومرتين `suppliedSchema is not defined`. المحرر الحي يعمل رغم ذلك (القوائم والرفع والحذف سليمة)، فهي كود قديم داخل الصفحة يشير إلى عناصر لم تعد موجودة.
 - **المطلوب:** نسخة تفحص السطور المذكورة وتزيل الإشارات الميتة أو تعرّف ما ينقص (مع اختبار)، ولا تُغيّر سلوك الحفظ. لم ألمسها لأنها خارج الطلب.
