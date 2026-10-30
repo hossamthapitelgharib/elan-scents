@@ -3,8 +3,8 @@
    Imports base theme then applies current desired overrides.
    Frontend display only. Do not add backend/DB rules here.
    ============================================================ */
-@import url('/style-3.css?v=20261030-10');
-@import url('/footer-9x16.css?v=20261030-10');
+@import url('/style-3.css?v=20261030-11');
+@import url('/footer-9x16.css?v=20261030-11');
 
 /* ---------- Menu: slightly narrower panel + slightly larger items ---------- */
 #menu {
@@ -117,13 +117,13 @@ header .logo small {
    A picture or a video only sits on top of it when one was added in the editor (design-layer.js sets data-media on #hero), and
    deleting it returns this white slot. Without media there is nothing to cover the text, so the dark overlay goes and the text turns dark. */
 #hero #heroVideo:not([src]),
-#hero:not([data-media]) .hero-overlay {
+html:not(.hero-img) #hero:not([data-media]) .hero-overlay {
   display: none !important;
 }
-#hero:not([data-media]) .magic h2,
-#hero:not([data-media]) .magic p:not(.sub),
-#hero:not([data-media]) .counters b,
-#hero:not([data-media]) .counters span {
+html:not(.hero-img) #hero:not([data-media]) .magic h2,
+html:not(.hero-img) #hero:not([data-media]) .magic p:not(.sub),
+html:not(.hero-img) #hero:not([data-media]) .counters b,
+html:not(.hero-img) #hero:not([data-media]) .counters span {
   color: #1a1208 !important;
   text-shadow: none !important;
 }
@@ -717,17 +717,32 @@ html,body{overflow-x:clip!important}
 .card:not(#_f):not(#_g):hover,.card.near:not(#_f):not(#_g){border-color:#c8962a !important;box-shadow:0 8px 18px rgba(80,55,15,.10) !important}
 .card.art:not(#_f):not(#_g),.cb>.card.msel:not(#_f):not(#_g){overflow:hidden !important;background-clip:border-box !important}
 
-/* ---------- The whole hero picture, shown at once ----------
-   hero-early.js (page head) starts the picture's download as soon as the page opens and, when the picture is in, puts its proportions
-   on <html> (--hero-ar, class hero-fit). The hero then takes the picture's own height at the screen's width, never taller than the
-   screen (nor taller than 9:16, as before) and never shorter than room for its text, so the picture is not cropped left and right. A picture so wide that even the
-   shortest hero would crop it (class hero-contain) is shown whole over a blurred copy of itself. */
-html.hero-fit #hero{
-  height:auto !important;
-  aspect-ratio:var(--hero-ar) !important;
-  min-height:360px !important;
-  max-height:min(calc(var(--app-vh, 1vh) * 100), calc(100vw * 16 / 9)) !important;
+/* ---------- The whole hero picture, shown at once, on no background of its own ----------
+   hero-early.js (page head) starts the picture's download as soon as the page opens and puts it on <html> as --hero-img (class
+   hero-img). The hero has no colour behind it (not white, not dark): the picture is drawn whole (contain, never cropped left and
+   right), over a blurred copy of itself that fills what the picture's own proportions leave over, so the hero keeps its size and
+   nothing on the page moves when the picture arrives. While the picture is still on its way (class hero-pending) the veil, the title
+   and the counters wait for it, so a bare hero with white text is never shown. */
+#hero,
+#hero video,
+#heroVideo {
+  background: transparent !important;
 }
-html.hero-contain #hero::before,html.hero-contain #hero::after{content:'';position:absolute;inset:0;z-index:0;pointer-events:none;background-repeat:no-repeat;background-position:center}
-html.hero-contain #hero::before{inset:-26px;background-image:var(--hero-img);background-size:cover;filter:blur(26px)}
-html.hero-contain #hero::after{background-image:var(--hero-img);background-size:contain}
+html.hero-img #hero::before,
+html.hero-img #hero::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: var(--hero-img);
+  background-repeat: no-repeat;
+  background-position: center;
+}
+html.hero-img #hero::before { inset: -26px; background-size: cover; filter: blur(26px); }
+html.hero-img #hero::after { background-size: contain; }
+html.hero-pending #hero .hero-overlay,
+html.hero-pending #hero .magic,
+html.hero-pending #hero .counters {
+  visibility: hidden !important;
+}

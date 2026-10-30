@@ -392,9 +392,9 @@ html{background:#fff}
    and white elements would vanish. #gh is the header gold gradient defined next to #gg in index.html. */
 body:has(#gh) header .ic svg{stroke:url(#gh)}
 #lg{background:linear-gradient(135deg,#e6c35c,#c8962a 45%,#a37e2c 75%,#d4a940);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent}
-body.hd-over:not(.inner):has(#hero[data-media]) header .ic svg{stroke:#fff}
-body.hd-over:not(.inner):has(#hero[data-media]) header #lg{background:none;color:#fff;-webkit-text-fill-color:#fff}
-body.bar-over:not(.inner):has(#hero[data-media]) #bar .gold{background:none;color:#fff;-webkit-text-fill-color:#fff}
+html:not(.hero-pending) body.hd-over:not(.inner):has(#hero[data-media]) header .ic svg{stroke:#fff}
+html:not(.hero-pending) body.hd-over:not(.inner):has(#hero[data-media]) header #lg{background:none;color:#fff;-webkit-text-fill-color:#fff}
+html:not(.hero-pending) body.bar-over:not(.inner):has(#hero[data-media]) #bar .gold{background:none;color:#fff;-webkit-text-fill-color:#fff}
 /* The tagline under the logo is plain black in the header, the menu page and the About section. */
 header .logo small,#menu .logo small,.alogo .logo small{font-family:'IBM Plex Sans Arabic','Segoe UI',Arial,sans-serif!important;font-weight:700!important;-webkit-text-stroke:.25px #000;background:none!important;-webkit-background-clip:border-box!important;background-clip:border-box!important;color:#000!important;-webkit-text-fill-color:#000!important;filter:none!important;text-shadow:none!important}
 /* The contact section has no pill under its title any more. */
@@ -403,4 +403,9 @@ header .logo small,#menu .logo small,.alogo .logo small{font-family:'IBM Plex Sa
 [dir=rtl] input[type=tel]{direction:ltr;text-align:right}
 /* The cart and favourites counters in the header are just the number, with no circle behind it: gold on the white page, white over the hero. */
 header button[data-n]:not([data-n="0"]):after{top:-6px;right:-5px;min-width:0;height:auto;padding:0;border-radius:0;background:none;color:#a37e2c;font:700 12px/1 'IBM Plex Sans Arabic','Segoe UI',Arial,sans-serif;text-shadow:none}
-body.hd-over:not(.inner):has(#hero[data-media]) header button[data-n]:not([data-n="0"]):after{color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.4)}
+html:not(.hero-pending) body.hd-over:not(.inner):has(#hero[data-media]) header button[data-n]:not([data-n="0"]):after{color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.4)}
+/* Same white state keyed on the hero picture hero-early.js already knows about (no :has() needed, and no wait for design-layer.js). */
+html.hero-img:not(.hero-pending) body.hd-over:not(.inner) header .ic svg{stroke:#fff}
+html.hero-img:not(.hero-pending) body.hd-over:not(.inner) header #lg{background:none;color:#fff;-webkit-text-fill-color:#fff}
+html.hero-img:not(.hero-pending) body.bar-over:not(.inner) #bar .gold{background:none;color:#fff;-webkit-text-fill-color:#fff}
+html.hero-img:not(.hero-pending) body.hd-over:not(.inner) header button[data-n]:not([data-n="0"]):after{color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.4)}

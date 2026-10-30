@@ -1,8 +1,10 @@
-/* The hero picture starts loading from the page head and shows whole (not cropped left and right), the header counters have no circle,
-   the tagline is a heavier sans and its shimmer line is longer, and the editor slims big pictures before they go up. */
+/* The hero picture starts loading before the page scripts (Link header from the build + hero-early.js in the head), is drawn whole on no
+   background of its own, and nothing of the hero shows half-built; plus the header counters, the tagline and the editor's picture
+   slimming. */
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const vm = require('node:vm');
 
@@ -15,25 +17,26 @@ const schema = read('design-schema.js');
 const base = read('style-3.css');
 const top = read('style.css');
 const vercel = JSON.parse(read('vercel.json'));
+const build = require('../scripts/build-cloudflare.js');
 
-const SUPA = 'https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/uploads/2026/hero.png';
+const SUPA = 'https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/uploads/2026/hero.jpg';
 
-function run(json, { width = 393, size = { w: 800, h: 800 } } = {}) {
-  const classes = new Set(), props = {}, images = [];
+function run(json, { width = 393 } = {}) {
+  const classes = new Set(), props = {}, images = [], timers = [];
   const rootEl = {
-    classList: { add: (...c) => c.forEach((x) => classes.add(x)), remove: (...c) => c.forEach((x) => classes.delete(x)), contains: (c) => classes.has(c), toggle: (c, on) => { if (on) classes.add(c); else classes.delete(c); } },
-    style: { setProperty: (k, v) => { props[k] = String(v); }, removeProperty: (k) => { delete props[k]; }, getPropertyValue: (k) => props[k] || '' },
+    classList: { add: (...c) => c.forEach((x) => classes.add(x)), remove: (...c) => c.forEach((x) => classes.delete(x)), contains: (c) => classes.has(c) },
+    style: { setProperty: (k, v) => { props[k] = String(v); }, removeProperty: (k) => { delete props[k]; } },
   };
   function Image() { images.push(this); }
-  const listeners = {};
-  const window = { innerWidth: width, addEventListener: (t, f) => { listeners[t] = f; } };
+  const window = { innerWidth: width };
   const requests = [];
-  const fetch = async (url, opts) => { requests.push([url, opts]); return { ok: true, json: async () => json }; };
-  vm.runInNewContext(early, { document: { documentElement: rootEl }, window, fetch, Image });
-  const loaded = async () => { await window.__elanDesignJson; const img = images[images.length - 1]; if (img) { img.naturalWidth = size.w; img.naturalHeight = size.h; img.onload(); } return img; };
-  return { classes, props, images, window, listeners, requests, loaded, setWidth: (w) => { window.innerWidth = w; } };
+  const fetch = async (url, opts) => { requests.push([url, opts]); if (json === 'fail') throw new Error('offline'); return { ok: true, json: async () => json }; };
+  const sandbox = { document: { documentElement: rootEl }, window, fetch, Image, setTimeout: (fn, ms) => { timers.push([fn, ms]); return timers.length; }, clearTimeout: (id) => { if (timers[id - 1]) timers[id - 1] = null; } };
+  vm.runInNewContext(early, sandbox);
+  return { classes, props, images, window, requests, timers, ready: () => window.__elanDesignJson };
 }
 const design = (edits) => ({ version: 1, edits });
+const heroOf = (media) => design({ all: { hero: { style: { media } } } });
 
 test('the page head loads hero-early.js (a plain external file, cached like the other scripts) before the body', () => {
   const head = index.slice(0, index.indexOf('</head>'));
@@ -42,81 +45,140 @@ test('the page head loads hero-early.js (a plain external file, cached like the 
   assert.doesNotMatch(early, /(^|[^.\w])eval\s*\(|new\s+Function\s*\(|document\.write/);
 });
 
-test('it accepts exactly the media links design-schema.js accepts', () => {
+test('it accepts exactly the media links design-schema.js accepts, and so does the build', () => {
   const prefixes = schema.match(/MEDIA_PREFIXES = \[([\s\S]*?)\];/)[1].match(/'([^']+)'/g).map((s) => s.slice(1, -1));
   const own = early.match(/PREFIXES = \[([\s\S]*?)\];/)[1].match(/'([^']+)'/g).map((s) => s.slice(1, -1));
   assert.deepEqual(own, prefixes);
-  assert.equal(early.match(/IMAGE_EXT = (\/.*\/i);/)[1], schema.match(/IMAGE_EXT = (\/.*?\/i),/)[1]);
+  const buildSource = read('scripts/build-cloudflare.js');
+  assert.deepEqual(buildSource.match(/HERO_PREFIXES = \[([\s\S]*?)\];/)[1].match(/'([^']+)'/g).map((s) => s.slice(1, -1)), prefixes);
+  const ext = schema.match(/IMAGE_EXT = (\/.*?\/i),/)[1];
+  assert.equal(early.match(/IMAGE_EXT = (\/.*\/i);/)[1], ext);
+  assert.equal(buildSource.match(/HERO_IMAGE_EXT = (\/.*\/i);/)[1], ext);
 });
 
 test('the design file is read at once, the picture download starts, and design-layer.js takes the same answer', async () => {
-  const t = run(design({ all: { hero: { style: { media: SUPA } } } }));
+  const t = run(heroOf(SUPA));
   assert.equal(t.requests.length, 1);
   assert.equal(t.requests[0][0], '/design/home.json');
   assert.equal(t.requests[0][1].cache, 'no-store');
-  await t.window.__elanDesignJson;
+  assert.ok(t.classes.has('hero-pending'), 'pending from the first moment: no bare hero while the design file is on its way');
+  await t.ready();
   assert.equal(t.images.length, 1);
   assert.equal(t.images[0].src, SUPA);
   assert.equal(t.images[0].fetchPriority, 'high');
+  assert.equal(t.props['--hero-img'], 'url("' + SUPA + '")');
+  assert.deepEqual([...t.classes].sort(), ['hero-img', 'hero-pending']);
   assert.match(layer, /window\.__elanDesignJson \|\| fetch\('\/design\/home\.json'/);
 });
 
-test('when the picture is in, the hero takes its proportions; a very wide one is shown whole over a blurred copy', async () => {
-  let t = run(design({ all: { hero: { style: { media: SUPA } } } }), { size: { w: 800, h: 1000 } });
-  await t.loaded();
-  assert.equal(t.props['--hero-ar'], '0.8000');
-  assert.equal(t.props['--hero-img'], 'url("' + SUPA + '")');
-  assert.deepEqual([...t.classes].sort(), ['hero-fit']);
+test('the hero waits for its picture (veil, title, counters, header colours) and is released when it loads, fails or takes too long', async () => {
+  let t = run(heroOf(SUPA));
+  await t.ready();
+  t.images[0].onload();
+  assert.deepEqual([...t.classes], ['hero-img']);
 
-  t = run(design({ all: { hero: { style: { media: SUPA } } } }), { size: { w: 900, h: 600 }, width: 393 });
-  await t.loaded();
-  assert.deepEqual([...t.classes].sort(), ['hero-contain', 'hero-fit'], '393 / 1.5 = 262px is under the 360px minimum hero');
-  t.setWidth(900); t.listeners.resize();
-  assert.deepEqual([...t.classes].sort(), ['hero-fit'], 'on a wide screen the same picture is tall enough');
-  t.setWidth(393); t.listeners.resize();
-  assert.ok(t.classes.has('hero-contain'));
+  t = run(heroOf(SUPA));
+  await t.ready();
+  t.images[0].onerror();
+  assert.deepEqual([...t.classes], [], 'a picture that will not load leaves the hero as it was, not empty');
+  assert.equal(t.props['--hero-img'], undefined);
+
+  t = run(heroOf(SUPA));
+  await t.ready();
+  const timeout = t.timers.filter(Boolean).find(([, ms]) => ms === 15000);
+  assert.ok(timeout, 'a 15 s safety release');
+  timeout[0]();
+  assert.deepEqual([...t.classes].sort(), ['hero-img'], 'released after 15 s even if the picture is still coming');
 });
 
-test('the size-specific hero picture wins over "all", a video or an unsafe link changes nothing, and an odd strip is ignored', async () => {
-  const other = SUPA.replace('hero.png', 'mobile.webp');
-  let t = run(design({ all: { hero: { style: { media: SUPA } } }, mobile: { hero: { style: { media: other } } } }), { width: 400 });
-  await t.window.__elanDesignJson;
-  assert.equal(t.images[0].src, other);
-  t = run(design({ all: { hero: { style: { media: SUPA } } }, mobile: { hero: { style: { media: other } } } }), { width: 1200 });
-  await t.window.__elanDesignJson;
-  assert.equal(t.images[0].src, SUPA);
-  for (const media of [SUPA.replace('.png', '.mp4'), 'https://evil.example/x.png', '/assets/../secret.png', SUPA + '"onerror="x', 42, '']) {
-    t = run(design({ all: { hero: { style: { media } } } }));
-    await t.window.__elanDesignJson;
-    assert.equal(t.images.length, 0, String(media));
-    assert.equal(t.classes.size, 0);
+test('a design without a hero picture, a video, an unsafe link or a failed fetch releases the hero at once', async () => {
+  const cases = [design({}), design({ all: { hero: { style: {} } } }), heroOf(SUPA.replace('.jpg', '.mp4')), heroOf('https://evil.example/x.png'), heroOf('/assets/../secret.png'), heroOf(SUPA + '"onerror="x'), heroOf(42), heroOf(''), null, 'fail'];
+  for (const json of cases) {
+    const t = run(json);
+    await t.ready();
+    assert.equal(t.images.length, 0, JSON.stringify(json));
+    assert.equal(t.classes.size, 0, JSON.stringify(json));
   }
-  t = run(design({ all: { hero: { style: { media: SUPA } } } }), { size: { w: 3000, h: 100 } });
-  await t.loaded();
-  assert.equal(t.classes.size, 0, 'a strip 30 times wider than tall leaves the hero as it was');
 });
 
-test('design-layer.js tells hero-early.js about the hero picture (and clears it for a video or when the picture is removed)', () => {
+test('the size-specific hero picture wins over "all"', async () => {
+  const other = SUPA.replace('hero.jpg', 'mobile.webp');
+  const json = design({ all: { hero: { style: { media: SUPA } } }, mobile: { hero: { style: { media: other } } } });
+  let t = run(json, { width: 400 });
+  await t.ready();
+  assert.equal(t.images[0].src, other);
+  t = run(json, { width: 1200 });
+  await t.ready();
+  assert.equal(t.images[0].src, SUPA);
+});
+
+test('design-layer.js tells hero-early.js about the hero picture (and clears it for a video or when the picture is removed)', async () => {
   assert.match(layer, /window\.ElanHeroFit\(m\.kind === 'video' \? '' : m\.src\)/);
   assert.match(layer, /undo\.push\(function \(\) \{\s*if \(typeof window\.ElanHeroFit === 'function'\) window\.ElanHeroFit\(''\);/);
-  const t = run(design({ all: { hero: { style: { media: SUPA } } } }));
-  return t.loaded().then(() => {
-    assert.ok(t.classes.has('hero-fit'));
-    t.window.ElanHeroFit('');
-    assert.equal(t.classes.size, 0);
-    assert.equal(t.props['--hero-ar'], undefined);
-    assert.equal(t.props['--hero-img'], undefined);
-  });
+  const t = run(heroOf(SUPA));
+  await t.ready();
+  t.images[0].onload();
+  t.window.ElanHeroFit('');
+  assert.equal(t.classes.size, 0);
+  assert.equal(t.props['--hero-img'], undefined);
+  t.window.ElanHeroFit(SUPA.replace('hero.jpg', 'new.jpg'));
+  assert.equal(t.images.length, 2, 'a picture chosen in the editor starts loading at once');
+  assert.ok(t.classes.has('hero-pending'));
 });
 
-test('hero CSS: the hero is as tall as the picture, within [360px, the screen and 9:16], and a wide picture sits whole over a blurred copy', () => {
-  const rule = top.match(/html\.hero-fit #hero\{[^}]*\}/)[0];
-  assert.match(rule, /height:auto !important/);
-  assert.match(rule, /aspect-ratio:var\(--hero-ar\) !important/);
-  assert.match(rule, /min-height:360px !important/);
-  assert.match(rule, /max-height:min\(calc\(var\(--app-vh, 1vh\) \* 100\), calc\(100vw \* 16 \/ 9\)\) !important/, 'still never taller than 9:16');
-  assert.match(top, /html\.hero-contain #hero::before\{[^}]*background-size:cover;filter:blur\(26px\)/);
-  assert.match(top, /html\.hero-contain #hero::after\{[^}]*background-size:contain/);
+test('hero CSS: no background of its own, the picture whole over a blurred copy, nothing half-built while it is pending', () => {
+  assert.match(top, /#hero,\s*#hero video,\s*#heroVideo \{\s*background: transparent !important;\s*\}/);
+  assert.match(top, /html\.hero-img #hero::before \{ inset: -26px; background-size: cover; filter: blur\(26px\); \}/);
+  assert.match(top, /html\.hero-img #hero::after \{ background-size: contain; \}/);
+  assert.match(top, /background-image: var\(--hero-img\);/);
+  assert.match(top, /html\.hero-pending #hero \.hero-overlay,\s*html\.hero-pending #hero \.magic,\s*html\.hero-pending #hero \.counters \{\s*visibility: hidden !important;/);
+  assert.doesNotMatch(top, /hero-fit|hero-contain|--hero-ar/, 'the height-follows-the-picture version is gone: nothing moves when the picture arrives');
+  assert.doesNotMatch(top + base, /#hero\s*\{[^}]*background:\s*#(?!fff\b)[0-9a-f]{3,6}/i, 'no dark placeholder either');
+});
+
+test('header colours turn white only once the hero picture is in (never white on a bare page)', () => {
+  for (const selector of ['header \\.ic svg\\{stroke:#fff\\}', 'header #lg\\{', '#bar \\.gold\\{', 'header button\\[data-n\\]']) {
+    const found = base.match(new RegExp('html:not\\(\\.hero-pending\\) body\\.(?:hd|bar)-over:not\\(\\.inner\\):has\\(#hero\\[data-media\\]\\) ' + selector));
+    assert.ok(found, selector);
+  }
+});
+
+test('the white text, the veil and the white header colours go with the hero picture hero-early.js knows about, not with the later data-media mark', () => {
+  assert.match(top, /html:not\(\.hero-img\) #hero:not\(\[data-media\]\) \.hero-overlay \{\s*display: none !important;/);
+  assert.match(top, /html:not\(\.hero-img\) #hero:not\(\[data-media\]\) \.counters span \{\s*color: #1a1208 !important;/);
+  assert.doesNotMatch(top, /(^|\n)#hero:not\(\[data-media\]\)/, 'every no-media look is switched off when a hero picture is on its way');
+  for (const selector of ['header \\.ic svg\\{stroke:#fff\\}', 'header #lg\\{', '#bar \\.gold\\{', 'header button\\[data-n\\]']) {
+    assert.ok(new RegExp('\\nhtml\\.hero-img:not\\(\\.hero-pending\\) body\\.(?:hd|bar)-over:not\\(\\.inner\\) ' + selector).test(base), selector);
+  }
+});
+
+test('the Cloudflare build sends the hero picture as a Link preload header on the storefront page', () => {
+  assert.deepEqual(build.heroPreloadLinks(root).map((l) => l.replace(/^<[^>]+>/, '<url>')), ['<url>; rel=preload; as=image; fetchpriority=high']);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hero-link-'));
+  try {
+    fs.mkdirSync(path.join(dir, 'design'));
+    const put = (edits) => fs.writeFileSync(path.join(dir, 'design', 'home.json'), JSON.stringify({ edits }));
+    const mobile = SUPA.replace('hero.jpg', 'm.webp');
+    put({ all: { hero: { style: { media: SUPA } } } });
+    assert.deepEqual(build.heroPreloadLinks(dir), ['<' + SUPA + '>; rel=preload; as=image; fetchpriority=high']);
+    put({ all: { hero: { style: { media: SUPA } } }, mobile: { hero: { style: { media: mobile } } } });
+    const links = build.heroPreloadLinks(dir);
+    assert.equal(links.length, 3);
+    assert.match(links.find((l) => l.includes('m.webp')), /media="\(max-width: 639px\)"/);
+    assert.match(links.find((l) => l.includes('hero.jpg') && /min-width: 1024px/.test(l)), /^<[^>]+>; rel=preload; as=image; fetchpriority=high; media="\(min-width: 1024px\)"$/);
+    for (const bad of [SUPA.replace('.jpg', '.mp4'), 'https://evil.example/x.png', SUPA + ',<https://evil.example/x>', SUPA + ';rel=x', '/assets/../x.png', '', 7]) {
+      put({ all: { hero: { style: { media: bad } } } });
+      assert.deepEqual(build.heroPreloadLinks(dir), [], String(bad));
+    }
+    assert.deepEqual(build.heroPreloadLinks(path.join(dir, 'nowhere')), []);
+    const file = build.buildHeadersFile(['index.html'], { headers: [{ source: '/index.html', headers: [{ key: 'Cache-Control', value: 'no-store' }] }] }, { heroLinks: ['<' + SUPA + '>; rel=preload; as=image'] });
+    for (const pattern of ['/index.html', '/']) {
+      const block = file.split('\n\n').find((b) => b.split('\n')[0] === pattern);
+      assert.ok(block && /\n  Link: </.test(block), pattern + ' carries the Link header');
+    }
+    assert.match(file.split('\n\n').find((b) => b.split('\n')[0] === '/index.html'), /Cache-Control: no-store/, 'the page keeps its own rule');
+    assert.equal(build.buildHeadersFile(['index.html'], { headers: [] }, { heroLinks: [] }).includes('Link:'), false);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
 test('header counters are only a number: no circle, no fill, gold on the page and white over the hero', () => {
@@ -125,7 +187,6 @@ test('header counters are only a number: no circle, no fill, gold on the page an
   assert.match(rule, /border-radius:0/);
   assert.match(rule, /color:#a37e2c/);
   assert.doesNotMatch(rule, /#c8962a|box-shadow/);
-  assert.match(base, /body\.hd-over:not\(\.inner\):has\(#hero\[data-media\]\) header button\[data-n\]:not\(\[data-n="0"\]\):after\{color:#fff/);
   assert.match(base, /content:attr\(data-n\)/, 'the number still comes from data-n');
 });
 

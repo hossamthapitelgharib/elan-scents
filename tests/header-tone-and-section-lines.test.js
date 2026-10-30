@@ -13,7 +13,7 @@ const core = read('app-core.js');
 const base = read('style-3.css');
 const top = read('style.css');
 
-function tone({ heroBottom, headerTop = 40, headerHeight = 54, hero = true, classes = [] }) {
+function tone({ heroBottom, headerTop = 40, headerHeight = 54, hero = true, classes = [], scrollY = 0 }) {
   const set = new Set(classes), changes = [];
   const body = { classList: { contains: (c) => set.has(c), toggle: (c, on) => { changes.push(c); if (on) set.add(c); else set.delete(c); } } };
   const document = {
@@ -21,9 +21,12 @@ function tone({ heroBottom, headerTop = 40, headerHeight = 54, hero = true, clas
     getElementById: (id) => (id === 'hero' && hero ? { getBoundingClientRect: () => ({ bottom: heroBottom }) } : null),
     querySelector: (selector) => (selector === 'header' ? { getBoundingClientRect: () => ({ top: headerTop, height: headerHeight }) } : null),
   };
-  const fn = core.match(/function hdTone\(\)\{[\s\S]*?\n(?=addEventListener)/)[0];
-  vm.runInNewContext(fn + ';hdTone()', { document });
-  return { set, changes };
+  const fn = core.match(/var ly=0,hdC=[^\n]*\n[\s\S]*?\nfunction hdTone\(\)\{[^\n]*\n/)[0];
+  const ctx = { document, scrollY: 0 };
+  vm.runInNewContext(fn + ';this.hdC=hdC', ctx);
+  ctx.scrollY = scrollY;
+  vm.runInNewContext('hdMeasure();hdTone()', ctx);
+  return { set, changes, ctx };
 }
 
 test('the header turns gold when the hero ends under its middle, the strip when the hero ends under the strip', () => {
@@ -35,15 +38,31 @@ test('the header turns gold when the hero ends under its middle, the strip when 
   assert.deepEqual([...tone({ heroBottom: -3000 }).set], [], 'far down the page and over the footer: gold');
 });
 
+test('the scroll handler uses the hero position measured once, not a fresh measurement on every scroll event', () => {
+  // measured at scroll 0: the hero ends 700px down the page; after scrolling 640px it ends 60px from the top of the screen
+  const t = tone({ heroBottom: 700 });
+  assert.equal(t.ctx.hdC.hb, 700);
+  t.ctx.scrollY = 640;
+  vm.runInNewContext('hdTone()', t.ctx);
+  assert.deepEqual([...t.set].sort(), ['bar-over'], '700 - 640 = 60: under the strip, above the header middle (67)');
+  t.ctx.scrollY = 700;
+  vm.runInNewContext('hdTone()', t.ctx);
+  assert.deepEqual([...t.set], []);
+  const handler = core.match(/addEventListener\('scroll',function\(\)\{[^\n]*\n/)[0];
+  assert.doesNotMatch(handler, /getBoundingClientRect|offsetHeight|offsetTop/, 'nothing in the scroll handler forces a layout');
+});
+
 test('no hero in the page (inner pages hide it) means gold, and nothing is touched when the state did not change', () => {
   assert.deepEqual([...tone({ hero: false, classes: ['hd-over', 'bar-over'] }).set].sort(), ['bar-over', 'hd-over'], 'no hero element at all: left as it was, never thrown');
   assert.deepEqual([...tone({ heroBottom: 0, classes: ['hd-over', 'bar-over'] }).set], [], 'a hidden hero reports 0: gold');
   assert.deepEqual(tone({ heroBottom: 600, classes: ['hd-over', 'bar-over'] }).changes, [], 'same state: no class write, so the observer cannot loop');
 });
 
-test('hdTone runs on scroll, resize, load and when the body class changes (inner page opens or closes)', () => {
-  assert.match(core, /ly=y;hdTone\(\)\},\{passive:true\}\);addEventListener\('resize',hdTone\);addEventListener\('load',hdTone\);/);
-  assert.match(core, /new MutationObserver\(hdTone\)\.observe\(document\.body,\{attributes:true,attributeFilter:\['class'\]\}\)/);
+test('the hero position is measured again when the page changes shape: resize, load, a body class change (inner page) and a size change of the hero or header', () => {
+  assert.match(core, /addEventListener\('resize',hdRefresh\);addEventListener\('load',hdRefresh\);/);
+  assert.match(core, /new MutationObserver\(hdRefresh\)\.observe\(document\.body,\{attributes:true,attributeFilter:\['class'\]\}\)/);
+  assert.match(core, /new ResizeObserver\(hdRefresh\)/);
+  assert.match(core, /function hdRefresh\(\)\{hdMeasure\(\);hdTone\(\)\}/);
 });
 
 test('header icons, EN and the strip are white only with a hero that has media, and the gold gradient otherwise', () => {

@@ -1,9 +1,13 @@
 /* The home hero picture, as early as the page can know about it.
    Before this file the picture was requested only after the page scripts had loaded, the store data had been fetched, design-layer.js
-   had read /design/home.json and the first render had run, so the hero stayed an empty white slot for seconds. This small script sits in
-   the <head>: it reads /design/home.json at once (design-layer.js reuses that answer instead of asking again), starts the picture's
-   download, and, when the picture arrives, sizes the hero to the picture's own proportions so the whole picture shows instead of a
-   centre crop (a picture wider than the hero used to lose its left and right sides).
+   had read /design/home.json and the first render had run, so the hero stayed an empty slot for seconds. This small script sits in the
+   <head>: it reads /design/home.json at once (design-layer.js reuses that answer instead of asking again), starts the picture's download
+   (the Cloudflare build also sends it as a Link preload header, so the download usually started before this script ran), and gives
+   <html> three things the stylesheet uses:
+     --hero-img     the picture, drawn whole (never cropped) over a blurred copy of itself, with no background colour of its own;
+     hero-img       a hero picture exists;
+     hero-pending   the picture is still on its way: the hero's dark veil, title and counters wait for it, and the header stays gold,
+                    so a half-built hero (white text on a bare page) is never shown. Removed when the picture is in, failed, or after 15 s.
    An external file because the page policy forbids inline scripts. It changes nothing when the home design has no hero picture. */
 (function () {
   'use strict';
@@ -11,8 +15,8 @@
   // Same rules design-schema.js applies to every media link (kept equal by tests/hero-early.test.js).
   var PREFIXES = ['/assets/', 'https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/'];
   var IMAGE_EXT = /\.(?:jpe?g|png|webp|gif|avif)(?:[?#]|$)/i;
-  var MIN_HERO = 360;           // the hero keeps room for its title, button and counters under the header
-  var current = '', token = 0, held = null;
+  var WAIT_MS = 15000;
+  var current = '', token = 0, held = null, timer = 0;
 
   function deviceOf(width) { return width < 640 ? 'mobile' : width < 1024 ? 'tablet' : 'desktop'; }
 
@@ -27,54 +31,57 @@
   function heroPicture(json) {
     var ed = json && json.edits;
     if (!ed || typeof ed !== 'object') return '';
-    var a = ed.all && ed.all.hero, b = ed[deviceOf(window.innerWidth)] && ed[deviceOf(window.innerWidth)].hero;
+    var device = deviceOf(window.innerWidth);
+    var a = ed.all && ed.all.hero, b = ed[device] && ed[device].hero;
     var pick = function (e) { return e && ((e.style && e.style.media) || (e.media && e.media.src)) || ''; };
     return safe(pick(b) || pick(a));
   }
 
-  function clear() {
-    root.classList.remove('hero-fit', 'hero-contain');
-    root.style.removeProperty('--hero-ar');
-    root.style.removeProperty('--hero-img');
+  function settle(mine) {
+    if (mine !== token) return;
+    clearTimeout(timer);
+    root.classList.remove('hero-pending');
   }
-
-  /* Wider than the hero can be at its smallest height: the picture is shown whole (contain) over a blurred copy of itself. */
-  function tooWide() {
-    var ar = parseFloat(root.style.getPropertyValue('--hero-ar'));
-    return ar > 0 && window.innerWidth / ar < MIN_HERO;
-  }
-  function syncContain() { if (root.classList.contains('hero-fit')) root.classList.toggle('hero-contain', tooWide()); }
 
   function fit(src) {
     src = safe(src);
     if (src === current) return;
     current = src;
     var mine = ++token;
-    if (!src) { held = null; clear(); return; }
+    clearTimeout(timer);
+    if (!src) {
+      held = null;
+      root.classList.remove('hero-img', 'hero-pending');
+      root.style.removeProperty('--hero-img');
+      return;
+    }
+    root.style.setProperty('--hero-img', 'url("' + src + '")');
+    root.classList.add('hero-img', 'hero-pending');
     var img = new Image();
     held = img;                                   // keep it alive until it has loaded
     try { img.fetchPriority = 'high'; } catch (e) { /* optional */ }
     img.decoding = 'async';
-    img.onload = function () {
-      if (mine !== token || !img.naturalWidth || !img.naturalHeight) return;
-      var ar = img.naturalWidth / img.naturalHeight;
-      if (!(ar > 0.2 && ar < 5)) return;          // an odd strip: leave the hero as it was
-      root.style.setProperty('--hero-ar', ar.toFixed(4));
-      root.style.setProperty('--hero-img', 'url("' + src + '")');
-      root.classList.add('hero-fit');
-      syncContain();
+    img.onload = function () { settle(mine); };
+    img.onerror = function () {
+      if (mine !== token) return;
+      root.classList.remove('hero-img');          // a picture that will not load must not leave the hero empty
+      root.style.removeProperty('--hero-img');
+      settle(mine);
     };
+    timer = setTimeout(function () { settle(mine); }, WAIT_MS);
     img.src = src;
   }
 
   window.ElanHeroFit = fit;
-  window.addEventListener('resize', syncContain);
 
+  // Until the design file answers, a hero picture is assumed (the page waits instead of flashing a bare hero).
+  root.classList.add('hero-pending');
   // design-layer.js takes this answer instead of fetching the same file again.
+  var none = function () { if (!current) root.classList.remove('hero-pending'); };
   try {
     window.__elanDesignJson = fetch('/design/home.json', { cache: 'no-store' })
       .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (json) { try { fit(heroPicture(json)); } catch (e) { /* optional */ } return json; })
-      .catch(function () { return null; });
-  } catch (e) { /* no fetch: design-layer.js asks for the file itself */ }
+      .then(function (json) { try { fit(heroPicture(json)); } catch (e) { /* optional */ } none(); return json; })
+      .catch(function () { none(); return null; });
+  } catch (e) { none(); /* no fetch: design-layer.js asks for the file itself */ }
 })();
