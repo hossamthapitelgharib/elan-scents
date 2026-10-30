@@ -25,7 +25,7 @@ test('the policy is short and speaks to the visitor: no storage keys, no tables,
     assert.ok(!text.includes(platform), 'no platform detail on the page: ' + platform);
   }
   // it still says plainly what is recorded, in the visitor's words
-  for (const need of ['بصمة مجهولة لجهازك', 'ما تتصفحه من عطور', 'ما تبحث عنه', 'ما تضيفه إلى السلة', 'ملفات الارتباط']) assert.ok(text.includes(need), 'says: ' + need);
+  for (const need of ['رمز مجهول لا يدل على هويتك', 'ما تتصفحه من عطور', 'ما تبحث عنه', 'ما تضيفه إلى السلة', 'ملفات الارتباط']) assert.ok(text.includes(need), 'says: ' + need);
 });
 
 test('the retention period on the page is the one the database enforces', () => {
@@ -53,9 +53,9 @@ test('privacy.html is a plain page: right-to-left, external assets only, no inli
 });
 
 test('the policy separates the visitor (the refusal) from the account holder (account activity), as the owner decided', () => {
-  assert.match(privacy, /وبإنشاء حسابك توافق على تسجيل نشاطك في المتجر/);
+  assert.match(privacy, /وبإنشاء حسابك توافق على حفظ نشاطك في المتجر/);
   assert.match(privacy, /ولا يغيّر زر الرفض أدناه ذلك/);
-  assert.match(privacy, /By creating an account you agree to your activity being recorded as part of it, and the button below does not change that/);
+  assert.match(privacy, /By creating an account you agree to your activity in the shop being saved, and the button below does not change that/);
   const texts = read('texts.js'), core = read('app-core.js');
   assert.equal((texts.match(/\bac:'/g) || []).length, 2, 'the sign-up notice exists in Arabic and English');
   assert.match(texts, /ac:'[^']*href=\\?"\/privacy\.html\\?"/);
@@ -63,12 +63,12 @@ test('the policy separates the visitor (the refusal) from the account holder (ac
 });
 
 test('the page says what it must: it records by default, one refusal and what it does, no sale, rights, last update', () => {
-  for (const needle of ['أرفض', 'دون أن نطلب موافقتك مسبقًا', 'نمسح فورًا بصمة جهازك وكل نشاطك', 'لا نبيع بياناتك', 'الإعلانات', 'آخر تحديث', 'Global Privacy Control', 'نطلب الاطلاع', 'تواصل معنا']) {
+  for (const needle of ['أرفض', 'نتذكّر تلقائيًا منذ زيارتك الأولى', 'نحذف فورًا كل ما حفظناه عن هذا المتصفح', 'لا نبيع بياناتك', 'الإعلانات', 'آخر تحديث', 'Global Privacy Control', 'نطلب الاطلاع', 'تواصل معنا']) {
     assert.ok(privacy.includes(needle) || privacy.includes(needle.replace('نطلب','تطلب')), 'mentions ' + needle);
   }
   assert.match(privacy, /الرفض خاص بهذا المتصفح/);
   assert.match(privacy, /you keep browsing the shop as before/);
-  assert.match(privacy, /by default and without asking first/);
+  assert.match(privacy, /from your first visit we automatically remember/);
 });
 
 test('the only choice on the policy page is to refuse: no accept button, in Arabic or English', () => {
@@ -143,4 +143,13 @@ test('the policy does not promise a purchase without an account: browsing is fre
   assert.match(privacy, /تنفيذ الطلب يتطلب حسابًا/);
   assert.match(privacy, /Browsing needs no account, but placing an order does/);
   assert.doesNotMatch(privacy, /والشراء كما هو|browsing and ordering as before/);
+});
+
+test('the tone is calm and friendly: nothing on the page sounds like surveillance (owner decision 30 Oct)', () => {
+  const text = privacy.replace(/<[^>]+>/g, ' ');
+  for (const word of ['بصمة', 'نسجّل', 'نسجل', 'توثيق', 'نوثّق', 'تتبّع', 'تتبع', 'رصد', 'مراقبة', 'نمسح', 'تسجيل نشاط']) assert.ok(!text.includes(word), 'no alarming word on the page: ' + word);
+  assert.doesNotMatch(text, /fingerprint|track|monitor|surveil|\bspy|record/i, 'no alarming English word on the page');
+  assert.match(text, /نحترم خصوصيتك/, 'it opens by reassuring the visitor');
+  const texts = read('texts.js');
+  assert.doesNotMatch(texts.match(/\bac:'[^']*'/g).join(' '), /تسجيل نشاطك|recording of your activity/, 'the sign-up sentence is as calm as the policy');
 });
