@@ -3,8 +3,8 @@
    Imports base theme then applies current desired overrides.
    Frontend display only. Do not add backend/DB rules here.
    ============================================================ */
-@import url('/style-3.css?v=20261030-02');
-@import url('/footer-9x16.css?v=20261030-02');
+@import url('/style-3.css?v=20261030-04');
+@import url('/footer-9x16.css?v=20261030-04');
 
 /* ---------- Menu: slightly narrower panel + slightly larger items ---------- */
 #menu {
@@ -413,7 +413,7 @@ body.sheet-open {
     letter-spacing: 1.2px !important;
     display: block !important;
   }
-  header .logo i { width: 60% !important; }
+  header .logo i { width: 80% !important; }
   #lg { font-size: 13px !important; }
 
   #hero {
@@ -717,3 +717,17 @@ html,body{overflow-x:clip!important}
 .card:not(#_f):not(#_g):hover,.card.near:not(#_f):not(#_g){border-color:#c8962a !important;box-shadow:0 8px 18px rgba(80,55,15,.10) !important}
 .card.art:not(#_f):not(#_g),.cb>.card.msel:not(#_f):not(#_g){overflow:hidden !important;background-clip:border-box !important}
 
+/* ---------- The whole hero picture, shown at once ----------
+   hero-early.js (page head) starts the picture's download as soon as the page opens and, when the picture is in, puts its proportions
+   on <html> (--hero-ar, class hero-fit). The hero then takes the picture's own height at the screen's width, never taller than the
+   screen (nor taller than 9:16, as before) and never shorter than room for its text, so the picture is not cropped left and right. A picture so wide that even the
+   shortest hero would crop it (class hero-contain) is shown whole over a blurred copy of itself. */
+html.hero-fit #hero{
+  height:auto !important;
+  aspect-ratio:var(--hero-ar) !important;
+  min-height:360px !important;
+  max-height:min(calc(var(--app-vh, 1vh) * 100), calc(100vw * 16 / 9)) !important;
+}
+html.hero-contain #hero::before,html.hero-contain #hero::after{content:'';position:absolute;inset:0;z-index:0;pointer-events:none;background-repeat:no-repeat;background-position:center}
+html.hero-contain #hero::before{inset:-26px;background-image:var(--hero-img);background-size:cover;filter:blur(26px)}
+html.hero-contain #hero::after{background-image:var(--hero-img);background-size:contain}

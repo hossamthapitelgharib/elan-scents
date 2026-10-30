@@ -25,8 +25,27 @@
       return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok || !j.ok) throw failure(j.error || (r.status === 401 ? 'unauthorized' : 'upload_failed')); return j; });
     });
   }
+  /* A big picture is slimmed before it goes up: a 2 MB PNG hero took seconds to show on a phone. A PNG or JPEG over 500 KB is redrawn
+     at most 2000 px on its long side and saved as WebP (quality .85, transparency kept), and the smaller of the two files goes up.
+     GIFs may be animated and are left alone. Any trouble (no canvas, an old browser) uploads the original. */
+  var SLIM_OVER = 500 * 1024, SLIM_SIDE = 2000;
+  async function slim(file) {
+    try {
+      if (!/^image\/(png|jpeg)$/.test(file.type) || file.size <= SLIM_OVER || typeof createImageBitmap !== 'function') return file;
+      var bmp = await createImageBitmap(file);
+      var k = Math.min(1, SLIM_SIDE / Math.max(bmp.width, bmp.height));
+      var w = Math.max(1, Math.round(bmp.width * k)), h = Math.max(1, Math.round(bmp.height * k));
+      var c = document.createElement('canvas'); c.width = w; c.height = h;
+      c.getContext('2d').drawImage(bmp, 0, 0, w, h);
+      if (bmp.close) bmp.close();
+      var blob = await new Promise(function (done) { c.toBlob(done, 'image/webp', 0.85); });
+      if (!blob || blob.type !== 'image/webp' || blob.size >= file.size * 0.9) return file;
+      return new File([blob], (file.name || 'picture').replace(/\.[^.]*$/, '') + '.webp', { type: 'image/webp' });
+    } catch (e) { return file; }
+  }
   /* A picture is small: it goes through the server. */
   async function uploadPicture(file) {
+    file = await slim(file);
     var r = await fetch('/api/editor-upload', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': file.type, 'X-File-Name': encodeURIComponent(file.name) }, body: file });
     var j = await r.json().catch(function () { return {}; });
     if (!r.ok || !j.ok) throw failure(j.error || (r.status === 401 ? 'unauthorized' : 'upload_failed'));

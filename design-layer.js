@@ -279,7 +279,10 @@
       /* The hero is a white slot; the picture or the video sits on top of it. data-media tells style.css so (it drops the white-slot
          look: the dark overlay and the dark text are only for a hero with nothing behind them to cover). */
       el.setAttribute('data-media', m.kind === 'video' ? 'video' : 'image');
+      /* hero-early.js sizes the hero to a hero picture's own proportions (the whole picture shows); a video keeps the plain hero. */
+      if (typeof window.ElanHeroFit === 'function') window.ElanHeroFit(m.kind === 'video' ? '' : m.src);
       undo.push(function () {
+        if (typeof window.ElanHeroFit === 'function') window.ElanHeroFit('');
         el.removeAttribute('data-media');
         video.style.display = prev.display;
         if (prev.poster !== null) video.setAttribute('poster', prev.poster);
@@ -582,8 +585,8 @@
   });
   lastDevice = ED.deviceOf(window.innerWidth);
 
-  fetch('/design/home.json', { cache: 'no-store' })
-    .then(function (r) { return r.ok ? r.json() : null; })
+  /* hero-early.js (in the page head) has usually asked for the design file already: take its answer instead of fetching it again. */
+  (window.__elanDesignJson || fetch('/design/home.json', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }))
     .then(function (json) {
       if (!json) return;
       waitFor(function () { return typeof window.render === 'function' && document.getElementById('main'); },

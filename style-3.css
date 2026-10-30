@@ -15,7 +15,7 @@ header .ic:last-child{justify-content:flex-end}
 .ic button{background:none;border:0;font-size:18px;cursor:pointer;color:#a37e2c;text-shadow:none}
 .logo{text-align:center;line-height:1}
 .logo b{font-size:34px;font-weight:700}.logo span{font-size:16px;color:#111;font-weight:600}
-.logo i{display:block;height:2px;width:70%;margin:4px auto 0;background:linear-gradient(90deg,transparent,#f0c04a,#c8962a,#f0c04a,transparent);animation:bl 2.2s ease-in-out infinite}
+.logo i{display:block;height:2px;width:88%;margin:4px auto 0;background:linear-gradient(90deg,transparent,#f0c04a,#c8962a,#f0c04a,transparent);animation:bl 2.2s ease-in-out infinite}
 @keyframes bl{0%,100%{opacity:1}50%{opacity:0}}
 .logo small{font-size:7.5px;letter-spacing:1.6px;color:var(--ivory);white-space:nowrap}
 #hero{position:relative;height:calc(var(--app-vh,1vh) * 100);max-height:780px;aspect-ratio:9/16;width:100%;margin-top:0;background:radial-gradient(circle at 30% 20%,#f9e9cf,#e9d3b0 45%,#c7a677);display:flex;flex-direction:column;justify-content:flex-end;padding:0 18px 6px;gap:0}
@@ -396,8 +396,11 @@ body.hd-over:not(.inner):has(#hero[data-media]) header .ic svg{stroke:#fff}
 body.hd-over:not(.inner):has(#hero[data-media]) header #lg{background:none;color:#fff;-webkit-text-fill-color:#fff}
 body.bar-over:not(.inner):has(#hero[data-media]) #bar .gold{background:none;color:#fff;-webkit-text-fill-color:#fff}
 /* The tagline under the logo is plain black in the header, the menu page and the About section. */
-header .logo small,#menu .logo small,.alogo .logo small{background:none!important;-webkit-background-clip:border-box!important;background-clip:border-box!important;color:#000!important;-webkit-text-fill-color:#000!important;filter:none!important;text-shadow:none!important}
+header .logo small,#menu .logo small,.alogo .logo small{font-family:'IBM Plex Sans Arabic','Segoe UI',Arial,sans-serif!important;font-weight:700!important;-webkit-text-stroke:.25px #000;background:none!important;-webkit-background-clip:border-box!important;background-clip:border-box!important;color:#000!important;-webkit-text-fill-color:#000!important;filter:none!important;text-shadow:none!important}
 /* The contact section has no pill under its title any more. */
 #contact h3{margin-bottom:20px}
 /* A phone field keeps its digits left-to-right but sits on the right like every other field in the Arabic form. */
 [dir=rtl] input[type=tel]{direction:ltr;text-align:right}
+/* The cart and favourites counters in the header are just the number, with no circle behind it: gold on the white page, white over the hero. */
+header button[data-n]:not([data-n="0"]):after{top:-6px;right:-5px;min-width:0;height:auto;padding:0;border-radius:0;background:none;color:#a37e2c;font:700 12px/1 'IBM Plex Sans Arabic','Segoe UI',Arial,sans-serif;text-shadow:none}
+body.hd-over:not(.inner):has(#hero[data-media]) header button[data-n]:not([data-n="0"]):after{color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.4)}
