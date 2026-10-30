@@ -15,13 +15,14 @@
       <a href="/customers-dashboard.html">إدارة العملاء</a>
       <a href="/stores-dashboard.html">إدارة المتاجر</a>
     </nav>
+    <button id="refresh" class="ghost" type="button" hidden>تحديث</button>
     <button id="logout" class="ghost" hidden>تسجيل الخروج</button>
   </header>
   <main>
     <section id="login" class="panel">
       <h2>دخول إدارة المنصة</h2>
       <form id="loginForm"><input name="email" type="email" placeholder="البريد الإلكتروني" required><input name="password" type="password" placeholder="كلمة المرور" required><button class="primary">دخول</button></form>
-      <p id="message"></p>
+      <p id="message" class="platform-error-text" role="alert"></p>
     </section>
     <section id="app" hidden>
       <nav class="dashboard-nav-links" aria-label="التنقل بين لوحات الإدارة">
@@ -30,7 +31,7 @@
         <a href="/stores-dashboard.html">لوحة المتاجر</a>
       </nav>
       <div id="stats" class="stats"></div>
-      <p id="platformError" class="platform-error" hidden></p>
+      <p id="platformError" class="platform-error" role="alert" hidden></p>
       <section class="panel customer-overview" aria-labelledby="customerOverviewTitle">
         <div><small>Customer overview</small><h2 id="customerOverviewTitle">ملخص العملاء</h2><p>تعرض هذه الصفحة أعدادًا إجمالية فقط. تفاصيل الزوار والعملاء المسجلين وسلالهم وأنشطتهم متاحة في لوحة العملاء الإدارية.</p></div>
         <a class="primary" href="/customers-dashboard.html">فتح لوحة العملاء</a>
@@ -42,6 +43,12 @@
       </section>
       <section class="panel" aria-labelledby="ordersSummaryTitle">
         <div class="platform-store-overview-head"><div><small>Order overview</small><h2 id="ordersSummaryTitle">ملخص الطلبات</h2><p>هذه اللوحة تعرض أعدادًا مجمعة فقط. بيانات العملاء وتفاصيل الطلبات التشغيلية محفوظة في لوحة إدارة الطلبات.</p></div><a class="primary" href="/dashboard.html">فتح لوحة الطلبات</a></div>
+      </section>
+      <section class="panel platform-audit" aria-labelledby="platformAuditTitle">
+        <div class="platform-store-overview-head"><div><small>Audit log</small><h2 id="platformAuditTitle">سجل عمليات المنصة</h2><p>من ربط أو فك حساب متجر ومتى. تُسجَّل العمليات التي تتم من لوحة المتاجر، والأحدث أولًا.</p></div><a class="primary" href="/stores-dashboard.html">فتح لوحة المتاجر</a></div>
+        <p id="platformAuditError" class="platform-error" role="alert" hidden></p>
+        <div id="platformAuditList" class="platform-audit-list"></div>
+        <button id="platformAuditMore" class="ghost" type="button" hidden>عرض المزيد</button>
       </section>
     </section>
   </main>

@@ -23,7 +23,7 @@ function makeNode() {
 function loadDashboard(dashboard = 'customers') {
   const selectors = [
     '#customerTabs', '#refreshCustomers', '#guestAnalyticsPeriod', '#registeredAnalyticsPeriod',
-    '#loginForm', '#login', '#app', '#logout', '#stats', '#platformError', '#platformStoreError', '#platformStoreStats',
+    '#loginForm', '#login', '#app', '#logout', '#refresh', '#stats', '#platformError', '#platformStoreError', '#platformStoreStats', '#platformAuditError', '#platformAuditList', '#platformAuditMore',
     '#registeredTab', '#visitorsTab', '#registeredCustomers', '#guestCustomers', '#registeredCount', '#visitorCount',
     '#registeredPagination', '#visitorPagination', '#registeredAnalytics',
     '#registeredBestSellersPeriod', '#registeredBestSellersError', '#registeredBestSellersAudit', '#registeredBestSellersTable',
@@ -85,7 +85,8 @@ test('platform dashboard requests aggregate-only counts and does not render cust
   const requests = [];
   context.fetch = async url => {
     requests.push(String(url));
-    if (String(url).includes('platform-order-summary')) return { ok: true, json: async () => ({ counts: { orders: 70, completed: 18, open: 47, needsReview: 5 } }) };
+    if (String(url).includes('platform-order-summary')) return { ok: true, json: async () => ({ counts: { orders: 70, completed: 18, open: 47, cancelled: 3, needsReview: 5 } }) };
+    if (String(url).includes('platform-audit-log')) return { ok: true, json: async () => ({ entries: [], hasMore: false }) };
     if (String(url).includes('platform-customer-summary')) return { ok: true, json: async () => ({ counts: { registered: 12, visitors: 25 } }) };
     if (String(url).includes('platform-stores')) return { ok: true, json: async () => ({ stores: [{ status: 'active', summary: { available_product_count: 80, active_offer_count: 16, open_order_count: 7, review_order_count: 2 } }] }) };
     throw new Error(`unexpected request: ${url}`);
@@ -96,6 +97,7 @@ test('platform dashboard requests aggregate-only counts and does not render cust
   assert.match(nodes.get('#stats').innerHTML, /طلبات المتاجر/);
   assert.match(nodes.get('#stats').innerHTML, /٧٠/);
   assert.match(nodes.get('#stats').innerHTML, /تحتاج مراجعة/);
+  assert.match(nodes.get('#stats').innerHTML, /مرفوضة أو ملغاة/);
   assert.doesNotMatch(nodes.get('#stats').innerHTML, /محمول|عميل خاص|0100/);
 });
 

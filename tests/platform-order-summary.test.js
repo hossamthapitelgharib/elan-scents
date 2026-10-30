@@ -27,7 +27,7 @@ test('platform order summary rejects non-admin users before reading orders', asy
 test('platform order summary uses count-only HEAD queries and returns aggregate counts', async () => {
   configureAdmin();
   const queries = [];
-  const values = [70, 18, 47, 5];
+  const values = [70, 18, 47, 3, 5];
   global.fetch = async (url, options = {}) => {
     const target = String(url);
     if (target.endsWith('/auth/v1/user')) return jsonResponse({ id: 'admin' });
@@ -38,8 +38,9 @@ test('platform order summary uses count-only HEAD queries and returns aggregate 
   const res = recorder();
   await handler({ method: 'GET', headers: { authorization: 'Bearer admin-token' } }, res);
   assert.equal(res.out.status, 200);
-  assert.deepEqual(res.out.body, { ok: true, counts: { orders: 70, completed: 18, open: 47, needsReview: 5 } });
-  assert.equal(queries.length, 4);
+  assert.deepEqual(res.out.body, { ok: true, counts: { orders: 70, completed: 18, open: 47, cancelled: 3, needsReview: 5 } });
+  assert.equal(queries.length, 5);
+  assert.equal(new URL(queries[3].target).searchParams.get('status'), 'in.(store_rejected,store_cancelled,cancelled)', 'rejected and cancelled orders are counted together');
   assert.ok(queries.every(({ target, options }) => options.method === 'HEAD' && options.headers.Prefer === 'count=exact' && options.headers.Range === '0-0' && new URL(target).searchParams.get('select') === 'id'));
   assert.ok(queries.every(({ target }) => !/customer_(name|phone|address|email)/.test(target)));
 });

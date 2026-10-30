@@ -27,6 +27,7 @@ module.exports = async function platformOrderSummary(req, res) {
       ['orders', {}],
       ['completed', { status: 'in.(completed,delivered)' }],
       ['open', { status: 'in.(awaiting_store_confirmation,store_confirmed,processing,shipped)' }],
+      ['cancelled', { status: 'in.(store_rejected,store_cancelled,cancelled)' }],
       ['needsReview', { or: '(status.eq.needs_review,reconciliation_status.eq.mismatched)' }]
     ];
     const counts = await Promise.all(queries.map(async ([key, filters]) => {
