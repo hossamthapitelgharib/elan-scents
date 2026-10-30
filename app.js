@@ -64,23 +64,6 @@ function applyArtAndHero(){
     var p=v.play();
     if(p&&p.catch)p.catch(function(){});
   };
-  var _hero=window.hero;
-  window.hero=function(){
-    var e=document.getElementById('hero');
-    var v=document.getElementById('heroVideo');
-    if(e&&v){
-      e.style.background='transparent';
-      if(typeof _hero==='function'){
-        try{
-          var h=typeof HS!=='undefined'&&HS.length?HS[(typeof hi!=='undefined'?hi:0)%HS.length]:null;
-          if(h){e.style.setProperty('--hc',h.c);e.style.setProperty('--hs',h.s);}
-        }catch(err){}
-      }
-      playHeroVideo();
-    }else if(typeof _hero==='function'){
-      _hero();
-    }
-  };
   try{playHeroVideo();}catch(e){}
   document.addEventListener('click',function(e){
     var b=e.target.closest('[data-bc]');
@@ -107,6 +90,6 @@ function applyArtAndHero(){
   watchSheet();
   watchMenu();
 }
-var CORE='/app-core.js?v=20261030-01';
+var CORE='/app-core.js?v=20261030-02';
 loadScript(CORE, applyArtAndHero);
 })();

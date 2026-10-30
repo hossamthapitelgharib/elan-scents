@@ -184,9 +184,9 @@ test('favourites never reach the cloud and stay out of the editor preview', () =
   assert.doesNotMatch(between('var FAVS=[]', 'function pc('), /fetch\(|GuestIdentity|trackGuest/);
 });
 
-test('card CSS is calm and image-first and has the reference size (45.5% of the screen wide, 2.16 times as tall, picture 4:5)', () => {
+test('card CSS is calm and image-first: 45.5% of the screen wide, as tall as its content (picture 4:5 plus a short body)', () => {
   const card = css.match(/\.card\.pf\{[^}]*\}/)[0];
-  assert.match(card, /flex:0 0 var\(--cw\);width:var\(--cw\);aspect-ratio:541\/1169/, 'reference card: 541 x 1169');
+  assert.match(card, /flex:0 0 var\(--cw\);width:var\(--cw\);aspect-ratio:auto/, 'same width as before; the height follows the content instead of the old 541 x 1169 ratio');
   assert.match(css, /:root\{--cw:45\.5vw;--cg:2\.6vw;--cp:3\.2vw;/, 'two per row on a phone');
   assert.match(css, /@media\(min-width:680px\)\{:root\{--cw:200px/, 'a fixed 200px card from 680px up');
   assert.doesNotMatch(card, /gradient/);
@@ -230,7 +230,7 @@ test('card footer: price and cart button share one centred line at the bottom, b
   assert.match(foot, /margin-top:auto/, 'the footer sits at the bottom of every card in a row');
   assert.match(css.match(/\.card\.pf \.price\{[^}]*\}/)[0], /align-items:center;gap:3px;height:34px/);
   assert.match(css.match(/\.cartb\{[^}]*\}/)[0], /width:34px;height:34px/);
-  assert.match(pbody, /padding:10px 9px 10px/);
+  assert.match(pbody, /gap:2px;padding:6px 9px 6px/, 'a short body: four full cards fit under the header');
   assert.doesNotMatch(css.match(/\.card\.pf h4\{[^}]*\}/)[0], /min-height/, 'the name and brand stay together');
 });
 
@@ -241,7 +241,7 @@ test('cart mark: a perfume that is in the cart stays marked on its card, whateve
   assert.doesNotMatch(h.run('pc({p:PERFUMES[0],b:best(PERFUMES[0])})'), /class="cartb in"/, 'not in the cart yet');
   h.run("CART=[{sid:'p1',q:1}]");
   const html = h.run('pc({p:PERFUMES[0],b:best(PERFUMES[0])})');
-  assert.match(html, /class="cartb in" data-add="p1" aria-label="في سلتك، اضغط لإضافة المزيد"/);
+  assert.match(html, /class="cartb in" data-add="p1" aria-label="في سلتك، اضغط لإزالته"/);
   h.run("toggleFav('p1')");
   assert.match(h.run('pc({p:PERFUMES[0],b:best(PERFUMES[0])})'), /class="cartb in"/, 'the favourite heart does not clear the cart mark');
   assert.match(h.run('pc({p:PERFUMES[0],b:best(PERFUMES[0])})'), /class="favb on"/);
@@ -254,7 +254,7 @@ test('cart mark follows the cart live: adding, removing and emptying update ever
   const a = button('p1'), b = button('p9'); h.cartButtons.push(a, b);
   h.run("CART=[{sid:'p1',q:2}];cartBadge()");
   assert.equal(a.classList.has('in'), true); assert.equal(b.classList.has('in'), false);
-  assert.equal(a.attrs['aria-label'], 'في سلتك، اضغط لإضافة المزيد');
+  assert.equal(a.attrs['aria-label'], 'في سلتك، اضغط لإزالته');
   h.run("CART=[];cartBadge()");
   assert.equal(a.classList.has('in'), false);
   assert.equal(a.attrs['aria-label'], 'أضف إلى العربة');
@@ -288,7 +288,7 @@ test('perfume cards under MASTERPIECES (inside .cb) keep the compact card fonts'
   assert.match(css, /\.cb \.card:not\(\.pf\) small\{font-size:13px\}\.cb \.card:not\(\.pf\) \.st\{font-size:12\.5px\}/);
   assert.doesNotMatch(css, /\.cb \.card h4\{/, 'the big heading rule no longer reaches perfume cards');
   assert.doesNotMatch(css, /\.cb \.card small\{|\.cb \.card \.st\{/);
-  assert.match(css.match(/\.card\.pf h4\{[^}]*\}/)[0], /font-size:15px/);
+  assert.match(css.match(/\.card\.pf h4\{[^}]*\}/)[0], /font-size:13\.5px/);
 });
 
 test('no cream or black surfaces are left on the page or the inner pages (only buttons, icons and lines carry colour)', () => {
