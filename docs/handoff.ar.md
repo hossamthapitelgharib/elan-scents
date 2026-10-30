@@ -11,9 +11,9 @@
 
 ## مفتوح
 
-### 2026-10-30: ترحيل `20261030063700_platform_audit_entries` طُبّق على القاعدة الحية بلا ملف في المستودع
-- **ما لوحظ:** `list_migrations` على المشروع `sbgdtuqfrnfeggkwqtrw` يُظهر الإصدار `20261030063700` باسم `platform_audit_entries`، ولا ملف له في `supabase/migrations`، فيفشل فحص «Supabase Preview» بالرسالة «Remote migration versions not found in local migrations directory» على كل دفعة (ظهر على `3d47cb0`). ليس من عملي: لا أعرف نصّه ولا أعيد كتابته من التخمين.
-- **المطلوب:** النسخة التي طبّقته ترفع الملف `supabase/migrations/20261030063700_platform_audit_entries.sql` ونسخة التراجع في `supabase/rollback/` كما فعلت مع غيره، ثم تنقل هذا البند إلى «مُنجَز».
+### 2026-10-30: ترحيل `20261030114314_platform_store_summary_review_count` طُبّق على القاعدة الحية بلا ملف في المستودع
+- **ما لوحظ:** `list_migrations` على المشروع `sbgdtuqfrnfeggkwqtrw` يُظهر الإصدار `20261030114314` باسم `platform_store_summary_review_count`، ولا ملف له في `supabase/migrations`، فيبقى فحص «Supabase Preview» أحمر بالرسالة «Remote migration versions not found in local migrations directory» (ظهر على `514ad25`). ليس من عملي: لا أعرف نصّه ولا أعيد كتابته من التخمين. (الترحيل السابق `20261030063700_platform_audit_entries` رُفع ملفه فعلًا.)
+- **المطلوب:** النسخة التي طبّقته ترفع الملف `supabase/migrations/20261030114314_platform_store_summary_review_count.sql` ونسخة التراجع في `supabase/rollback/`، ثم تنقل هذا البند إلى «مُنجَز».
 
 ### 2026-10-30: مقارنة الإديتور بالمواصفات الأصلية (المتبقي)
 - **ما أُنجز:** فحص بند بند في `docs/editor-spec-status.ar.md` (كود + اختبارات + تشغيل المحرر في Chromium على 1400 و820 و390). الأدوات الـ17 والماوس واللمس واللوحات والتنسيق والحفظ والمكتبة والـAI منجزة.
