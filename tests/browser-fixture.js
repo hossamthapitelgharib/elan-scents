@@ -141,7 +141,7 @@ function liveUI() {
   const b = browser(); const calls = [];
   for (const id of ['font', 'size', 'color', 'bg', 'align', 'format', 'apply', 'undo', 'redo', 'save', 'library']) b.add(id === 'format' ? 'dialog' : id === 'font' ? 'select' : 'button', id);
   const font = b.document.getElementById('font'); const option = new Element('option'); option.value = 'Tahoma'; font.append(option);
-  Object.assign(b.context, { menu: b.document.getElementById('menu'), liveFrame: new Element('iframe'), liveMode: true, selectedLive: null, effectSelect: { value: 'none' },
+  Object.assign(b.context, { menu: b.document.getElementById('menu'), liveFrame: new Element('iframe'), liveScale: 1, liveMode: true, selectedLive: null, effectSelect: { value: 'none' },
     fontDefinitions: [['fonts', ED.FONTS]], bridgeReady: true, bridgeRevision: 'initial', bridgeDirty: false,
     async requestLive(action, payload) { calls.push([action, plain(payload || {})]); if (action === 'library.open') return { openLibrary: true }; return { archive: [{ id: 'hero', name: 'الواجهة' }] }; }, markBridge() {}, saveLive() {}
   });
