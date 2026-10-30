@@ -54,8 +54,8 @@ test('privacy.html is a plain page: right-to-left, external assets only, no inli
 
 test('the policy separates the visitor (the refusal) from the account holder (account activity), as the owner decided', () => {
   assert.match(privacy, /وبإنشاء حسابك توافق على تسجيل نشاطك في المتجر/);
-  assert.match(privacy, /ولا يغيّر زر الرفض أعلاه ذلك/);
-  assert.match(privacy, /signed-in|creating it was your agreement/i);
+  assert.match(privacy, /ولا يغيّر زر الرفض أدناه ذلك/);
+  assert.match(privacy, /By creating an account you agree to your activity being recorded as part of it, and the button below does not change that/);
   const texts = read('texts.js'), core = read('app-core.js');
   assert.equal((texts.match(/\bac:'/g) || []).length, 2, 'the sign-up notice exists in Arabic and English');
   assert.match(texts, /ac:'[^']*href=\\?"\/privacy\.html\\?"/);
@@ -67,7 +67,7 @@ test('the page says what it must: it records by default, one refusal and what it
     assert.ok(privacy.includes(needle) || privacy.includes(needle.replace('نطلب','تطلب')), 'mentions ' + needle);
   }
   assert.match(privacy, /الرفض خاص بهذا المتصفح/);
-  assert.match(privacy, /Refusing never stops|you keep browsing and ordering as before/);
+  assert.match(privacy, /you keep browsing the shop as before/);
   assert.match(privacy, /by default and without asking first/);
 });
 
@@ -126,4 +126,21 @@ test('the dashboards never track visitors and carry no notice', () => {
   for (const f of ['dashboard.html', 'store-dashboard.html', 'platform-dashboard.html', 'customers-dashboard.html', 'stores-dashboard.html']) {
     assert.doesNotMatch(read(f), /guest-identity\.js|consent\.js/, f);
   }
+});
+
+test('the refuse button sits at the bottom, after everything the visitor is asked to read (owner decision 30 Oct)', () => {
+  const at = (needle) => privacy.indexOf(needle);
+  const arButton = at('data-consent-refuse>أرفض'), enButton = at('data-consent-refuse>Refuse');
+  for (const id of ['id="record"', 'id="account"', 'id="retention"']) assert.ok(at(id) > -1 && at(id) < arButton, id + ' comes before the Arabic refuse button');
+  assert.ok(at('id="choice"') > at('id="retention"'), 'the refusal section is the last Arabic section');
+  assert.ok(arButton < at('id="english"'), 'the Arabic part ends with its button, before the English summary');
+  assert.ok(enButton > at('id="english"'), 'the English summary ends with its own button');
+  assert.match(privacy.split('</button>').pop(), /^\s*<\/div>\s*<\/div>\s*<\/main>/, 'nothing but closing tags follows the last button');
+  assert.match(privacy, /بعد أن قرأت ما سبق/, 'the Arabic part tells the visitor the choice comes after reading');
+});
+
+test('the policy does not promise a purchase without an account: browsing is free, ordering needs an account', () => {
+  assert.match(privacy, /تنفيذ الطلب يتطلب حسابًا/);
+  assert.match(privacy, /Browsing needs no account, but placing an order does/);
+  assert.doesNotMatch(privacy, /والشراء كما هو|browsing and ordering as before/);
 });

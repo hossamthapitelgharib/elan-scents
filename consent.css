@@ -1,5 +1,6 @@
-/* What is left of the privacy wiring on the shop pages: the footer's policy link, the account page's link and the sign-up sentence.
+/* What is left of the privacy wiring on the shop pages: the footer's policy link, the account page's link, the sign-up sentence and the "an account is needed to order" message.
    There is no consent notice any more; the only choice (refuse) lives on the policy page itself. */
 .fbar a{color:inherit;text-decoration:underline;text-underline-offset:3px}
 .privacy-links{max-width:1100px;margin:0 auto;padding:6px 18px 28px;text-align:center;font-size:13px;color:#77726a}.privacy-links a{color:inherit;text-decoration:underline;text-underline-offset:3px}
 .auth-consent{margin:0;font-size:12px;line-height:1.7;color:#77726a;text-align:start}.auth-consent a{color:#8a5e0c;text-decoration:underline;text-underline-offset:3px}
+.auth-need{margin:0;padding:10px 12px;border:1px solid #d9c28a;border-radius:10px;background:#fffaf0;color:#5c4308;font-size:13.5px;line-height:1.8;text-align:start}
