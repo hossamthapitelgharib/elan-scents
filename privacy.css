@@ -22,6 +22,8 @@ body{margin:0;background:#fff;color:var(--ink);font-family:'IBM Plex Sans Arabic
 .privacy-table tr:last-child td{border-bottom:0}
 .privacy-table th{background:var(--paper);color:var(--gold-dark);font-weight:600}
 .privacy-page [hidden]{display:none!important}
+.privacy-en{margin-top:34px;padding-top:6px;border-top:1px solid var(--line)}
+.privacy-en h2{border-top:0;margin-top:0}
 .privacy-choice{margin:16px 0 20px;padding:16px 18px;border:1.5px solid var(--gold-dark);border-radius:16px;background:var(--paper)}
 .privacy-choice p{margin:0 0 10px}
 .privacy-choice .privacy-state{font-weight:600;color:var(--gold-dark)}

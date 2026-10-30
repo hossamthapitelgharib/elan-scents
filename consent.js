@@ -105,13 +105,12 @@
     persist('gpc');
   }
 
-  // The policy page carries both states in its markup; this only shows the right one and hides the refuse button once it is used.
+  // The policy page carries both state lines in its markup; this only shows the right one. The refuse button is never hidden:
+  // after a refusal it stays, and pressing it again just repeats the erase (a retry), so a visitor can always find it.
   function render() {
     if (!document.querySelectorAll) return;
     var when = document.querySelectorAll('[data-consent-when]');
     for (var i = 0; i < when.length; i++) when[i].hidden = (when[i].getAttribute('data-consent-when') === 'refused') !== state.refused;
-    var buttons = document.querySelectorAll('[data-consent-refuse]');
-    for (var j = 0; j < buttons.length; j++) buttons[j].hidden = state.refused;
   }
 
   document.addEventListener('click', function (event) {

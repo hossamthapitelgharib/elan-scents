@@ -1,7 +1,7 @@
 // The privacy policy page, the refuse-only choice on it (owner decision of 2026-10-29: no consent notice, tracking by default,
-// one "refuse" button that erases the fingerprint and activity), and a guard that keeps the policy honest:
-// every browser-storage key or cookie the storefront uses must be listed on the page, and its retention figures
-// must match what the database really enforces.
+// one "refuse" button that erases the fingerprint and activity). The policy is written for the visitor and kept short
+// (owner decision of 2026-10-29): what is recorded, why, how to refuse, the account, deletion and rights. Platform details
+// (storage-key names, tables, providers) stay out of it. Its retention figure must match what the database enforces.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -16,23 +16,24 @@ const STOREFRONT_SCRIPTS = ['app-core.js', 'app.js', 'account.js', 'auth-session
 // names in those files that are not stored in the browser
 const NOT_STORAGE = new Set(['elan_editor']);
 
-test('the policy lists every browser-storage key and cookie the storefront uses', () => {
-  const used = new Set(['elan_gid']);           // the server cookie is set in api/guest-cart.js as a template string
-  for (const file of STOREFRONT_SCRIPTS) for (const m of read(file).matchAll(/'(elan_[a-z0-9_]+)'/g)) if (!NOT_STORAGE.has(m[1])) used.add(m[1]);
-  assert.ok(used.size >= 10, 'found the keys: ' + [...used].join(', '));
-  for (const name of used) assert.ok(privacy.includes('<code>' + name + '</code>'), name + ' is explained on the privacy page');
-  assert.ok(read('api/guest-cart.js').includes('elan_gid='), 'the server cookie is still named elan_gid');
+test('the policy is short and speaks to the visitor: no storage keys, no tables, no provider or library names, no statute', () => {
+  const text = privacy.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+  const words = text.trim().split(' ').length;
+  assert.ok(words < 600, 'the whole page, English included, stays short (' + words + ' words)');
+  assert.doesNotMatch(privacy, /<table|<code>|<ul>/i, 'no key tables, code names or long lists');
+  for (const platform of ['elan_', 'HttpOnly', 'ThumbmarkJS', 'Cloudflare', 'Supabase', 'localStorage', 'HMAC', 'canvas', 'pg_cron', '151']) {
+    assert.ok(!text.includes(platform), 'no platform detail on the page: ' + platform);
+  }
+  // it still says plainly what is recorded, in the visitor's words
+  for (const need of ['بصمة مجهولة لجهازك', 'ما تتصفحه من عطور', 'ما تبحث عنه', 'ما تضيفه إلى السلة', 'ملفات الارتباط']) assert.ok(text.includes(need), 'says: ' + need);
 });
 
-test('the retention periods on the page are the ones the database enforces', () => {
-  assert.match(privacy, /بعد 400 يوم/);
-  assert.match(privacy, /بعد 365 يومًا/);
-  assert.match(privacy, /ولا يُحذف منها شيء تلقائيًا/, 'registered customers are never purged automatically (owner decision of 2026-10-28)');
-  assert.doesNotMatch(privacy, /عمليات البحث المسجّلة على الحسابات تُحذف/);
+test('the retention period on the page is the one the database enforces', () => {
+  assert.match(privacy, /بعد 400 يوم من آخر زيارة/);
+  assert.match(privacy, /ولا نحذفها تلقائيًا/, 'registered customers are never purged automatically (owner decision of 2026-10-28)');
   const migrations = fs.readdirSync(path.join(root, 'supabase', 'migrations')).map((f) => read('supabase/migrations/' + f)).join('\n');
   assert.match(migrations, /guest-fingerprint-retention-400d/);
   assert.match(migrations, /customer-searches-retention-365d/);
-  // the cookies live 400 days (34,560,000 seconds) on both sides
   assert.equal(34560000 / 86400, 400);
   assert.match(read('guest-identity.js'), /max-age=34560000/);
   assert.match(read('api/guest-cart.js'), /Max-Age=34560000/);
@@ -52,23 +53,21 @@ test('privacy.html is a plain page: right-to-left, external assets only, no inli
 });
 
 test('the policy separates the visitor (the refusal) from the account holder (account activity), as the owner decided', () => {
-  assert.match(privacy, /بإنشاء حسابك توافق على تسجيل نشاطك في المتجر/);
-  assert.match(privacy, /فلا يتوقف برفضك أعلاه/);
-  assert.match(privacy, /ولا نستخدم له بصمة جهاز ولا معرّف متصفح ولا كوكي/);
-  assert.match(privacy, /registered|signed-in customer's own activity/i);
+  assert.match(privacy, /وبإنشاء حسابك توافق على تسجيل نشاطك في المتجر/);
+  assert.match(privacy, /ولا يغيّر زر الرفض أعلاه ذلك/);
+  assert.match(privacy, /signed-in|creating it was your agreement/i);
   const texts = read('texts.js'), core = read('app-core.js');
   assert.equal((texts.match(/\bac:'/g) || []).length, 2, 'the sign-up notice exists in Arabic and English');
   assert.match(texts, /ac:'[^']*href=\\?"\/privacy\.html\\?"/);
   assert.match(core, /k=='signup'\?'<p class="auth-consent">'\+t\.ac\+'<\/p>':''/, 'shown on the sign-up form only');
 });
 
-test('the page says what it must: it records by default, one refusal, what the refusal erases, purposes, no sale, rights, the law, last update', () => {
-  for (const needle of ['أرفض', 'دون أن نطلب موافقتك', 'نسجّل افتراضيًا', 'نمسح فورًا من قاعدة بياناتنا', 'لا نبيع بياناتك', 'الإعلانات', 'الاعتراض', '151 لسنة 2020', 'آخر تحديث', 'ThumbmarkJS', 'Cloudflare', 'Supabase', 'Global Privacy Control']) {
-    assert.ok(privacy.includes(needle), 'mentions ' + needle);
+test('the page says what it must: it records by default, one refusal and what it does, no sale, rights, last update', () => {
+  for (const needle of ['أرفض', 'دون أن نطلب موافقتك مسبقًا', 'نمسح فورًا بصمة جهازك وكل نشاطك', 'لا نبيع بياناتك', 'الإعلانات', 'آخر تحديث', 'Global Privacy Control', 'نطلب الاطلاع', 'تواصل معنا']) {
+    assert.ok(privacy.includes(needle) || privacy.includes(needle.replace('نطلب','تطلب')), 'mentions ' + needle);
   }
-  assert.match(privacy, /لا نخزّنه كما هو/, 'states that the IP address is stored only as a keyed hash');
-  assert.match(privacy, /ولا يمسّ هذا الرفض حسابك المسجّل/, 'the refusal does not touch a registered account');
-  assert.match(privacy, /Refusing never stops you from browsing, shopping or ordering/);
+  assert.match(privacy, /الرفض خاص بهذا المتصفح/);
+  assert.match(privacy, /Refusing never stops|you keep browsing and ordering as before/);
   assert.match(privacy, /by default and without asking first/);
 });
 

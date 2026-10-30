@@ -174,7 +174,7 @@ test('the editor preview never records and never refuses or erases anything', ()
   assert.equal(b.store.has('elan_guest_browser_key_v2'), true, 'the preview does not touch a real visitor key');
 });
 
-test('the refuse button on the policy page refuses, hides itself and swaps the state line', () => {
+test('the refuse button on the policy page refuses and swaps the state line, and it never disappears', async () => {
   const b = browser({ readyState: 'loading' });
   b.ready();
   assert.equal(b.nodes.openState.hidden, false);
@@ -184,7 +184,16 @@ test('the refuse button on the policy page refuses, hides itself and swaps the s
   assert.equal(b.consent.refused(), true);
   assert.equal(b.nodes.openState.hidden, true);
   assert.equal(b.nodes.refusedState.hidden, false);
-  assert.equal(b.nodes.button.hidden, true, 'there is nothing to press once refused, and no way to accept');
+  assert.equal(b.nodes.button.hidden, false, 'the button stays, so a visitor can always find it');
+  // pressing it again repeats the erase (a retry) and announces nothing new
+  const heard = [];
+  b.consent.onChange((s) => heard.push(s));
+  await flush();
+  const before = b.requests.length;
+  b.click(b.nodes.button);
+  assert.equal(b.requests.length, before + 1);
+  assert.equal(b.requests[before].body.action, 'forget');
+  assert.deepEqual(heard, []);
   // a click anywhere else does nothing
   const other = browser();
   other.click(makeNode({ class: 'x' }));
@@ -192,11 +201,11 @@ test('the refuse button on the policy page refuses, hides itself and swaps the s
   assert.deepEqual(other.requests, []);
 });
 
-test('a page that loads already refused shows the refused state', () => {
+test('a page that loads already refused shows the refused state, and the button is still there', () => {
   const b = browser({ stored: { v: 1, a: false, t: 1 } });
   assert.equal(b.nodes.openState.hidden, true);
   assert.equal(b.nodes.refusedState.hidden, false);
-  assert.equal(b.nodes.button.hidden, true);
+  assert.equal(b.nodes.button.hidden, false);
 });
 
 test('a refusal made in another tab is followed here and listeners hear it once', () => {
