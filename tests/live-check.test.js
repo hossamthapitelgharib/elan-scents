@@ -5,14 +5,14 @@ const http = require('node:http');
 const { probe, summarize } = require('../scripts/live-check.js');
 
 /* A fake site that answers like the Worker does, with or without its service-role key and webhook secret. */
-function fakeSite({ serviceKey, webhookSecret, csp = "default-src 'self'; script-src 'self'; script-src-attr 'none'", inlineScript = false, consent = true }) {
+function fakeSite({ serviceKey, webhookSecret, csp = "default-src 'self'; script-src 'self'; script-src-attr 'none'", inlineScript = false, consent = true, refuseButton = true }) {
   return http.createServer((req, res) => {
     req.resume();
     const send = (status, body, headers) => { res.writeHead(status, Object.assign({ 'Content-Type': 'application/json' }, headers)); res.end(body); };
     if (req.url === '/health') return send(200, 'ok', { 'Content-Type': 'text/plain' });
     if (req.url === '/api/config') return send(200, JSON.stringify({ url: 'https://example.supabase.co', key: 'public-anon' }));
     if (req.url === '/') return send(200, '<html lang="ar">' + (inlineScript ? '<script>alert(1)</script>' : '<script src="/hero-video.js"></script>') + '</html>', Object.assign({ 'Content-Type': 'text/html' }, csp ? { 'Content-Security-Policy': csp } : {}));
-    if (req.url === '/privacy.html') return send(200, '<html><code>elan_guest_browser_key_v2</code></html>', Object.assign({ 'Content-Type': 'text/html' }, csp ? { 'Content-Security-Policy': csp } : {}));
+    if (req.url === '/privacy.html') return send(200, refuseButton ? '<html><button type="button" data-consent-refuse>refuse</button></html>' : '<html>policy text only</html>', Object.assign({ 'Content-Type': 'text/html' }, csp ? { 'Content-Security-Policy': csp } : {}));
     if (consent && req.url === '/consent.js') return send(200, 'window.ElanConsent = {}', { 'Content-Type': 'text/javascript' });
     if (/^\/(index|account|dashboard|store-dashboard|platform-dashboard)\.html$/.test(req.url)) return send(200, '<html></html>', Object.assign({ 'Content-Type': 'text/html' }, csp ? { 'Content-Security-Policy': csp } : {}));
     if (req.url === '/hero-video.js') return send(200, "document.getElementById('heroVideo')", { 'Content-Type': 'text/javascript' });
@@ -97,4 +97,11 @@ test('a site that lost its consent script or its policy page fails the check', a
   assert.ok(row);
   assert.equal(row.ok, false);
   assert.match(row.detail, /consent\.js 404/);
+});
+
+test('a policy page that lost its refuse button fails the check', async () => {
+  const results = await runAgainst({ serviceKey: true, webhookSecret: false, refuseButton: false });
+  const row = results.find((r) => r.name === 'the privacy policy and the refusal script are served');
+  assert.ok(row);
+  assert.equal(row.ok, false);
 });
