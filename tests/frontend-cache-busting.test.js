@@ -21,10 +21,13 @@ test('app.js loads versioned app-core', () => {
   assert.match(app, /\/app-core\.js\?v=[0-9A-Za-z-]+/);
 });
 
-test('style.css imports versioned theme sheets', () => {
+test('the storefront loads its theme sheets in parallel, versioned, in cascade order (no @import chain)', () => {
   const style = read('style.css');
-  assert.match(style, /@import url\('\/style-3\.css\?v=[0-9A-Za-z-]+'\)/);
-  assert.match(style, /@import url\('\/footer-9x16\.css\?v=[0-9A-Za-z-]+'\)/);
+  assert.doesNotMatch(style, /^\s*@import/m, 'an @import makes the browser fetch the sheet one round-trip after style.css');
+  const html = read('index.html');
+  const order = ['/fonts.css', '/style-3.css', '/footer-9x16.css', '/style.css', '/consent.css'].map((f) => html.indexOf('<link rel="stylesheet" href="' + f + '?v='));
+  assert.ok(order.every((i) => i > -1), 'every sheet has its own versioned link');
+  assert.deepEqual([...order].sort((a, b) => a - b), order, 'base theme, footer, then the overrides: the same order the @imports had');
 });
 
 test('critical frontend files exist', () => {

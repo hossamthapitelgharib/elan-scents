@@ -1,10 +1,9 @@
 /* ============================================================
    Élan Scents — Active UI stylesheet (final consolidated)
-   Imports base theme then applies current desired overrides.
+   The overrides on top of the base theme. index.html loads style-3.css (base theme) and footer-9x16.css BEFORE this file with
+   parallel <link> tags (an @import here would make the browser fetch them one round-trip later); the order there is the cascade.
    Frontend display only. Do not add backend/DB rules here.
    ============================================================ */
-@import url('/style-3.css?v=20261031-03');
-@import url('/footer-9x16.css?v=20261031-03');
 
 /* ---------- Menu: slightly narrower panel + slightly larger items ---------- */
 #menu {
