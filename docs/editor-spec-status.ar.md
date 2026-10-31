@@ -1,6 +1,6 @@
 # الإديتور الحالي مقابل المواصفات الأصلية
 
-**المرجع:** `.archive/legacy-editor-snapshots/elan-editor-master-spec.md` (المواصفات المدمجة) و`elan-original-tools-golden.json` (تسجيل الإديتور الأصلي).
+**المرجع:** `docs/editor-master-spec.md` (المواصفات المدمجة) و`tests/fixtures/elan-original-tools-golden.json` (تسجيل الإديتور الأصلي).
 **تاريخ الفحص:** 2026-10-30، على `main` بعد `85082cf`.
 **طريقة الفحص:** قراءة الكود والاختبارات، وتشغيل المحرر الحقيقي في Chromium على 1400 و820 و390 عرضًا (خادم محلي وبيانات Supabase وهمية؛ بيئة العمل لا تصل إلى `supabase.co`).
 
