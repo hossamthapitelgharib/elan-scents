@@ -1,0 +1,72 @@
+name: Site watch
+
+# Every few hours it asks the live shop four small questions from the outside (scripts/site-watch.js): is the Worker up, is the
+# storefront served, does the site hand out its public config, and does the database answer a public read. Nothing secret is used.
+# When something is wrong it opens ONE issue labelled "site-down" (GitHub then emails the repository owner) and, when the shop
+# answers again, it comments on that issue and closes it. The database read also counts as real activity, which is what keeps a
+# Free-plan Supabase project from being paused for inactivity.
+# Run it by hand from the Actions tab (Run workflow), or it runs when its own files change.
+
+on:
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      url:
+        description: Site address to watch
+        default: https://elan-scents.hossamthapitelgharib.workers.dev
+  push:
+    paths:
+      - scripts/site-watch.js
+      - .github/workflows/site-watch.yml
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      SITE_URL: ${{ github.event.inputs.url || 'https://elan-scents.hossamthapitelgharib.workers.dev' }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Ask the shop
+        id: watch
+        continue-on-error: true
+        run: node scripts/site-watch.js "$SITE_URL" | tee watch.txt
+      - name: Open an issue when the shop is not answering
+        if: steps.watch.outcome == 'failure'
+        run: |
+          gh label create site-down --color B60205 --description "The scheduled site watch found the shop not answering" || true
+          if [ -z "$(gh issue list --label site-down --state open --json number --jq '.[0].number')" ]; then
+            {
+              echo "الفحص الدوري وجد أن الموقع أو قاعدة البيانات لا يردّان كما يجب."
+              echo
+              echo "- الموقع: $SITE_URL"
+              echo "- وقت الفحص: $(date -u +%Y-%m-%dT%H:%MZ)"
+              echo "- نتيجة الفحص:"
+              echo
+              echo '```'
+              cat watch.txt
+              echo '```'
+              echo
+              echo "يُغلق هذا البلاغ تلقائيًا عندما يعود الموقع للرد. إن بقي مفتوحًا فافتح لوحة Supabase وتأكد أن المشروع ليس موقوفًا (Paused)."
+            } > issue-body.md
+            gh issue create --title "الموقع أو قاعدة البيانات لا يردّان" --label site-down --body-file issue-body.md
+          fi
+      - name: Close the issue when the shop answers again
+        if: steps.watch.outcome == 'success'
+        run: |
+          for number in $(gh issue list --label site-down --state open --json number --jq '.[].number'); do
+            gh issue comment "$number" --body "عاد الموقع للرد في الفحص الدوري ($(date -u +%Y-%m-%dT%H:%MZ)). أُغلق البلاغ."
+            gh issue close "$number"
+          done
+      - name: Fail the run when the shop is not answering
+        if: steps.watch.outcome == 'failure'
+        run: exit 1
