@@ -134,6 +134,9 @@
     document.body.appendChild(dlg); dlg.showModal();
   }
 
+  /* Uploads a file the way the picker does (a picture through the server, a video straight to storage) and gives back its address.
+     Used by the library to move the old browser-only media into the cloud library. */
+  window.elanUploadMediaFile = function (file, onProgress) { return /^video\//.test(file.type) ? uploadVideo(file, onProgress || function () {}) : uploadPicture(file); };
   // Menu tool: put a picked image into the selected element.
   window.elanLiveMedia = async function (element, tool) {
     if (element && element.hasMedia) { busyNotice(element); return; }
