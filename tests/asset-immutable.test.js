@@ -51,3 +51,8 @@ test('the Cloudflare headers file gives those files the immutable rule and the p
   const page = rules.find((r) => r.source === '/');
   assert.ok(page.headers.some((h) => h.key === 'Cache-Control' && /no-store/.test(h.value)), 'the home page is never cached, so a new version is picked up at once');
 });
+
+test('CI does not rewrite the asset version before testing (that would hide a forgotten bump)', () => {
+  const workflow = read('.github/workflows/tests.yml');
+  assert.doesNotMatch(workflow, /bump-asset-version/, 'the suite must see the committed versions and hashes, not freshly generated ones');
+});
