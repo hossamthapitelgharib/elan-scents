@@ -79,7 +79,7 @@ async function main() {
       await font.arrayBuffer();
     }
     const css = await get('/style.css');
-    check('a stylesheet is served as text/css with no-cache', css.status === 200 && /^text\/css/.test(css.headers.get('content-type') || '') && css.headers.get('cache-control') === 'no-cache', css.status + ' ' + css.headers.get('content-type') + ' ' + css.headers.get('cache-control'));
+    check('a stylesheet is served as text/css and cached for a year (immutable; its URL carries ?v=)', css.status === 200 && /^text\/css/.test(css.headers.get('content-type') || '') && css.headers.get('cache-control') === 'public, max-age=31536000, immutable', css.status + ' ' + css.headers.get('content-type') + ' ' + css.headers.get('cache-control'));
     await css.arrayBuffer();
     const json = await get('/design/home.json');
     check('design/home.json is served', json.status === 200 && JSON.parse(await json.text()).version >= 1);

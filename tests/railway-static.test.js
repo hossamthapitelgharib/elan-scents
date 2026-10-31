@@ -56,11 +56,11 @@ test('static files carry validators and answer a repeat request with 304', async
   });
 });
 
-test('scripts and styles revalidate, fonts are immutable, images are cached for an hour, unlisted files revalidate', async () => {
+test('versioned scripts and styles are immutable, fonts are immutable, images are cached for an hour, unlisted files revalidate', async () => {
   await withServer(async (base) => {
     const cc = async (p) => (await fetch(base + p)).headers.get('cache-control');
-    assert.equal(await cc('/app-core.js'), 'no-cache');
-    assert.equal(await cc('/style.css'), 'no-cache');
+    assert.equal(await cc('/app-core.js'), 'public, max-age=31536000, immutable');
+    assert.equal(await cc('/style.css'), 'public, max-age=31536000, immutable');
     assert.match(await cc('/index.html'), /no-store/);
     assert.match(await cc('/assets/fonts/ibm-plex-sans-arabic-400.woff2'), /max-age=31536000, immutable/);
     assert.match(await cc('/assets/footer-background.webp'), /max-age=3600/);

@@ -1,0 +1,33 @@
+{
+  "version": "20261031-07",
+  "files": {
+    "account.js": "7cd10602b829916a",
+    "app-core.js": "d7ccefcb34727f13",
+    "app.js": "a6e571c8a54b1362",
+    "auth-session.js": "c12caeae26af1c2c",
+    "consent.css": "79e25a99fc582a15",
+    "consent.js": "c383591883071ab4",
+    "customers-dashboard.js": "7c2933f822a1a763",
+    "dashboard.css": "81350ec8c0c15a91",
+    "dashboard.js": "1360ef3a6a00e8dc",
+    "design-layer.js": "9bc09dd4a486d981",
+    "design-schema.js": "d2e482d91a7858c9",
+    "edit-boot.js": "ca27dff3b043bd6f",
+    "edit-mode.js": "bb587aa380c27054",
+    "elan-host-bridge.js": "a29c3c88ac974e71",
+    "fonts.css": "bbef903c0156968c",
+    "footer-9x16.css": "48470d338a8906e0",
+    "guest-identity.js": "7ff1daa0f0d89ad5",
+    "hero-early.js": "c3e97f68a6322f00",
+    "hero-video.js": "df4dbe08e2d9eea3",
+    "platform-dashboard.js": "2a59ca5f02d775f2",
+    "portal.css": "9b1553912b5b4339",
+    "portal.js": "469931e14ce07de9",
+    "privacy.css": "bbb7614467979223",
+    "store-dashboard.js": "96172817026935fe",
+    "stores-dashboard.js": "9e10dbad0edd8420",
+    "style-3.css": "c5950034295f113e",
+    "style.css": "2c75a4f072bbb138",
+    "texts.js": "0e0e374004a9b550"
+  }
+}

@@ -42,7 +42,16 @@
       ]
     },
     {
-      "source": "/(style.css|style-3.css|fonts.css|portal.css|dashboard.css|app.js|hero-video.js|hero-early.js|consent.js|consent.css|privacy.css|app-core.js|guest-identity.js|auth-session.js|texts.js|portal.js|account.js|dashboard.js|store-dashboard.js|platform-dashboard.js|design-schema.js|design-layer.js|edit-boot.js|edit-mode.js|elan-host-bridge.js|editor/edit-model.js|customers-dashboard.js|stores-dashboard.js|footer-9x16.css)",
+      "source": "/(style.css|style-3.css|fonts.css|portal.css|dashboard.css|app.js|hero-video.js|hero-early.js|consent.js|consent.css|privacy.css|app-core.js|guest-identity.js|auth-session.js|texts.js|portal.js|account.js|dashboard.js|store-dashboard.js|platform-dashboard.js|design-schema.js|design-layer.js|edit-boot.js|edit-mode.js|elan-host-bridge.js|customers-dashboard.js|stores-dashboard.js|footer-9x16.css)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/(editor/edit-model.js)",
       "headers": [
         {
           "key": "Cache-Control",
