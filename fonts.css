@@ -1,4 +1,4 @@
-/* Local font files: WOFF2 first (about a third of the size), the original TTF only for browsers without WOFF2. */
+/* Local font files, WOFF2 only (every browser that can show these pages supports it; the TTF fallbacks were removed on 2026-10-31). */
 @font-face{font-family:'El Messiri';font-style:normal;font-weight:400;font-display:swap;src:url('/assets/fonts/el-messiri-400.woff2') format('woff2')}
 @font-face{font-family:'El Messiri';font-style:normal;font-weight:500;font-display:swap;src:url('/assets/fonts/el-messiri-500.woff2') format('woff2')}
 @font-face{font-family:'El Messiri';font-style:normal;font-weight:600;font-display:swap;src:url('/assets/fonts/el-messiri-600.woff2') format('woff2')}
