@@ -24,7 +24,7 @@
       ]
     },
     {
-      "source": "/(index.html|privacy.html|account.html|dashboard.html|store-dashboard.html|platform-dashboard.html|customers-dashboard.html|stores-dashboard.html|manus-routes.json)",
+      "source": "/(index.html|privacy.html|account.html|dashboard.html|store-dashboard.html|platform-dashboard.html|customers-dashboard.html|stores-dashboard.html)",
       "headers": [
         {
           "key": "Cache-Control",

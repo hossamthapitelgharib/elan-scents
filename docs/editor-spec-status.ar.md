@@ -11,7 +11,7 @@
 | البند | الحالة | الدليل |
 |---|---|---|
 | المحرر والموقع على أصل واحد، مستودع واحد، بلا خدمة محرر منفصلة | ✅ | القرار الأحدث (Cloudflare بدل Railway)؛ `editor/README.md` |
-| التصميم في GitHub (`design/home.json`) والسجلات في Supabase | ✅ | `railway/editor.js`، `railway/editor-records.js` |
+| التصميم في GitHub (`design/home.json`) والسجلات في Supabase | ✅ | `railway/editor.js`، `railway/editor-data.js` |
 | الصندوق معزول: لا تحليلات ولا سلة ولا كتابة على الإنتاج | ✅ | `tests/editor-preview-isolation.test.js` |
 | خط الحفظ: سجلات Supabase أولًا ← commit واحد ← فحص الإصدار المتوقع ← `requestId` لمنع التكرار ← «تم النشر» عندما تقدّم الصفحة الحية الملف نفسه بالبايت | ✅ | `railway/editor.js` (`expectedRevision`, `requestId`, `published`)؛ `tests/editor-api.test.js` |
 | فشل الحفظ لا يمسح المسودة ولا يغيّر المنشور | ✅ | `tests/editor-guard.test.js` |
@@ -52,7 +52,7 @@
 
 | البند | الحالة | الدليل |
 |---|---|---|
-| براند / متجر / مناسبة / نوتة: حقل الاسم + إنشاء + إلغاء فقط | ✅ | Chromium؛ `tests/editor-records.test.js` (يطابق السجل الموجود أو ينشئه مرة واحدة) |
+| براند / متجر / مناسبة / نوتة: حقل الاسم + إنشاء + إلغاء فقط | ✅ | Chromium؛ `tests/editor-data-catalog-create.test.js` (يطابق السجل الموجود أو ينشئه مرة واحدة عبر `catalog.create`) |
 | السيكشن: الاسم والغرض، اختيار يدوي/تلقائي، فلاتر (براند، متجر، فئة، مناسبة، نوتة، حجم، سعر من/إلى)، توقيت | ✅ | Chromium (الحقول كلها ظاهرة)؛ `tests/editor-section-create.test.js` |
 | كارت العطر: نفس اللوحة **بدون** الاسم والغرض | ✅ | Chromium |
 | التلقائي يجلب **كل** النتائج لا أول دفعة | ✅ | `tests/editor-auto-results.test.js`، `tests/editor-catalog.test.js` |
@@ -90,7 +90,7 @@
 | البند | الحالة | الدليل |
 |---|---|---|
 | جلسة على الخادم، بلا «تذكرني»، خمول 2 ساعة وحد أقصى 10 ساعات | ✅ | `tests/editor-session.test.js` |
-| مسارات مباشرة محمية، أسرار على الخادم فقط، عمليات Supabase بجلسة الأدمن | ✅ | `tests/editor-host.test.js`، `tests/editor-records.test.js` |
+| مسارات مباشرة محمية، أسرار على الخادم فقط، عمليات Supabase بجلسة الأدمن | ✅ | `tests/editor-host.test.js`، `tests/editor-data-catalog-create.test.js` |
 | تسجيل الخروج، وعند انتهاء الجلسة تبقى الصفحة والمسودة مع تحذير | ✅ | `tests/editor-guard.test.js` |
 | **«نسيت كلمة السر» برابط مؤقت** | ❌ | صفحة الدخول فيها البريد وكلمة السر وزر الدخول فقط |
 
