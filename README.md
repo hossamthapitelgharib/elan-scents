@@ -35,7 +35,7 @@ npm test           # node --test tests/*.test.js
 | المحرر وكيف تُضاف أداة جديدة | `editor/README.md` |
 | قاعدة البيانات والترحيلات ولقطة المخطط | `supabase/README.md` و`supabase/schema-snapshot/README.md` |
 | الاختبارات وكيف تُشغَّل | `tests/README.md` |
-| ما أُنجز وما هو مفتوح للنسخة التالية | `docs/handoff.ar.md` |
+| ما أُنجز وما هو مفتوح للنسخة التالية | `docs/handoff.ar.md` (والأقدم في `docs/handoff-archive.ar.md`) |
 | منصة العملاء والمتاجر (المتطلبات والإغلاقات والجاهزية) | `docs/customer-platform/README.ar.md` |
 
 ## ملاحظات
