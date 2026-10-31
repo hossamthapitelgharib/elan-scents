@@ -131,7 +131,8 @@ test('hero CSS: no background of its own, the picture whole over a blurred copy,
   assert.match(top, /html\.hero-img #hero::before \{ inset: -26px; background-size: cover; filter: blur\(26px\); \}/);
   assert.match(top, /html\.hero-img #hero::after \{ background-size: contain; \}/);
   assert.match(top, /background-image: var\(--hero-img\);/);
-  assert.match(top, /html\.hero-pending #hero \.hero-overlay,\s*html\.hero-pending #hero \.magic,\s*html\.hero-pending #hero \.counters \{\s*visibility: hidden !important;/);
+  assert.match(top, /html\.hero-pending #hero \.hero-overlay \{\s*visibility: hidden !important;/);
+  assert.doesNotMatch(top, /html\.hero-pending #hero \.(?:magic|counters)/, 'the title and counters are not on the hero any more, so there is nothing of theirs to hide');
   assert.doesNotMatch(top, /hero-fit|hero-contain|--hero-ar/, 'the height-follows-the-picture version is gone: nothing moves when the picture arrives');
   assert.doesNotMatch(top + base, /#hero\s*\{[^}]*background:\s*#(?!fff\b)[0-9a-f]{3,6}/i, 'no dark placeholder either');
 });
@@ -143,9 +144,8 @@ test('header colours turn white only once the hero picture is in (never white on
   }
 });
 
-test('the white text, the veil and the white header colours go with the hero picture hero-early.js knows about, not with the later data-media mark', () => {
+test('the veil and the white header colours go with the hero picture hero-early.js knows about, not with the later data-media mark', () => {
   assert.match(top, /html:not\(\.hero-img\) #hero:not\(\[data-media\]\) \.hero-overlay \{\s*display: none !important;/);
-  assert.match(top, /html:not\(\.hero-img\) #hero:not\(\[data-media\]\) \.counters span \{\s*color: #1a1208 !important;/);
   assert.doesNotMatch(top, /(^|\n)#hero:not\(\[data-media\]\)/, 'every no-media look is switched off when a hero picture is on its way');
   for (const selector of ['header \\.ic svg\\{stroke:#fff\\}', 'header #lg\\{', '#bar \\.gold\\{', 'header button\\[data-n\\]']) {
     assert.ok(new RegExp('\\nhtml\\.hero-img:not\\(\\.hero-pending\\) body\\.(?:hd|bar)-over:not\\(\\.inner\\) ' + selector).test(base), selector);

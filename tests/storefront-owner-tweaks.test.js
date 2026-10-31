@@ -105,8 +105,8 @@ test('browse / explore pill: an arrow only, white, in the perfume card frame', (
   assert.match(base, /\.sub:hover\{border-color:#c8962a;/, 'gold hairline on hover like the card');
 });
 
-test('browse pill: the hero one wins over the small-screen .magic p size', () => {
-  const hero = rule(top, '#hero .magic p.sub');
+test('browse pill: the one under the hero wins over the small-screen .magic p size', () => {
+  const hero = rule(top, '#intro .magic p.sub');
   assert.match(hero, /font-size: 0 !important/);
   assert.match(hero, /background: #fff !important/);
   assert.match(top, /\.magic p \{ font-size: 12px !important; \}/, 'the rule it has to beat is still there');

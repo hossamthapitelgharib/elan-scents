@@ -20,7 +20,8 @@ test('the page ships a white hero slot: no video file, no poster, no dark base, 
   for (const m of css.matchAll(/#hero\s*\{[^}]*\}/g)) if (/background\s*:/.test(m[0])) assert.match(m[0], /background:\s*#fff\s*!important/, 'every #hero rule that sets a background sets white');
   assert.match(css, /#hero #heroVideo:not\(\[src\]\)[^{]*\{\s*display:\s*none\s*!important/, 'a video element with no file is not drawn');
   assert.match(css, /#hero:not\(\[data-media\]\) \.hero-overlay/, 'the dark overlay belongs to a hero with media only');
-  assert.match(css, /#hero:not\(\[data-media\]\) \.magic h2[^{]*\{[^}]*color:\s*#1a1208\s*!important/, 'dark text on the white slot');
+  assert.match(css, /#intro \.magic h2 \{[^}]*color:\s*#1a1208/, 'the title under the hero is dark on the white page');
+  assert.doesNotMatch(hero.slice(0, hero.indexOf('<div id="intro"')), /class="magic"|class="counters"/, 'nothing but the picture or video and its veil is inside the hero');
 });
 
 test('the storefront shows the hero white until a picture or a video is on it, and deleting returns the white', () => {

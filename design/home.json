@@ -69,11 +69,6 @@
       }
     },
     "all": {
-      "hero:magic": {
-        "style": {
-          "color": "#f4f3f0"
-        }
-      },
       "sec:offers:title": {
         "style": {
           "fontSize": 20,
@@ -81,12 +76,6 @@
           "color": "#000000",
           "fontFamily": "Reem Kufi",
           "effect": "none"
-        }
-      },
-      "hero:counters": {
-        "style": {
-          "fontSize": 8,
-          "color": "#f6f3ee"
         }
       },
       "sec:stores:title": {
@@ -188,12 +177,6 @@
       "sec:stores": {
         "dx": -17,
         "dy": -25
-      },
-      "hero:counters": {
-        "dx": -106,
-        "dy": -1,
-        "w": 164,
-        "h": 43
       }
     }
   }

@@ -181,9 +181,10 @@
     var hero = document.getElementById('hero');
     if (hero) {
       add('hero', hero, 'hero', 'الواجهة الرئيسية');
-      add('hero:magic', hero.querySelector('.magic'), 'hero-text', 'نص الواجهة');
-      add('hero:counters', hero.querySelector('.counters'), 'hero-counters', 'العدّادات');
     }
+    /* The title, its arrow and the counters sit just under the hero (#intro), but keep the ids they had inside it so saved edits still match. */
+    add('hero:magic', document.querySelector('#intro .magic'), 'hero-text', 'نص الواجهة');
+    add('hero:counters', document.querySelector('#intro .counters'), 'hero-counters', 'العدّادات');
     var V = document.getElementById('view');
     if (V && document.body.classList.contains('inner')) {
       var pk = hash(pageKey() || 'page'), vn = 0;

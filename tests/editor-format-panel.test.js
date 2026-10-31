@@ -56,7 +56,7 @@ test('the storefront loads an extra web font only when a saved design uses it', 
   b.layer.set(design); b.layer.applyEdits();
   assert.equal(fontLinks().length, 1, 'load each used web font once; never load device fonts');
   assert.match(fontLinks()[0].href, /family=Cairo:wght@400;700/);
-  assert.match(b.document.getElementById('hero').querySelector('.magic').style.fontFamily, /Cairo/);
+  assert.match(b.document.querySelector('#intro .magic').style.fontFamily, /Cairo/);
 });
 
 test('the library button opens the archive and image library in live mode', async () => {

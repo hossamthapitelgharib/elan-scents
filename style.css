@@ -3,8 +3,8 @@
    Imports base theme then applies current desired overrides.
    Frontend display only. Do not add backend/DB rules here.
    ============================================================ */
-@import url('/style-3.css?v=20261030-12');
-@import url('/footer-9x16.css?v=20261030-12');
+@import url('/style-3.css?v=20261031-01');
+@import url('/footer-9x16.css?v=20261031-01');
 
 /* ---------- Menu: slightly narrower panel + slightly larger items ---------- */
 #menu {
@@ -102,15 +102,10 @@ header .logo small {
   background: linear-gradient(
     180deg,
     rgba(20, 12, 4, 0.35) 0%,
-    rgba(20, 12, 4, 0.15) 40%,
-    rgba(20, 12, 4, 0.55) 100%
+    rgba(20, 12, 4, 0.12) 38%,
+    rgba(20, 12, 4, 0) 100%
   ) !important;
   pointer-events: none !important;
-}
-#hero .magic,
-#hero .counters {
-  position: relative !important;
-  z-index: 2 !important;
 }
 
 /* The hero is a plain white slot first: it keeps the room for the picture or video and is the base the page falls back to.
@@ -120,17 +115,11 @@ header .logo small {
 html:not(.hero-img) #hero:not([data-media]) .hero-overlay {
   display: none !important;
 }
-html:not(.hero-img) #hero:not([data-media]) .magic h2,
-html:not(.hero-img) #hero:not([data-media]) .magic p:not(.sub),
-html:not(.hero-img) #hero:not([data-media]) .counters b,
-html:not(.hero-img) #hero:not([data-media]) .counters span {
-  color: #1a1208 !important;
-  text-shadow: none !important;
-}
 
-/* The hero's "browse the collection" button is the same arrow-only pill as every other one (style-3.css .sub): its words stay hidden
+/* The title, the "browse the collection" arrow and the counters are not on the hero any more: they sit on the white page right under it
+   (#intro, see the end of this file). The arrow is the same arrow-only pill as every other one (style-3.css .sub): its words stay hidden
    even where a small-screen rule sets the size of .magic p. */
-#hero .magic p.sub {
+#intro .magic p.sub {
   font-size: 0 !important;
   line-height: 0 !important;
   padding: 0 !important;
@@ -721,8 +710,8 @@ html,body{overflow-x:clip!important}
    hero-early.js (page head) starts the picture's download as soon as the page opens and puts it on <html> as --hero-img (class
    hero-img). The hero has no colour behind it (not white, not dark): the picture is drawn whole (contain, never cropped left and
    right), over a blurred copy of itself that fills what the picture's own proportions leave over, so the hero keeps its size and
-   nothing on the page moves when the picture arrives. While the picture is still on its way (class hero-pending) the veil, the title
-   and the counters wait for it, so a bare hero with white text is never shown. */
+   nothing on the page moves when the picture arrives. While the picture is still on its way (class hero-pending) the veil waits for
+   it, so a bare hero with a dark band is never shown. */
 #hero,
 #hero video,
 #heroVideo {
@@ -741,8 +730,44 @@ html.hero-img #hero::after {
 }
 html.hero-img #hero::before { inset: -26px; background-size: cover; filter: blur(26px); }
 html.hero-img #hero::after { background-size: contain; }
-html.hero-pending #hero .hero-overlay,
-html.hero-pending #hero .magic,
-html.hero-pending #hero .counters {
+html.hero-pending #hero .hero-overlay {
   visibility: hidden !important;
+}
+
+/* ---------- Under the hero: the title, its arrow and the counters ----------
+   They used to sit over the picture in white. Now the picture is shown on its own and these sit on the white page between it and the
+   brands: the title in the deep espresso of the section titles, the numbers in the same rich gold as the logo, the words in a soft
+   brown that stays readable on white. No float animation (nothing on the page should drift), no lines around it. */
+#intro {
+  padding: 30px 16px 6px;
+  text-align: center;
+  background: #fff;
+}
+#intro .magic {
+  animation: none;
+  padding: 0 0 2px !important;
+  border-radius: 0;
+  background: transparent;
+}
+#intro .magic h2 {
+  color: #1a1208;
+  text-shadow: none;
+  margin: 0;
+}
+#intro .counters {
+  max-width: 420px;
+  margin: 18px auto 0;
+  gap: 8px;
+}
+#intro .counters b {
+  background: linear-gradient(135deg, #d4a940 0%, #b8892a 50%, #8a6a1f 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  text-shadow: none;
+}
+#intro .counters span {
+  color: #6b5a3e;
+  text-shadow: none;
 }

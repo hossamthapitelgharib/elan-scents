@@ -409,3 +409,13 @@ html.hero-img:not(.hero-pending) body.hd-over:not(.inner) header .ic svg{stroke:
 html.hero-img:not(.hero-pending) body.hd-over:not(.inner) header #lg{background:none;color:#fff;-webkit-text-fill-color:#fff}
 html.hero-img:not(.hero-pending) body.bar-over:not(.inner) #bar .gold{background:none;color:#fff;-webkit-text-fill-color:#fff}
 html.hero-img:not(.hero-pending) body.hd-over:not(.inner) header button[data-n]:not([data-n="0"]):after{color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.4)}
+/* The word "Scents" and the tagline in the header follow the icons: white over the hero, then black once the header is past it
+   (the menu page and the About section keep the black tagline). Same gates as the icons above, so a half-built hero never shows white text. */
+html:not(.hero-pending) body.hd-over:not(.inner):has(#hero[data-media]) header .logo span{color:#fff;-webkit-text-fill-color:#fff}
+html:not(.hero-pending) body.hd-over:not(.inner):has(#hero[data-media]) header .logo small{color:#fff!important;-webkit-text-fill-color:#fff!important;-webkit-text-stroke-color:#fff}
+html.hero-img:not(.hero-pending) body.hd-over:not(.inner) header .logo span{color:#fff;-webkit-text-fill-color:#fff}
+html.hero-img:not(.hero-pending) body.hd-over:not(.inner) header .logo small{color:#fff!important;-webkit-text-fill-color:#fff!important;-webkit-text-stroke-color:#fff}
+/* The cart icon in the header is a little smaller than the other icons (the heart and the rest stay as they were). */
+header .ic button[data-sheet="cart"] svg{width:20px!important;height:20px!important}
+/* The lines between the items of the menu page are black. */
+#menu a{border-bottom-color:#000}
