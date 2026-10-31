@@ -125,3 +125,9 @@ test('the workflow opens one issue when the shop is down, closes it when it is b
   assert.match(workflow, /Fail the run when the shop is not answering[\s\S]*exit 1/);
   assert.match(workflow, /continue-on-error: true/);
 });
+
+test('the watch step keeps the failure of the script even though its output goes through tee (pipefail)', () => {
+  const step = workflow.slice(workflow.indexOf('- name: Ask the shop'), workflow.indexOf('- name: Open an issue'));
+  assert.match(step, /\n\s+shell: bash\n/, 'shell: bash runs with -eo pipefail; the default shell does not, and tee would turn a failing watch into a green step');
+  assert.match(step, /node scripts\/site-watch\.js "\$SITE_URL" \| tee watch\.txt/);
+});

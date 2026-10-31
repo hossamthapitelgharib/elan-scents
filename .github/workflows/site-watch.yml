@@ -39,6 +39,8 @@ jobs:
       - name: Ask the shop
         id: watch
         continue-on-error: true
+        # shell: bash is what turns on pipefail; without it the exit code of tee would hide a failing watch.
+        shell: bash
         run: node scripts/site-watch.js "$SITE_URL" | tee watch.txt
       - name: Open an issue when the shop is not answering
         if: steps.watch.outcome == 'failure'
