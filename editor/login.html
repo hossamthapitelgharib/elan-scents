@@ -15,6 +15,15 @@
   <label>كلمة السر<input id="pass" type="password" autocomplete="current-password"></label>
   <button id="loginBtn" class="primary">دخول</button>
   <p id="msg" class="msg"></p>
+  <p class="aside"><a href="#forgot" id="forgotLink">نسيت كلمة السر؟</a></p>
+  <section id="forgotBox" hidden>
+    <h3>استرجاع كلمة السر</h3>
+    <p class="hint">اكتب بريدك. لو فيه حساب بالبريد ده هيوصلك رابط مؤقت يخليك تختار كلمة سر جديدة.</p>
+    <label>البريد<input id="forgotEmail" type="email" autocomplete="username"></label>
+    <button id="forgotBtn" class="primary">ابعت الرابط</button>
+    <p id="forgotMsg" class="msg"></p>
+    <p class="aside"><a href="/editor" id="forgotBack">رجوع للدخول</a></p>
+  </section>
 </main>
 <script src="/editor-login.js"></script>
 </body>

@@ -16,7 +16,7 @@ const COOKIE = 'elan_sess';
 // One byte over the largest picture editor-media.js accepts, so an oversized upload is cut off while it is still being read.
 // (Videos never come through this route: they are uploaded straight to storage, see /api/editor-upload-sign.)
 const uploadLimit = () => media.MAX_BYTES + 1;
-const LOGIN_FILES = { '/editor-login.js': 'text/javascript; charset=utf-8', '/editor-login.css': 'text/css; charset=utf-8', '/editor-guard.js': 'text/javascript; charset=utf-8', '/editor-media.js': 'text/javascript; charset=utf-8' };
+const LOGIN_FILES = { '/editor-login.js': 'text/javascript; charset=utf-8', '/editor-login.css': 'text/css; charset=utf-8', '/editor-guard.js': 'text/javascript; charset=utf-8', '/editor-media.js': 'text/javascript; charset=utf-8', '/editor-reset.js': 'text/javascript; charset=utf-8' };
 
 function storageOrigin() {
   try { const u = new URL(String(process.env.SUPABASE_URL || '').trim()); return u.protocol === 'https:' ? u.origin : ''; } catch (_) { return ''; }
@@ -143,6 +143,30 @@ async function handle(req, res, pathname) {
     if (r.error) return json(res, r.status, { ok: false, error: r.error }), true;
     setCookie(req, res, r.id, false);
     return json(res, 200, { ok: true }), true;
+  }
+  if (pathname === '/api/editor-forgot-password') {
+    if (req.method !== 'POST' || !sameOrigin(req)) return json(res, 403, { ok: false, error: 'forbidden' }), true;
+    const body = await readJson(req);
+    if (!body || typeof body !== 'object') return json(res, 400, { ok: false, error: 'invalid_request' }), true;
+    // The emailed link opens this site's own reset page; the address comes from configuration, never from a request header.
+    const redirectTo = editorSiteOrigin().replace(/\/+$/, '') + '/editor-reset';
+    const r = await sessions.requestPasswordReset(body.email, ip(req), redirectTo);
+    // The same answer for every address, existing or not.
+    return (r.error ? json(res, r.status, { ok: false, error: r.error }) : json(res, 200, { ok: true })), true;
+  }
+  if (pathname === '/api/editor-reset-password') {
+    if (req.method !== 'POST' || !sameOrigin(req)) return json(res, 403, { ok: false, error: 'forbidden' }), true;
+    const body = await readJson(req);
+    if (!body || typeof body !== 'object') return json(res, 400, { ok: false, error: 'invalid_request' }), true;
+    const r = await sessions.resetPassword(body.accessToken, body.password, ip(req));
+    return (r.error ? json(res, r.status, { ok: false, error: r.error }) : json(res, 200, { ok: true })), true;
+  }
+  if (pathname === '/editor-reset' && (req.method === 'GET' || req.method === 'HEAD')) {
+    sendFile(res, 'reset.html', 'text/html; charset=utf-8', {
+      'Content-Security-Policy': "default-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
+      'X-Frame-Options': 'DENY', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer'
+    });
+    return true;
   }
   if (pathname === '/api/editor-logout') {
     if (req.method !== 'POST' || !sameOrigin(req)) return json(res, 403, { ok: false, error: 'forbidden' }), true;

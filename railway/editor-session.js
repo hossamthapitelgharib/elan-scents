@@ -78,6 +78,71 @@ async function login(email, password, ip) {
   return { status: 200, id };
 }
 
+/* ---------- Forgotten password: a temporary link from Supabase Auth, then a new password ----------
+   The owner asks for a link with their email; Supabase Auth emails a one-time recovery link (it expires on its own, and is used up when
+   opened). The answer to the request is always the same, whether the account exists or not, so this page cannot be used to find out which
+   emails have an account. The recovery link opens /editor-reset, which sends the new password with the recovery token to resetPassword().
+   Nothing here is logged, and neither the token nor the password is ever sent back. */
+const RESET_WINDOW_MS = 15 * 60 * 1000;
+const FORGOT_PER_IP = 5;                  // link requests per IP per window
+const RESET_PER_IP = 10;                  // password changes per IP per window
+const FORGOT_EMAIL_COOLDOWN_MS = 60 * 1000;
+const MIN_NEW_PASSWORD = 10;
+const forgotAttempts = new Map();
+const resetAttempts = new Map();
+const recoverSent = new Map();
+function limited(map, ip, max) {
+  const now = Date.now();
+  const list = (map.get(ip) || []).filter((t) => now - t < RESET_WINDOW_MS);
+  if (list.length >= max) { map.set(ip, list); return true; }
+  list.push(now); map.set(ip, list);
+  if (map.size > 5000) map.delete(map.keys().next().value);
+  return false;
+}
+
+/* redirectTo: the page the emailed link must open (must be allowed in the Supabase project's redirect URLs, otherwise Supabase uses its Site URL). */
+async function requestPasswordReset(email, ip, redirectTo) {
+  const { url, anon } = env();
+  if (!url || !anon) return { status: 503, error: 'supabase_service_configuration_missing' };
+  if (typeof email !== 'string' || email.length > 200 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return { status: 400, error: 'invalid_request' };
+  if (limited(forgotAttempts, ip, FORGOT_PER_IP)) return { status: 429, error: 'too_many_attempts' };
+  const address = email.trim().toLowerCase();
+  const memo = crypto.createHash('sha256').update(address).digest('hex');
+  const now = Date.now();
+  for (const [k, t] of recoverSent) if (now - t > FORGOT_EMAIL_COOLDOWN_MS) recoverSent.delete(k);
+  if (recoverSent.has(memo)) return { status: 200 }; // a link was just sent: do not mail the same address again, and answer the same way
+  recoverSent.set(memo, now);
+  try {
+    const target = url + '/auth/v1/recover' + (redirectTo ? '?redirect_to=' + encodeURIComponent(redirectTo) : '');
+    await fetch(target, { method: 'POST', headers: { apikey: anon, 'Content-Type': 'application/json' }, body: JSON.stringify({ email: address }) });
+  } catch (_) { return { status: 502, error: 'auth_unreachable' }; }
+  return { status: 200 }; // whatever Supabase answered (it does not say whether the account exists), the caller sees the same thing
+}
+
+async function resetPassword(accessToken, password, ip) {
+  const { url, anon } = env();
+  if (!url || !anon) return { status: 503, error: 'supabase_service_configuration_missing' };
+  if (typeof accessToken !== 'string' || !/^[A-Za-z0-9._~+/=-]{20,4000}$/.test(accessToken)) return { status: 400, error: 'invalid_or_expired_link' };
+  if (typeof password !== 'string' || password.length > 200) return { status: 400, error: 'invalid_request' };
+  if (password.length < MIN_NEW_PASSWORD) return { status: 400, error: 'weak_password' };
+  if (limited(resetAttempts, ip, RESET_PER_IP)) return { status: 429, error: 'too_many_attempts' };
+  const headers = { apikey: anon, Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json' };
+  let r;
+  try { r = await fetch(url + '/auth/v1/user', { method: 'PUT', headers, body: JSON.stringify({ password }) }); }
+  catch (_) { return { status: 502, error: 'auth_unreachable' }; }
+  if (!r.ok) {
+    const j = await r.json().catch(() => ({}));
+    const code = String(j.error_code || j.code || '');
+    if (r.status === 401 || r.status === 403) return { status: 401, error: 'invalid_or_expired_link' };
+    if (/same_password/.test(code)) return { status: 422, error: 'same_password' };
+    if (/weak_password/.test(code)) return { status: 422, error: 'weak_password' };
+    return { status: 502, error: 'reset_failed' };
+  }
+  // The password changed: end every other session of this account, so a stolen old session does not survive the reset.
+  try { await fetch(url + '/auth/v1/logout?scope=global', { method: 'POST', headers }); } catch (_) { /* the password is already changed */ }
+  return { status: 200 };
+}
+
 /* TEMPORARY owner access without email/password. It is temporary by construction: it works only while the owner has set
    EDITOR_AUTH_BYPASS=1, a secret phrase of at least 16 characters in EDITOR_ACCESS_KEY AND EDITOR_ACCESS_KEY_UNTIL, the moment
    (an ISO date and time) it stops working, at most 24 hours from now. A forgotten switch therefore dies by itself instead of
@@ -176,4 +241,4 @@ function parseCookie(header, name) {
 }
 function size() { return sessions.size; }
 
-module.exports = { login, keyLogin, accessKeyEnabled, get, destroy, parseCookie, size, __setClock(fn) { clock = fn || (() => Date.now()); } };
+module.exports = { login, requestPasswordReset, resetPassword, MIN_NEW_PASSWORD, keyLogin, accessKeyEnabled, get, destroy, parseCookie, size, __setClock(fn) { clock = fn || (() => Date.now()); } };
