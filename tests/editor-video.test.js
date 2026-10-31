@@ -13,7 +13,7 @@ test('the menu says "image or video" where the original editor said it', async (
   assert.equal(label('media'), 'رفع صورة أو فيديو داخل العناصر أو الهيرو');
   assert.equal(label('media_delete'), 'حذف ميديا الكارت أو الهيرو إلى الأرشيف');
   assert.equal(label('create_image'), 'إنشاء صورة أو فيديو');
-  const golden = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '.archive', 'legacy-editor-snapshots', 'elan-original-tools-golden.json'), 'utf8'));
+  const golden = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'elan-original-tools-golden.json'), 'utf8'));
   const original = golden.menu_by_element.card.map((x) => x.replace(/^\[(ok|x)\] /, ''));
   for (const l of ['إنشاء بانر صورة أو فيديو', 'رفع صورة أو فيديو داخل العناصر أو الهيرو', 'حذف ميديا الكارت أو الهيرو إلى الأرشيف']) assert.ok(original.includes(l), l + ' is the original wording');
 });

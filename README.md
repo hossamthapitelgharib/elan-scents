@@ -26,27 +26,17 @@ npm test           # node --test tests/*.test.js
 | `railway/server.js` | خادم Node للتشغيل المحلي ولاختبارات المطابقة مع الـ Worker (ليس مضيف الإنتاج) |
 | `vercel.json` | قواعد الـ rewrites والـ headers (يقرأها الـ Worker وخادم التشغيل المحلي) |
 
-## متغيرات البيئة (Cloudflare Worker)
+## أين أجد التفاصيل
 
-القيم العامة (`SUPABASE_URL` و`SUPABASE_ANON_KEY` و`EDITOR_ENV` و`EDITOR_TARGET_BRANCH` و`GITHUB_REPO`) في `wrangler.jsonc`. الأسرار تُضاف من لوحة Cloudflare ← Worker ← Settings ← Variables and Secrets:
-
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `STORE_ORDER_WEBHOOK_SECRET` — سر webhooks المتاجر (بدونه ترد الـ webhooks بـ 503)
-- `GITHUB_TOKEN` — للحفظ من الإديتور على `design/home.json` (صلاحية Contents قراءة وكتابة على هذا المستودع)
-- `EDITOR_SITE_ORIGIN` — اختياري: أصل الموقع العام؛ إن لم يُضبط استُعمل العنوان الذي زاره المالك
-
-## لينك المحرر
-
-- المحرر يعمل على `https://elan-scents.hossamthapitelgharib.workers.dev/editor` (نفس الـ Worker ونفس الأصل مع المتجر).
-- خدمة `elan-editor` القديمة في Railway لا تخدم شيئاً سوى تحويل `302` إلى هذا اللينك. التفاصيل في `CLAUDE.md`.
-
-## صلاحيات Claude على المستودع
-
-- Claude له **صلاحية كاملة للرفع المباشر** على GitHub (على `main`) وهو **غير مطالَب بفتح Pull Request**، بقرار صاحب المشروع.
-- اختبارات أي عمل تُرفع معه إلى `tests/` ولا تبقى محلياً أو في جلسة العمل فقط.
-- بعد الرفع يتحقق Claude من نجاح GitHub Actions ومن نشر Workers Builds على Cloudflare، ويصلح فوراً بكوميت جديد إن ظهر خطأ.
-- **لا ترحيلات معلّقة ولا انتظار موافقة** (قرار المالك 2026-10-20): Claude يطبّق ترحيلات Supabase بنفسه بعد اختبارها داخل معاملة مُلغاة، ويغيّر متغيرات الاستضافة (Cloudflare) عند الحاجة، ويبلّغ بنتيجة ما فعله.
-- بطاقة موافقة من حسام تُطلب في الضرورة القصوى فقط: حذف لا رجعة فيه خارج قرار مسجّل، أو ما يكلّف مالاً، أو كشف بيانات العملاء، أو تغيير سلوك الدفع، أو تغيير `GUEST_HASH_SECRET` (القائمة الكاملة في `CLAUDE.md`).
+| أريد أن أعرف | الملف |
+|---|---|
+| قواعد العمل الجماعي، صلاحيات Claude، متى تُطلب بطاقة موافقة، متغيرات الـ Worker والأسرار، لينك المحرر | `CLAUDE.md` |
+| إعداد Cloudflare Worker والنشر | `cloudflare/README.md` |
+| المحرر وكيف تُضاف أداة جديدة | `editor/README.md` |
+| قاعدة البيانات والترحيلات ولقطة المخطط | `supabase/README.md` و`supabase/schema-snapshot/README.md` |
+| الاختبارات وكيف تُشغَّل | `tests/README.md` |
+| ما أُنجز وما هو مفتوح للنسخة التالية | `docs/handoff.ar.md` |
+| منصة العملاء والمتاجر (المتطلبات والإغلاقات والجاهزية) | `docs/customer-platform/README.ar.md` |
 
 ## ملاحظات
 

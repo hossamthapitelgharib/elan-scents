@@ -6,8 +6,8 @@ const ED = require('../design-schema.js');
 const { designBrowser, plain, read } = require('./browser-fixture');
 
 /* The right-click menu of the live editor against the original editor's golden menu
-   (.archive/legacy-editor-snapshots/elan-original-tools-golden.json): same tools, same order, same enablement. */
-const golden = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '.archive', 'legacy-editor-snapshots', 'elan-original-tools-golden.json'), 'utf8'));
+   (tests/fixtures/elan-original-tools-golden.json): same tools, same order, same enablement. */
+const golden = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'elan-original-tools-golden.json'), 'utf8'));
 const GOLDEN_IDS = ['format', 'create_section', 'create_brand', 'create_store', 'create_perfume', 'create_occasion', 'create_note', 'create_text_block', 'create_banner', 'create_text', 'media', 'media_delete', 'edit_text', 'copy', 'archive', 'library_save', 'library_download'];
 const EXTRA_IDS = ['create_image', 'open', 'go_back', 'go_home'];
 const flags = (rows) => rows.map((r) => r.startsWith('[ok]'));
