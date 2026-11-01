@@ -7,9 +7,13 @@
     "start": "node railway/server.js",
     "test": "node scripts/test-and-record.js",
     "test:raw": "node --test tests/*.test.js",
-    "build:cloudflare": "node scripts/build-cloudflare.js"
+    "build:cloudflare": "node scripts/build-cloudflare.js",
+    "test:browser": "node --test --test-concurrency=1 tests/browser/*.chromium.js"
   },
   "engines": {
     "node": ">=20"
+  },
+  "devDependencies": {
+    "playwright": "1.56.0"
   }
 }

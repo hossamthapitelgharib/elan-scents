@@ -25,6 +25,10 @@ npm test
 
 يُنشئ `npm test` تقريرًا زمنيًا في `reports/test-runs/` حتى عند فشل الاختبارات. أما `npm run test:raw` فيشغّل Node Test Runner دون إنشاء تقرير.
 
+## اختبارات المتصفح الحقيقي (Chromium)
+
+`npm run test:browser` يشغّل خادم الموقع المحلي بقيم وهمية ويفتح المتجر والمحرر في Chromium حقيقي (Playwright) على 390 و820 و1366: صفر أخطاء عند الفتح، لا تمرير جانبي، والمنصة داخل المحرر بعرض الهاتف وتطابق المتجر على الهاتف. لا يصل إلى أي خدمة حية (Supabase يُجاب بقوائم فارغة والخادم لا يفتح اتصالًا خارجيًا). يلزم مرة واحدة `npm install` ثم `npx playwright install chromium`. ملفاته في `tests/browser/` بامتداد `.chromium.js` فلا يشغّلها `npm test` السريع؛ يشغّلها جوب `browser` في GitHub Actions.
+
 ## التشغيل التلقائي
 
 يعمل workflow الموجود في `.github/workflows/tests.yml` تلقائيًا عند كل `push` إلى أي فرع وعند كل Pull Request إلى `main`.
