@@ -132,13 +132,19 @@ for (const { name, failureError, makeBody } of CASES) {
     }
   });
 
-  test(`${name}: the shared-secret path still returns the database error details as before`, async () => {
+  test(`${name}: the shared-secret path returns our own validation message, never a raw database error`, async () => {
     process.env.STORE_ORDER_WEBHOOK_SECRET = 'shared-secret';
-    installDatabase({ rpcResponse: () => jsonResponse({ message: 'visible-to-the-platform' }, 400) });
-    const result = await call(api(name), webhook({ storeId: null, headers: { 'x-store-webhook-secret': 'shared-secret' }, body: makeBody('TRK-A-1') }));
-    assert.equal(result.status, 400);
-    assert.equal(result.body.error, failureError);
-    assert.deepEqual(result.body.details, { message: 'visible-to-the-platform' });
+    installDatabase({ rpcResponse: () => jsonResponse({ code: 'P0001', message: 'visible-to-the-platform' }, 400) });
+    const own = await call(api(name), webhook({ storeId: null, headers: { 'x-store-webhook-secret': 'shared-secret' }, body: makeBody('TRK-A-1') }));
+    assert.equal(own.status, 400);
+    assert.equal(own.body.error, failureError);
+    assert.deepEqual(own.body.details, { code: 'P0001', message: 'visible-to-the-platform' });
+    // The shared secret is handed to a store when it is linked, so a database failure must not name tables, constraints or rows to it.
+    installDatabase({ rpcResponse: () => jsonResponse({ code: '23514', message: 'violates check constraint "x_check" on relation "store_order_requests"', details: 'Failing row contains (1)' }, 400) });
+    const raw = await call(api(name), webhook({ storeId: null, headers: { 'x-store-webhook-secret': 'shared-secret' }, body: makeBody('TRK-A-2') }));
+    assert.equal(raw.status, 400);
+    assert.deepEqual(raw.body.details, { code: '23514' });
+    assert.doesNotMatch(JSON.stringify(raw.body), /store_order_requests|check constraint|Failing row/);
   });
 
   test(`${name}: a store secret shorter than ${MIN_STORE_SECRET_LENGTH} characters is never accepted`, async () => {
