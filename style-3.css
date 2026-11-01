@@ -404,8 +404,10 @@ header .logo small,#menu .logo small,.alogo .logo small{font-family:'IBM Plex Sa
 /* The cart and favourites counters in the header are just the number, with no circle behind it: gold on the white page, white over the hero. */
 header button[data-n]:not([data-n="0"]):after{top:-6px;right:-5px;min-width:0;height:auto;padding:0;border-radius:0;background:none;color:#a37e2c;font:700 12px/1 'IBM Plex Sans Arabic','Segoe UI',Arial,sans-serif;text-shadow:none}
 html:not(.hero-pending) body.hd-over:not(.inner):has(#hero[data-media]) header button[data-n]:not([data-n="0"]):after{color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.4)}
-/* Same white state keyed on the hero picture hero-early.js already knows about (no :has() needed, and no wait for design-layer.js). */
-html.hero-img:not(.hero-pending) body.hd-over:not(.inner) header .ic svg{stroke:#fff}
+/* Same white state keyed on the hero picture hero-early.js already knows about (no wait for design-layer.js, which writes data-media
+   on the hero some hundreds of milliseconds after the page opens). The icons need body:has(#gh) here too: the gold rule above carries
+   that id in its specificity, and without it the white icons only won once data-media arrived, a beat after the logo's words. */
+html.hero-img:not(.hero-pending) body:has(#gh).hd-over:not(.inner) header .ic svg{stroke:#fff}
 html.hero-img:not(.hero-pending) body.hd-over:not(.inner) header #lg{background:none;color:#fff;-webkit-text-fill-color:#fff}
 html.hero-img:not(.hero-pending) body.bar-over:not(.inner) #bar .gold{background:none;color:#fff;-webkit-text-fill-color:#fff}
 html.hero-img:not(.hero-pending) body.hd-over:not(.inner) header button[data-n]:not([data-n="0"]):after{color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.4)}

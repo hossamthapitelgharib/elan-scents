@@ -18,16 +18,22 @@ const base = read('style-3.css');
 const top = read('style.css');
 const vercel = JSON.parse(read('vercel.json'));
 const build = require('../scripts/build-cloudflare.js');
+const { designBrowser } = require('./browser-fixture');
 
 const SUPA = 'https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/uploads/2026/hero.jpg';
 
-function run(json, { width = 393, named = '', classes: served = [] } = {}) {
+function run(json, { width = 393, named = '', classes: served = [], cached = false } = {}) {
   const classes = new Set(served), props = {}, images = [], timers = [];
   const rootEl = {
     classList: { add: (...c) => c.forEach((x) => classes.add(x)), remove: (...c) => c.forEach((x) => classes.delete(x)), contains: (c) => classes.has(c) },
     style: { setProperty: (k, v) => { props[k] = String(v); }, removeProperty: (k) => { delete props[k]; } },
   };
-  function Image() { images.push(this); }
+  function Image() {
+    images.push(this);
+    let src;
+    // A picture the Link preload already put in the memory cache is complete the moment src is set (checked in a real browser).
+    Object.defineProperty(this, 'src', { get: () => src, set: (v) => { src = v; if (cached) { this.complete = true; this.naturalWidth = 540; this.naturalHeight = 960; } }, enumerable: true });
+  }
   // `named` is what the stylesheet's --hero-img holds when the page itself already names its picture (the Cloudflare build does).
   const window = { innerWidth: width, getComputedStyle: () => ({ getPropertyValue: (name) => (name === '--hero-img' ? named : '') }) };
   const requests = [];
@@ -159,48 +165,53 @@ test('a page that names its picture (the Cloudflare build) starts tracking it be
   }
 });
 
-test('once the picture is in, hero-early.js tells the stylesheet its proportions so the sharp rim can melt into the blurred copy', async () => {
-  let t = run(heroOf(SUPA));
+test('a picture that is already here (repeat visit) clears the waiting state before the first frame; a picture still coming clears it when it loads', async () => {
+  const named = ' url("' + SUPA + '") ';
+  let t = run(heroOf(SUPA), { named, classes: ['hero-img'], cached: true });
+  assert.deepEqual([...t.classes], ['hero-img'], 'final from the first moment: no pending state, so the veil and the header colours are in the first frame too');
   await t.ready();
-  assert.equal(t.classes.has('hero-fade'), false, 'not before the picture is in: its size is not known');
-  Object.assign(t.images[0], { naturalWidth: 540, naturalHeight: 960 });
-  t.images[0].onload();
-  assert.equal(t.props['--hero-ratio'], '0.5625');
-  assert.ok(t.classes.has('hero-fade'));
-  t.window.ElanHeroFit(SUPA.replace('hero.jpg', 'new.jpg'));
-  assert.equal(t.classes.has('hero-fade'), false, 'a new picture is a new shape: the old one is dropped until it is in');
-  assert.equal(t.props['--hero-ratio'], undefined);
-  Object.assign(t.images[1], { naturalWidth: 1600, naturalHeight: 900 });
-  t.images[1].onload();
-  assert.equal(t.props['--hero-ratio'], '1.7778');
-  t.window.ElanHeroFit('');
-  assert.deepEqual([[...t.classes].length, t.props['--hero-ratio']], [0, undefined]);
+  assert.deepEqual([...t.classes], ['hero-img'], 'and the design file agreeing with it changes nothing');
 
-  t = run(heroOf(SUPA));
+  t = run(heroOf(SUPA), { named, classes: ['hero-img'] });
+  assert.ok(t.classes.has('hero-pending'), 'a picture still on its way keeps the hero waiting');
+  t.images[0].onload();
+  assert.deepEqual([...t.classes], ['hero-img']);
+
+  // A newer design picture is a new wait, even when the page was served with the old one.
+  const other = SUPA.replace('hero.jpg', 'new.jpg');
+  t = run(heroOf(other), { named, classes: ['hero-img'], cached: true });
   await t.ready();
-  t.images[0].onload();                        // an image that reports no size gets no fade (and nothing breaks)
-  assert.equal(t.classes.has('hero-fade'), false);
+  assert.equal(t.images.length, 2);
+  assert.deepEqual([...t.classes], ['hero-img'], 'the new one was complete too');
 });
 
-test('hero CSS: the sharp picture melts into the blurred copy only where it does not fill the hero', () => {
-  const block = top.match(/html\.hero-fade #hero::after \{[^}]*\}/);
-  assert.ok(block, 'the rule exists');
-  const rule = block[0];
-  assert.match(rule, /--hero-h: min\(calc\(var\(--app-vh, 1vh\) \* 100\), calc\(100vw \* 16 \/ 9\)\);/, 'the hero height, as the hero rules give it');
-  assert.ok(top.includes('height: min(calc(var(--app-vh, 1vh) * 100), calc(100vw * 16 / 9)) !important;'), 'and the hero rules still give exactly that');
-  assert.match(rule, /--fx: clamp\(0px, calc\(100% - var\(--pw\)\), 24px\);/, 'no band, no fade; never more than 24px');
-  assert.match(rule, /--fy: clamp\(0px, calc\(100% - var\(--ph\)\), 24px\);/);
-  assert.equal((rule.match(/linear-gradient\(to right/g) || []).length, 2, 'standard and -webkit- mask');
-  assert.equal((rule.match(/linear-gradient\(to bottom/g) || []).length, 2);
-  assert.match(rule, /mask-composite: intersect;/);
-  assert.match(rule, /-webkit-mask-composite: source-in;/);
-  assert.doesNotMatch(top, /html\.hero-img #hero::after \{[^}]*mask/, 'no mask until the picture\'s proportions are known (a mask without them would hide it)');
+test('hero CSS: the blurred copy reaches past the hero so its fade is clipped, nothing is drawn while pending, and --app-vh has a first-frame value', () => {
+  assert.match(top, /html\.hero-img #hero::before \{ inset: -80px; background-size: cover; filter: blur\(26px\); \}/, 'bleed of about three blur radii: no lighter stripe at the page edges');
+  assert.match(top, /html\.hero-pending #hero::before,\s*html\.hero-pending #hero::after \{\s*visibility: hidden;/);
+  assert.match(top, /:root \{ --app-vh: 1vh; \}\s*@supports \(height: 1svh\) \{ :root \{ --app-vh: 1svh; \} \}/, 'the hero height is the final one before app-core.js runs');
+  assert.doesNotMatch(top + early, /hero-fade|--hero-ratio|mask-image/, 'no edge softening of the picture');
+  assert.match(index, /<body class="hd-over bar-over">/, 'the page opens in the header-over-hero state, so the header is in its white state in the first frame (app-core.js corrects it when scrolled)');
+});
+
+test('the hero picture is drawn by one mechanism: design-layer.js adds no second, cropped copy as a background of the hero', () => {
+  const b = designBrowser();
+  const calls = [];
+  b.window.ElanHeroFit = (src) => calls.push(src);
+  b.layer.set({ version: 1, edits: { all: { hero: { style: { media: SUPA } } } } });
+  const hero = b.document.getElementById('hero');
+  assert.deepEqual(calls, [SUPA]);
+  assert.equal(hero.getAttribute('data-media'), 'image');
+  assert.equal(hero.style.backgroundImage, '', 'nothing is painted on the hero itself');
+  assert.equal(b.document.getElementById('heroVideo').style.display, 'none', 'the old video is still hidden');
+
+  const plain = designBrowser();                      // a page without hero-early.js keeps the picture
+  plain.layer.set({ version: 1, edits: { all: { hero: { style: { media: SUPA } } } } });
+  assert.match(plain.document.getElementById('hero').style.backgroundImage, /hero\.jpg/);
 });
 
 test('hero CSS: no background of its own, the picture whole over a blurred copy, nothing half-built while it is pending', () => {
   assert.match(top, /#hero,\s*#hero video,\s*#heroVideo \{\s*background: transparent !important;\s*\}/);
-  assert.match(top, /html\.hero-img #hero::before \{ inset: -26px; background-size: cover; filter: blur\(26px\); \}/);
-  assert.match(top, /html\.hero-img #hero::after \{ background-size: contain; \}/);
+    assert.match(top, /html\.hero-img #hero::after \{ background-size: contain; \}/);
   assert.match(top, /background-image: var\(--hero-img\);/);
   assert.match(top, /html\.hero-pending #hero \.hero-overlay \{\s*visibility: hidden !important;/);
   assert.doesNotMatch(top, /html\.hero-pending #hero \.(?:magic|counters)/, 'the title and counters are not on the hero any more, so there is nothing of theirs to hide');
@@ -218,9 +229,13 @@ test('header colours turn white only once the hero picture is in (never white on
 test('the veil and the white header colours go with the hero picture hero-early.js knows about, not with the later data-media mark', () => {
   assert.match(top, /html:not\(\.hero-img\) #hero:not\(\[data-media\]\) \.hero-overlay \{\s*display: none !important;/);
   assert.doesNotMatch(top, /(^|\n)#hero:not\(\[data-media\]\)/, 'every no-media look is switched off when a hero picture is on its way');
-  for (const selector of ['header \\.ic svg\\{stroke:#fff\\}', 'header #lg\\{', '#bar \\.gold\\{', 'header button\\[data-n\\]']) {
+  for (const selector of ['header #lg\\{', '#bar \\.gold\\{', 'header button\\[data-n\\]']) {
     assert.ok(new RegExp('\\nhtml\\.hero-img:not\\(\\.hero-pending\\) body\\.(?:hd|bar)-over:not\\(\\.inner\\) ' + selector).test(base), selector);
   }
+  // The icons need body:has(#gh): the gold icon rule carries that id in its specificity, and without it this white state lost to it
+  // until design-layer.js wrote data-media (a beat after the logo's words turned white).
+  assert.ok(base.includes('\nhtml.hero-img:not(.hero-pending) body:has(#gh).hd-over:not(.inner) header .ic svg{stroke:#fff}'));
+  assert.ok(base.includes('\nbody:has(#gh) header .ic svg{stroke:url(#gh)}'), 'the premise: the gold rule it has to beat');
 });
 
 test('the Cloudflare build sends the hero picture as a Link preload header on the storefront page', () => {
@@ -304,6 +319,18 @@ test('the Cloudflare build writes the hero picture into the storefront page, so 
     for (const other of ['privacy.html', 'account.html']) if (fs.existsSync(path.join(out, other))) assert.doesNotMatch(fs.readFileSync(path.join(out, other), 'utf8'), /hero-first/, other);
     assert.doesNotMatch(index, /hero-first/, 'the source page stays as the editor and Railway serve it');
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('the faces of the logo, the tagline and the strip are preloaded, so the logo does not change width after the page opens', () => {
+  const head = index.slice(0, index.indexOf('</head>'));
+  const preloads = [...head.matchAll(/<link rel="preload" href="(\/assets\/fonts\/[^"]+\.woff2)" as="font" type="font\/woff2" crossorigin>/g)].map((m) => m[1]);
+  assert.deepEqual(preloads.sort(), ['/assets/fonts/ibm-plex-sans-arabic-500.woff2', '/assets/fonts/ibm-plex-sans-arabic-600.woff2', '/assets/fonts/playfair-display-600.woff2', '/assets/fonts/playfair-display-700.woff2']);
+  const fonts = read('fonts.css');
+  for (const href of preloads) {
+    assert.ok(fs.existsSync(path.join(root, href.slice(1))), href + ' exists');
+    assert.ok(fonts.includes("url('" + href + "')"), href + ' is the file fonts.css names for that face (a preload of any other URL would be fetched twice)');
+  }
+  assert.ok(head.indexOf('rel="preload" href="/assets/fonts/') < head.indexOf('<link rel="stylesheet"'), 'before the stylesheets, so the fetch starts first');
 });
 
 test('header counters are only a number: no circle, no fill, gold on the page and white over the hero', () => {

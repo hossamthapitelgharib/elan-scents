@@ -108,7 +108,7 @@ class Element {
 }
 function browser() {
   const html = new Element('html'); html.lang = 'ar'; const head = new Element('head'); const body = new Element('body'); html.append(head, body);
-  body.innerHTML = read('index.html').split('<body>')[1].split('</body>')[0];
+  body.innerHTML = read('index.html').split(/<body[^>]*>/)[1].split('</body>')[0];
   const document = {
     documentElement: html, head, body, hidden: false, listeners: {},
     createElement: (tag) => new Element(tag), createComment: () => new Element('#comment'), getElementById: (id) => html.querySelector('#' + id),

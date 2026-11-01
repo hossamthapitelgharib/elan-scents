@@ -711,6 +711,11 @@ html,body{overflow-x:clip!important}
    right), over a blurred copy of itself that fills what the picture's own proportions leave over, so the hero keeps its size and
    nothing on the page moves when the picture arrives. While the picture is still on its way (class hero-pending) the veil waits for
    it, so a bare hero with a dark band is never shown. */
+/* --app-vh is the visible height / 100, written by app-core.js once it runs. Until then the small viewport unit stands in for it (the
+   height with the browser's bars showing, which is what the script measures on load), so the hero is not resized when the script
+   runs. The inline value the script writes still wins. */
+:root { --app-vh: 1vh; }
+@supports (height: 1svh) { :root { --app-vh: 1svh; } }
 #hero,
 #hero video,
 #heroVideo {
@@ -727,27 +732,17 @@ html.hero-img #hero::after {
   background-repeat: no-repeat;
   background-position: center;
 }
-html.hero-img #hero::before { inset: -26px; background-size: cover; filter: blur(26px); }
+/* The blurred copy reaches 80px (about three blur radii) past every edge of the hero, which clips it: a blurred layer fades out over
+   that distance at its own edge, so with a smaller reach the fade fell inside the hero and showed the white page through as a lighter
+   stripe down both sides of the picture. */
+html.hero-img #hero::before { inset: -80px; background-size: cover; filter: blur(26px); }
 html.hero-img #hero::after { background-size: contain; }
-/* Where the picture does not fill the hero (a portrait picture on a wide screen, so bands of the blurred copy show at its sides, or a
-   wide one on a tall hero), its sharp edge used to end in a hard line against the blurred copy. hero-early.js sets hero-fade and
-   --hero-ratio (width / height) once the picture is in; the sharp picture's rim then melts into the copy over at most 24px. The
-   fade is as wide as the band there is (nothing at all when the picture fills the hero), so a picture of the hero's own shape is
-   untouched. --hero-h is the hero's height as given by the hero rules above. */
-html.hero-fade #hero::after {
-  --hero-h: min(calc(var(--app-vh, 1vh) * 100), calc(100vw * 16 / 9));
-  --pw: min(100%, calc(var(--hero-h) * var(--hero-ratio)));
-  --ph: min(100%, calc(100vw / var(--hero-ratio)));
-  --fx: clamp(0px, calc(100% - var(--pw)), 24px);
-  --fy: clamp(0px, calc(100% - var(--ph)), 24px);
-  -webkit-mask-image:
-    linear-gradient(to right, transparent calc(50% - var(--pw) / 2), #000 calc(50% - var(--pw) / 2 + var(--fx)), #000 calc(50% + var(--pw) / 2 - var(--fx)), transparent calc(50% + var(--pw) / 2)),
-    linear-gradient(to bottom, transparent calc(50% - var(--ph) / 2), #000 calc(50% - var(--ph) / 2 + var(--fy)), #000 calc(50% + var(--ph) / 2 - var(--fy)), transparent calc(50% + var(--ph) / 2));
-  mask-image:
-    linear-gradient(to right, transparent calc(50% - var(--pw) / 2), #000 calc(50% - var(--pw) / 2 + var(--fx)), #000 calc(50% + var(--pw) / 2 - var(--fx)), transparent calc(50% + var(--pw) / 2)),
-    linear-gradient(to bottom, transparent calc(50% - var(--ph) / 2), #000 calc(50% - var(--ph) / 2 + var(--fy)), #000 calc(50% + var(--ph) / 2 - var(--fy)), transparent calc(50% + var(--ph) / 2));
-  -webkit-mask-composite: source-in;
-  mask-composite: intersect;
+/* Until the picture is in, none of it is drawn (a picture arriving in slices is never shown), and the veil and the white header colours
+   wait too: when hero-early.js clears hero-pending they all appear in the same frame. On a repeat visit it is cleared before the
+   first frame, so the first frame is the finished hero. */
+html.hero-pending #hero::before,
+html.hero-pending #hero::after {
+  visibility: hidden;
 }
 html.hero-pending #hero .hero-overlay {
   visibility: hidden !important;

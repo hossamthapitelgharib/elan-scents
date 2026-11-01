@@ -301,14 +301,18 @@
         try { video.load(); var p2 = video.play(); if (p2 && p2.catch) p2.catch(function () {}); } catch (_) { /* optional */ }
       } else {
         try { video.pause(); } catch (_) { /* optional */ }
-        /* style.css pins the hero's background and its video's display with !important, and a plain inline value loses to that: the
-           picture was saved but never showed (the old video kept playing over it). Only an inline !important wins. Undo clears it
-           again with `video.style.display = prev.display`, and the hero's own style is restored by unpaint. */
+        /* style.css pins the video's display with !important, and a plain inline value loses to that (the old video kept playing over
+           the picture). Only an inline !important wins; undo clears it again with `video.style.display = prev.display`.
+           The picture itself is drawn by hero-early.js (ElanHeroFit above: class hero-img and --hero-img, the whole picture over a blurred
+           copy of itself). Writing it here too, as a cropped background of the hero itself, made a third copy of the same picture that
+           only showed at the hero's edges and only after this script had run: one more thing changing while the page opened. A page
+           without hero-early.js (none today) still gets the plain background, so the picture is never lost. */
         video.style.setProperty('display', 'none', 'important');
-        undo.push(function () { /* hero style is restored by unpaint */ });
-        el.style.setProperty('background-image', 'url("' + m.src + '")', 'important');
-        el.style.setProperty('background-size', 'cover', 'important');
-        el.style.setProperty('background-position', 'center', 'important');
+        if (typeof window.ElanHeroFit !== 'function') {
+          el.style.setProperty('background-image', 'url("' + m.src + '")', 'important');
+          el.style.setProperty('background-size', 'cover', 'important');
+          el.style.setProperty('background-position', 'center', 'important');
+        }
       }
       return;
     }

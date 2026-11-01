@@ -8,8 +8,6 @@
      hero-img       a hero picture exists;
      hero-pending   the picture is still on its way: the hero's dark veil, title and counters wait for it, and the header stays gold,
                     so a half-built hero (white text on a bare page) is never shown. Removed when the picture is in, failed, or after 15 s;
-     --hero-ratio   the picture's width / height once it is in, and class hero-fade with it: the stylesheet melts the sharp picture's
-                    edges into the blurred copy beside it, so no hard line is left where a portrait picture meets the wider hero.
    The Cloudflare build (scripts/build-cloudflare.js) also writes the design's picture into the page itself (class hero-img and
    --hero-img in the first <style>), so the first frame already shows it; this file then adopts that picture, tracks its load, and
    still reconciles with the live design file below.
@@ -51,11 +49,6 @@
     } catch (e) { return ''; }
   }
 
-  function unfade() {
-    root.classList.remove('hero-fade');
-    root.style.removeProperty('--hero-ratio');
-  }
-
   function settle(mine) {
     if (mine !== token) return;
     clearTimeout(timer);
@@ -69,7 +62,6 @@
     current = src;
     var mine = ++token;
     clearTimeout(timer);
-    unfade();
     if (!src) {
       held = null;
       root.classList.remove('hero-img', 'hero-pending');
@@ -82,13 +74,7 @@
     held = img;                                   // keep it alive until it has loaded
     try { img.fetchPriority = 'high'; } catch (e) { /* optional */ }
     img.decoding = 'async';
-    img.onload = function () {
-      if (mine === token && img.naturalWidth > 0 && img.naturalHeight > 0) {
-        root.style.setProperty('--hero-ratio', String(Math.round(img.naturalWidth / img.naturalHeight * 10000) / 10000));
-        root.classList.add('hero-fade');
-      }
-      settle(mine);
-    };
+    img.onload = function () { settle(mine); };
     img.onerror = function () {
       if (mine !== token) return;
       root.classList.remove('hero-img');          // a picture that will not load must not leave the hero empty
@@ -97,6 +83,10 @@
     };
     timer = setTimeout(function () { settle(mine); }, WAIT_MS);
     img.src = src;
+    // On a repeat visit the picture is already here (the Link preload put it in the memory cache before this script ran): the hero is
+    // then final in the very first frame. Waiting for the load event instead let the picture paint first and the veil and the header
+    // colours follow a frame or more later, which is what showed as the hero shaking while the page opened.
+    if (img.complete && img.naturalWidth > 0) settle(mine);
   }
 
   window.ElanHeroFit = fit;
