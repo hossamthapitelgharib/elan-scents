@@ -53,6 +53,10 @@ test('sign-up and sign-in failures are shown in Arabic instead of the raw server
   assert.match(run({ error_code: 'invalid_credentials', msg: 'Invalid login credentials' }, 'login'), /غير صحيحة/);
   assert.match(run({ id: 'x', email: 'a@b.c', confirmation_sent_at: 'now' }, 'signup'), /تم إنشاء حسابك/);
   assert.match(run({ error_code: 'user_already_exists', msg: 'User already registered' }, 'signup'), /مسجّل بالفعل/);
+  // With e-mail confirmation on, Supabase answers a sign-up for an already registered address with a made-up user whose
+  // identities list is empty and sends no mail. The shopper must be told that, not «check your inbox».
+  assert.match(run({ id: 'x', email: 'a@b.c', identities: [] }, 'signup'), /مسجّل بالفعل/);
+  assert.match(run({ id: 'x', email: 'a@b.c', identities: [{ id: 'i' }] }, 'signup'), /تم إنشاء حسابك/);
   assert.match(run({ error_code: 'weak_password', msg: 'Password should be at least 6 characters' }, 'signup'), /ضعيفة/);
   assert.match(run({ error_code: 'over_request_rate_limit' }, 'login'), /محاولات كثيرة/);
   assert.equal(run({}, 'login'), 'تعذر تسجيل الدخول');
