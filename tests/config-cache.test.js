@@ -30,10 +30,11 @@ test('/api/config hands the browser the Turnstile site key when one is set, and 
   assert.equal(configWith(undefined).turnstile_site_key, '');
 });
 
-test('the Turnstile site key in wrangler.jsonc is the public one: a site key, never a secret key', () => {
+test('wrangler.jsonc never holds a Turnstile secret, and a TURNSTILE_SITE_KEY it sets is a site key', () => {
   const text = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'wrangler.jsonc'), 'utf8');
-  const match = text.match(/"TURNSTILE_SITE_KEY"\s*:\s*"([^"]*)"/);
-  assert.ok(match, 'the Worker has a TURNSTILE_SITE_KEY variable');
-  assert.match(match[1], /^0x4[A-Za-z0-9_-]{10,}$/, 'a Turnstile site key starts with 0x4 (secret keys start with 0x4 too, which is why the secret is never written here: it is set only in Supabase and Cloudflare)');
-  assert.equal(/TURNSTILE_SECRET|CAPTCHA_SECRET/i.test(text), false, 'no Turnstile secret in the repository');
+  assert.equal(/TURNSTILE_SECRET|CAPTCHA_SECRET/i.test(text), false, 'no Turnstile secret in the repository (it lives only in Supabase and Cloudflare)');
+  const match = text.match(/^\s*"TURNSTILE_SITE_KEY"\s*:\s*"([^"]*)"/m);
+  // The check is switched off by setting the variable to "" (leaving it out would not do: keep_vars keeps what an earlier deploy created).
+  assert.ok(match, 'the variable is named, so a deploy can never keep an old value');
+  if (match[1]) assert.match(match[1], /^0x4[A-Za-z0-9_-]{10,}$/, 'when it is set it is a key of the shape Cloudflare gives out');
 });
