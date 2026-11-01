@@ -21,14 +21,15 @@ const build = require('../scripts/build-cloudflare.js');
 
 const SUPA = 'https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/uploads/2026/hero.jpg';
 
-function run(json, { width = 393 } = {}) {
-  const classes = new Set(), props = {}, images = [], timers = [];
+function run(json, { width = 393, named = '', classes: served = [] } = {}) {
+  const classes = new Set(served), props = {}, images = [], timers = [];
   const rootEl = {
     classList: { add: (...c) => c.forEach((x) => classes.add(x)), remove: (...c) => c.forEach((x) => classes.delete(x)), contains: (c) => classes.has(c) },
     style: { setProperty: (k, v) => { props[k] = String(v); }, removeProperty: (k) => { delete props[k]; } },
   };
   function Image() { images.push(this); }
-  const window = { innerWidth: width };
+  // `named` is what the stylesheet's --hero-img holds when the page itself already names its picture (the Cloudflare build does).
+  const window = { innerWidth: width, getComputedStyle: () => ({ getPropertyValue: (name) => (name === '--hero-img' ? named : '') }) };
   const requests = [];
   const fetch = async (url, opts) => { requests.push([url, opts]); if (json === 'fail') throw new Error('offline'); return { ok: true, json: async () => json }; };
   const sandbox = { document: { documentElement: rootEl }, window, fetch, Image, setTimeout: (fn, ms) => { timers.push([fn, ms]); return timers.length; }, clearTimeout: (id) => { if (timers[id - 1]) timers[id - 1] = null; } };
@@ -126,6 +127,76 @@ test('design-layer.js tells hero-early.js about the hero picture (and clears it 
   assert.ok(t.classes.has('hero-pending'));
 });
 
+test('a page that names its picture (the Cloudflare build) starts tracking it before the design file answers, and the design file still wins', async () => {
+  const named = ' url("' + SUPA + '") ';
+  let t = run(heroOf(SUPA), { named, classes: ['hero-img'] });
+  assert.equal(t.images.length, 1, 'the named picture is tracked at once, before the design file has answered');
+  assert.equal(t.images[0].src, SUPA);
+  assert.ok(t.classes.has('hero-pending'));
+  await t.ready();
+  assert.equal(t.images.length, 1, 'the design names the same picture: nothing restarts');
+  t.images[0].onload();
+  assert.deepEqual([...t.classes].sort(), ['hero-img'], 'the header and the veil come as soon as the picture is in');
+
+  const other = SUPA.replace('hero.jpg', 'new.jpg');
+  t = run(heroOf(other), { named, classes: ['hero-img'] });
+  await t.ready();
+  assert.deepEqual(t.images.map((i) => i.src), [SUPA, other], 'a newer design replaces what the page was built with');
+  assert.equal(t.props['--hero-img'], 'url("' + other + '")');
+
+  t = run('fail', { named, classes: ['hero-img'] });
+  await t.ready();
+  assert.ok(t.classes.has('hero-img'), 'a failed design fetch keeps the picture the page was built with');
+  assert.ok(t.classes.has('hero-pending'), 'and keeps waiting for it');
+  t = run(design({}), { named, classes: ['hero-img'] });
+  await t.ready();
+  assert.equal(t.classes.size, 0, 'no picture in the design: nothing of the served hero is left');
+
+  // Things the page could name that are not a hero picture are ignored.
+  for (const bad of ['', 'none', 'url("https://evil.example/x.png")', 'url("/assets/../x.png")', 'url("/assets/x.mp4")']) {
+    t = run(design({}), { named: bad });
+    assert.equal(t.images.length, 0, bad);
+  }
+});
+
+test('once the picture is in, hero-early.js tells the stylesheet its proportions so the sharp rim can melt into the blurred copy', async () => {
+  let t = run(heroOf(SUPA));
+  await t.ready();
+  assert.equal(t.classes.has('hero-fade'), false, 'not before the picture is in: its size is not known');
+  Object.assign(t.images[0], { naturalWidth: 540, naturalHeight: 960 });
+  t.images[0].onload();
+  assert.equal(t.props['--hero-ratio'], '0.5625');
+  assert.ok(t.classes.has('hero-fade'));
+  t.window.ElanHeroFit(SUPA.replace('hero.jpg', 'new.jpg'));
+  assert.equal(t.classes.has('hero-fade'), false, 'a new picture is a new shape: the old one is dropped until it is in');
+  assert.equal(t.props['--hero-ratio'], undefined);
+  Object.assign(t.images[1], { naturalWidth: 1600, naturalHeight: 900 });
+  t.images[1].onload();
+  assert.equal(t.props['--hero-ratio'], '1.7778');
+  t.window.ElanHeroFit('');
+  assert.deepEqual([[...t.classes].length, t.props['--hero-ratio']], [0, undefined]);
+
+  t = run(heroOf(SUPA));
+  await t.ready();
+  t.images[0].onload();                        // an image that reports no size gets no fade (and nothing breaks)
+  assert.equal(t.classes.has('hero-fade'), false);
+});
+
+test('hero CSS: the sharp picture melts into the blurred copy only where it does not fill the hero', () => {
+  const block = top.match(/html\.hero-fade #hero::after \{[^}]*\}/);
+  assert.ok(block, 'the rule exists');
+  const rule = block[0];
+  assert.match(rule, /--hero-h: min\(calc\(var\(--app-vh, 1vh\) \* 100\), calc\(100vw \* 16 \/ 9\)\);/, 'the hero height, as the hero rules give it');
+  assert.ok(top.includes('height: min(calc(var(--app-vh, 1vh) * 100), calc(100vw * 16 / 9)) !important;'), 'and the hero rules still give exactly that');
+  assert.match(rule, /--fx: clamp\(0px, calc\(100% - var\(--pw\)\), 24px\);/, 'no band, no fade; never more than 24px');
+  assert.match(rule, /--fy: clamp\(0px, calc\(100% - var\(--ph\)\), 24px\);/);
+  assert.equal((rule.match(/linear-gradient\(to right/g) || []).length, 2, 'standard and -webkit- mask');
+  assert.equal((rule.match(/linear-gradient\(to bottom/g) || []).length, 2);
+  assert.match(rule, /mask-composite: intersect;/);
+  assert.match(rule, /-webkit-mask-composite: source-in;/);
+  assert.doesNotMatch(top, /html\.hero-img #hero::after \{[^}]*mask/, 'no mask until the picture\'s proportions are known (a mask without them would hide it)');
+});
+
 test('hero CSS: no background of its own, the picture whole over a blurred copy, nothing half-built while it is pending', () => {
   assert.match(top, /#hero,\s*#hero video,\s*#heroVideo \{\s*background: transparent !important;\s*\}/);
   assert.match(top, /html\.hero-img #hero::before \{ inset: -26px; background-size: cover; filter: blur\(26px\); \}/);
@@ -178,6 +249,60 @@ test('the Cloudflare build sends the hero picture as a Link preload header on th
     }
     assert.match(file.split('\n\n').find((b) => b.split('\n')[0] === '/index.html'), /Cache-Control: no-store/, 'the page keeps its own rule');
     assert.equal(build.buildHeadersFile(['index.html'], { headers: [] }, { heroLinks: [] }).includes('Link:'), false);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('the Cloudflare build writes the hero picture into the storefront page, so the first frame already shows it', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hero-first-'));
+  try {
+    const mobile = SUPA.replace('hero.jpg', 'm.webp');
+    const put = (edits) => { fs.mkdirSync(path.join(dir, 'design'), { recursive: true }); fs.writeFileSync(path.join(dir, 'design', 'home.json'), JSON.stringify({ edits })); };
+
+    // The real design and the real page: one picture for every screen size.
+    const real = build.withHeroFirstPaint(index, build.heroPicturesByScreen(root));
+    assert.match(real, /^<!DOCTYPE html>\n<html lang="ar" dir="rtl" class="hero-img">\n/);
+    const style = real.match(/<!--hero-first--><style>([^<]*)<\/style><!--\/hero-first-->\n/);
+    assert.ok(style, 'one marked style block');
+    assert.match(style[1], /^:root\{--hero-img:url\("(?:\/assets\/|https:\/\/sbgdtuqfrnfeggkwqtrw\.supabase\.co\/storage\/v1\/object\/public\/site-media\/)[^"]+\.(?:jpe?g|png|webp|gif|avif)"\)\}$/);
+    assert.ok(real.indexOf('<!--hero-first-->') < real.indexOf('<link rel="stylesheet"'), 'before the first stylesheet, so it is parsed with the first style');
+    assert.ok(real.indexOf('<!--/hero-first-->') < real.indexOf('<script src="/hero-early.js'), 'and before hero-early.js reads it');
+    assert.equal(build.withoutHeroFirstPaint(real), index, 'taking the block out gives back the source page, byte for byte');
+    assert.equal(build.withHeroFirstPaint(real, build.heroPicturesByScreen(root)), real, 'running it twice changes nothing');
+
+    // Per-screen pictures keep their screen: a media query each, only for the sizes that have a picture.
+    put({ all: { hero: { style: { media: SUPA } } }, mobile: { hero: { style: { media: mobile } } } });
+    const mixed = build.withHeroFirstPaint(index, build.heroPicturesByScreen(dir));
+    const css = mixed.match(/<!--hero-first--><style>([^<]*)<\/style>/)[1];
+    assert.ok(css.includes('@media (max-width: 639px){:root{--hero-img:url("' + mobile + '")}}'));
+    assert.ok(css.includes('@media (min-width: 640px) and (max-width: 1023px){:root{--hero-img:url("' + SUPA + '")}}'));
+    assert.ok(css.includes('@media (min-width: 1024px){:root{--hero-img:url("' + SUPA + '")}}'));
+    assert.equal(build.withoutHeroFirstPaint(mixed), index);
+
+    // No picture (nothing, a video, an address the page would not accept): the page is left exactly as it is.
+    for (const media of ['', SUPA.replace('.jpg', '.mp4'), 'https://evil.example/x.png', '/assets/../x.png', SUPA + '")}</style><script>x</script>', 7]) {
+      put({ all: { hero: { style: { media } } } });
+      assert.equal(build.withHeroFirstPaint(index, build.heroPicturesByScreen(dir)), index, String(media));
+    }
+    assert.equal(build.withHeroFirstPaint(index, build.heroPicturesByScreen(path.join(dir, 'nowhere'))), index);
+
+    // A page that does not look like the storefront's (a class already on <html>, no stylesheet link) is not touched.
+    put({ all: { hero: { style: { media: SUPA } } } });
+    const by = build.heroPicturesByScreen(dir);
+    const withClass = index.replace('<html lang="ar" dir="rtl">', '<html lang="ar" dir="rtl" class="x">');
+    assert.equal(build.withHeroFirstPaint(withClass, by), withClass);
+    const noLink = index.replace(/<link rel="stylesheet"[^>]*>\n/g, '');
+    assert.equal(build.withHeroFirstPaint(noLink, by), noLink);
+    assert.equal(build.withoutHeroFirstPaint('<html></html>'), '<html></html>');
+
+    // The built folder: the storefront page carries it, nothing else does, and the page is still the source apart from the block.
+    const out = path.join(dir, 'dist');
+    const gen = path.join(dir, 'gen');
+    build.build({ root, outDir: out, generatedDir: gen });
+    const page = fs.readFileSync(path.join(out, 'index.html'), 'utf8');
+    assert.ok(page.includes('<!--hero-first-->') && page.startsWith('<!DOCTYPE html>\n<html lang="ar" dir="rtl" class="hero-img">'));
+    assert.equal(build.withoutHeroFirstPaint(page), index);
+    for (const other of ['privacy.html', 'account.html']) if (fs.existsSync(path.join(out, other))) assert.doesNotMatch(fs.readFileSync(path.join(out, other), 'utf8'), /hero-first/, other);
+    assert.doesNotMatch(index, /hero-first/, 'the source page stays as the editor and Railway serve it');
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 

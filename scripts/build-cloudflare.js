@@ -135,18 +135,57 @@ function safeHeroUrl(url) {
   if (typeof url !== 'string' || url.length > 500 || /[\u0000-\u0020\u007f"'<>\\,;]/.test(url) || url.includes('..') || !HERO_IMAGE_EXT.test(url)) return '';
   return HERO_PREFIXES.some((p) => url.startsWith(p) && url.length > p.length) ? url : '';
 }
-function heroPreloadLinks(root) {
+/* The hero picture of each screen size ('' for a screen without a picture), read from design/home.json like design-layer.js merges it. */
+function heroPicturesByScreen(root) {
+  const none = { mobile: '', tablet: '', desktop: '' };
   let design;
-  try { design = JSON.parse(fs.readFileSync(path.join(root, 'design', 'home.json'), 'utf8')); } catch (e) { return []; }
+  try { design = JSON.parse(fs.readFileSync(path.join(root, 'design', 'home.json'), 'utf8')); } catch (e) { return none; }
   const edits = design && design.edits;
-  if (!edits || typeof edits !== 'object') return [];
+  if (!edits || typeof edits !== 'object') return none;
   const pick = (e) => (e && ((e.style && e.style.media) || (e.media && e.media.src))) || '';
   const byScreen = {};
   for (const screen of Object.keys(HERO_SCREENS)) byScreen[screen] = safeHeroUrl(pick(edits[screen] && edits[screen].hero) || pick(edits.all && edits.all.hero));
+  return byScreen;
+}
+function heroPreloadLinks(root) {
+  const byScreen = heroPicturesByScreen(root);
   const urls = Object.values(byScreen);
   const link = (url, media) => '<' + url + '>; rel=preload; as=image; fetchpriority=high' + (media ? '; media="' + media + '"' : '');
   if (urls[0] && urls.every((u) => u === urls[0])) return [link(urls[0])];
   return Object.keys(HERO_SCREENS).filter((s) => byScreen[s]).map((s) => link(byScreen[s], HERO_SCREENS[s]));
+}
+
+/* The first frame of the storefront already carries the hero picture. Without this the page painted an empty hero, then hero-early.js
+   fetched /design/home.json, and only then did the picture appear (a white page for a round trip, longer on a slow line). The
+   build writes what the design says into dist/index.html: class hero-img on <html> and --hero-img per screen size in one marked
+   <style> block, so the stylesheet draws the picture as soon as it is parsed, and hero-early.js adopts it (starts tracking its load)
+   and still reconciles with the live design file. The block is marked so a test can take it out again and compare the page with the
+   source file; a page that already has a class on <html>, or no stylesheet link to put the block before, is left as it is. */
+const HERO_FIRST_OPEN = '<!--hero-first-->';
+const HERO_FIRST_CLOSE = '<!--/hero-first-->';
+const HERO_FIRST_CLASS = ' class="hero-img"';
+function heroFirstPaintBlock(byScreen) {
+  const urls = Object.values(byScreen);
+  const decl = (url) => ':root{--hero-img:url("' + url + '")}';
+  let css;
+  if (urls[0] && urls.every((u) => u === urls[0])) css = decl(urls[0]);
+  else css = Object.keys(HERO_SCREENS).filter((s) => byScreen[s]).map((s) => '@media ' + HERO_SCREENS[s] + '{' + decl(byScreen[s]) + '}').join('');
+  return css ? HERO_FIRST_OPEN + '<style>' + css + '</style>' + HERO_FIRST_CLOSE + '\n' : '';
+}
+function withHeroFirstPaint(html, byScreen) {
+  const block = heroFirstPaintBlock(byScreen);
+  const tag = /^(\s*<!DOCTYPE html>\s*<html\b)([^>]*)>/i.exec(html);
+  const anchor = html.indexOf('<link rel="stylesheet"');
+  if (!block || !tag || /\sclass\s*=/i.test(tag[2]) || anchor < 0 || html.includes(HERO_FIRST_OPEN)) return html;
+  return html.slice(0, tag.index + tag[1].length) + tag[2] + HERO_FIRST_CLASS + '>' + html.slice(tag.index + tag[0].length, anchor) + block + html.slice(anchor);
+}
+function withoutHeroFirstPaint(html) {
+  const open = html.indexOf(HERO_FIRST_OPEN);
+  if (open < 0) return html;
+  const close = html.indexOf(HERO_FIRST_CLOSE, open);
+  if (close < 0) return html;
+  const end = close + HERO_FIRST_CLOSE.length + (html[close + HERO_FIRST_CLOSE.length] === '\n' ? 1 : 0);
+  return (html.slice(0, open) + html.slice(end)).replace(/^(\s*<!DOCTYPE html>\s*<html\b[^>]*?)class="hero-img">/i, (m, a) => a.replace(/ $/, '') + '>');
 }
 
 /* Adds the hero Link header to the rules of the pages that carry the storefront (the root and /index.html). */
@@ -187,6 +226,10 @@ function build(options) {
     fs.copyFileSync(path.join(opts.root, ...rel.split('/')), to);
   }
   fs.writeFileSync(path.join(opts.outDir, '_headers'), buildHeadersFile(files, vercelConfig, { heroLinks: heroPreloadLinks(opts.root) }));
+  if (files.includes('index.html')) {
+    const page = path.join(opts.outDir, 'index.html');
+    fs.writeFileSync(page, withHeroFirstPaint(fs.readFileSync(page, 'utf8'), heroPicturesByScreen(opts.root)));
+  }
 
   const editorFiles = {};
   for (const name of PRIVATE_EDITOR_FILES) editorFiles[name] = fs.readFileSync(path.join(opts.root, 'editor', name), 'utf8');
@@ -203,4 +246,4 @@ if (require.main === module) {
   console.log('cloudflare build: ' + result.files.length + ' public files -> ' + path.relative(ROOT, result.outDir) + '/ (+ _headers), editor files bundled');
 }
 
-module.exports = { build, listPublicFiles, isPublic, buildHeadersFile, heroPreloadLinks, resolveRules, headersFor, compileRules, BASELINE_HEADERS, PRIVATE_EDITOR_FILES };
+module.exports = { build, listPublicFiles, isPublic, buildHeadersFile, heroPreloadLinks, heroPicturesByScreen, withHeroFirstPaint, withoutHeroFirstPaint, resolveRules, headersFor, compileRules, BASELINE_HEADERS, PRIVATE_EDITOR_FILES };

@@ -80,7 +80,9 @@ test('health, storefront root and unknown paths', async () => {
   const home = await call('/');
   assert.equal(home.status, 200);
   assert.deepEqual(ASSETS.calls, ['/index.html']);
-  assert.equal(await home.text(), fs.readFileSync(path.join(root, 'index.html'), 'utf8'));
+  const page = await home.text();
+  assert.match(page, /<html lang="ar" dir="rtl" class="hero-img">[\s\S]*<!--hero-first--><style>:root\{--hero-img:url\(/, 'the first frame already names the hero picture');
+  assert.equal(build.withoutHeroFirstPaint(page), fs.readFileSync(path.join(root, 'index.html'), 'utf8'), 'and is otherwise the source page');
   assert.equal(home.headers.get('content-type'), 'text/html; charset=utf-8');
   assert.equal(home.headers.get('x-content-type-options'), 'nosniff');
   assert.equal(home.headers.get('referrer-policy'), 'strict-origin-when-cross-origin');

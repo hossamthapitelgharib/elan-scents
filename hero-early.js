@@ -3,11 +3,16 @@
    had read /design/home.json and the first render had run, so the hero stayed an empty slot for seconds. This small script sits in the
    <head>: it reads /design/home.json at once (design-layer.js reuses that answer instead of asking again), starts the picture's download
    (the Cloudflare build also sends it as a Link preload header, so the download usually started before this script ran), and gives
-   <html> three things the stylesheet uses:
+   <html> what the stylesheet uses:
      --hero-img     the picture, drawn whole (never cropped) over a blurred copy of itself, with no background colour of its own;
      hero-img       a hero picture exists;
      hero-pending   the picture is still on its way: the hero's dark veil, title and counters wait for it, and the header stays gold,
-                    so a half-built hero (white text on a bare page) is never shown. Removed when the picture is in, failed, or after 15 s.
+                    so a half-built hero (white text on a bare page) is never shown. Removed when the picture is in, failed, or after 15 s;
+     --hero-ratio   the picture's width / height once it is in, and class hero-fade with it: the stylesheet melts the sharp picture's
+                    edges into the blurred copy beside it, so no hard line is left where a portrait picture meets the wider hero.
+   The Cloudflare build (scripts/build-cloudflare.js) also writes the design's picture into the page itself (class hero-img and
+   --hero-img in the first <style>), so the first frame already shows it; this file then adopts that picture, tracks its load, and
+   still reconciles with the live design file below.
    An external file because the page policy forbids inline scripts. It changes nothing when the home design has no hero picture. */
 (function () {
   'use strict';
@@ -37,6 +42,20 @@
     return safe(pick(b) || pick(a));
   }
 
+  /* The picture the page itself already names (written by the build into its first <style>): the one the stylesheet is drawing. */
+  function named() {
+    try {
+      var v = window.getComputedStyle(root).getPropertyValue('--hero-img');
+      var m = /url\(\s*(?:"([^"]*)"|'([^']*)'|([^)\s"']*))\s*\)/.exec(v || '');
+      return m ? safe(m[1] || m[2] || m[3] || '') : '';
+    } catch (e) { return ''; }
+  }
+
+  function unfade() {
+    root.classList.remove('hero-fade');
+    root.style.removeProperty('--hero-ratio');
+  }
+
   function settle(mine) {
     if (mine !== token) return;
     clearTimeout(timer);
@@ -45,10 +64,12 @@
 
   function fit(src) {
     src = safe(src);
-    if (src === current) return;
+    // The same picture again changes nothing, but "no picture" must still clear a class the page was served with.
+    if (src === current && (src || !root.classList.contains('hero-img'))) return;
     current = src;
     var mine = ++token;
     clearTimeout(timer);
+    unfade();
     if (!src) {
       held = null;
       root.classList.remove('hero-img', 'hero-pending');
@@ -61,7 +82,13 @@
     held = img;                                   // keep it alive until it has loaded
     try { img.fetchPriority = 'high'; } catch (e) { /* optional */ }
     img.decoding = 'async';
-    img.onload = function () { settle(mine); };
+    img.onload = function () {
+      if (mine === token && img.naturalWidth > 0 && img.naturalHeight > 0) {
+        root.style.setProperty('--hero-ratio', String(Math.round(img.naturalWidth / img.naturalHeight * 10000) / 10000));
+        root.classList.add('hero-fade');
+      }
+      settle(mine);
+    };
     img.onerror = function () {
       if (mine !== token) return;
       root.classList.remove('hero-img');          // a picture that will not load must not leave the hero empty
@@ -76,6 +103,8 @@
 
   // Until the design file answers, a hero picture is assumed (the page waits instead of flashing a bare hero).
   root.classList.add('hero-pending');
+  // The page may already name its picture (Cloudflare build): start tracking that one at once, before the design file answers.
+  try { var first = named(); if (first) fit(first); } catch (e) { /* optional */ }
   // design-layer.js takes this answer instead of fetching the same file again.
   var none = function () { if (!current) root.classList.remove('hero-pending'); };
   try {

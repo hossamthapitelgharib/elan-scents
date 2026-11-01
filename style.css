@@ -729,6 +729,26 @@ html.hero-img #hero::after {
 }
 html.hero-img #hero::before { inset: -26px; background-size: cover; filter: blur(26px); }
 html.hero-img #hero::after { background-size: contain; }
+/* Where the picture does not fill the hero (a portrait picture on a wide screen, so bands of the blurred copy show at its sides, or a
+   wide one on a tall hero), its sharp edge used to end in a hard line against the blurred copy. hero-early.js sets hero-fade and
+   --hero-ratio (width / height) once the picture is in; the sharp picture's rim then melts into the copy over at most 24px. The
+   fade is as wide as the band there is (nothing at all when the picture fills the hero), so a picture of the hero's own shape is
+   untouched. --hero-h is the hero's height as given by the hero rules above. */
+html.hero-fade #hero::after {
+  --hero-h: min(calc(var(--app-vh, 1vh) * 100), calc(100vw * 16 / 9));
+  --pw: min(100%, calc(var(--hero-h) * var(--hero-ratio)));
+  --ph: min(100%, calc(100vw / var(--hero-ratio)));
+  --fx: clamp(0px, calc(100% - var(--pw)), 24px);
+  --fy: clamp(0px, calc(100% - var(--ph)), 24px);
+  -webkit-mask-image:
+    linear-gradient(to right, transparent calc(50% - var(--pw) / 2), #000 calc(50% - var(--pw) / 2 + var(--fx)), #000 calc(50% + var(--pw) / 2 - var(--fx)), transparent calc(50% + var(--pw) / 2)),
+    linear-gradient(to bottom, transparent calc(50% - var(--ph) / 2), #000 calc(50% - var(--ph) / 2 + var(--fy)), #000 calc(50% + var(--ph) / 2 - var(--fy)), transparent calc(50% + var(--ph) / 2));
+  mask-image:
+    linear-gradient(to right, transparent calc(50% - var(--pw) / 2), #000 calc(50% - var(--pw) / 2 + var(--fx)), #000 calc(50% + var(--pw) / 2 - var(--fx)), transparent calc(50% + var(--pw) / 2)),
+    linear-gradient(to bottom, transparent calc(50% - var(--ph) / 2), #000 calc(50% - var(--ph) / 2 + var(--fy)), #000 calc(50% + var(--ph) / 2 - var(--fy)), transparent calc(50% + var(--ph) / 2));
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+}
 html.hero-pending #hero .hero-overlay {
   visibility: hidden !important;
 }

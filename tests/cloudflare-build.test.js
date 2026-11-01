@@ -59,7 +59,9 @@ test('the Cloudflare asset folder holds exactly the files railway/server.js serv
       const response = await fetch(base + '/' + rel.split('/').map(encodeURIComponent).join('/'));
       const served = response.status === 200;
       assert.equal(built.has(rel), served, rel + (served ? ' is public on Railway but missing from dist' : ' is private on Railway but would be public on Cloudflare'));
-      if (served) assert.ok(Buffer.from(await response.arrayBuffer()).equals(fs.readFileSync(path.join(dist, ...rel.split('/')))), rel + ' differs from the served file');
+      // The one deliberate difference: the build writes the hero picture of the design into the storefront page (first frame).
+      const unmarked = (file) => (rel === 'index.html' ? Buffer.from(build.withoutHeroFirstPaint(file.toString('utf8'))) : file);
+      if (served) assert.ok(Buffer.from(await response.arrayBuffer()).equals(unmarked(fs.readFileSync(path.join(dist, ...rel.split('/'))))), rel + ' differs from the served file');
       else await response.arrayBuffer();
     }
     for (const rel of built) assert.ok(repoFiles.includes(rel), rel + ' is not a repository file');
