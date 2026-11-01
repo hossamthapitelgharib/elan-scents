@@ -27,11 +27,11 @@ begin
 end $f$;
 
 -- An attack counts as blocked only when the database refused it for a security reason: no privilege or row-level-security
--- refusal (42501), a guard trigger (P0001), or zero rows reached. Any other error (a typo, a missing column) fails the test,
+-- refusal (42501), a guard trigger (P0001), a view that cannot be written at all (55000), or zero rows reached. Any other error (a typo, a missing column) fails the test,
 -- so an attack cannot look blocked by accident.
 create function pg_temp.blocked(p_uid uuid, p_role text, p_sql text) returns boolean
 language sql as $f$
-  select r in ('rows:0', 'err:42501', 'err:P0001') from (select pg_temp.attack(p_uid, p_role, p_sql) r) t
+  select r in ('rows:0', 'err:42501', 'err:P0001', 'err:55000') from (select pg_temp.attack(p_uid, p_role, p_sql) r) t
 $f$;
 
 do $$
@@ -51,6 +51,7 @@ declare
   v_n integer;
   v_order uuid;
   v_review uuid;
+  v_line numeric;
   v_bad text;
 begin
   select id, commission_rate into v_x, v_rate_x from public.stores where slug = 'afnan-egypt';
@@ -74,6 +75,7 @@ begin
   -- Victim data the attackers will try to reach.
   insert into public.orders (user_id, status, subtotal, total_amount) values (u_b, 'pending', 100, 100) returning id into v_order;
   insert into public.order_items (order_id, store_product_id, quantity, price_at_time) values (v_order, sp_x.id, 1, 100);
+  select price_at_time into v_line from public.order_items where order_id = v_order;  -- the database may set the line price itself
   insert into public.commissions (store_id, order_item_id, rate, amount, status)
     values (v_x, (select id from public.order_items where order_id = v_order), 10, 10, 'pending');
   insert into public.cart_items (user_id, store_product_id, quantity) values (u_b, sp_x.id, 2);
@@ -112,14 +114,18 @@ begin
   assert not has_column_privilege('authenticated', 'public.stores', 'commission_rate', 'update'), 'a client cannot write the commission rate';
   assert not has_table_privilege('authenticated', 'public.commissions', 'insert') and not has_table_privilege('authenticated', 'public.commissions', 'update'), 'a client cannot write commissions';
   assert has_table_privilege('service_role', 'public.commissions', 'insert') and has_table_privilege('service_role', 'public.stores', 'update'), 'the server keeps its write access';
-  -- A table created from now on is read-only for clients until its own migration grants more.
-  create table public.zz_default_grants_probe (id integer);
-  assert not has_table_privilege('authenticated', 'public.zz_default_grants_probe', 'insert')
-     and not has_table_privilege('authenticated', 'public.zz_default_grants_probe', 'update')
-     and not has_table_privilege('authenticated', 'public.zz_default_grants_probe', 'delete')
-     and not has_table_privilege('anon', 'public.zz_default_grants_probe', 'insert'), 'a new table gives clients no write access by default';
-  assert has_table_privilege('authenticated', 'public.zz_default_grants_probe', 'select') and has_table_privilege('service_role', 'public.zz_default_grants_probe', 'insert'), 'a new table stays readable by clients (row-level security decides) and writable by the server';
-  drop table public.zz_default_grants_probe;
+  -- A table created from now on is read-only for clients until its own migration grants more (the default ACL for new tables).
+  select string_agg(r.rolname || ':' || x.privilege_type, ', ') into v_bad
+  from pg_default_acl d
+  join pg_namespace n on n.oid = d.defaclnamespace and n.nspname = 'public'
+  cross join lateral aclexplode(d.defaclacl) x
+  join pg_roles r on r.oid = x.grantee
+  where d.defaclobjtype = 'r' and pg_get_userbyid(d.defaclrole) = 'postgres'
+    and r.rolname in ('anon', 'authenticated') and x.privilege_type in ('INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER', 'MAINTAIN');
+  assert v_bad is null, 'a new table gives clients no write access by default, found: ' || coalesce(v_bad, '');
+  assert exists (select 1 from pg_default_acl d join pg_namespace n on n.oid = d.defaclnamespace and n.nspname = 'public' cross join lateral aclexplode(d.defaclacl) x
+                 join pg_roles r on r.oid = x.grantee where d.defaclobjtype = 'r' and pg_get_userbyid(d.defaclrole) = 'postgres' and r.rolname = 'authenticated' and x.privilege_type = 'SELECT'),
+    'a new table stays readable by clients (row-level security decides which rows)';
 
   ---------------------------------------------------------------------------------------------------------------------
   -- 1. Roles: nobody can make himself (or anyone) an administrator.
@@ -186,7 +192,7 @@ begin
   assert pg_temp.blocked(u_sx, 'authenticated', format($q$select id from public.commissions where store_id = %L$q$, v_y)), 'a store cannot read a competitor''s commissions';
   assert pg_temp.blocked(null, 'anon', $q$select id from public.orders$q$), 'a visitor cannot list orders';
   assert (select status from public.orders where id = v_order) = 'pending' and (select total_amount from public.orders where id = v_order) = 100, 'the order is untouched';
-  assert (select price_at_time from public.order_items where order_id = v_order) = 100, 'the order line is untouched';
+  assert (select price_at_time from public.order_items where order_id = v_order) = v_line, 'the order line is untouched';
 
   ---------------------------------------------------------------------------------------------------------------------
   -- 4. Catalog and prices of a store belong to that store's members only.
