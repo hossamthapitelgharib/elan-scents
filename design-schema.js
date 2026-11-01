@@ -18,8 +18,12 @@
     '/assets/',
     'https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/'
   ];
-  var PAGE_KEY_RE = /^(?:sec:(?:brands|stores|cats|occ|notes|all|offers|new|master|soon)|col:(?:cats|occ|notes):\d{1,3}|brand:[^|"'<>\\\u0000-\u001F]{1,80}|store:[^|"'<>\\\u0000-\u001F]{1,80}|prod:[a-zA-Z0-9_-]{1,80})$/;
+  var PAGE_KEY_RE = /^(?:sec:(?:brands|stores|cats|occ|notes|all|offers|new|master|soon)|col:(?:cats|occ|notes):\d{1,3}|brand:[^|"'<>\\\u0000-\u001F]{1,80}|store:[^|"'<>\\\u0000-\u001F]{1,80}|prod:(?:\*|[a-zA-Z0-9_-]{1,80}))$/;
   var MAX_PAGES = 40;
+  /* A default page (`prod:*`, `brand:*`, `store:*`) is the design every page of that kind starts from; a page of its own overrides it. */
+  var DEFAULT_KEY_RE = /^(brand|store|prod):(.+)$/;
+  function defaultKeyOf(key) { var m = typeof key === 'string' ? DEFAULT_KEY_RE.exec(key) : null; return m && m[2] !== '*' ? m[1] + ':*' : null; }
+  function isDefaultKey(key) { return typeof key === 'string' && /^(?:brand|store|prod):\*$/.test(key); }
   var REF_RE = /^[a-z0-9][a-z0-9_-]{0,59}$/;
   var BLOCK_ID_RE = /^x-[a-z0-9_-]{1,36}$/;
   var COLOR_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
@@ -417,6 +421,7 @@
     normalize: normalize, isEmpty: isEmpty, serialize: serialize, plan: plan, applyTexts: applyTexts,
     deviceOf: deviceOf, editFor: editFor,
     isRef: function (r) { return typeof r === 'string' && REF_RE.test(r); },
-    isPageKey: function (k) { return typeof k === 'string' && PAGE_KEY_RE.test(k); }
+    isPageKey: function (k) { return typeof k === 'string' && PAGE_KEY_RE.test(k); },
+    defaultKeyOf: defaultKeyOf, isDefaultKey: isDefaultKey
   };
 });

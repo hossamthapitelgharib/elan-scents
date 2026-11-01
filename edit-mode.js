@@ -37,16 +37,34 @@
   function entries() { return layer.elements(); }
   function entryById(id) { var l = entries(); for (var i = 0; i < l.length; i++) if (l[i].id === id) return l[i]; return null; }
   function scopes() { return [work].concat(Object.keys(work.pages || {}).map(function (key) { return work.pages[key]; })); }
+  /* Where an edit made on an inner page goes: that page alone ('page'), or the default page of its kind ('default':
+     every product page, every brand page, every store page). Leaving the page puts it back to 'page' so a stray edit never reaches all pages. */
+  var scopeMode = 'page', scopeModeKey = null;
+  function defaultKey() { var k = layer.pageKey(); return k ? ED.defaultKeyOf(k) : null; }
+  function editingDefault() {
+    if (scopeMode !== 'default') return false;
+    if (scopeModeKey !== layer.pageKey() || !defaultKey()) { scopeMode = 'page'; return false; }
+    return true;
+  }
+  function inPage(id) {
+    var e = entryById(id), view = document.getElementById('view');
+    return e && view && view.contains(e.el) && ED.isPageKey(layer.pageKey()) ? e : null;
+  }
   function pageScope(id, create) {
-    var e = entryById(id), view = document.getElementById('view'), key = layer.pageKey();
-    if (!e || !view || !view.contains(e.el) || !ED.isPageKey(key)) return work;
+    if (!inPage(id)) return work;
+    var key = editingDefault() ? defaultKey() : layer.pageKey();
     if (create) { work.pages = work.pages || {}; work.pages[key] = work.pages[key] || { blocks: [] }; }
     return work.pages && work.pages[key];
   }
+  /* The id an element is saved under in the scope being edited: its page-independent id on a default page, its own id otherwise. */
+  function scopeId(id) { var e = inPage(id); return e && e.did && editingDefault() ? e.did : id; }
+  /* Every id this element may be saved under (its own, and its default-page id), for removing what was saved for it. */
+  function keysOf(id) { var e = entryById(id); return e && e.did && e.did !== id ? [id, e.did] : [id]; }
   function edit(dev, id) {
-    var scope = pageScope(id, true); scope.edits = scope.edits || {};
-    var b = scope.edits[dev] = scope.edits[dev] || {}; return (b[id] = b[id] || {});
+    var scope = pageScope(id, true), sid = scopeId(id); scope.edits = scope.edits || {};
+    var b = scope.edits[dev] = scope.edits[dev] || {}; return (b[sid] = b[sid] || {});
   }
+  function mergeEdit(base, over) { return over ? Object.assign({}, base || {}, over, { style: Object.assign({}, base && base.style, over.style) }) : base; }
   function tidyScope(scope) {
     if (!scope.edits) return;
     Object.keys(scope.edits).forEach(function (dev) {
@@ -153,8 +171,12 @@
     return '#' + [m[1], m[2], m[3]].map(function (n) { return ('0' + (+n).toString(16)).slice(-2); }).join('');
   }
   function cur(id) {
-    var global = ED.editFor(work, device(), id) || {}, local = ED.editFor(pageScope(id, false), device(), id);
-    return local ? Object.assign({}, global, local, { style: Object.assign({}, global.style, local.style) }) : global;
+    var out = ED.editFor(work, device(), id) || {}, e = inPage(id), dkey = e && e.did && defaultKey();
+    var dscope = dkey && work.pages && work.pages[dkey], pscope = e && work.pages && work.pages[layer.pageKey()];
+    /* site-wide, then the default page, then the page's own; while the default page is being edited the page's own look is left out */
+    if (dscope) out = mergeEdit(out, ED.editFor(dscope, device(), e.did));
+    if (pscope && !editingDefault()) out = mergeEdit(out, ED.editFor(pscope, device(), id));
+    return out;
   }
   /* What the editor needs to know about an element: the original editor's type names plus its current look. */
   var TYPE_OF = { section: 'section', title: 'text', 'hero-text': 'text', hero: 'section', 'hero-counters': 'text', card: 'card', block: 'block', 'text-area': 'text', group: 'section', 'image-el': 'image' };
@@ -190,7 +212,8 @@
     return 'العنصر ده فيه ' + (video ? 'فيديو' : 'صورة') + ' بالفعل. ' + (video ? 'احذفه' : 'احذفيها') + ' الأول من «حذف ميديا…» أو «حذف العنصر إلى الأرشيف»، وبعدين ارفعي الجديد. كده مفيش حاجة بتتراكم على المنصة.';
   }
   function dropNoMedia(id) {
-    scopes().forEach(function (d) { Object.keys(d.edits || {}).forEach(function (dev) { var x = d.edits[dev] && d.edits[dev][id]; if (x) delete x.noMedia; }); });
+    var ids = keysOf(id);
+    scopes().forEach(function (d) { Object.keys(d.edits || {}).forEach(function (dev) { ids.forEach(function (k) { var x = d.edits[dev] && d.edits[dev][k]; if (x) delete x.noMedia; }); }); });
   }
 
   /* An element that holds no text itself hands the keyboard edit to the text it owns: a section to its title, the hero to its headline. */
@@ -220,7 +243,7 @@
     if (i < 0 || j < 0 || j >= seq.length) return;
     mutate(function (d) { seq.splice(i, 1); seq.splice(j, 0, key); d.order = seq; });
   }
-  function resetElement(id) { mutate(function () { scopes().forEach(function (d) { if (d.edits) Object.keys(d.edits).forEach(function (dev) { delete d.edits[dev][id]; }); }); }); }
+  function resetElement(id) { var ids = keysOf(id); mutate(function () { scopes().forEach(function (d) { if (d.edits) Object.keys(d.edits).forEach(function (dev) { ids.forEach(function (k) { delete d.edits[dev][k]; }); }); }); }); }
   function archive(id) {
     if (id === 'hero') {
       /* The hero is the page's white base: it keeps its room. Deleting it deletes what sits on top of it, and the white base returns. */
@@ -290,9 +313,9 @@
     }
     var order = g.flow.type === 'section' ? fullOrder() : null, moved = sectionOf(g.id), target = sectionOf(slot.id);
     mutate(function (d) {
-      var scope = pageScope(g.id, true);
+      var scope = pageScope(g.id, true), gid = scopeId(g.id);
       ['all', device()].forEach(function (dev) {
-        var t = scope.edits && scope.edits[dev] && scope.edits[dev][g.id];
+        var t = scope.edits && scope.edits[dev] && scope.edits[dev][gid];
         if (t) { delete t.dx; delete t.dy; }
       });
       if (g.flow.type === 'section') {
@@ -301,8 +324,8 @@
         d.order = Geometry.reorderSticky ? Geometry.reorderSticky(order, moved, target, slot.after, floats) : Geometry.reorder(order, moved, target, slot.after);
         return;
       }
-      var next = Geometry.reorder(listed, g.id, slot.id, slot.after);
-      if (JSON.stringify(next) === JSON.stringify(listed) && !(scope.cardOrder && scope.cardOrder[key])) return;
+      var next = Geometry.reorder(listed, g.id, slot.id, slot.after).map(scopeId);
+      if (JSON.stringify(next) === JSON.stringify(listed.map(scopeId)) && !(scope.cardOrder && scope.cardOrder[key])) return;
       scope.cardOrder = scope.cardOrder || {};
       scope.cardOrder[key] = next;
     });
@@ -804,14 +827,16 @@
       mutate(function (d) { var target = d.blocks.filter(function (b) { return b.id === c.id; })[0]; if (target) { delete target.image; delete target.video; } });
       return { mediaRemoved: true };
     }
-    var card = !!here && here.kind === 'card';
+    var card = !!here && here.kind === 'card', mediaIds = keysOf(c.id);
     mutate(function () {
       scopes().forEach(function (d) {
         Object.keys(d.edits || {}).forEach(function (dev) {
-          var entry = d.edits[dev] && d.edits[dev][c.id];
-          if (!entry) return;
-          delete entry.media;
-          if (entry.style) { delete entry.style.media; delete entry.style.fit; }
+          mediaIds.forEach(function (k) {
+            var entry = d.edits[dev] && d.edits[dev][k];
+            if (!entry) return;
+            delete entry.media;
+            if (entry.style) { delete entry.style.media; delete entry.style.fit; }
+          });
         });
       });
       if (card) edit('all', c.id).noMedia = true;   // the card's own picture is deleted too: it shows its white base until one is added
@@ -826,7 +851,24 @@
   var TOOLS = [];
   function registerTool(t) { TOOLS = TOOLS.filter(function (x) { return x.id !== t.id; }).concat([t]); }
   function toolList(i) {
-    return TOOLS.filter(function (t) { return !t.show || t.show(i); }).map(function (t) { return { id: t.id, label: t.label, ui: t.ui || null, enabled: t.when ? !!t.when(i) : true }; });
+    return TOOLS.filter(function (t) { return !t.show || t.show(i); }).map(function (t) { return { id: t.id, label: typeof t.label === 'function' ? t.label(i) : t.label, ui: t.ui || null, enabled: t.when ? !!t.when(i) : true }; });
+  }
+  /* ---- default pages: one design for every product / brand / store page; a page that has its own edits keeps them ---- */
+  var KIND_NAMES = { prod: 'كل صفحات المنتجات', brand: 'كل صفحات البراندات', store: 'كل صفحات المتاجر' };
+  function kindName() { var k = defaultKey(); return k ? KIND_NAMES[k.split(':')[0]] : ''; }
+  function setScope(mode) {
+    var next = mode === 'default' && defaultKey() ? 'default' : 'page';
+    scopeMode = next; scopeModeKey = layer.pageKey();
+    say(next === 'default' ? 'التعديل دلوقتي على ' + kindName() + '. الصفحة اللي ليها تعديلات خاصة بتفضل زي ما هي.' : 'التعديل دلوقتي على الصفحة دي بس.');
+    return { scope: next, defaultKey: defaultKey(), key: layer.pageKey() };
+  }
+  function ownEdits() { var key = layer.pageKey(), pg = key && work.pages && work.pages[key]; return !!(pg && (pg.edits || pg.cardOrder)); }
+  function resetPageToDefault() {
+    var key = layer.pageKey();
+    if (!defaultKey() || !ownEdits()) { say('الصفحة دي مفيهاش تعديلات خاصة.'); return null; }
+    mutate(function () { var pg = work.pages[key]; delete pg.edits; delete pg.cardOrder; });
+    say('الصفحة رجعت للتصميم الافتراضي.');
+    return { reset: true };
   }
   function has(i) { return !!i; }
   function hasText(i) { return !!(i && i.canText); }
@@ -846,16 +888,25 @@
   registerTool({ id: 'open', show: function (i) { return !!(i && i.dynamic); }, label: 'فتح العنصر (الدخول لصفحته)', when: function (i) { return !!(i && i.dynamic); }, run: function (c) { enterPage(entryById(c.id)); return null; } });
   registerTool({ id: 'go_back', show: inner, label: 'رجوع للصفحة السابقة', when: inner, run: function () { goBack(); return null; } });
   registerTool({ id: 'go_home', show: inner, label: 'رجوع للصفحة الرئيسية', when: inner, run: function () { goHome(); return null; } });
+  /* the scope tools come after the original editor's, and only show on a page that has a default page */
+  registerTool({ id: 'scope_toggle', show: function () { return !!defaultKey(); }, label: function () { return editingDefault() ? 'النطاق الحالي: ' + kindName() + ' — اضغط للرجوع لهذه الصفحة فقط' : 'النطاق الحالي: هذه الصفحة فقط — اضغط لتعديل ' + kindName(); }, run: function () { return setScope(editingDefault() ? 'page' : 'default'); } });
+  registerTool({ id: 'scope_reset', show: function () { return !!defaultKey(); }, label: 'إرجاع هذه الصفحة للتصميم الافتراضي', when: ownEdits, run: resetPageToDefault });
   window.ElanEditTools = { register: registerTool, list: function () { return TOOLS.slice(); }, menu: toolList };
 
   /* ---------- commands from the editor ---------- */
   function archiveList() {
-    var key = layer.pageKey(), scope = ED.isPageKey(key) && work.pages && work.pages[key] ? work.pages[key] : work;
+    var def = editingDefault(), key = def ? defaultKey() : layer.pageKey(), scope = ED.isPageKey(key) && work.pages && work.pages[key] ? work.pages[key] : work;
     var out = [], e = (scope.edits && scope.edits.all) || {};
-    Object.keys(e).forEach(function (id) { if (e[id].archived) out.push({ id: id, name: (entryById(id) || { name: id }).name }); });
+    Object.keys(e).forEach(function (id) {
+      if (!e[id].archived) return;
+      /* on a default page the archive holds default ids: show them under the id this page's element has now */
+      var here = def ? entries().filter(function (x) { return x.did === id; })[0] : entryById(id);
+      out.push({ id: here ? here.id : id, name: (here || { name: id }).name });
+    });
     return out;
   }
-  function snapshot() { return { revision: baseRevision, design: clone(work), device: device(), dirty: dirty, readOnly: readOnly, archive: archiveList(), selected: info(selectedId && entryById(selectedId)) }; }
+  function scopeInfo() { var k = defaultKey(); return { mode: editingDefault() ? 'default' : 'page', defaultKey: k, key: layer.pageKey(), kindName: k ? kindName() : '' }; }
+  function snapshot() { return { revision: baseRevision, design: clone(work), device: device(), dirty: dirty, readOnly: readOnly, scope: scopeInfo(), archive: archiveList(), selected: info(selectedId && entryById(selectedId)) }; }
   function need(id) { var e = id && entryById(id); if (!e) throw new Error('اختاري عنصر الأول.'); return e; }
 
   async function execute(action, p, meta) {
@@ -895,10 +946,10 @@
       case 'element.edit': { var e9 = need(p.elementId || selectedId); startText(e9.id); return null; }
       case 'element.archive': archive(need(p.elementId || selectedId).id); return null;
       case 'archive.restore': {
-        var archiveId = String(p.elementId || ''), archiveScope = pageScope(archiveId, false) || work, edits = archiveScope.edits || {};
+        var archiveId = String(p.elementId || ''), archiveScope = pageScope(archiveId, false) || work, edits = archiveScope.edits || {}, archiveKey = scopeId(archiveId);
         if (!archiveId) throw new Error('معرّف العنصر المؤرشف مطلوب.');
-        var archivedHere = Object.keys(edits).some(function (dev) { return edits[dev] && edits[dev][archiveId] && edits[dev][archiveId].archived; });
-        if (archivedHere) mutate(function () { var scope = pageScope(archiveId, true); Object.keys(scope.edits || {}).forEach(function (dev) { if (scope.edits[dev][archiveId]) delete scope.edits[dev][archiveId].archived; }); });
+        var archivedHere = Object.keys(edits).some(function (dev) { return edits[dev] && edits[dev][archiveKey] && edits[dev][archiveKey].archived; });
+        if (archivedHere) mutate(function () { var scope = pageScope(archiveId, true); Object.keys(scope.edits || {}).forEach(function (dev) { if (scope.edits[dev][archiveKey]) delete scope.edits[dev][archiveKey].archived; }); });
         else insertLibraryPayload(p.payload, archiveId);
         select(archiveId); return snapshot();
       }
@@ -913,6 +964,7 @@
         if (p.kind === 'image') { var src8 = await mediaPrompt(); return createBlock('image', { src: src8, at: p.at }); }
         if (['section', 'brand', 'store', 'perfume', 'occasion', 'note'].indexOf(p.kind) !== -1) return createSmart(p.kind, { at: p.at });
         throw new Error('نوع إنشاء غير مدعوم: ' + p.kind);
+      case 'page.setScope': return setScope(p.scope);
       case 'library.open': return { openLibrary: true };
       case 'page.save': throw new Error('الحفظ بيتم من الإديتور نفسه بعد التحقق من الإدارة.');
       default: throw new Error('أمر غير مدعوم');

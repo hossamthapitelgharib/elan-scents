@@ -176,8 +176,8 @@
 
   /* Every element the editor can touch, with a stable id that does not change between renders. */
   function elements() {
-    var out = [], seen = {};
-    function add(id, el, kind, name) { if (!el || seen[id]) return; seen[id] = 1; out.push({ id: id, el: el, kind: kind, name: name }); }
+    var out = [], seen = {}, seenDefault = {};
+    function add(id, el, kind, name, did) { if (!el || seen[id]) return; seen[id] = 1; out.push({ id: id, el: el, kind: kind, name: name, did: did }); }
     var hero = document.getElementById('hero');
     if (hero) {
       add('hero', hero, 'hero', 'الواجهة الرئيسية');
@@ -187,14 +187,18 @@
     add('hero:counters', document.querySelector('#intro .counters'), 'hero-counters', 'العدّادات');
     var V = document.getElementById('view');
     if (V && document.body.classList.contains('inner')) {
-      var pk = hash(pageKey() || 'page'), vn = 0;
-      var vt = V.querySelector('h3'); if (vt) add('pg:' + pk + ':title', vt, 'title', 'عنوان الصفحة');
-      Array.prototype.slice.call(V.querySelectorAll('[data-elan-custom]')).forEach(function (b) { add(b.getAttribute('data-elan-id'), blockNode(b), 'block', 'بلوك إضافي'); });
+      /* `did` is the same element's id on a default page (all products, all brands, all stores): it does not depend on which page it is,
+         so a design saved once for the default finds its title, its cards and its blocks on every page of the kind. */
+      var pk = hash(pageKey() || 'page'), vn = 0, dn = 0;
+      var vt = V.querySelector('h3'); if (vt) add('pg:' + pk + ':title', vt, 'title', 'عنوان الصفحة', 'pg:_:title');
+      Array.prototype.slice.call(V.querySelectorAll('[data-elan-custom]')).forEach(function (b) { var bid = b.getAttribute('data-elan-id'); add(bid, blockNode(b), 'block', 'بلوك إضافي', bid); });
       Array.prototype.slice.call(V.querySelectorAll('.card')).forEach(function (card, i) {
-        var base = 'pcard:' + pk + hash(card.getAttribute('data-go') || 'i' + i), id = base;
+        var tag = hash(card.getAttribute('data-go') || 'i' + i), base = 'pcard:' + pk + tag, id = base, dbase = 'pcard:_:' + tag, did = dbase;
         while (seen[id]) id = base + '-' + (++vn);
+        while (seenDefault[did]) did = dbase + '-' + (++dn);
+        seenDefault[did] = 1;
         var h4 = card.querySelector('h4');
-        add(id, card, 'card', 'كارت ' + ((h4 && h4.textContent.trim().slice(0, 24)) || (i + 1)));
+        add(id, card, 'card', 'كارت ' + ((h4 && h4.textContent.trim().slice(0, 24)) || (i + 1)), did);
       });
     }
     /* The parts of the page below the sections: about, contact and every part of the footer. */
@@ -393,6 +397,11 @@
     }
   }
 
+  function mergeEdit(base, over) {
+    if (!over) return base;
+    return Object.assign({}, base || {}, over, { style: Object.assign({}, base && base.style, over.style) });
+  }
+
   /* Free-form edits for the current screen size. Idempotent: always undo the last paint first. */
   function applyEdits() {
     touched.forEach(unpaint);
@@ -400,12 +409,12 @@
     if (!design || (!design.edits && !design.pages)) return;
     var dev = ED.deviceOf(window.innerWidth);
     var key = pageKey(), pg = design.pages && design.pages[key], view = document.getElementById('view');
+    var dpg = design.pages && design.pages[ED.defaultKeyOf(key)];
     elements().forEach(function (entry) {
-      var ed = ED.editFor(design, dev, entry.id);
-      if (pg && view && view.contains(entry.el)) {
-        var local = ED.editFor(pg, dev, entry.id);
-        if (local) ed = Object.assign({}, ed || {}, local, { style: Object.assign({}, ed && ed.style, local.style) });
-      }
+      var ed = ED.editFor(design, dev, entry.id), inView = !!(view && view.contains(entry.el));
+      /* the page's own edits win over the default page's, which win over the site-wide ones */
+      if (dpg && inView && entry.did) ed = mergeEdit(ed, ED.editFor(dpg, dev, entry.did));
+      if (pg && inView) ed = mergeEdit(ed, ED.editFor(pg, dev, entry.id));
       if (!ed) return;
       paint(entry, ed);
       touched.push(entry.el);
@@ -464,10 +473,11 @@
     var V = document.getElementById('view');
     if (!V || !design) return;
     Array.prototype.slice.call(V.querySelectorAll('[data-elan-custom]')).forEach(function (n) { n.remove(); });
-    var key = pageKey(), pg = design.pages && key && design.pages[key];
-    if (!pg) return;
-    var top = pg.blocks.filter(function (b) { return b.slot !== 'bottom'; });
-    var bottom = pg.blocks.filter(function (b) { return b.slot === 'bottom'; });
+    var key = pageKey(), pg = design.pages && key && design.pages[key], dpg = design.pages && key && design.pages[ED.defaultKeyOf(key)];
+    if (!pg && !dpg) return;
+    var all = ((dpg && dpg.blocks) || []).concat((pg && pg.blocks) || []);
+    var top = all.filter(function (b) { return b.slot !== 'bottom'; });
+    var bottom = all.filter(function (b) { return b.slot === 'bottom'; });
     var h = V.querySelector('h3'), ref = h || null;
     top.forEach(function (b) {
       var n = buildBlock(b);
@@ -485,8 +495,9 @@
   /* Automatic displacement saved by the editor: the cards of one container in the order the owner dropped them.
      Cards a saved list does not know about (a new product, say) keep their natural order after the listed ones.
      Cards swap places with each other, so buttons or other things that sit between them stay where they are. */
-  function sortCards(root, ids) {
+  function sortCards(root, ids, byDefaultId) {
     var cards = elements().filter(function (e) { return e.kind === 'card' && root.contains(e.el); });
+    var idOf = function (e) { return byDefaultId ? e.did : e.id; };
     var groups = [];
     cards.forEach(function (e) {
       var parent = e.el.parentNode, g = groups.filter(function (x) { return x.parent === parent; })[0];
@@ -494,7 +505,7 @@
       g.cards.push(e.el);
     });
     groups.forEach(function (g) {
-      var rank = function (el) { var e = cards.filter(function (c) { return c.el === el; })[0], i = e ? ids.indexOf(e.id) : -1; return i === -1 ? 1e6 : i; };
+      var rank = function (el) { var e = cards.filter(function (c) { return c.el === el; })[0], i = e ? ids.indexOf(idOf(e)) : -1; return i === -1 ? 1e6 : i; };
       var natural = Array.prototype.filter.call(g.parent.children, function (c) { return g.cards.indexOf(c) !== -1; });
       var wanted = natural.map(function (el, i) { return { el: el, i: i, r: rank(el) }; })
         .sort(function (a, b) { return a.r - b.r || a.i - b.i; }).map(function (x) { return x.el; });
@@ -513,8 +524,10 @@
         if (section && section.tagName === 'SECTION' && section.parentNode && section.parentNode.id === 'main') sortCards(section, map[key]);
       });
     } else if (view) {
-      var pg = design.pages && design.pages[pageKey()];
+      var pgKey = pageKey(), pg = design.pages && design.pages[pgKey], dpg = design.pages && design.pages[ED.defaultKeyOf(pgKey)];
+      /* the page's own order replaces the default one; without it the default order (in default ids) applies */
       if (pg && pg.cardOrder && pg.cardOrder.view) sortCards(view, pg.cardOrder.view);
+      else if (dpg && dpg.cardOrder && dpg.cardOrder.view) sortCards(view, dpg.cardOrder.view, true);
     }
   }
 
@@ -576,7 +589,7 @@
     return true;
   }
 
-  window.ElanDesignLayer = { apply: apply, set: set, pageKey: pageKey, current: function () { return design; }, applyEdits: applyEdits, elements: elements, textTarget: textTarget, goTargetOf: goTargetOf };
+  window.ElanDesignLayer = { apply: apply, set: set, pageKey: pageKey, defaultKey: function () { var k = pageKey(); return k ? ED.defaultKeyOf(k) : null; }, current: function () { return design; }, applyEdits: applyEdits, elements: elements, textTarget: textTarget, goTargetOf: goTargetOf };
 
   // A different screen size means a different set of free-form edits.
   window.addEventListener('resize', function () {

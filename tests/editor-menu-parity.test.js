@@ -10,6 +10,7 @@ const { designBrowser, plain, read } = require('./browser-fixture');
 const golden = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'elan-original-tools-golden.json'), 'utf8'));
 const GOLDEN_IDS = ['format', 'create_section', 'create_brand', 'create_store', 'create_perfume', 'create_occasion', 'create_note', 'create_text_block', 'create_banner', 'create_text', 'media', 'media_delete', 'edit_text', 'copy', 'archive', 'library_save', 'library_download'];
 const EXTRA_IDS = ['create_image', 'open', 'go_back', 'go_home'];
+const SCOPE_IDS = ['scope_toggle', 'scope_reset'];   // default pages: they show only on a product, brand or store page
 const flags = (rows) => rows.map((r) => r.startsWith('[ok]'));
 
 async function liveEditor() {
@@ -40,7 +41,7 @@ test('the menu keeps the original editor tools in the original order, new ones a
   const b = await liveEditor();
   const ids = plain(b.tools.list().map((t) => t.id));
   assert.deepEqual(ids.slice(0, 17), GOLDEN_IDS);
-  assert.deepEqual(ids.slice(17), EXTRA_IDS);
+  assert.deepEqual(ids.slice(17), EXTRA_IDS.concat(SCOPE_IDS));
   assert.equal(golden.menu_by_element.card.length, 17, 'the golden menu still has the 17 original tools');
   // contextual extras only appear where they make sense
   stack(b);
