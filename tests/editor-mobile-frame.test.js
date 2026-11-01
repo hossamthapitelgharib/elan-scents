@@ -50,6 +50,15 @@ test('a narrow window never lets the scaled phone overflow sideways', () => {
   assert.ok(parseInt(s.box.style.width, 10) <= 360);
 });
 
+test('on a phone the platform fills the width of the screen, not a shrunken copy with margins (owner screenshot 2026-11-01)', () => {
+  for (const [w, h] of [[411, 780], [390, 844], [360, 740], [430, 932], [600, 900]]) {
+    const s = stage({ innerWidth: w, innerHeight: h, top: 300 });
+    assert.ok(Math.abs(parseInt(s.box.style.width, 10) - w) <= 1, w + 'px phone: the platform is ' + s.box.style.width + ' wide');
+    assert.ok(s.scale() >= 0.9, 'never shrunk below the phone size: ' + s.scale());
+    assert.ok(parseInt(s.frame.style.height, 10) >= 700, 'laid out a phone screen tall, so the hero is whole');
+  }
+});
+
 test('the preview-size buttons stay out and the host only has one frame, with the host menu following the scale', () => {
   assert.doesNotMatch(html, /deviceBox/);
   assert.doesNotMatch(html, /textContent='(لاب|تابلت|موبايل)'/);
