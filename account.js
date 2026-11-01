@@ -265,8 +265,11 @@ document.querySelector('#resetForm').addEventListener('submit', async event => {
   try {
     const config = await authConfig();
     const redirect = encodeURIComponent(`${location.origin}/account.html`);
+    // The "are you a person" check (turnstile.js); '' when the shop has no key, and then the request is as it was.
+    const captcha = window.ElanTurnstile ? await window.ElanTurnstile.token(form) : '';
+    const payload = { email: form.elements.email.value.trim() };
     const response = await fetch(`${config.url}/auth/v1/recover?redirect_to=${redirect}`, {
-      method: 'POST', headers: { apikey: config.key, 'Content-Type': 'application/json' }, body: JSON.stringify({ email: form.elements.email.value.trim() })
+      method: 'POST', headers: { apikey: config.key, 'Content-Type': 'application/json' }, body: JSON.stringify(window.ElanTurnstile ? window.ElanTurnstile.body(payload, captcha) : payload)
     });
     if (!response.ok) throw await authFailure(response, 'تعذر إرسال الرابط الآن، حاول بعد قليل.');
     // The same sentence whether or not the address is registered, so the page does not reveal who has an account.

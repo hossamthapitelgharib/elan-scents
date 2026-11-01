@@ -132,6 +132,33 @@ test('forgot-password asks the auth service for a link back to this page and ans
   assert.equal(form.hidden, true);
 });
 
+test('forgot-password carries the "are you a person" token for its own form, and sends nothing when the check cannot finish', async () => {
+  const p = page();
+  const boxes = [];
+  p.context.ElanTurnstile = {
+    token: async box => { boxes.push(box); return 'reset-token'; },
+    body: (object, token) => { if (token) object.gotrue_meta_security = { captcha_token: token }; return object; }
+  };
+  const form = p.el('#resetForm');
+  form.elements.email.value = 'someone@example.invalid';
+  await form.handlers.submit({ preventDefault() {}, target: form });
+  await tick();
+  assert.equal(boxes[0], form);
+  const call = p.calls.find(item => item.url.includes('/auth/v1/recover'));
+  assert.deepEqual(JSON.parse(call.options.body), { email: 'someone@example.invalid', gotrue_meta_security: { captcha_token: 'reset-token' } });
+
+  const q = page();
+  q.context.ElanTurnstile = { token: async () => { const e = new Error('لم يكتمل التحقق الأمني. حاول مرة أخرى.'); e.code = 'captcha_failed'; throw e; }, body: object => object };
+  const again = q.el('#resetForm');
+  again.hidden = false; // the customer opened it with "forgot your password?"
+  again.elements.email.value = 'someone@example.invalid';
+  await again.handlers.submit({ preventDefault() {}, target: again });
+  await tick();
+  assert.equal(q.calls.some(item => item.url.includes('/auth/v1/recover')), false, 'no link is requested without the check');
+  assert.match(q.el('#message').textContent, /التحقق الأمني/);
+  assert.equal(again.hidden, false, 'the form stays open so the customer can try again');
+});
+
 test('the order list refreshes once a minute, backs off while the service fails, and does not poll a hidden tab', async () => {
   let failing = true;
   const orderCalls = [];

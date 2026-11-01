@@ -139,7 +139,7 @@ async function handle(req, res, pathname) {
     if (req.method !== 'POST' || !sameOrigin(req)) return json(res, 403, { ok: false, error: 'forbidden' }), true;
     const body = await readJson(req);
     if (!body || typeof body !== 'object') return json(res, 400, { ok: false, error: 'invalid_request' }), true;
-    const r = await sessions.login(body.email, body.password, ip(req));
+    const r = await sessions.login(body.email, body.password, ip(req), body.captchaToken);
     if (r.error) return json(res, r.status, { ok: false, error: r.error }), true;
     setCookie(req, res, r.id, false);
     return json(res, 200, { ok: true }), true;
@@ -150,7 +150,7 @@ async function handle(req, res, pathname) {
     if (!body || typeof body !== 'object') return json(res, 400, { ok: false, error: 'invalid_request' }), true;
     // The emailed link opens this site's own reset page; the address comes from configuration, never from a request header.
     const redirectTo = editorSiteOrigin().replace(/\/+$/, '') + '/editor-reset';
-    const r = await sessions.requestPasswordReset(body.email, ip(req), redirectTo);
+    const r = await sessions.requestPasswordReset(body.email, ip(req), redirectTo, body.captchaToken);
     // The same answer for every address, existing or not.
     return (r.error ? json(res, r.status, { ok: false, error: r.error }) : json(res, 200, { ok: true })), true;
   }
@@ -252,7 +252,8 @@ async function handle(req, res, pathname) {
       return true;
     }
     sendFile(res, 'login.html', 'text/html; charset=utf-8', {
-      'Content-Security-Policy': "default-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+      // Cloudflare Turnstile (the "are you a person" check in front of the login and the forgotten-password request) needs its script and its frame, and only those.
+      'Content-Security-Policy': "default-src 'self'; script-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
       'X-Frame-Options': 'DENY', 'X-Content-Type-Options': 'nosniff'
     });
     return true;

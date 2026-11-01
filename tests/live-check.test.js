@@ -63,12 +63,18 @@ test('an unreachable site fails every required check instead of throwing', async
 });
 
 test('a storefront without the page policy, with unsafe-inline scripts or with an inline script fails the check', async () => {
-  for (const options of [{ csp: '' }, { csp: "default-src 'self'; script-src 'self' 'unsafe-inline'; script-src-attr 'none'" }, { csp: "default-src 'self'; script-src 'self'" }, { inlineScript: true }]) {
+  for (const options of [{ csp: '' }, { csp: "default-src 'self'; script-src 'self' 'unsafe-inline'; script-src-attr 'none'" }, { csp: "default-src 'self'; script-src 'self'" }, { csp: "default-src 'self'; script-src 'self' https://cdn.example.invalid; script-src-attr 'none'" }, { csp: "default-src 'self'; script-src https://challenges.cloudflare.com; script-src-attr 'none'" }, { inlineScript: true }]) {
     const results = await runAgainst(Object.assign({ serviceKey: true, webhookSecret: false }, options));
     const summary = summarize(results);
     assert.equal(summary.ok, false, JSON.stringify(options));
-    assert.ok(summary.failed.map((r) => r.name).includes('the storefront is served with a Content-Security-Policy that allows scripts from the site itself only'), JSON.stringify(options));
+    assert.ok(summary.failed.map((r) => r.name).includes('the storefront is served with a Content-Security-Policy that allows scripts from the site itself and the Turnstile check only'), JSON.stringify(options));
   }
+});
+
+test('the policy with Cloudflare\'s Turnstile check as the one outside script source passes', async () => {
+  const csp = "default-src 'self'; script-src 'self' https://challenges.cloudflare.com; script-src-attr 'none'";
+  const summary = summarize(await runAgainst({ serviceKey: true, webhookSecret: false, csp }));
+  assert.equal(summary.failed.map((r) => r.name).includes('the storefront is served with a Content-Security-Policy that allows scripts from the site itself and the Turnstile check only'), false);
 });
 
 test('a page that lost its policy (a missing _headers rule) fails the check even when the root address has it', async () => {

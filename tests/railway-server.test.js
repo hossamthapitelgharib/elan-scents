@@ -17,7 +17,7 @@ test('railway host serves the storefront, API routes, rewrites and blocks privat
 
     const cfg = await fetch(base + '/api/config');
     assert.equal(cfg.status, 200);
-    assert.deepEqual(Object.keys(await cfg.json()).sort(), ['key', 'url']);
+    assert.deepEqual(Object.keys(await cfg.json()).sort(), ['key', 'turnstile_site_key', 'url']);
 
     assert.equal((await fetch(base + '/api/no-such-function')).status, 404);
     assert.equal((await fetch(base + '/api/_auth')).status, 404);

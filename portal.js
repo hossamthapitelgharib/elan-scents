@@ -7,13 +7,18 @@ window.Portal = {
     let response, data;
     try {
       const cfg = await fetch('/api/config').then(result => result.json());
+      // The "are you a person" check (turnstile.js). No site key configured: the token is '' and the request is exactly as it was.
+      const captcha = window.ElanTurnstile ? await window.ElanTurnstile.token(form) : '';
+      const credentials = { email: form.email.value.trim(), password: form.password.value };
       response = await fetch(`${cfg.url}/auth/v1/token?grant_type=password`, {
         method: 'POST',
         headers: { apikey: cfg.key, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: form.email.value.trim(), password: form.password.value })
+        body: JSON.stringify(window.ElanTurnstile ? window.ElanTurnstile.body(credentials, captcha) : credentials)
       });
       data = await response.json();
-    } catch (_) {
+    } catch (error) {
+      // A check that could not be completed already carries a sentence for the visitor.
+      if (error && /^captcha_/.test(error.code || '')) throw error;
       throw new Error('تعذر الاتصال بالخدمة، تحقق من الإنترنت وحاول مرة أخرى.');
     }
     if (!response.ok || !data.access_token) {
@@ -52,6 +57,7 @@ Portal.escape = value => String(value ?? '').replace(/[&<>"']/g, character => ({
 Portal.errorMessages = {
   invalid_credentials: 'البريد الإلكتروني أو كلمة المرور غير صحيحة.',
   invalid_grant: 'البريد الإلكتروني أو كلمة المرور غير صحيحة.',
+  captcha_failed: 'لم يكتمل التحقق الأمني. حاول مرة أخرى.',
   email_not_confirmed: 'لم يتم تأكيد البريد الإلكتروني بعد، افتح رسالة التأكيد أولًا.',
   over_request_rate_limit: 'محاولات كثيرة، انتظر قليلًا ثم حاول مرة أخرى.',
   over_email_send_rate_limit: 'محاولات كثيرة، انتظر قليلًا ثم حاول مرة أخرى.',

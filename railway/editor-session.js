@@ -42,20 +42,31 @@ function unseal(value) {
   } catch (_) { return null; }
 }
 
-async function login(email, password, ip) {
+/* The "are you a person" token (Cloudflare Turnstile, solved by the login page in the owner's browser) goes to Supabase Auth in the place it reads
+   it from. Absent is fine: it only matters once CAPTCHA protection is switched on in the Supabase Auth settings. Anything else than a short string is refused. */
+function captchaField(captchaToken) {
+  if (captchaToken === undefined || captchaToken === null || captchaToken === '') return { ok: true, extra: {} };
+  if (typeof captchaToken !== 'string' || captchaToken.length > 4096) return { ok: false, extra: {} };
+  return { ok: true, extra: { gotrue_meta_security: { captcha_token: captchaToken } } };
+}
+
+async function login(email, password, ip, captchaToken) {
   const { url, anon } = env();
   if (!url || !anon) return { status: 503, error: 'supabase_service_configuration_missing' };
   if (tooManyAttempts(ip)) return { status: 429, error: 'too_many_attempts' };
-  if (typeof email !== 'string' || typeof password !== 'string' || email.length > 200 || password.length > 200) return { status: 400, error: 'invalid_request' };
+  const captcha = captchaField(captchaToken);
+  if (typeof email !== 'string' || typeof password !== 'string' || email.length > 200 || password.length > 200 || !captcha.ok) return { status: 400, error: 'invalid_request' };
   noteAttempt(ip);
   let r;
   try {
     r = await fetch(url + '/auth/v1/token?grant_type=password', {
       method: 'POST', headers: { apikey: anon, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: email.trim(), password })
+      body: JSON.stringify(Object.assign({ email: email.trim(), password }, captcha.extra))
     });
   } catch (_) { return { status: 502, error: 'auth_unreachable' }; }
   const j = await r.json().catch(() => ({}));
+  // A refused check is not a wrong password: say so, or the owner would keep retyping a correct one.
+  if (!r.ok && j && j.error_code === 'captcha_failed') return { status: 400, error: 'captcha_failed' };
   if (!r.ok || !j.access_token) return { status: 401, error: 'invalid_credentials' };
   let ctx;
   try {
@@ -101,10 +112,11 @@ function limited(map, ip, max) {
 }
 
 /* redirectTo: the page the emailed link must open (must be allowed in the Supabase project's redirect URLs, otherwise Supabase uses its Site URL). */
-async function requestPasswordReset(email, ip, redirectTo) {
+async function requestPasswordReset(email, ip, redirectTo, captchaToken) {
   const { url, anon } = env();
   if (!url || !anon) return { status: 503, error: 'supabase_service_configuration_missing' };
-  if (typeof email !== 'string' || email.length > 200 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return { status: 400, error: 'invalid_request' };
+  const captcha = captchaField(captchaToken);
+  if (typeof email !== 'string' || email.length > 200 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) || !captcha.ok) return { status: 400, error: 'invalid_request' };
   if (limited(forgotAttempts, ip, FORGOT_PER_IP)) return { status: 429, error: 'too_many_attempts' };
   const address = email.trim().toLowerCase();
   const memo = crypto.createHash('sha256').update(address).digest('hex');
@@ -114,7 +126,12 @@ async function requestPasswordReset(email, ip, redirectTo) {
   recoverSent.set(memo, now);
   try {
     const target = url + '/auth/v1/recover' + (redirectTo ? '?redirect_to=' + encodeURIComponent(redirectTo) : '');
-    await fetch(target, { method: 'POST', headers: { apikey: anon, 'Content-Type': 'application/json' }, body: JSON.stringify({ email: address }) });
+    const answer = await fetch(target, { method: 'POST', headers: { apikey: anon, 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ email: address }, captcha.extra)) });
+    if (!answer.ok) {
+      // Only a refused check is told apart (it does not depend on whether the account exists); the owner can try again at once.
+      const j = await answer.json().catch(() => ({}));
+      if (j && j.error_code === 'captcha_failed') { recoverSent.delete(memo); return { status: 400, error: 'captcha_failed' }; }
+    }
   } catch (_) { return { status: 502, error: 'auth_unreachable' }; }
   return { status: 200 }; // whatever Supabase answered (it does not say whether the account exists), the caller sees the same thing
 }

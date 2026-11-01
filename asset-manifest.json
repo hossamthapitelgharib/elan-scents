@@ -1,9 +1,9 @@
 {
-  "version": "20261101-05",
+  "version": "20261101-06",
   "files": {
-    "account.js": "7cd10602b829916a",
-    "app-core.js": "d7ccefcb34727f13",
-    "app.js": "a14c51c84a4784de",
+    "account.js": "07f5d7e7224685a1",
+    "app-core.js": "d59327e5edb56002",
+    "app.js": "9fd94783e88e4ea1",
     "auth-session.js": "c12caeae26af1c2c",
     "consent.css": "79e25a99fc582a15",
     "consent.js": "c383591883071ab4",
@@ -22,12 +22,13 @@
     "hero-video.js": "df4dbe08e2d9eea3",
     "platform-dashboard.js": "2a59ca5f02d775f2",
     "portal.css": "9b1553912b5b4339",
-    "portal.js": "469931e14ce07de9",
+    "portal.js": "53a959cc0d56757e",
     "privacy.css": "bbb7614467979223",
     "store-dashboard.js": "96172817026935fe",
     "stores-dashboard.js": "9e10dbad0edd8420",
     "style-3.css": "901a032a1a691477",
     "style.css": "570a184f5cea9ec3",
-    "texts.js": "0e0e374004a9b550"
+    "texts.js": "0e0e374004a9b550",
+    "turnstile.js": "97f12890a612b9f3"
   }
 }

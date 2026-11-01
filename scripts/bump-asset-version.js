@@ -13,7 +13,8 @@ const root = path.resolve(__dirname, '..');
 const REF = /(\/[A-Za-z0-9._\-\/]+\.(?:css|js))\?v=([A-Za-z0-9\-]+)/g;
 
 function targets() {
-  return [...fs.readdirSync(root).filter((f) => f.endsWith('.html') && f !== 'editor.html'), 'app.js', 'style.css']
+  // editor/login.html loads the shared turnstile.js (served immutable under its ?v= URL), so it moves to the new version with the pages.
+  return [...fs.readdirSync(root).filter((f) => f.endsWith('.html') && f !== 'editor.html'), 'app.js', 'style.css', 'editor/login.html']
     .filter((f) => fs.existsSync(path.join(root, f)));
 }
 

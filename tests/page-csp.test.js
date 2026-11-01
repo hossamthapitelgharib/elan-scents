@@ -45,7 +45,9 @@ test('the page policy forbids inline scripts, eval, plugins and foreign framing,
   assert.equal(values.length, 1, 'exactly one Content-Security-Policy rule applies to a page');
   const p = policyOf(values[0]);
   assert.deepEqual(p.get('default-src'), ["'self'"]);
-  assert.deepEqual(p.get('script-src'), ["'self'"], 'scripts come from this site only (no unsafe-inline, unsafe-eval or https:)');
+  // The one outside script is Cloudflare's Turnstile widget (the "are you a person" check in front of the account forms), and it needs its frame too.
+  assert.deepEqual(p.get('script-src'), ["'self'", 'https://challenges.cloudflare.com'], 'scripts come from this site and the Turnstile check only (no unsafe-inline, unsafe-eval or https:)');
+  assert.deepEqual(p.get('frame-src'), ['https://challenges.cloudflare.com'], 'the only frame a page may open is the Turnstile widget');
   assert.deepEqual(p.get('script-src-attr'), ["'none'"], 'inline event handler attributes are blocked');
   assert.deepEqual(p.get('object-src'), ["'none'"]);
   assert.deepEqual(p.get('base-uri'), ["'self'"]);

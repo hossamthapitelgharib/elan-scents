@@ -34,17 +34,18 @@ async function probe(base, fetchImpl) {
   const home = await call('/');
   add('the storefront page is served', REQUIRED, home.status === 200 && /<html/i.test(home.text), home.status);
 
-  // The pages carry a Content-Security-Policy that allows scripts from the site itself only (vercel.json -> _headers on Cloudflare).
+  // The pages carry a Content-Security-Policy that allows scripts from the site itself and from Cloudflare's Turnstile check only (vercel.json -> _headers on Cloudflare).
+  const TURNSTILE_HOST = 'https://challenges.cloudflare.com';
   const csp = String((home.headers && home.headers.get && home.headers.get('content-security-policy')) || '');
   const scriptSrc = (csp.split(';').map((part) => part.trim().split(/\s+/)).find((tokens) => tokens[0] === 'script-src') || []).slice(1);
-  add('the storefront is served with a Content-Security-Policy that allows scripts from the site itself only', REQUIRED,
-    scriptSrc.length === 1 && scriptSrc[0] === "'self'" && /(^|;)\s*script-src-attr 'none'/.test(csp) && !/<script(?![^>]*\bsrc=)[^>]*>/i.test(home.text),
+  add('the storefront is served with a Content-Security-Policy that allows scripts from the site itself and the Turnstile check only', REQUIRED,
+    scriptSrc[0] === "'self'" && scriptSrc.slice(1).every((source) => source === TURNSTILE_HOST) && scriptSrc.length <= 2 && /(^|;)\s*script-src-attr 'none'/.test(csp) && !/<script(?![^>]*\bsrc=)[^>]*>/i.test(home.text),
     csp ? 'script-src ' + (scriptSrc.join(' ') || '(none)') + (/<script(?![^>]*\bsrc=)[^>]*>/i.test(home.text) ? ', but the page has an inline script' : '') : 'no Content-Security-Policy header');
   // Cloudflare attaches headers per file (_headers), so the other pages are looked at too, not only the root address.
   const unprotected = [];
   for (const page of ['/index.html', '/privacy.html', '/account.html', '/dashboard.html', '/store-dashboard.html', '/platform-dashboard.html']) {
     const r = await call(page);
-    if (r.status !== 200 || !/script-src 'self'(;|$)/.test(String((r.headers && r.headers.get && r.headers.get('content-security-policy')) || ''))) unprotected.push(page + ' (' + r.status + ')');
+    if (r.status !== 200 || !/script-src 'self'( https:\/\/challenges\.cloudflare\.com)?(;|$)/.test(String((r.headers && r.headers.get && r.headers.get('content-security-policy')) || ''))) unprotected.push(page + ' (' + r.status + ')');
   }
   add('every page carries the same Content-Security-Policy', REQUIRED, unprotected.length === 0, unprotected.length ? 'missing on ' + unprotected.join(', ') : 'index, privacy, account and the dashboards');
   const heroScript = await call('/hero-video.js');

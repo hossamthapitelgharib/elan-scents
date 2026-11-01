@@ -7,18 +7,27 @@
     invalid_credentials: 'البريد أو كلمة السر غلط.', forbidden: 'الحساب ده مش مسموح له بالإديتور.',
     role_check_failed: 'تعذر التحقق من صلاحية الحساب بعد تسجيل الدخول. جرّبي تاني.',
     too_many_attempts: 'محاولات كتير. استني شوية وجرّبي تاني.', supabase_service_configuration_missing: 'إعدادات سابابيس ناقصة على Cloudflare.',
-    auth_unreachable: 'مفيش اتصال بسابابيس، جرّبي تاني.'
+    auth_unreachable: 'مفيش اتصال بسابابيس، جرّبي تاني.', captcha_failed: 'التحقق الأمني ما اكتملش. جرّبي تاني.'
   };
   function say(t, bad) { msg.textContent = t; msg.className = 'msg' + (bad ? ' err' : ''); }
+  /* The "are you a person" check (turnstile.js, Cloudflare Turnstile): a token for this request, '' when the site has no key. Supabase Auth
+     asks for it once CAPTCHA protection is on; the server only passes it on. A check that cannot complete throws an Error whose message is for the owner. */
+  function checkToken(box) { return window.ElanTurnstile ? window.ElanTurnstile.token(box) : Promise.resolve(''); }
+  function checkError(e) { return e && /^captcha_/.test(e.code || '') ? e.message : ''; }
+  var loginBusy = false;
   async function go() {
+    if (loginBusy) return;
+    loginBusy = true;
     say('جاري الدخول...');
     try {
-      var r = await fetch('/api/editor-login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: document.getElementById('email').value, password: document.getElementById('pass').value }) });
+      var token = await checkToken(document.getElementById('loginCheck'));
+      var r = await fetch('/api/editor-login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: document.getElementById('email').value, password: document.getElementById('pass').value, captchaToken: token }) });
       var j = await r.json().catch(function () { return {}; });
       document.getElementById('pass').value = '';
       if (r.ok && j.ok) { location.replace('/editor'); return; }
       say(ERR[j.error] || 'حصلت مشكلة، جرّبي تاني.', true);
-    } catch (_) { say('مفيش اتصال، جرّبي تاني.', true); }
+    } catch (e) { say(checkError(e) || 'مفيش اتصال، جرّبي تاني.', true); }
+    loginBusy = false;
   }
   /* Forgotten password: the same box asks for the email; the answer is always the same, so it never says whether the account exists. */
   var forgotBox = document.getElementById('forgotBox'), forgotMsg = document.getElementById('forgotMsg'), loginBox = [document.getElementById('loginBtn'), document.getElementById('msg')];
@@ -29,20 +38,26 @@
     forgotBox.querySelectorAll('.aside').forEach(function (n) { n.hidden = false; });
     if (on) { document.getElementById('forgotEmail').value = document.getElementById('email').value; document.getElementById('forgotEmail').focus(); }
   }
-  var FORGOT_ERR = { invalid_request: 'اكتب البريد بشكل صحيح.', too_many_attempts: 'محاولات كتير. استنى شوية وجرّب تاني.', supabase_service_configuration_missing: 'إعدادات سابابيس ناقصة على Cloudflare.', auth_unreachable: 'مفيش اتصال بسابابيس، جرّب تاني.' };
+  var FORGOT_ERR = { invalid_request: 'اكتب البريد بشكل صحيح.', too_many_attempts: 'محاولات كتير. استنى شوية وجرّب تاني.', supabase_service_configuration_missing: 'إعدادات سابابيس ناقصة على Cloudflare.', auth_unreachable: 'مفيش اتصال بسابابيس، جرّب تاني.', captcha_failed: 'التحقق الأمني ما اكتملش. جرّب تاني.' };
   async function forgot() {
     var email = document.getElementById('forgotEmail').value.trim();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { sayForgot('اكتب البريد بشكل صحيح.', true); return; }
     var button = document.getElementById('forgotBtn');
+    if (button.disabled) return;
     button.disabled = true; sayForgot('جاري الإرسال...');
     try {
-      var r = await fetch('/api/editor-forgot-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email }) });
+      var token = await checkToken(document.getElementById('forgotCheck'));
+      var r = await fetch('/api/editor-forgot-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email, captchaToken: token }) });
       var j = await r.json().catch(function () { return {}; });
       if (r.ok && j.ok) sayForgot('لو فيه حساب بالبريد ده هيوصلك دلوقتي رابط مؤقت. افتحه من نفس الجهاز، وراجع الرسائل غير المهمة (Spam) لو ما ظهرش.');
       else sayForgot(FORGOT_ERR[j.error] || 'حصلت مشكلة، جرّب تاني.', true);
-    } catch (_) { sayForgot('مفيش اتصال، جرّب تاني.', true); }
+    } catch (e) { sayForgot(checkError(e) || 'مفيش اتصال، جرّب تاني.', true); }
     button.disabled = false;
   }
+  // Start the check early, so it is usually solved by the time the button is pressed.
+  function warm(id) { return function () { if (window.ElanTurnstile) window.ElanTurnstile.warm(document.getElementById(id)); }; }
+  document.getElementById('pass').addEventListener('focus', warm('loginCheck'));
+  document.getElementById('forgotEmail').addEventListener('focus', warm('forgotCheck'));
   document.getElementById('forgotLink').addEventListener('click', function (e) { e.preventDefault(); showForgot(true); });
   document.getElementById('forgotBack').addEventListener('click', function (e) { e.preventDefault(); showForgot(false); });
   document.getElementById('forgotBtn').addEventListener('click', forgot);
