@@ -1,5 +1,5 @@
 const crypto = require('node:crypto');
-const { checkSecret } = require('../lib/secure');
+const { checkSecret, publicDatabaseError } = require('../lib/secure');
 const { storeIdFromRequest, authenticateStoreWebhook, checkOrderOwnership, scopeIdempotencyKey, storeFailureStatus } = require('../lib/store-webhook-auth');
 function reply(res, status, body) {
   res.status(status).setHeader('Content-Type', 'application/json').json(body);
@@ -74,7 +74,7 @@ module.exports = async function storeOrderCancelled(req, res) {
         reply(res, storeFailureStatus('store-order-cancelled', response.status, raw), { ok: false, error: 'cancellation_update_failed' });
         return;
       }
-      reply(res, response.status >= 400 && response.status < 500 ? response.status : 502, { ok: false, error: 'cancellation_update_failed', details: data });
+      reply(res, response.status >= 400 && response.status < 500 ? response.status : 502, { ok: false, error: 'cancellation_update_failed', details: publicDatabaseError(data) });
       return;
     }
     const result = Array.isArray(data) ? data[0] : data;

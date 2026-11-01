@@ -111,6 +111,9 @@ begin
   assert not has_column_privilege('authenticated', 'public.profiles', 'role', 'insert'), 'a client cannot insert profiles.role';
   assert has_column_privilege('authenticated', 'public.profiles', 'full_name', 'update') and has_column_privilege('authenticated', 'public.profiles', 'phone', 'update')
     and has_column_privilege('authenticated', 'public.profiles', 'avatar_url', 'update'), 'a customer can still edit his name, phone and avatar';
+  assert has_table_privilege('authenticated', 'public.analytics_events', 'insert') and has_table_privilege('authenticated', 'public.contact_messages', 'insert'), 'a customer can still send an event and a contact message';
+  assert not has_table_privilege('authenticated', 'public.analytics_events', 'update') and not has_table_privilege('authenticated', 'public.analytics_events', 'delete')
+     and not has_table_privilege('authenticated', 'public.contact_messages', 'update') and not has_table_privilege('authenticated', 'public.contact_messages', 'delete'), 'events and contact messages are insert-only for clients';
   assert not has_column_privilege('authenticated', 'public.stores', 'commission_rate', 'update'), 'a client cannot write the commission rate';
   assert not has_table_privilege('authenticated', 'public.commissions', 'insert') and not has_table_privilege('authenticated', 'public.commissions', 'update'), 'a client cannot write commissions';
   assert has_table_privilege('service_role', 'public.commissions', 'insert') and has_table_privilege('service_role', 'public.stores', 'update'), 'the server keeps its write access';

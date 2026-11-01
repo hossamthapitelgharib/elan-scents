@@ -88,3 +88,34 @@ test('source no longer compares secrets with === or falls back to open when unse
     assert.doesNotMatch(src, /x-(store-webhook-secret|dashboard-token)'\]\s*[!=]==/, `${f} must not use a plain comparison`);
   }
 });
+
+for (const name of ['store-order-status', 'store-order-cancelled']) {
+  test(`${name} does not hand raw database errors to the shared-secret caller`, async () => {
+    process.env.SUPABASE_URL = 'https://test.supabase.co'; process.env.SUPABASE_SERVICE_ROLE_KEY = 'service';
+    process.env.STORE_ORDER_WEBHOOK_SECRET = 'real-secret';
+    const handler = api(name);
+    const headers = { 'x-store-webhook-secret': 'real-secret' };
+    // A database failure that names a constraint, a table and a column must not reach the caller.
+    global.fetch = async () => jsonResponse({ code: '23514', message: 'new row for relation "store_order_requests" violates check constraint "store_order_requests_total_amount_check"', details: 'Failing row contains (secret-value)', hint: null }, 400);
+    const leaked = await call(handler, { method: 'POST', headers, body });
+    assert.equal(leaked.status, 400);
+    const text = JSON.stringify(leaked.body);
+    assert.doesNotMatch(text, /store_order_requests|check constraint|secret-value|relation/, 'no table, constraint or row value may be returned');
+    assert.equal(leaked.body.details.code, '23514');
+    assert.equal(leaked.body.details.message, undefined);
+    // Our own validation message (RAISE EXCEPTION) is written for people and is passed on.
+    global.fetch = async () => jsonResponse({ code: 'P0001', message: 'Order item does not belong to the specified request' }, 400);
+    const own = await call(handler, { method: 'POST', headers, body });
+    assert.equal(own.body.details.message, 'Order item does not belong to the specified request');
+    delete process.env.STORE_ORDER_WEBHOOK_SECRET;
+  });
+}
+
+test('publicDatabaseError passes on only the code, and the message only for our own P0001 validation errors', () => {
+  const { publicDatabaseError } = require(path.join(root, 'lib', 'secure'));
+  assert.equal(publicDatabaseError(null), undefined);
+  assert.equal(publicDatabaseError([{ code: 'P0001' }]), undefined);
+  assert.equal(publicDatabaseError({ raw: '<html>' }), undefined);
+  assert.deepEqual(publicDatabaseError({ code: '42501', message: 'permission denied for table orders' }), { code: '42501' });
+  assert.deepEqual(publicDatabaseError({ code: 'P0001', message: 'x'.repeat(500) }), { code: 'P0001', message: 'x'.repeat(200) });
+});

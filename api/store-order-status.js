@@ -1,5 +1,5 @@
 const crypto = require('node:crypto');
-const { checkSecret } = require('../lib/secure');
+const { checkSecret, publicDatabaseError } = require('../lib/secure');
 const { storeIdFromRequest, authenticateStoreWebhook, checkOrderOwnership, scopeIdempotencyKey, storeFailureStatus } = require('../lib/store-webhook-auth');
 const ALLOWED_STATUSES = new Set([
   'completed',
@@ -120,7 +120,7 @@ module.exports = async function storeOrderStatus(req, res) {
       send(res, response.status >= 400 && response.status < 500 ? response.status : 502, {
         ok: false,
         error: 'supabase_update_failed',
-        details: result,
+        details: publicDatabaseError(result),
       });
       return;
     }
