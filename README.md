@@ -7,9 +7,13 @@
 ```bash
 npm start          # node railway/server.js — تشغيل محلي للتجربة فقط (الإنتاج على Cloudflare)
 npm test           # node --test tests/*.test.js
+npm ci              # تثبيت الاعتماديات المطابقة لـ package-lock.json
+npm run test:browser # اختبارات Chromium الحقيقية؛ تحتاج npx playwright install chromium مرة واحدة
 ```
 
 النشر تلقائي: كل رفعة على `main` ينشرها Workers Builds. الإعداد والأسرار في `cloudflare/README.md`.
+
+يجب استخدام `npm ci` في بيئات CI أو عند إعادة بناء البيئة من الصفر؛ ملف `package-lock.json` هو المرجع المثبت لإصدارات الاعتماديات. لا تُستخدم `npm install` في workflows الخاصة بالمشروع.
 
 فحص الصحة: `GET /health`
 
