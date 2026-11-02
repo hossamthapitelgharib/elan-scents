@@ -1,26 +1,26 @@
 const { createHmac } = require('node:crypto');
 const { guestHashSecret } = require('../lib/guest-hash-secret.js');
-const { createLimiter, clientIp, setRateLimitHeaders } = require('../lib/rate-limit');
+const { createDistributedLimiter, clientIp, setRateLimitHeaders } = require('../lib/rate-limit');
 const match = require('../lib/guest-match');
 
 // Per client address and per minute. Creating a visitor row (resolve) and claiming are the expensive actions.
 // Mobile carriers and offices share one address between many shoppers, so the per-address cap is
 // generous and the strict cap is per browser key. A busy network must not lose real visitors.
 const LIMITS = {
-  resolve: createLimiter({ max: 30, windowMs: 60000 }),
-  identify: createLimiter({ max: 12, windowMs: 60000 }),
-  claim: createLimiter({ max: 30, windowMs: 60000 }),
-  save: createLimiter({ max: 120, windowMs: 60000 }),
-  track: createLimiter({ max: 300, windowMs: 60000 }),
-  forget: createLimiter({ max: 30, windowMs: 60000 })     // keyed by address: the erase is one call per refusal
+  resolve: createDistributedLimiter({ name: 'guest-resolve', max: 30, windowMs: 60000 }),
+  identify: createDistributedLimiter({ name: 'guest-identify', max: 12, windowMs: 60000 }),
+  claim: createDistributedLimiter({ name: 'guest-claim', max: 30, windowMs: 60000 }),
+  save: createDistributedLimiter({ name: 'guest-save', max: 120, windowMs: 60000 }),
+  track: createDistributedLimiter({ name: 'guest-track', max: 300, windowMs: 60000 }),
+  forget: createDistributedLimiter({ name: 'guest-forget', max: 30, windowMs: 60000 })     // keyed by address: the erase is one call per refusal
 };
 const LIMIT_VALUES = { resolve: 30, identify: 12, claim: 30, save: 120, track: 300, forget: 30 };
 const NETWORK_LIMITS = {
-  resolve: createLimiter({ max: 600, windowMs: 60000 }),
-  identify: createLimiter({ max: 240, windowMs: 60000 }),
-  claim: createLimiter({ max: 300, windowMs: 60000 }),
-  save: createLimiter({ max: 2400, windowMs: 60000 }),
-  track: createLimiter({ max: 6000, windowMs: 60000 })
+  resolve: createDistributedLimiter({ name: 'guest-network-resolve', max: 600, windowMs: 60000 }),
+  identify: createDistributedLimiter({ name: 'guest-network-identify', max: 240, windowMs: 60000 }),
+  claim: createDistributedLimiter({ name: 'guest-network-claim', max: 300, windowMs: 60000 }),
+  save: createDistributedLimiter({ name: 'guest-network-save', max: 2400, windowMs: 60000 }),
+  track: createDistributedLimiter({ name: 'guest-network-track', max: 6000, windowMs: 60000 })
 };
 // Crawlers and monitors run scripts too; they must not be counted as shoppers.
 const BOT_AGENT = /bot\b|crawl|spider|slurp|headless|lighthouse|pagespeed|preview|monitor|uptime|curl\/|wget|python-requests|node-fetch|axios/i;
@@ -162,7 +162,7 @@ module.exports = async (req, res) => {
       return json(res, 200, { ok: true, forgotten: false });
     }
     const ip = clientIp(req);
-    const limit = LIMITS.forget(`${ip}:forget`);
+    const limit = await LIMITS.forget(`${ip}:forget`);
     if (!limit.allowed) {
       setRateLimitHeaders(res, limit, 30);
       return json(res, 429, { error: 'too_many_requests' });
@@ -190,7 +190,11 @@ module.exports = async (req, res) => {
   if (!UUID.test(visitorKey)) return json(res, 400, { error: 'invalid_browser_key' });
   if (!['resolve', 'save', 'claim', 'track', 'identify'].includes(action)) return json(res, 400, { error: 'unsupported_action' });
   const ip = clientIp(req);
-  const limit = [LIMITS[action](`${visitorKey}:${action}`), NETWORK_LIMITS[action](`${ip}:${action}`)].find((l) => !l.allowed) || { allowed: true };
+  const limits = await Promise.all([
+    LIMITS[action](`${visitorKey}:${action}`),
+    NETWORK_LIMITS[action](`${ip}:${action}`)
+  ]);
+  const limit = limits.find((l) => !l.allowed) || { allowed: true };
   if (action !== 'claim' && BOT_AGENT.test(String((req.headers && req.headers['user-agent']) || ''))) {
     return json(res, 200, { ok: true, tracked: false, bot: true, cart: [] });
   }

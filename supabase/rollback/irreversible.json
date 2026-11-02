@@ -1,0 +1,351 @@
+{
+  "version": 1,
+  "policy": "Each migration must have a same-name rollback or an explicit irreversible record.",
+  "exceptions": [
+    {
+      "migration": "20261003160507_fix_set_updated_at_search_path.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261006055501_add_store_order_requests_and_notifications.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261006055533_add_store_order_request_rpc.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261006055615_add_store_order_notification_reconciliation_rpc.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261006055651_restrict_store_notification_rpc_execution.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261006060018_add_unified_checkout_tracking_number.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261006072008_add_product_distinctiveness_score.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261007030744_store_cancellation_and_cart_restoration.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261007032046_checkout_sessions_and_dashboard_permissions.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261007032140_extend_store_order_statuses_for_dashboards.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261007032332_link_store_requests_to_checkout_sessions.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261007032605_require_authenticated_checkout_requests.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261007223643_catalog_data_integrity_and_ranking.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261008024644_extend_notifications_for_dashboard_realtime.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261008024719_emit_initial_order_dashboard_notifications.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261008024750_allow_platform_notifications_without_user_id.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261008200516_editor_sections_and_items.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261008200525_editor_archive_and_saved_elements.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261009004115_customer_cart_sync.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261009004441_security_and_performance_hardening.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261009004524_restrict_unused_security_definer_rpcs.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261009004732_media_library_editor_columns.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261009004737_site_media_bucket.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261009004852_harden_order_table_write_permissions.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261009010416_add_internal_order_operations_audit.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261009010537_index_internal_order_operation_foreign_keys.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261009010601_consolidate_internal_operations_rls_read_policies.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261009011940_add_webhook_idempotency_and_platform_filters.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261009022438_guest_visitors.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261009024024_auto_guest_capture.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261009230647_harden_order_user_binding_earlier_run.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261010001456_guest_browser_identity_analytics_earlier_run.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261010014304_harden_order_user_binding.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261010014327_guest_browser_identity_analytics.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261011001908_customer_activity_details.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261011012356_store_managed_shipments.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261013014000_harden_anon_grants_rls_initplan_and_order_pricing.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261013014023_guest_analytics_explicit_deny.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261013091458_platform_store_summary_and_customer_rls.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261013101123_product_activity_snapshots.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261013101601_restrict_cart_snapshot_access.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261013104621_store_customer_read_least_privilege.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261013112836_customer_product_rankings.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261013113053_customer_activity_summary_stats_only.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261013113811_private_customer_store_select_server_only.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261014084637_notifications_server_only.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261014093223_platform_customer_detail_product_snapshots.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261014101846_customer_activity_category_views.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261014102019_restrict_customer_activity_view_access.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261014102728_store_integrations_normalized.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261014102847_store_integrations_normalized_idempotent_retry.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261015032124_customer_search_operations.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261016010826_transfer_guest_analytics_on_claim.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261016013630_registered_customer_best_sellers.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261017011522_guest_conversions_and_claim_conversion_record.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261017011533_merge_duplicate_guest_browsers.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261017011558_guest_fingerprint_signals.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261017014836_expire_editor_sections.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261017023202_registered_customer_best_sellers_view.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261017062830_customer_activity_totals_and_guest_cleanup_on_claim.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261018214524_add_registered_customer_best_seller_indexes.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261018215138_track_order_returns_refunds_in_best_sellers.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261018215203_harden_order_adjustment_quantity_integrity.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261018215356_create_store_order_request_from_cart.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261018215409_preserve_cart_item_source_on_order_items.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261018220530_add_store_webhook_inventory_application.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261019105404_guest_fingerprint_retention_fix_owner_rows.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261019163540_archive_expired_editor_sections.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261019222030_remove_duplicate_archive_expired_editor_sections.sql",
+      "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
+      "backupRequired": true
+    }
+  ]
+}

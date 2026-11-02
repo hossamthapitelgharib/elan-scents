@@ -25,6 +25,8 @@ jobs:
           node-version: 22
       - name: Install locked dependencies
         run: npm ci --no-audit --no-fund
+      - name: Verify migration rollback policy
+        run: npm run check:migrations
       - name: Run regression suite and capture report
         shell: bash
         run: |

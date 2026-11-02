@@ -1,9 +1,9 @@
-const { createLimiter, clientIp, setRateLimitHeaders } = require('../lib/rate-limit');
+const { createDistributedLimiter, clientIp, setRateLimitHeaders } = require('../lib/rate-limit');
 
 // The restore token is a random UUID (gen_random_uuid), so anything else can never match a row.
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 // Generous for a person restoring one cart, tight for a script trying tokens. Per IP, per process.
-const limiter = createLimiter({ max: 30, windowMs: 60 * 1000 });
+const limiter = createDistributedLimiter({ name: 'restore-store-order', max: 30, windowMs: 60 * 1000 });
 // A restoration link is valid for 30 days from the cancellation (created_at is NOT NULL, set by the database).
 // Past that the link answers 410 and the customer's phone and email are no longer returned, whatever the status.
 // The age is computed here, so no schema change is needed and the row's status is left untouched.
@@ -25,7 +25,7 @@ module.exports = async function restoreStoreOrder(req, res) {
     reply(res, 405, { ok: false, error: 'method_not_allowed' });
     return;
   }
-  const limit = limiter(clientIp(req));
+  const limit = await limiter(clientIp(req));
   if (!limit.allowed) {
     setRateLimitHeaders(res, limit, 30);
     reply(res, 429, { ok: false, error: 'too_many_requests' });

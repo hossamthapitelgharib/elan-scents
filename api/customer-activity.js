@@ -1,6 +1,6 @@
 const { createHmac } = require('node:crypto');
 const { guestHashSecret } = require('../lib/guest-hash-secret.js');
-const { createLimiter, clientIp, setRateLimitHeaders } = require('../lib/rate-limit');
+const { createDistributedLimiter, clientIp, setRateLimitHeaders } = require('../lib/rate-limit');
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function reply(res, status, body) {
@@ -18,14 +18,14 @@ function client(url, key) {
 // The endpoint is public and every accepted call writes to the database (and, for a signed-in caller, costs one Supabase Auth
 // request). A person browsing sends a few calls a minute; 600 a minute per IP leaves room for many people behind one shared
 // address (mobile carriers, offices) while stopping a script from flooding the tables. Per IP, per process, like the other limits.
-const limiter = createLimiter({ max: 600, windowMs: 60 * 1000 });
+const limiter = createDistributedLimiter({ name: 'customer-activity', max: 600, windowMs: 60 * 1000 });
 
 const BOT_AGENT = /bot\b|crawl|spider|slurp|headless|lighthouse|pagespeed|preview|monitor|uptime|curl\/|wget|python-requests|node-fetch|axios/i;
 
 module.exports = async function customerActivity(req, res) {
   if (req.method !== 'POST') return reply(res, 405, { ok: false, error: 'method_not_allowed' });
   if (String((req.headers && req.headers['sec-fetch-site']) || '') === 'cross-site') return reply(res, 403, { ok: false, error: 'cross_site_not_allowed' });
-  const limit = limiter(clientIp(req));
+  const limit = await limiter(clientIp(req));
   if (!limit.allowed) {
     setRateLimitHeaders(res, limit, 600);
     return reply(res, 429, { ok: false, error: 'too_many_requests' });
