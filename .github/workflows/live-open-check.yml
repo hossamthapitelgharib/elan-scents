@@ -1,0 +1,42 @@
+name: Live opening check
+
+# Measures what a visitor sees while the shop OPENS (scripts/live-open-check.js): on a phone-sized Chromium with the network slowed to 4G
+# and to slow 3G, for a first visit and a repeat visit, how long the screen stays white and when the hero picture is on it, and how the
+# hero picture was fetched. Keeps a few screenshots as the "open-shots" artifact. Run it by hand from the Actions tab (Run workflow).
+# It only opens the public page; it uses no secret.
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: Site address to open
+        default: https://elan-scents.hossamthapitelgharib.workers.dev
+
+permissions:
+  contents: read
+
+jobs:
+  browser:
+    # pinned like the browser job in tests.yml: Playwright 1.56 has no Chromium build for the newer ubuntu-latest image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Playwright
+        run: npm install --no-audit --no-fund
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Watch the live site open
+        env:
+          SITE_URL: ${{ github.event.inputs.url || 'https://elan-scents.hossamthapitelgharib.workers.dev' }}
+        run: node scripts/live-open-check.js "$SITE_URL" open-shots
+      - name: Keep the screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: open-shots
+          path: open-shots
+          if-no-files-found: ignore
