@@ -1,0 +1,83 @@
+/* Opens the real shop in a real Chromium (a phone-sized window), the way a visitor would, and checks the part of the home page under the
+   hero ("سحر الخليج بين يديك" and the three counters) on the home page and on inner pages. Takes screenshots into a folder.
+   Run by the "Live browser check" workflow (GitHub runners can reach the site; the Claude sandbox cannot), or by hand:
+     node scripts/live-browser-check.js [site address] [folder for the screenshots]
+   Exits 1 when something is not as expected. It only reads the public site and clicks; it sends nothing and uses no secret. */
+const fs = require('node:fs');
+const path = require('node:path');
+const { chromium } = require('playwright');
+
+const site = (process.argv[2] || 'https://elan-scents.hossamthapitelgharib.workers.dev').replace(/\/+$/, '') + '/';
+const out = path.resolve(process.argv[3] || 'live-shots');
+const problems = [];
+const say = (m) => console.log(m);
+const expect = (ok, m) => { if (!ok) problems.push(m); say((ok ? 'OK   ' : 'FAIL ') + m); };
+
+/* What a visitor can see of the blocks under the hero right now. */
+const look = () => {
+  const box = (sel) => {
+    const e = document.querySelector(sel);
+    if (!e) return null;
+    const cs = getComputedStyle(e), r = e.getBoundingClientRect();
+    return { shown: cs.display !== 'none' && cs.visibility !== 'hidden' && r.height > 0, top: Math.round(r.top + scrollY), height: Math.round(r.height), text: (e.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 140) };
+  };
+  return { inner: document.body.classList.contains('inner'), htmlClass: document.documentElement.className, hero: box('#hero'), intro: box('#intro'), title: box('#intro h2'), counters: box('#intro .counters'), view: box('#view'), main: box('#main') };
+};
+
+(async () => {
+  fs.mkdirSync(out, { recursive: true });
+  const browser = await chromium.launch();
+  const ctx = await browser.newContext({ viewport: { width: 393, height: 760 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+  const page = await ctx.newPage();
+  const failed = [];
+  page.on('requestfailed', (r) => failed.push(r.url().slice(0, 120) + ' ' + ((r.failure() || {}).errorText || '')));
+  page.on('pageerror', (e) => say('page error: ' + String(e).slice(0, 160)));
+  const shot = (name) => page.screenshot({ path: path.join(out, name + '.png') });
+
+  const started = Date.now();
+  const res = await page.goto(site, { waitUntil: 'load' });
+  expect(res && res.ok(), 'the home page answers (HTTP ' + (res && res.status()) + ')');
+  await page.waitForTimeout(3000);
+  say('opened and settled after ' + (Date.now() - started) + ' ms');
+
+  const home = await page.evaluate(look);
+  say('home: ' + JSON.stringify(home));
+  await shot('1-home-top');
+  expect(home.hero && home.hero.shown, 'the hero is on the home page');
+  expect(home.intro && home.intro.shown, 'the title and counters block is shown on the home page');
+  expect(home.intro && home.hero && home.intro.top >= home.hero.top + home.hero.height - 2, 'it sits under the hero, not over it (starts at ' + (home.intro && home.intro.top) + ', hero ends at ' + (home.hero && home.hero.top + home.hero.height) + ')');
+  expect(home.title && /سحر الخليج بين يديك/.test(home.title.text), 'the title reads «سحر الخليج بين يديك»: «' + (home.title && home.title.text) + '»');
+  expect(home.counters && (home.counters.text.match(/\d+/g) || []).length >= 3, 'the three counters are there: «' + (home.counters && home.counters.text) + '»');
+  await page.evaluate(() => document.getElementById('intro') && document.getElementById('intro').scrollIntoView({ block: 'center' }));
+  await page.waitForTimeout(600);
+  await shot('2-home-intro');
+
+  // Inner pages: open them the way a visitor does (click what has data-go), and look again.
+  const targets = await page.evaluate(() => {
+    const seen = new Set(), list = [];
+    for (const e of document.querySelectorAll('[data-go]')) { const go = e.getAttribute('data-go'); if (!seen.has(go)) { seen.add(go); list.push(go); } }
+    return list.slice(0, 4);
+  });
+  say('inner pages to open: ' + JSON.stringify(targets));
+  expect(targets.length > 0, 'the page has links to inner pages');
+  let n = 3;
+  for (const go of targets) {
+    await page.goto(site, { waitUntil: 'load' });
+    await page.waitForTimeout(1500);
+    const clicked = await page.evaluate((g) => { const e = [...document.querySelectorAll('[data-go]')].find((x) => x.getAttribute('data-go') === g); if (!e) return false; e.scrollIntoView({ block: 'center' }); e.click(); return true; }, go);
+    await page.waitForTimeout(1800);
+    const inner = await page.evaluate(look);
+    say('inner (' + go + '): ' + JSON.stringify(inner));
+    await page.evaluate(() => scrollTo(0, 0));
+    await page.waitForTimeout(500);
+    await shot(n++ + '-inner-' + go.replace(/[^a-z0-9]+/gi, '-'));
+    expect(clicked && inner.inner, 'opening «' + go + '» shows an inner page');
+    expect(inner.intro && !inner.intro.shown, '«' + go + '»: the title and counters are NOT shown above the filters');
+    expect(inner.hero && !inner.hero.shown && inner.main && !inner.main.shown, '«' + go + '»: the hero and the home sections are hidden');
+    expect(inner.view && inner.view.shown, '«' + go + '»: the inner page itself is shown');
+  }
+  if (failed.length) say('requests that failed (' + failed.length + '): ' + failed.slice(0, 6).join(' | '));
+  await browser.close();
+  say(problems.length ? '\n' + problems.length + ' check(s) failed' : '\nall checks passed');
+  process.exit(problems.length ? 1 : 0);
+})().catch((e) => { console.error(e); process.exit(1); });
