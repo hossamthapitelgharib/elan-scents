@@ -11,7 +11,7 @@
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
-    // Keep every address exactly as on Railway: /account.html stays /account.html (no redirect to /account).
+    // Keep canonical paths unchanged: /account.html stays /account.html (no redirect to /account).
     "html_handling": "none",
     "not_found_handling": "none",
     // Only these paths run the Worker first. Everything else is a static file served by Cloudflare without invoking code.

@@ -1,4 +1,4 @@
-/* Élan Scents — one guarded editor API endpoint (served by the Cloudflare Worker; also runs under railway/server.js locally).
+/* Élan Scents — one guarded editor API endpoint (served by the Cloudflare Worker; also runs under backend/server.js locally).
    Admin only. Writes exactly one file (design/home.json) with one commit per save.
    Repo, path and branch come from server configuration, never from the request. */
 const crypto = require('node:crypto');
@@ -6,7 +6,6 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { getContext, requireRoles } = require('../api/_auth');
 const ED = require('../design-schema.js');
-const { DEFAULT_SITE_ORIGIN } = require('../lib/site-origin.js');
 
 const DESIGN_PATH = 'design/home.json';
 const DEFAULT_REPO = 'hossamthapitelgharib/elan-scents';
@@ -26,15 +25,12 @@ function gitBlobSha(text) {
 /* Production writes to main. Non-production environments must target an isolated branch. */
 function config(env) {
   env = env || process.env;
-  const environment = String(env.RAILWAY_ENVIRONMENT_NAME || env.EDITOR_ENV || '').toLowerCase();
+  const environment = String(env.EDITOR_ENV || '').toLowerCase();
   const isProd = environment === 'production';
   const token = typeof env.GITHUB_TOKEN === 'string' ? env.GITHUB_TOKEN.trim() : env.GITHUB_TOKEN;
   const repo = env.GITHUB_REPO || DEFAULT_REPO;
   const branch = env.EDITOR_TARGET_BRANCH || (isProd ? 'main' : env.EDITOR_BRANCH);
-  const host = env.RAILWAY_PUBLIC_DOMAIN;
-  let origin = env.EDITOR_SITE_ORIGIN || (host ? 'https://' + host : '');
-  const selfOrigin = host ? ('https://' + String(host).replace(/^https?:\/\//, '').replace(/\/+$/, '')) : '';
-  if (isProd && selfOrigin && origin.replace(/\/+$/, '') === selfOrigin) origin = DEFAULT_SITE_ORIGIN;
+  const origin = env.EDITOR_SITE_ORIGIN || '';
   const missing = [];
   if (!token) missing.push('GITHUB_TOKEN');
   // A token pasted with a stray space, a quote or a non-Latin letter makes every GitHub request throw, so say so instead of failing later.

@@ -1,4 +1,4 @@
-/* Server-side admin sessions. The browser holds an encrypted, browser-session cookie so a Railway
+/* Server-side admin sessions. The browser holds an encrypted, browser-session cookie so a server
    restart does not strand an already-open editor iframe with a dead in-memory session. */
 const crypto = require('node:crypto');
 const { getContext, requireRoles } = require('../api/_auth.js');

@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const root = path.join(__dirname, '..');
-const sessions = require('../railway/editor-session.js');
+const sessions = require('../backend/editor-session.js');
 
 const response = (status, body) => ({ ok: status >= 200 && status < 300, status, json: async () => body });
 

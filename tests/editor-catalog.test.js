@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const createCatalog = require('../railway/editor-catalog.js');
+const createCatalog = require('../backend/editor-catalog.js');
 
 const id = (n) => '00000000-0000-4000-8000-' + String(n).padStart(12, '0');
 const BRAND_A = id(1);

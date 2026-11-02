@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const tickets = require('../railway/editor-bridge-ticket.js');
+const tickets = require('../backend/editor-bridge-ticket.js');
 
 const env = {
   SUPABASE_SERVICE_ROLE_KEY: 'test-only-signing-secret',
@@ -36,12 +36,13 @@ test('a ticket cannot be issued without a server-only signing secret or a valid 
   assert.equal(tickets.verify('not-a-ticket', env), null);
 });
 
-test('editor and storefront are one origin: with nothing configured both are the Cloudflare site, never a Railway address', () => {
+test('editor and storefront use the canonical site origin when no origin is configured', () => {
   const { DEFAULT_SITE_ORIGIN } = require('../lib/site-origin.js');
   assert.match(DEFAULT_SITE_ORIGIN, /^https:\/\/[a-z0-9.-]+\.workers\.dev$/);
   assert.equal(tickets.storeOrigin({}), DEFAULT_SITE_ORIGIN);
   assert.equal(tickets.editorOrigin({}), DEFAULT_SITE_ORIGIN);
-  assert.ok(!/railway/i.test(tickets.storeOrigin({}) + tickets.editorOrigin({})));
+  assert.match(tickets.storeOrigin({}), /^https:\/\//);
+  assert.equal(tickets.editorOrigin({}), tickets.storeOrigin({}));
 });
 
 test('a ticket round-trips when only the site origin is set (what the Worker sets from the address a visitor used)', () => {

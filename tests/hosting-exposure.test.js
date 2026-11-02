@@ -1,9 +1,9 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const server = require('../railway/server.js');
+const server = require('../backend/server.js');
 const listen = () => new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server.address().port)));
 
-test('railway host does not serve server-side code or internal reports, but still serves the design file', async () => {
+test('backend host does not serve server-side code or internal reports, but still serves the design file', async () => {
   const port = await listen();
   const base = `http://127.0.0.1:${port}`;
   try {

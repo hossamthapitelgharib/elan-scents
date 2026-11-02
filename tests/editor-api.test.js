@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const handler = require('../railway/editor.js');
+const handler = require('../backend/editor.js');
 const ED = require('../design-schema.js');
 
 const { gitBlobSha } = handler.internals;
@@ -43,7 +43,7 @@ async function run({ method = 'POST', body, query, role = 'platform_admin', toke
   const savedEnv = {};
   const e = envFor(env);
   Object.keys(e).forEach((k) => { savedEnv[k] = process.env[k]; process.env[k] = e[k]; });
-  ['GITHUB_TOKEN', 'RAILWAY_ENVIRONMENT_NAME', 'RAILWAY_PUBLIC_DOMAIN', 'EDITOR_ENV', 'EDITOR_TARGET_BRANCH', 'EDITOR_BRANCH', 'EDITOR_SITE_ORIGIN', 'EDITOR_ALLOW_MAIN_FROM_NONPROD'].forEach((k) => { if (!(k in e)) { savedEnv[k] = process.env[k]; delete process.env[k]; } });
+  ['GITHUB_TOKEN', 'EDITOR_ENV', 'EDITOR_TARGET_BRANCH', 'EDITOR_BRANCH', 'EDITOR_SITE_ORIGIN', 'EDITOR_ALLOW_MAIN_FROM_NONPROD'].forEach((k) => { if (!(k in e)) { savedEnv[k] = process.env[k]; delete process.env[k]; } });
   const realFetch = global.fetch;
   const siteCalls = [];
   global.fetch = async (url, opts) => {
@@ -67,10 +67,10 @@ async function run({ method = 'POST', body, query, role = 'platform_admin', toke
 const goodDesign = () => ({ version: 1, sections: { offers: { hidden: true } }, order: [], blocks: [], texts: {} });
 const saveBody = (over) => Object.assign({ action: 'save', design: goodDesign(), expectedRevision: gitBlobSha(EMPTY), requestId: 'req-12345678' }, over || {});
 
-test('the editor handler is hosted by the Railway API adapter', () => {
+test('the editor handler is hosted by the shared backend API adapter', () => {
   const files = fs.readdirSync(path.join(__dirname, '..', 'api'));
   assert.ok(!files.includes('editor.js'));
-  assert.ok(fs.existsSync(path.join(__dirname, '..', 'railway', 'editor.js')));
+  assert.ok(fs.existsSync(path.join(__dirname, '..', 'backend', 'editor.js')));
 });
 
 test('git blob hashing matches git itself', () => {
@@ -119,7 +119,7 @@ test('non-production environments cannot write main, while production targets ma
   const bad = await run({ method: 'GET', env: { EDITOR_ENV: 'staging', EDITOR_TARGET_BRANCH: 'main' }, github: gh });
   assert.equal(bad.res.statusCode, 503);
   assert.equal(bad.res.body.error, 'main_branch_requires_production');
-  const prod = await run({ method: 'GET', env: { RAILWAY_ENVIRONMENT_NAME: 'production', EDITOR_TARGET_BRANCH: '', EDITOR_SITE_ORIGIN: 'https://elan.example.test' }, github: gh });
+  const prod = await run({ method: 'GET', env: { EDITOR_ENV: 'production', EDITOR_TARGET_BRANCH: '', EDITOR_SITE_ORIGIN: 'https://elan.example.test' }, github: gh });
   assert.equal(prod.res.statusCode, 200);
   assert.equal(prod.res.body.branch, 'main');
   const preview = await run({ method: 'GET', github: gh });

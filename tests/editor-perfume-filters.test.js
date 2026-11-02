@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const editorData = require('../railway/editor-data.js');
+const editorData = require('../backend/editor-data.js');
 
 const id = (n) => '00000000-0000-4000-8000-' + String(n).padStart(12, '0');
 const STORE_1 = id(11);

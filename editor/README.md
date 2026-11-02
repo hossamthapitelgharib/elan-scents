@@ -11,9 +11,9 @@ The live editor runs **on the same Cloudflare Worker and the same origin as the 
 | `editor/editor-login.css` | Login styles |
 | `editor/elan-editor.html` | Editor UI (only after admin session) |
 | `editor/editor-guard.js` | Logout + session check inside the editor page |
-| `railway/editor-host.js` | Gates `/editor`, login assets, CSP |
-| `railway/editor-session.js` | Admin sessions: encrypted browser-session cookie (sliding idle timeout, renewed on use) |
-| `railway/editor.js` | `/api/editor` — reads/writes `design/home.json` on GitHub |
+| `backend/editor-host.js` | Gates `/editor`, login assets, CSP |
+| `backend/editor-session.js` | Admin sessions: encrypted browser-session cookie (sliding idle timeout, renewed on use) |
+| `backend/editor.js` | `/api/editor` — reads/writes `design/home.json` on GitHub |
 
 ## Storefront design layer (customers + iframe preview)
 
@@ -30,7 +30,7 @@ The live editor runs **on the same Cloudflare Worker and the same origin as the 
 ## Removed from repo root (do not reintroduce)
 
 - `editor.html` — localStorage prototype, not production
-- root `editor.js` — old form UI (API is `railway/editor.js`)
+- root `editor.js` — old form UI (API is `backend/editor.js`)
 - root `editor-login.js` — duplicate of `editor/editor-login.js`
 - `edit-host.js` — superseded by `edit-mode.js` (recoverable from git history)
 
@@ -73,9 +73,9 @@ Menu → **رفع صورة أو فيديو داخل العناصر أو الهي
 
 A video on the page plays by itself, muted and looping, inline (browsers refuse sound without a tap). Undo restores what was there before. Videos from the bucket are allowed in the public pages' policy (`media-src` in `vercel.json`); a new video host would need to be added there too.
 
-**How a video is uploaded.** (1) The picker asks `POST /api/editor-upload-sign` (`{type, size}`); the server picks the file name and asks Supabase Storage for a one-time signed upload address, as the admin's own session (no service key). (2) The picker `PUT`s the file (a form with `cacheControl` and the file, the same request `supabase-js` `uploadToSignedUrl` sends) to that address with the public anon key, and shows the progress. (3) The picker calls `POST /api/editor-upload-done` (`{path, type, name}`); the server fetches `bytes=0-255` of the public file, checks the signature and the real size, then inserts the `media_library` row. The editor page's policy allows `connect-src` to the Supabase origin for this (`railway/editor-host.js`); the Worker only handles small JSON. Pictures are small and keep going through the server.
+**How a video is uploaded.** (1) The picker asks `POST /api/editor-upload-sign` (`{type, size}`); the server picks the file name and asks Supabase Storage for a one-time signed upload address, as the admin's own session (no service key). (2) The picker `PUT`s the file (a form with `cacheControl` and the file, the same request `supabase-js` `uploadToSignedUrl` sends) to that address with the public anon key, and shows the progress. (3) The picker calls `POST /api/editor-upload-done` (`{path, type, name}`); the server fetches `bytes=0-255` of the public file, checks the signature and the real size, then inserts the `media_library` row. The editor page's policy allows `connect-src` to the Supabase origin for this (`backend/editor-host.js`); the Worker only handles small JSON. Pictures are small and keep going through the server.
 
-**Limits and types are the bucket's, not the Worker's.** The server's `MAX_VIDEO_BYTES` (`railway/editor-media.js`) mirrors the bucket's 50 MB so the answer comes early with a clear message. To allow bigger videos raise the bucket limit in Supabase (the project's global storage limit also applies and depends on the plan), then that constant and the 50 in `editor/editor-media.js`. To allow another video type (for example `video/quicktime`) add it to the bucket's allowed MIME types, to `VIDEO_TYPES` and `looksLike` in the server file, and test that browsers can play it: MP4 (H.264) and WebM are the only two every browser plays; a phone's `.mov` is often HEVC, which Chrome and Firefox do not play.
+**Limits and types are the bucket's, not the Worker's.** The server's `MAX_VIDEO_BYTES` (`backend/editor-media.js`) mirrors the bucket's 50 MB so the answer comes early with a clear message. To allow bigger videos raise the bucket limit in Supabase (the project's global storage limit also applies and depends on the plan), then that constant and the 50 in `editor/editor-media.js`. To allow another video type (for example `video/quicktime`) add it to the bucket's allowed MIME types, to `VIDEO_TYPES` and `looksLike` in the server file, and test that browsers can play it: MP4 (H.264) and WebM are the only two every browser plays; a phone's `.mov` is often HEVC, which Chrome and Firefox do not play.
 
 ### The white base and one picture or video at a time (owner's rule, 2026-10-28)
 

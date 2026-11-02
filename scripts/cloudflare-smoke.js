@@ -84,7 +84,7 @@ async function main() {
     const json = await get('/design/home.json');
     check('design/home.json is served', json.status === 200 && JSON.parse(await json.text()).version >= 1);
 
-    for (const p of ['/package.json', '/railway/server.js', '/lib/secure.js', '/api/_auth.js', '/editor/elan-editor.html', '/server.js', '/wrangler.jsonc', '/CLAUDE.md']) {
+    for (const p of ['/package.json', '/backend/server.js', '/lib/secure.js', '/api/_auth.js', '/editor/elan-editor.html', '/server.js', '/wrangler.jsonc', '/CLAUDE.md']) {
       const r = await get(p);
       check('blocked: ' + p, r.status === 404, r.status);
       await r.arrayBuffer();

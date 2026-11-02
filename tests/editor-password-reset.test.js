@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const sessions = require('../railway/editor-session.js');
+const sessions = require('../backend/editor-session.js');
 const root = path.join(__dirname, '..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 
@@ -141,7 +141,7 @@ const SITE = 'https://storefront.example.test/';
 function startServer() {
   for (const name of ['GITHUB_TOKEN', 'GH_TOKEN', 'EDITOR_TARGET_BRANCH', 'EDITOR_BRANCH', 'EDITOR_ENV']) delete process.env[name];
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'service'; process.env.EDITOR_SITE_ORIGIN = SITE;
-  const server = require('../railway/server.js');
+  const server = require('../backend/server.js');
   return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server)));
 }
 const at = (s, p) => 'http://127.0.0.1:' + s.address().port + p;
@@ -235,5 +235,5 @@ test('a recovery link that lands on the login page is passed on to the reset pag
 test('the Cloudflare bundle carries the two new private editor files, and no secret is in them', () => {
   const build = read('scripts/build-cloudflare.js');
   assert.match(build, /'reset\.html', 'editor-reset\.js'/);
-  for (const file of ['editor/reset.html', 'editor/editor-reset.js', 'railway/editor-session.js']) assert.doesNotMatch(read(file), /service_role|SERVICE_ROLE_KEY=|eyJ[A-Za-z0-9_-]{20,}\./, file);
+  for (const file of ['editor/reset.html', 'editor/editor-reset.js', 'backend/editor-session.js']) assert.doesNotMatch(read(file), /service_role|SERVICE_ROLE_KEY=|eyJ[A-Za-z0-9_-]{20,}\./, file);
 });

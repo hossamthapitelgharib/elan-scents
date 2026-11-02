@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const editorData = require('../railway/editor-data.js');
+const editorData = require('../backend/editor-data.js');
 const fs = require('node:fs');
 const path = require('node:path');
 const root = path.resolve(__dirname, '..');
@@ -134,8 +134,8 @@ test('cloud library reads are authenticated and merges are revision-checked and 
 
 test('live editor library connects to cloud data read-only and never saves or publishes the page on load', () => {
   const ui = read('editor/editor-live-library.js');
-  const host = read('railway/editor-host.js');
-  const server = read('railway/server.js');
+  const host = read('backend/editor-host.js');
+  const server = read('backend/server.js');
   const editMode = read('edit-mode.js');
   assert.match(host, /editor-live-library\.js\?v=/);
   assert.match(server, /'editor-live-library\.js'/);

@@ -1,6 +1,6 @@
 /* Owner's 2026-10-30 library round: the library window has the twelve section tabs, an explicit "load from Supabase" button and an explicit
    "sync changes" button, and the old browser-only library moves to the cloud safely (merge only, read back to confirm, never delete the local
-   copy by itself). The model runs for real here, and the transfer runs against the REAL server handler (railway/editor-data.js) with a fake
+   copy by itself). The model runs for real here, and the transfer runs against the REAL server handler (backend/editor-data.js) with a fake
    Supabase, so what the browser sends is what the server accepts. */
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -8,7 +8,7 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const editorData = require('../railway/editor-data.js');
+const editorData = require('../backend/editor-data.js');
 
 const source = fs.readFileSync(path.join(__dirname, '..', 'editor', 'editor-live-library.js'), 'utf8');
 const win = {};

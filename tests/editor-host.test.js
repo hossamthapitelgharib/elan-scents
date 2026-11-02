@@ -8,12 +8,12 @@ const root = path.resolve(__dirname, '..');
 const SB = 'https://sb.example.test';
 function env() {
   // These tests describe an editor that is NOT configured for GitHub; a developer's real GITHUB_TOKEN (or a CI one) must not leak in.
-  for (const name of ['GITHUB_TOKEN', 'GH_TOKEN', 'EDITOR_TARGET_BRANCH', 'EDITOR_BRANCH', 'RAILWAY_ENVIRONMENT_NAME', 'EDITOR_ENV']) delete process.env[name];
+  for (const name of ['GITHUB_TOKEN', 'GH_TOKEN', 'EDITOR_TARGET_BRANCH', 'EDITOR_BRANCH', 'EDITOR_ENV']) delete process.env[name];
   process.env.SUPABASE_URL = SB; process.env.SUPABASE_ANON_KEY = 'anon'; process.env.SUPABASE_SERVICE_ROLE_KEY = 'service';
   process.env.EDITOR_SITE_ORIGIN = 'https://storefront.example.test/';
 }
 function start() {
-  const server = require('../railway/server.js');
+  const server = require('../backend/server.js');
   return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server)));
 }
 function fakeSupabase(role) {
@@ -34,16 +34,14 @@ const url = (s, p) => 'http://127.0.0.1:' + s.address().port + p;
 const post = (s, p, body, headers) => fetch(url(s, p), { method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, headers || {}), body: JSON.stringify(body) });
 const cookieOf = (r) => (r.headers.get('set-cookie') || '').split(';')[0];
 
-test('the editor preview never defaults to the editor service itself as the storefront', () => {
-  const host = require('../railway/editor-host.js');
-  const previous = { origin: process.env.EDITOR_SITE_ORIGIN, domain: process.env.RAILWAY_PUBLIC_DOMAIN };
+test('the editor preview uses its configured origin or the canonical site origin', () => {
+  const host = require('../backend/editor-host.js');
+  const previous = process.env.EDITOR_SITE_ORIGIN;
+  delete process.env.EDITOR_SITE_ORIGIN;
+  assert.equal(host.editorSiteOrigin(), require('../lib/site-origin.js').DEFAULT_SITE_ORIGIN);
   process.env.EDITOR_SITE_ORIGIN = 'https://editor.example.test';
-  process.env.RAILWAY_PUBLIC_DOMAIN = 'editor.example.test';
-  try { assert.equal(host.editorSiteOrigin(), require('../lib/site-origin.js').DEFAULT_SITE_ORIGIN); }
-  finally {
-    if (previous.origin === undefined) delete process.env.EDITOR_SITE_ORIGIN; else process.env.EDITOR_SITE_ORIGIN = previous.origin;
-    if (previous.domain === undefined) delete process.env.RAILWAY_PUBLIC_DOMAIN; else process.env.RAILWAY_PUBLIC_DOMAIN = previous.domain;
-  }
+  try { assert.equal(host.editorSiteOrigin(), 'https://editor.example.test'); }
+  finally { if (previous === undefined) delete process.env.EDITOR_SITE_ORIGIN; else process.env.EDITOR_SITE_ORIGIN = previous; }
 });
 
 test('the owner editor page is private: anonymous visitors only ever get the login page', async () => {
@@ -91,7 +89,7 @@ test('only an admin can log in; the session is a browser-session cookie and logo
     assert.equal(ticketResponse.status, 200);
     assert.equal(issued.ok, true);
     assert.ok(issued.ticket);
-    const bridgeClaims = require('../railway/editor-bridge-ticket.js').verify(issued.ticket);
+    const bridgeClaims = require('../backend/editor-bridge-ticket.js').verify(issued.ticket);
     assert.equal(bridgeClaims.aud, 'https://storefront.example.test');
     assert.equal(bridgeClaims.role, 'platform_admin');
     assert.equal((await fetch(url(s, '/api/editor-session'), { headers: { 'x-elan-editor-ticket': issued.ticket } })).status, 200);

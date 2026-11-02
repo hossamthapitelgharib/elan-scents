@@ -18,7 +18,7 @@
 | إنشاء حساب وتسجيل الدخول من المتجر | `app-core.js` (`authSubmit`) |
 | دخول صفحة «طلباتي» وكل لوحات الإدارة | `portal.js` (`Portal.login`) |
 | «نسيت كلمة المرور» في صفحة الحساب | `account.js` |
-| دخول المحرر و«نسيت كلمة السر» فيه | `editor/editor-login.js` ثم `railway/editor-session.js` |
+| دخول المحرر و«نسيت كلمة السر» فيه | `editor/editor-login.js` ثم `backend/editor-session.js` |
 
 الأساس كله `turnstile.js`. اختباره في `tests/turnstile.test.js`.
 

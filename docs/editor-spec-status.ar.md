@@ -10,10 +10,10 @@
 
 | البند | الحالة | الدليل |
 |---|---|---|
-| المحرر والموقع على أصل واحد، مستودع واحد، بلا خدمة محرر منفصلة | ✅ | القرار الأحدث (Cloudflare بدل Railway)؛ `editor/README.md` |
-| التصميم في GitHub (`design/home.json`) والسجلات في Supabase | ✅ | `railway/editor.js`، `railway/editor-data.js` |
+| المحرر والموقع على أصل واحد، مستودع واحد، بلا خدمة محرر منفصلة | ✅ | Cloudflare Worker واحد؛ `editor/README.md` |
+| التصميم في GitHub (`design/home.json`) والسجلات في Supabase | ✅ | `backend/editor.js`، `backend/editor-data.js` |
 | الصندوق معزول: لا تحليلات ولا سلة ولا كتابة على الإنتاج | ✅ | `tests/editor-preview-isolation.test.js` |
-| خط الحفظ: سجلات Supabase أولًا ← commit واحد ← فحص الإصدار المتوقع ← `requestId` لمنع التكرار ← «تم النشر» عندما تقدّم الصفحة الحية الملف نفسه بالبايت | ✅ | `railway/editor.js` (`expectedRevision`, `requestId`, `published`)؛ `tests/editor-api.test.js` |
+| خط الحفظ: سجلات Supabase أولًا ← commit واحد ← فحص الإصدار المتوقع ← `requestId` لمنع التكرار ← «تم النشر» عندما تقدّم الصفحة الحية الملف نفسه بالبايت | ✅ | `backend/editor.js` (`expectedRevision`, `requestId`, `published`)؛ `tests/editor-api.test.js` |
 | فشل الحفظ لا يمسح المسودة ولا يغيّر المنشور | ✅ | `tests/editor-guard.test.js` |
 | مؤشر النشر (رفع على GitHub ← نشر على الموقع ← تحميل النسخة الجديدة) | ✅ | ظاهر في Chromium |
 | **زر «تحديث»** (يتأكد من النشر ويعيد تحميل الصندوق) | ❌ | الزر موجود في `editor/elan-editor.html` (`refreshBtn`) لكنه **مخفي**: الشريط `liveTools` أُخفي في `d9d37b7` لإزالة التكرار مع الشريط العلوي فاختفى معه. التحديث التلقائي بعد الحفظ يعمل (`8238f2e`) |
@@ -76,11 +76,11 @@
 
 | البند | الحالة | الدليل |
 |---|---|---|
-| مكتبة مركزية على Supabase: الميديا، العناصر المحفوظة، الأرشيف الكامل (العنصر بتصميمه ومحتواه) | ✅ | `railway/editor-data.js`؛ `editor/editor-live-library.js`؛ `tests/editor-library.test.js` |
+| مكتبة مركزية على Supabase: الميديا، العناصر المحفوظة، الأرشيف الكامل (العنصر بتصميمه ومحتواه) | ✅ | `backend/editor-data.js`؛ `editor/editor-live-library.js`؛ `tests/editor-library.test.js` |
 | استعادة عنصر من الأرشيف | ✅ | `editor-live-library.js` (`archive.restore`) |
 | الملفات في Storage والتصميم يحمل روابطها فقط | ✅ | صور عبر `/api/editor-upload`، وفيديو مباشرة إلى Storage |
 | الرفع من الجهاز (صور 10 ميجا، فيديو 50 ميجا) | ✅ | `tests/editor-media.test.js`، `tests/editor-direct-upload.test.js`. **الرفع الحقيقي للفيديو على Supabase لم يُجرَّب** (بند مفتوح في `handoff.ar.md`) |
-| ~~توليد صور أو فيديو بالذكاء الاصطناعي~~ **أُلغي بطلب المالك (2026-11-02)** | — | حُذف كله: مسارات الخادم و`railway/editor-ai.js` وتبويب الذكاء الاصطناعي في نافذة الوسائط وزر «إضافة من الذكاء الاصطناعي» في المكتبة؛ ولا يعود إلا بطلب جديد منه |
+| ~~توليد صور أو فيديو بالذكاء الاصطناعي~~ **أُلغي بطلب المالك (2026-11-02)** | — | حُذف كله: مسارات الخادم و`backend/editor-ai.js` وتبويب الذكاء الاصطناعي في نافذة الوسائط وزر «إضافة من الذكاء الاصطناعي» في المكتبة؛ ولا يعود إلا بطلب جديد منه |
 | قاعدة «ميديا واحدة فقط» والخلفية البيضاء للهيرو | ✅ | قرار المالك 2026-10-28؛ `tests/editor-white-base.test.js` |
 | تصنيفات المكتبة (12 قسمًا: سيكشن، براند، متجر، عطر، بانر، نص، هيرو، صورة، فيديو، مناسبة، نوتة عطرية، كتلة نصية، وقسم «أخرى» يظهر عند الحاجة) | ✅ | نافذة المكتبة على تصميم الملف الأصلي (تبويبان: العناصر المحذوفة / الميديا والعناصر المحفوظة، وأزرار الأقسام بعدّاداتها)؛ `tests/browser/panels.chromium.js` تقارنها بالأصل في Chromium حقيقي |
 | أزرار «تحميل المكتبة من سابابيس» و«مزامنة التغييرات» | ✅ | `editor/editor-live-library.js`؛ `tests/editor-library-sections.test.js` |

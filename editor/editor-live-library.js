@@ -57,7 +57,7 @@
   function bounded(value, fallback, max) { return String(value == null ? fallback : value).trim().slice(0, max); }
   function plainObject(value) { return !!value && typeof value === 'object' && !Array.isArray(value); }
 
-  /* The row the server stores for a saved element / archived element (mirrors normalizeSaved / normalizeArchive in railway/editor-data.js). */
+  /* The row the server stores for a saved element / archived element (mirrors normalizeSaved / normalizeArchive in backend/editor-data.js). */
   function savedRow(item) {
     return { name: bounded(item.name || item.id, 'عنصر', 300) || 'عنصر', kind: bounded(item.kind, 'element', 80) || 'element', category: item.category == null ? null : (bounded(item.category, '', 100) || null), payload: plainObject(item.payload) ? item.payload : item };
   }

@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const editorData = require('../railway/editor-data.js');
+const editorData = require('../backend/editor-data.js');
 
 const PRODUCT_ID = '10000000-0000-4000-8000-000000000001';
 const SIZE_ID = '20000000-0000-4000-8000-000000000002';

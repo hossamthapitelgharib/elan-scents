@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const server = require('../railway/server.js');
+const server = require('../backend/server.js');
 const listen = () => new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server.address().port)));
 
 test('EDITOR_ROOT_REDIRECT=1 sends the root of the editor service to /editor; the storefront is unchanged otherwise', async () => {

@@ -6,7 +6,7 @@
 -- missing policy would have been an open door. An attack test (tests/rls-attack-surface.test.sql) found no hole today;
 -- this migration makes sure one future mistake cannot become one.
 --
--- Who writes these tables: only the server (service_role through api/*.js and railway/*.js) and SECURITY DEFINER
+-- Who writes these tables: only the server (service_role through api/*.js and backend/*.js) and SECURITY DEFINER
 -- functions (handle_new_user, platform_link_store_account, refresh_product_rating, ...). Neither is affected by this.
 -- The browser writes exactly: cart_items (own rows), the checked RPCs, and (customer-owned rows) favorites, reviews,
 -- contact_messages and analytics_events; stores write their own store_products and offers; the owner's editor session

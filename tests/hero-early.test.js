@@ -375,7 +375,7 @@ test('the Cloudflare build writes the hero picture into the storefront page, so 
     assert.ok(page.includes('<!--hero-first-->') && page.startsWith('<!DOCTYPE html>\n<html lang="ar" dir="rtl" class="hero-img">'));
     assert.equal(build.withoutHeroFirstPaint(page), index);
     for (const other of ['privacy.html', 'account.html']) if (fs.existsSync(path.join(out, other))) assert.doesNotMatch(fs.readFileSync(path.join(out, other), 'utf8'), /hero-first/, other);
-    assert.doesNotMatch(index, /hero-first/, 'the source page stays as the editor and Railway serve it');
+    assert.doesNotMatch(index, /hero-first/, 'the source page stays as the editor and the local test server serve it');
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
