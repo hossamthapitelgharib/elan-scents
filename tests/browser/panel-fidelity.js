@@ -37,11 +37,14 @@ function describePanel(arg) {
   return out;
 }
 
-/* compare(live, golden, tolerance, drop, looseText): `drop(entry)` lists original elements that were deleted on purpose (the AI button);
+/* The letters' own width depends on the Arabic font a machine has (the original was captured here, CI runs on another image), so the left
+   edge and width of elements that shrink to their text may differ by a few pixels between machines: x and w get 4px, y and h 2px.
+   compare(live, golden, tolerance, drop, looseText): `drop(entry)` lists original elements that were deleted on purpose (the AI button);
    `looseText` lists texts that depend on the element being edited (the sample line), which are compared by box only.
    Wording the live library says differently on purpose (its title and its connection line) is compared by box only, and a
    short hint under the upload button may take a different number of lines: whatever follows it is moved by the difference. */
 function compare(live, golden, tolerance, drop, looseText) {
+  const tol = typeof tolerance === 'number' ? { x: tolerance, y: tolerance, w: tolerance, h: tolerance } : tolerance;
   const problems = [];
   const orig = golden.filter((e) => !(drop && drop(e)));
   const hint = (list) => list.findIndex((e) => e.tag === 'small');
@@ -57,7 +60,7 @@ function compare(live, golden, tolerance, drop, looseText) {
     if (!ownWords && a.text !== b.text) problems.push(name + ': text "' + a.text + '"');
     const want = { x: b.x, y: b.y + (after ? dy : 0), w: b.w, h: b.h + (i === 0 ? dy : 0) };
     if (a.tag === 'small') { want.h = a.h; }
-    ['x', 'y', 'w', 'h'].forEach((k) => { if (Math.abs(a[k] - want[k]) > tolerance) problems.push(name + ': ' + k + ' ' + a[k] + ' (original ' + want[k] + ')'); });
+    ['x', 'y', 'w', 'h'].forEach((k) => { if (Math.abs(a[k] - want[k]) > tol[k]) problems.push(name + ': ' + k + ' ' + a[k] + ' (original ' + want[k] + ')'); });
     Object.keys(b.style).forEach((k) => { if (i === 0 && /^margin/.test(k)) return;   // a dialog's auto margins only centre it, whatever its height
       if (a.style[k] !== b.style[k]) problems.push(name + ': ' + k + ' ' + a.style[k] + ' (original ' + b.style[k] + ')'); });
   }

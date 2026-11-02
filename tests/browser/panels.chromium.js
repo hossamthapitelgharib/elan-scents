@@ -74,7 +74,7 @@ const shape = (page, selector) => page.evaluate(F.describePanel, { selector, pro
 const isAi = (e) => /الذكاء الاصطناعي/.test(e.text);
 function same(live, name, drop, looseText) {
   assert.ok(live, name + ' is open');
-  const problems = F.compare(live, golden.panels[name], 1, drop, looseText);
+  const problems = F.compare(live, golden.panels[name], { x: 4, w: 4, y: 2, h: 2 }, drop, looseText);
   assert.deepEqual(problems.slice(0, 12), [], name + ' differs from the original in ' + problems.length + ' places');
 }
 
