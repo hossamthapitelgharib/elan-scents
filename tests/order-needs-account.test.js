@@ -24,7 +24,7 @@ test('the sign-up and login forms carry the "an account is needed to order" mess
 
 test('the waiting order is forgotten when the visitor closes the sheet or goes elsewhere, so no later login jumps to an order form', () => {
   assert.match(core, /function closeSheet\(\)\{PENDING_STORE='';/);
-  assert.match(core, /function sheet\(k\)\{var t=T\(\),f=k=='login'\|\|k=='signup';if\(!f\)PENDING_STORE='';/);
+  assert.match(core, /function sheet\(k\)\{var t=T\(\),f=k=='login'\|\|k=='signup'\|\|k=='forgot';if\(!f\)PENDING_STORE='';/);
 });
 
 test('after signing up or in, the visitor is taken to the order form of the store they chose', () => {

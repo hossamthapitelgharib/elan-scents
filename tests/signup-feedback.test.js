@@ -80,11 +80,11 @@ test('sign-up that began from «execute order» goes on to the store order form,
   assert.equal(s.log.closed, 0);
 });
 
-test('sign-in is unchanged: no sign-up message, the cart sheet opens', async () => {
+test('sign-in is unchanged apart from the welcome: no sign-up message, the cart sheet opens', async () => {
   const s = shop({ access_token: 'a' });
   s.submit(s.form('login'));
   await settle();
-  assert.deepEqual(s.log.toasts, []);
+  assert.deepEqual(s.log.toasts, ['أهلًا ومرحبًا بك ونتمنى لك رحلة تسويقية ممتعة'], 'the welcome of tests/login-logout-messages.test.js, not «registered»');
   assert.deepEqual(s.log.sheets, ['cart']);
   assert.equal(s.log.closed, 0);
 });
@@ -236,7 +236,7 @@ test('ordinary addresses are not touched: menu anchors, a recovery link and an e
 });
 
 test('the page starts the check when it loads, and the editor preview never does', () => {
-  assert.match(CORE, /render\(\);cartBadge\(\);readConfirmLink\(\);loadData\(\);/);
+  assert.match(CORE, /render\(\);cartBadge\(\);showFlash\(\);readConfirmLink\(\);loadData\(\);/);
   const c = confirmPage(LINK);
   c.context.ELAN_EDITOR_PREVIEW = true;
   return c.run().then((result) => { assert.equal(result, false); assert.equal(c.log.fetched.length, 0); });
