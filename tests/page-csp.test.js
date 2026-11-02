@@ -1,5 +1,5 @@
 /* Content-Security-Policy of the public pages (storefront and the account / dashboard pages).
-   The policy is a header rule in vercel.json, the single source that backend/server.js and the Cloudflare _headers file are both built
+   The policy is a header rule in vercel.json, the single source that railway/server.js and the Cloudflare _headers file are both built
    from. It only works because no page carries inline code: these tests keep it that way, and keep the policy itself tight and in step
    with the Supabase address the Worker is configured with. */
 const test = require('node:test');
@@ -12,7 +12,7 @@ const vm = require('node:vm');
 const root = path.resolve(__dirname, '..');
 const read = (name) => fs.readFileSync(path.join(root, name), 'utf8');
 const vercel = JSON.parse(read('vercel.json'));
-const server = require('../backend/server.js');
+const server = require('../railway/server.js');
 
 const PAGES = fs.readdirSync(root).filter((f) => f.endsWith('.html')).sort();
 

@@ -1,10 +1,10 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const server = require('../backend/server.js');
+const server = require('../railway/server.js');
 
 function listen() { return new Promise((r) => server.listen(0, '127.0.0.1', () => r(server.address().port))); }
 
-test('backend host serves the storefront, API routes, rewrites and blocks private files', async () => {
+test('railway host serves the storefront, API routes, rewrites and blocks private files', async () => {
   const port = await listen();
   const base = 'http://127.0.0.1:' + port;
   try {
@@ -26,7 +26,7 @@ test('backend host serves the storefront, API routes, rewrites and blocks privat
     const b = await fetch(base + '/api/store-order-status', { method: 'POST', body: '{}', headers: { 'content-type': 'application/json' } });
     assert.equal(a.status, b.status);
 
-    for (const p of ['/package.json', '/api/_auth.js', '/tests/regression.test.js', '/backend/server.js', '/supabase/migrations', '/CLAUDE.md', '/.git/config', '/%2e%2e/etc/passwd']) {
+    for (const p of ['/package.json', '/api/_auth.js', '/tests/regression.test.js', '/railway/server.js', '/supabase/migrations', '/CLAUDE.md', '/.git/config', '/%2e%2e/etc/passwd']) {
       assert.equal((await fetch(base + p)).status, 404, p);
     }
     const bad = await fetch(base + '/api/guest-cart', { method: 'POST', body: '{oops', headers: { 'content-type': 'application/json' } });
@@ -34,7 +34,7 @@ test('backend host serves the storefront, API routes, rewrites and blocks privat
   } finally { server.close(); }
 });
 
-test('backend host supports byte ranges for the hero video', async () => {
+test('railway host supports byte ranges for the hero video', async () => {
   const s = require('http').createServer(server.listeners('request')[0]);
   await new Promise((r) => s.listen(0, '127.0.0.1', r));
   try {

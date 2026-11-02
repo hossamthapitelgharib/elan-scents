@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const ED = require('../design-schema.js');
-const media = require('../backend/editor-media.js');
+const media = require('../railway/editor-media.js');
 const { editBrowser, plain, read } = require('./browser-fixture');
 
 // The live editor handles pictures (up to 10 MB) and videos (MP4 or WebM, up to the bucket's 50 MB, uploaded straight to storage). Both live in the site-media bucket.

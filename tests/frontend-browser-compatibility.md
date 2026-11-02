@@ -5,7 +5,7 @@
 
 ## Historical result
 
-The historical production site returned the same HTML and static asset references for Chrome on Windows, Safari on macOS, Firefox on Ubuntu, and Googlebot. The measured HTML SHA-256 began `0fa745b7f3997af6...`. At that time the referenced hero asset was `/assets/hero.mp4`.
+The historical Railway site returned the same HTML and static asset references for Chrome on Windows, Safari on macOS, Firefox on Ubuntu, and Googlebot. The measured HTML SHA-256 began `0fa745b7f3997af6...`. At that time the referenced hero asset was `/assets/hero.mp4`.
 
 This is a historical baseline from before the current single-Worker Cloudflare deployment. It does not verify the current deployment. Current checks use the Cloudflare origin and are covered by `tests/browser/*.chromium.js` and the live-check workflows.
 
@@ -21,4 +21,4 @@ The active host is the Cloudflare Worker. A current production verification requ
 
 ## Repository checks at the time
 
-The test suite and JavaScript syntax validation passed at the time of this baseline. The result is historical and is not evidence that a current production deployment completed. Authenticated cart data is synchronized through Supabase `cart_items`; authenticated orders are read through `store_order_requests` under the existing RLS policies.
+The test suite and JavaScript syntax validation passed at the time of this baseline. The result is historical and is not evidence that a current Railway deployment completed. Authenticated cart data is synchronized through Supabase `cart_items`; authenticated orders are read through `store_order_requests` under the existing RLS policies.

@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const handler = require('../backend/editor-data.js');
+const handler = require('../railway/editor-data.js');
 
 const SB = 'https://sb.example.test';
 

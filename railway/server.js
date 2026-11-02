@@ -1,7 +1,7 @@
-/* Élan Scents — Node.js local test server.
+/* Élan Scents — Railway host.
    Serves the same static files and the same /api/* handlers that Vercel serves,
    and reads headers/rewrites from vercel.json so both hosts stay identical.
-   No dependencies. Start: node backend/server.js */
+   No dependencies. Start: node railway/server.js */
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
@@ -25,7 +25,7 @@ const MIME = {
 // Never serve server-side or repo-internal files.
 // Full editor UI stays private (served only via editor-host); only explicitly allow-listed,
 // browser-safe editor/store scripts may be fetched directly.
-const BLOCKED_TOP = new Set(['api', 'tests', 'supabase', 'backend', 'cloudflare', 'dist', 'node_modules', 'src', 'lib', 'scripts', 'reports', 'docs', '.github', '.git']);
+const BLOCKED_TOP = new Set(['api', 'tests', 'supabase', 'railway', 'cloudflare', 'dist', 'node_modules', 'src', 'lib', 'scripts', 'reports', 'docs', '.github', '.git']);
 const EDITOR_PUBLIC_FILES = new Set(['edit-model.js', 'editor-data-bridge.js', 'editor-geometry.js', 'editor-live-library.js', 'editor-live-create.js']);
 const BLOCKED_FILES = new Set(['package.json', 'package-lock.json', 'vercel.json', 'server.js', 'wrangler.jsonc', 'wrangler.json', 'wrangler.toml', 'claude.md', 'readme.md']);
 
@@ -49,7 +49,7 @@ const BASELINE_HEADERS = {
 };
 function applyBaselineHeaders(req, res) {
   for (const key of Object.keys(BASELINE_HEADERS)) res.setHeader(key, BASELINE_HEADERS[key]);
-  // A TLS-terminating reverse proxy reports HTTPS in X-Forwarded-Proto; a plain local run does not get the header.
+  // Railway terminates TLS and reports it in X-Forwarded-Proto; a plain local run does not get the header.
   if (String(req.headers['x-forwarded-proto'] || '').toLowerCase() === 'https') res.setHeader('Strict-Transport-Security', 'max-age=15552000');
 }
 

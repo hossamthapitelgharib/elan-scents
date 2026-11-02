@@ -22,9 +22,14 @@ function storageOrigin() {
   try { const u = new URL(String(process.env.SUPABASE_URL || '').trim()); return u.protocol === 'https:' ? u.origin : ''; } catch (_) { return ''; }
 }
 function editorSiteOrigin() {
+  let selfOrigin = '';
+  try {
+    const host = String(process.env.RAILWAY_PUBLIC_DOMAIN || '').trim();
+    if (host) selfOrigin = new URL(host.includes('://') ? host : 'https://' + host).origin;
+  } catch (_) { selfOrigin = ''; }
   try {
     const u = new URL(String(process.env.EDITOR_SITE_ORIGIN || ''));
-    if (u.protocol === 'https:' && !u.username && !u.password && u.pathname === '/' && !u.search && !u.hash) return u.origin;
+    if (u.protocol === 'https:' && !u.username && !u.password && u.pathname === '/' && !u.search && !u.hash && (!selfOrigin || u.origin !== selfOrigin)) return u.origin;
   } catch (_) { /* use the known production storefront */ }
   return DEFAULT_SITE_ORIGIN;
 }

@@ -1,5 +1,5 @@
 /* Content-Security-Policy hashes of the inline scripts and event-handler attributes of the owner editor page.
-   backend/editor-host.js computes them when it builds the page. The Cloudflare build (scripts/build-cloudflare.js) computes them once
+   railway/editor-host.js computes them when it builds the page. The Cloudflare build (scripts/build-cloudflare.js) computes them once
    at build time, because a Worker on the free plan has only a few milliseconds of CPU per request and scanning the 200 KB page
    would use most of it. `digest` ties the stored result to the exact page it was computed from. */
 const crypto = require('node:crypto');

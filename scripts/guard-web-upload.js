@@ -3,7 +3,7 @@
 const { execSync } = require('node:child_process');
 const range = process.argv[2];
 if (!range || /^0+\.\./.test(range)) process.exit(0);
-const PROTECTED = /^(design-layer|design-schema|edit-mode|edit-boot|elan-host-bridge)\.js$|^editor\/|^backend\/editor|^tests\/editor/;
+const PROTECTED = /^(design-layer|design-schema|edit-mode|edit-boot|elan-host-bridge)\.js$|^editor\/|^railway\/editor|^tests\/editor/;
 const WEB = /^(Add files via upload|Update [\w./-]+|Delete [\w./-]+|Create [\w./-]+)$/;
 let bad = [];
 try {

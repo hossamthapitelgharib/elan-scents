@@ -1,9 +1,9 @@
 'use strict';
-/* Élan Scents — Cloudflare Workers host (the same site that backend/server.js serves, behind one Worker).
+/* Élan Scents — Cloudflare Workers host (the same site that railway/server.js serves, behind one Worker).
 
    Static files are served by Cloudflare's asset layer (see scripts/build-cloudflare.js and wrangler.jsonc); this file only
    handles what needs code: /api/*, the private owner editor, /health and the storefront root.
-   The 25 handlers in api/ and the editor host in backend/ run unchanged: each request is wrapped in small Node-style
+   The 25 handlers in api/ and the editor host in railway/ run unchanged: each request is wrapped in small Node-style
    req/res objects (headers, body events, status/json/send helpers) and the finished res becomes a standard Response.
 
    Nothing here touches the disk: editor pages come from the bundle (deps.editorFiles) and design/home.json from the assets.
@@ -15,7 +15,7 @@ const REWRITES = new Map((CONFIG.rewrites || []).map((r) => [r.source, r.destina
 const MAX_BODY = 1000000;
 const MAX_EDITOR_BODY = 300000;
 
-// Same baseline as backend/server.js (HSTS is added only when the request came in over https).
+// Same baseline as railway/server.js (HSTS is added only when the request came in over https).
 const BASELINE_HEADERS = {
   'X-Content-Type-Options': 'nosniff',
   'Referrer-Policy': 'strict-origin-when-cross-origin',
@@ -295,7 +295,7 @@ function withBaseline(response, url) {
 
 /* Cloudflare's asset layer ignores a Range header and answers 200 with the whole file. Safari and iOS will not play a <video>
    unless the server answers byte ranges (206), so video files are routed through the Worker (run_worker_first in wrangler.jsonc;
-   tests/cloudflare-build.test.js fails if a video file is missing there) and sliced here, the way backend/server.js does. */
+   tests/cloudflare-build.test.js fails if a video file is missing there) and sliced here, the way railway/server.js does. */
 const RANGE_EXTENSIONS = /\.(mp4|webm)$/i;
 
 /* A single "bytes=a-b", "bytes=a-" or "bytes=-n" range inside a file of `size` bytes: { start, end } (inclusive), 'invalid' when

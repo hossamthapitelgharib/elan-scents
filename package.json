@@ -2,9 +2,9 @@
   "name": "elan-scents",
   "private": true,
   "version": "1.0.0",
-  "main": "backend/server.js",
+  "main": "railway/server.js",
   "scripts": {
-    "start": "node backend/server.js",
+    "start": "node railway/server.js",
     "test": "node scripts/test-and-record.js",
     "test:raw": "node --test tests/*.test.js",
     "build:cloudflare": "node scripts/build-cloudflare.js",

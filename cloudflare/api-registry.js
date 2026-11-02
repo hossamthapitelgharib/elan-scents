@@ -30,7 +30,7 @@ module.exports = {
     'store-order-status': () => require('../api/store-order-status.js'),
     'store-order-update': () => require('../api/store-order-update.js'),
     'store-shipment-update': () => require('../api/store-shipment-update.js'),
-    'editor': () => require('../backend/editor.js')
+    'editor': () => require('../railway/editor.js')
   },
-  editorHost: () => require('../backend/editor-host.js')
+  editorHost: () => require('../railway/editor-host.js')
 };

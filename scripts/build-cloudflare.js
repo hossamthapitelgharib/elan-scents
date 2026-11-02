@@ -2,28 +2,28 @@
 'use strict';
 /* Élan Scents — build step for the Cloudflare Worker (wrangler runs it through build.command, see wrangler.jsonc).
 
-   1. dist/                       the public files, exactly the ones backend/server.js serves (private folders, server code, SQL, the
+   1. dist/                       the public files, exactly the ones railway/server.js serves (private folders, server code, SQL, the
                                   owner editor page and its login files are never copied), plus a generated _headers file.
    2. cloudflare/generated/       editor-files.js: the private editor pages and scripts, bundled into the Worker instead of served as files.
 
    _headers is derived from vercel.json (the shared source of cache rules) so both hosts keep the same caching. Cloudflare joins
    the values of rules that match the same URL with commas instead of letting a later rule win, so the rules are resolved here
-   against the real file list (later vercel.json rule wins, as in backend/server.js) and written without overlaps. */
+   against the real file list (later vercel.json rule wins, as in railway/server.js) and written without overlaps. */
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const pageHashes = require('../backend/editor-page-hashes.js');
+const pageHashes = require('../railway/editor-page-hashes.js');
 
 const ROOT = path.resolve(__dirname, '..');
 
-// Keep in step with backend/server.js (tests/cloudflare-build.test.js checks every file of the repository against the running server).
-const BLOCKED_TOP = new Set(['api', 'tests', 'supabase', 'backend', 'cloudflare', 'dist', 'node_modules', 'src', 'lib', 'scripts', 'reports', 'docs', '.github', '.git']);
+// Keep in step with railway/server.js (tests/cloudflare-build.test.js checks every file of the repository against the running server).
+const BLOCKED_TOP = new Set(['api', 'tests', 'supabase', 'railway', 'cloudflare', 'dist', 'node_modules', 'src', 'lib', 'scripts', 'reports', 'docs', '.github', '.git']);
 const EDITOR_PUBLIC_FILES = new Set(['edit-model.js', 'editor-data-bridge.js', 'editor-geometry.js', 'editor-live-library.js', 'editor-live-create.js']);
 const BLOCKED_FILES = new Set(['package.json', 'package-lock.json', 'vercel.json', 'server.js', 'wrangler.jsonc', 'wrangler.json', 'wrangler.toml', 'claude.md', 'readme.md']);
 // Editor files that only the Worker may serve (after the owner signs in, or for the login page itself).
 const PRIVATE_EDITOR_FILES = ['elan-editor.html', 'login.html', 'editor-login.js', 'editor-login.css', 'editor-guard.js', 'editor-media.js', 'reset.html', 'editor-reset.js'];
 
-// Headers every response carries (backend/server.js sends the same baseline).
+// Headers every response carries (railway/server.js sends the same baseline).
 const BASELINE_HEADERS = [
   ['X-Content-Type-Options', 'nosniff'],
   ['Referrer-Policy', 'strict-origin-when-cross-origin'],
@@ -34,7 +34,7 @@ const BASELINE_HEADERS = [
 const SKIPPED_HEADERS = new Set(['content-type', 'accept-ranges']);
 const MAX_HEADER_RULES = 100;
 
-/* Same decision as resolveStatic() in backend/server.js, for a path relative to the repository root. */
+/* Same decision as resolveStatic() in railway/server.js, for a path relative to the repository root. */
 function isPublic(parts) {
   if (!parts.length || parts.some((p) => p.startsWith('.') || p === '..')) return false;
   const top = parts[0].toLowerCase();
@@ -68,7 +68,7 @@ function compileRules(vercelConfig) {
   return (vercelConfig.headers || []).map((rule) => ({ re: new RegExp('^' + rule.source + '$'), rule }));
 }
 
-/* Final headers of one URL path the way backend/server.js computes them: every matching rule, later rules replace earlier ones. */
+/* Final headers of one URL path the way railway/server.js computes them: every matching rule, later rules replace earlier ones. */
 function headersFor(urlPath, rules) {
   const out = new Map();
   for (const { re, rule } of rules) {

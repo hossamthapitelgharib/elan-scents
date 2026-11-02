@@ -1,2 +1,2 @@
-/* Shared adapter for the authenticated editor-data endpoint. */
-module.exports = require('../backend/editor-data.js');
+/* Shared adapter: Railway and Vercel expose the same authenticated editor-data endpoint. */
+module.exports = require('../railway/editor-data.js');

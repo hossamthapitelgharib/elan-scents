@@ -72,19 +72,19 @@ test('new capabilities are added by registering a tool, not by editing the edito
 test('when the editor cannot start, it says why instead of showing no tools', () => {
   const editor = read('editor/elan-editor.html');
   const mode = read('edit-mode.js');
-  const api = read('backend/editor.js');
+  const api = read('railway/editor.js');
   assert.match(editor, /أدوات التحرير لسه مش شغالة/);
   assert.match(mode, /e\.userMessage = why/);
   assert.match(api, /missing\.push\('GITHUB_TOKEN'\)/);
-  const { config } = require('../backend/editor.js').internals;
+  const { config } = require('../railway/editor.js').internals;
   const none = config({});
   assert.equal(none.error, 'editor_not_configured');
   assert.ok(none.missing.includes('GITHUB_TOKEN') && none.missing.includes('EDITOR_SITE_ORIGIN'));
   assert.ok(!JSON.stringify(none).includes('ghp_'));
-  const ok = config({ GITHUB_TOKEN: 't', EDITOR_TARGET_BRANCH: 'main', EDITOR_SITE_ORIGIN: 'https://example.com', EDITOR_ENV: 'production' });
+  const ok = config({ GITHUB_TOKEN: 't', EDITOR_TARGET_BRANCH: 'main', EDITOR_SITE_ORIGIN: 'https://example.com', RAILWAY_ENVIRONMENT_NAME: 'production' });
   assert.equal(ok.error, undefined);
-  const selfOrigin = config({ GITHUB_TOKEN: 't', EDITOR_TARGET_BRANCH: 'main', EDITOR_SITE_ORIGIN: 'https://editor.example.test', EDITOR_ENV: 'production' });
-  assert.equal(selfOrigin.origin, 'https://editor.example.test');
+  const selfOrigin = config({ GITHUB_TOKEN: 't', EDITOR_TARGET_BRANCH: 'main', EDITOR_SITE_ORIGIN: 'https://editor.example.test', RAILWAY_PUBLIC_DOMAIN: 'editor.example.test', RAILWAY_ENVIRONMENT_NAME: 'production' });
+  assert.equal(selfOrigin.origin, require('../lib/site-origin.js').DEFAULT_SITE_ORIGIN);
 });
 
 test('save error shows which Cloudflare settings are missing', () => {
@@ -98,7 +98,7 @@ test('a refused save shows what GitHub answered, and no editor message mentions 
   assert.match(page, /\+saveDetail\(j\)\);await requestLive\('page\.markSaved'/);
   assert.match(page, /d\.githubStatus/);
   assert.match(page, /d\.githubMessage/);
-  assert.doesNotMatch(page, /legacy-host-name/);
+  assert.doesNotMatch(page, /Railway/);
 });
 
 test('right-click menu is not closed by a repeat selection message for the same element', () => {
@@ -109,7 +109,7 @@ test('right-click menu is not closed by a repeat selection message for the same 
 
 test('live preview defaults to the configured storefront origin, not the editor origin', () => {
   const page = read('editor/elan-editor.html');
-  const host = read('backend/editor-host.js');
+  const host = read('railway/editor-host.js');
   const mode = read('edit-mode.js');
   assert.match(page, /address\.value=\(window\.ELAN_EDITOR_SITE_ORIGIN\|\|location\.origin\)\+'\/'/);
   assert.match(host, /frame-src 'self' \" \+ siteOrigin/);
@@ -123,8 +123,8 @@ test('the authenticated editor delegates a short-lived ticket to the storefront 
   const page = read('editor/elan-editor.html');
   const mode = read('edit-mode.js');
   const bridge = read('elan-host-bridge.js');
-  const host = read('backend/editor-host.js');
-  const server = read('backend/server.js');
+  const host = read('railway/editor-host.js');
+  const server = read('railway/server.js');
   assert.ok(page.includes("fetch('/api/editor-bridge-ticket'"));
   assert.ok(page.includes("type:'hello',session:bridgeSession,ticket:bridgeTicket"));
   assert.ok(page.includes("type:'auth',session:bridgeSession,ticket:bridgeTicket"));
@@ -132,7 +132,7 @@ test('the authenticated editor delegates a short-lived ticket to the storefront 
   assert.ok(host.includes("req.headers['x-elan-editor-ticket']"));
   assert.ok(mode.includes("options.headers['X-Elan-Editor-Ticket'] = bridgeTicket"));
   // The framed storefront trusts only its own origin (or a local test server) as the editor: no other host, and no hosting provider's address.
-  assert.ok(!/backend\.app/i.test(mode));
+  assert.ok(!/railway\.app/i.test(mode));
   assert.match(mode, /return location\.origin;/);
   assert.ok(bridge.includes("m.type==='auth'"));
   assert.match(server, /pathname === '\/api\/editor' \|\| pathname === '\/api\/editor-data'/);

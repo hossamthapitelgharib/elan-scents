@@ -34,7 +34,7 @@ async function startServer() {
     EDITOR_TARGET_BRANCH: 'browser-test', EDITOR_SITE_ORIGIN: SITE,
     SUPABASE_URL: 'https://' + SUPABASE_HOST, SUPABASE_ANON_KEY: 'anon-dummy-not-real', SUPABASE_SERVICE_ROLE_KEY: 'dummy-not-real-0000000000'
   };
-  const child = spawn(process.execPath, ['backend/server.js'], { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'] });
+  const child = spawn(process.execPath, ['railway/server.js'], { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'] });
   let log = ''; child.stdout.on('data', (d) => { log += d; }); child.stderr.on('data', (d) => { log += d; });
   const local = 'http://127.0.0.1:' + port;
   for (let i = 0; i < 100; i++) {

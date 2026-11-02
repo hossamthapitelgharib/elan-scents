@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const editorHost = require('../backend/editor-host.js');
-const media = require('../backend/editor-media.js');
+const editorHost = require('../railway/editor-host.js');
+const media = require('../railway/editor-media.js');
 
 // The upload route reads the whole body before checking the file, so it needs a real size limit while reading.
 // (It once read `media.MAX_VIDEO_BYTES`, a name editor-media.js did not export, which made the limit NaN: no limit at all.)
@@ -23,7 +23,7 @@ async function postUpload(contentType, megabytes) {
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role-fake-key-0123456789';
   delete process.env.SUPABASE_URL; delete process.env.SUPABASE_ANON_KEY;   // an accepted size then stops at "storage not configured", never reaching the network
   try {
-    const sessions = require('../backend/editor-session.js');
+    const sessions = require('../railway/editor-session.js');
     const login = sessions.keyLogin(process.env.EDITOR_ACCESS_KEY, '203.0.113.7');
     assert.equal(login.status, 200);
     const { EventEmitter } = require('node:events');

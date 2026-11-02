@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const sessions = require('../backend/editor-session.js');
+const sessions = require('../railway/editor-session.js');
 
 const SB = 'https://sb.example.test';
 const MIN = 60 * 1000, HOUR = 60 * MIN, REUSE_WINDOW = 10 * 1000; // Supabase's default refresh-token reuse interval is 10 seconds
@@ -127,7 +127,7 @@ test('a refresh that Supabase refuses ends the session; an offline refresh does 
 
 test('the host sends the renewed cookie on /api/editor-session and the old cookie keeps working', async () => {
   const t = await start();
-  const server = require('../backend/server.js');
+  const server = require('../railway/server.js');
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const base = 'http://127.0.0.1:' + server.address().port;
   try {

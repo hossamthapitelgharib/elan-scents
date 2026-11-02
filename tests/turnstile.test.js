@@ -315,7 +315,7 @@ test('the storefront sheet explains a check that failed, and a token Supabase re
 
 /* ---------- the editor ---------- */
 
-const sessions = require('../backend/editor-session.js');
+const sessions = require('../railway/editor-session.js');
 
 function withSupabase(handler, run) {
   const saved = { fetch: global.fetch, url: process.env.SUPABASE_URL, key: process.env.SUPABASE_ANON_KEY };
@@ -376,7 +376,7 @@ test('the editor login page loads the check, has a place for it in both boxes, a
   assert.match(html, /<script src="\/turnstile\.js\?v=[0-9A-Za-z-]+"><\/script>\s*<script src="\/editor-login\.js"><\/script>/, 'turnstile.js comes before the login script');
   assert.match(html, /id="loginCheck"/);
   assert.match(html, /id="forgotCheck"/);
-  const host = read('backend/editor-host.js');
+  const host = read('railway/editor-host.js');
   const policy = host.match(/'Content-Security-Policy': "(default-src 'self'; script-src[^"]+)"/)[1];
   assert.match(policy, /script-src 'self' https:\/\/challenges\.cloudflare\.com;/);
   assert.match(policy, /frame-src https:\/\/challenges\.cloudflare\.com;/);

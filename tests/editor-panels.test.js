@@ -12,8 +12,8 @@ test('the creation panels belong to the editor window, not to the platform frame
   assert.match(boot, /elan_editor/);
   assert.match(boot, /window\.parent === window/);
   assert.ok(!fs.existsSync(path.join(root, 'edit-panels.js')), 'no second copy of the panels in the platform frame');
-  assert.match(read('backend/editor-host.js'), /\/editor\/editor-live-create\.js\?v=/, 'the editor page loads the panels');
-  for (const file of ['backend/server.js', 'scripts/build-cloudflare.js']) assert.match(read(file), /'editor-live-create\.js'/, file + ' serves the panels file to the editor');
+  assert.match(read('railway/editor-host.js'), /\/editor\/editor-live-create\.js\?v=/, 'the editor page loads the panels');
+  for (const file of ['railway/server.js', 'scripts/build-cloudflare.js']) assert.match(read(file), /'editor-live-create\.js'/, file + ' serves the panels file to the editor');
   for (const page of ['index.html']) assert.doesNotMatch(read(page), /editor-live-create\.js/);
 });
 
@@ -91,8 +91,8 @@ test('the saved section body matches what /api/editor-data accepts', () => {
   assert.deepEqual(automatic.product_size_ids, [], 'an automatic section never carries manual items');
 });
 
-test('the backend host serves the panels file to the editor window', { skip: !fs.existsSync(path.join(root, 'backend/server.js')) }, async () => {
-  const server = require('../backend/server.js');
+test('the railway host serves the panels file to the editor window', { skip: !fs.existsSync(path.join(root, 'railway/server.js')) }, async () => {
+  const server = require('../railway/server.js');
   const port = await new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server.address().port)));
   try {
     const res = await fetch('http://127.0.0.1:' + port + '/editor/editor-live-create.js');

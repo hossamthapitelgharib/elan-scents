@@ -5,7 +5,7 @@
 ## التشغيل
 
 ```bash
-npm start          # node backend/server.js — تشغيل محلي للتجربة فقط (الإنتاج على Cloudflare)
+npm start          # node railway/server.js — تشغيل محلي للتجربة فقط (الإنتاج على Cloudflare)
 npm test           # node --test tests/*.test.js
 npm ci              # تثبيت الاعتماديات المطابقة لـ package-lock.json
 npm run test:browser # اختبارات Chromium الحقيقية؛ تحتاج npx playwright install chromium مرة واحدة
@@ -24,10 +24,10 @@ npm run test:browser # اختبارات Chromium الحقيقية؛ تحتاج n
 | `index.html` + `app.js` / `app-core.js` | واجهة المتجر |
 | `design/` + `design-schema.js` + `design-layer.js` | طبقة التصميم المنشورة |
 | `edit-boot.js` / `edit-mode.js` / `elan-host-bridge.js` (في الجذر) | وضع التحرير داخل iframe فقط (`?elan_editor=1`) |
-| `editor/` | صفحة الإديتور + دخول المالكة (تُخدم عبر `backend/editor-host.js`) |
+| `editor/` | صفحة الإديتور + دخول المالكة (تُخدم عبر `railway/editor-host.js`) |
 | `api/*` | واجهات المتجر والطلبات |
 | `cloudflare/` + `wrangler.jsonc` + `scripts/build-cloudflare.js` | الـ Worker الذي يخدم الموقع كله (ملفات ثابتة + `/api/*` + الإديتور) |
-| `backend/server.js` | خادم Node للتشغيل المحلي ولاختبارات المطابقة مع الـ Worker (ليس مضيف الإنتاج) |
+| `railway/server.js` | خادم Node للتشغيل المحلي ولاختبارات المطابقة مع الـ Worker (ليس مضيف الإنتاج) |
 | `vercel.json` | قواعد الـ rewrites والـ headers (يقرأها الـ Worker وخادم التشغيل المحلي) |
 
 ## أين أجد التفاصيل

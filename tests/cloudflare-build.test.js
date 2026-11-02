@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const build = require('../scripts/build-cloudflare.js');
-const server = require('../backend/server.js');
+const server = require('../railway/server.js');
 const root = path.resolve(__dirname, '..');
 const vercel = JSON.parse(fs.readFileSync(path.join(root, 'vercel.json'), 'utf8'));
 
@@ -47,7 +47,7 @@ function simulate(rules, urlPath) {
   return out;
 }
 
-test('the Cloudflare asset folder holds exactly the files backend/server.js serves, byte for byte', async () => {
+test('the Cloudflare asset folder holds exactly the files railway/server.js serves, byte for byte', async () => {
   const { dir, result, dist } = buildInto();
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const base = 'http://127.0.0.1:' + server.address().port;
@@ -58,7 +58,7 @@ test('the Cloudflare asset folder holds exactly the files backend/server.js serv
     for (const rel of repoFiles) {
       const response = await fetch(base + '/' + rel.split('/').map(encodeURIComponent).join('/'));
       const served = response.status === 200;
-      assert.equal(built.has(rel), served, rel + (served ? ' is public on local server but missing from dist' : ' is private on local server but would be public on Cloudflare'));
+      assert.equal(built.has(rel), served, rel + (served ? ' is public on Railway but missing from dist' : ' is private on Railway but would be public on Cloudflare'));
       // The one deliberate difference: the build writes the hero picture of the design into the storefront page (first frame).
       const unmarked = (file) => (rel === 'index.html' ? Buffer.from(build.withoutHeroFirstPaint(file.toString('utf8'))) : file);
       if (served) assert.ok(Buffer.from(await response.arrayBuffer()).equals(unmarked(fs.readFileSync(path.join(dist, ...rel.split('/'))))), rel + ' differs from the served file');
@@ -72,7 +72,7 @@ test('nothing private reaches the asset folder', () => {
   const { dir, result } = buildInto();
   try {
     for (const rel of result.files) {
-      assert.doesNotMatch(rel, /^(api|tests|supabase|backend|cloudflare|lib|scripts|reports|docs|node_modules|dist)\//, rel);
+      assert.doesNotMatch(rel, /^(api|tests|supabase|railway|cloudflare|lib|scripts|reports|docs|node_modules|dist)\//, rel);
       assert.doesNotMatch(rel, /\.sql$/i, rel);
       assert.doesNotMatch(rel, /^(package\.json|package-lock\.json|vercel\.json|server\.js|wrangler\.[a-z]+|claude\.md|readme\.md)$/i, rel);
       assert.doesNotMatch(rel, /(^|\/)elan-(editor|scents)/i, rel);
@@ -99,7 +99,7 @@ test('every file of editor/ is either public, bundled into the Worker, or the RE
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
-test('_headers gives every file the same cache headers backend/server.js does, without overlapping rules', async () => {
+test('_headers gives every file the same cache headers railway/server.js does, without overlapping rules', async () => {
   const { dir, result, dist } = buildInto();
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const base = 'http://127.0.0.1:' + server.address().port;
@@ -116,11 +116,11 @@ test('_headers gives every file the same cache headers backend/server.js does, w
     for (const rel of result.files.filter((f) => f !== '_headers')) {
       const urlPath = '/' + rel;
       const cf = simulate(rules, urlPath);
-      const backend = await fetch(base + urlPath);
-      await backend.arrayBuffer();
+      const railway = await fetch(base + urlPath);
+      await railway.arrayBuffer();
       const hasRule = compiled.some((re) => re.test(urlPath));
-      if (hasRule) assert.equal(cf.get('cache-control'), backend.headers.get('cache-control'), urlPath + ' cache-control');
-      else assert.equal(cf.get('cache-control'), undefined, urlPath + ' has no cache rule on local server, so Cloudflare keeps its default (revalidate every time)');
+      if (hasRule) assert.equal(cf.get('cache-control'), railway.headers.get('cache-control'), urlPath + ' cache-control');
+      else assert.equal(cf.get('cache-control'), undefined, urlPath + ' has no cache rule on Railway, so Cloudflare keeps its default (revalidate every time)');
       assert.equal(cf.get('x-content-type-options'), 'nosniff', urlPath);
     }
     // The storefront root is answered by the Worker from /index.html and keeps the root rule of vercel.json.

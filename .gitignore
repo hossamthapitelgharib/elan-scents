@@ -1,5 +1,6 @@
 # Local dependencies and tool output
 node_modules/
+.railway/
 
 # Local secrets and environment files
 .env

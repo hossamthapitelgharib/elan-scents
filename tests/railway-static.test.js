@@ -5,7 +5,7 @@ const path = require('node:path');
 
 function start(port) {
   return new Promise((resolve, reject) => {
-    const p = spawn(process.execPath, [path.join(__dirname, '..', 'backend', 'server.js')], {
+    const p = spawn(process.execPath, [path.join(__dirname, '..', 'railway', 'server.js')], {
       env: { PATH: process.env.PATH, PORT: String(port) }
     });
     p.stdout.on('data', (data) => {
@@ -15,7 +15,7 @@ function start(port) {
   });
 }
 
-test('local server serves only the allow-listed editor geometry asset, not the private editor page', async () => {
+test('Railway serves only the allow-listed editor geometry asset, not the private editor page', async () => {
   const port = 39000 + Math.floor(Math.random() * 1000);
   const server = await start(port);
   try {
@@ -32,7 +32,7 @@ test('local server serves only the allow-listed editor geometry asset, not the p
 /* ---- caching and compression ---- */
 const zlibNode = require('node:zlib');
 async function withServer(fn) {
-  const srv = require('../backend/server.js');
+  const srv = require('../railway/server.js');
   await new Promise((resolve) => srv.listen(0, '127.0.0.1', resolve));
   const base = 'http://127.0.0.1:' + srv.address().port;
   try { await fn(base); } finally { srv.close(); }

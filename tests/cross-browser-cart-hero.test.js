@@ -28,8 +28,8 @@ test('hero autoplays by itself and has no play or pause button', () => {
   assert.doesNotMatch(index, /showButton/);
 });
 
-test('local server serves the hero video and poster with immutable cache headers', async () => {
-  const server = require('../backend/server.js');
+test('Railway serves the hero video and poster with immutable cache headers', async () => {
+  const server = require('../railway/server.js');
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${server.address().port}`;
   try {

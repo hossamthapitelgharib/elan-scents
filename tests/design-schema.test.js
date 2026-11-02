@@ -129,8 +129,8 @@ test('the storefront loads the design layer after the core and keeps the cache-b
   assert.ok(html.indexOf('/design-schema.js') > html.indexOf('/app.js'));
 });
 
-test('design files are served without caching by the local server', async () => {
-  const server = require('../backend/server.js');
+test('design files are served without caching by Railway', async () => {
+  const server = require('../railway/server.js');
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   try {
     const response = await fetch(`http://127.0.0.1:${server.address().port}/design/home.json`, { method: 'HEAD' });

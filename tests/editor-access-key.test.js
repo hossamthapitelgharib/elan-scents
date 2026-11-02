@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const sessions = require('../backend/editor-session.js');
+const sessions = require('../railway/editor-session.js');
 const { getContext, requireRoles } = require('../api/_auth.js');
 
 function withEnv(vars, fn) {

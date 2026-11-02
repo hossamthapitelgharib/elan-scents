@@ -1,35 +1,38 @@
 # Élan Scents على Cloudflare Workers
 
-المتجر وواجهات `/api/*` ومحرر المالك تُشغّلها نسخة Cloudflare Worker واحدة باسم `elan-scents`. الإعداد في `wrangler.jsonc`، ونشر الإنتاج عبر Cloudflare Workers Builds المرتبط بفرع `main`.
+الموقع كله (الملفات الثابتة + `/api/*` + محرر المالك) يعمل من Worker واحد باسم `elan-scents`.
+هذا هو مضيف المشروع (قرار حسام 2026-10-22). على Railway بقيت خدمة `elan-editor` فقط، تحوّل لينك المحرر القديم إلى هنا.
 
-## المكونات
-- `wrangler.jsonc`: اسم Worker، تاريخ التوافق، إعداد الملفات العامة ومتغيرات التشغيل غير السرية.
-- `scripts/build-cloudflare.js`: يبني `dist/` للملفات العامة، ويولّد حزمة صفحات المحرر الخاصة في `cloudflare/generated/` قبل النشر.
-- `cloudflare/worker-core.js`: طبقة طلبات واستجابات Worker وتوجيه المسارات إلى الدوال.
-- `cloudflare/api-registry.js`: قائمة صريحة بدوال `api/` ووحدات المحرر من `backend/`؛ يختبر CI تطابق القائمة مع الملفات.
-- `backend/`: تنفيذ Node.js مشترك لمضيف الاختبار المحلي ووحدات المحرر؛ لا يُنشر كمجلد عام. يجب أن يتطابق سلوك الخادم المحلي مع Worker.
-- `vercel.json`: المصدر المشترك لقواعد الرؤوس وإعادة الكتابة؛ يبني منه السكربت قواعد Cloudflare ويستخدمه الخادم المحلي للاختبارات.
-- `tests/cloudflare-*.test.js`: تقارن الملفات العامة والرؤوس وسلوك Worker بالخادم المحلي.
+## ماذا يوجد في المستودع
+- `wrangler.jsonc`: إعداد الـ Worker (الاسم، مجلد الملفات الثابتة `dist/`، المسارات التي يعمل فيها الكود أولاً، المتغيرات غير السرية).
+- `scripts/build-cloudflare.js`: يُشغَّل تلقائياً قبل كل نشر (`build.command`). يبني `dist/` (نفس الملفات العامة التي يقدّمها `railway/server.js` بالضبط، مع ملف `_headers` مولَّد من `vercel.json`) ويضمّ صفحات المحرر الخاصة داخل الـ Worker (`cloudflare/generated/`، غير مرفوع).
+- `cloudflare/worker-core.js`: يحوّل الطلب إلى `req`/`res` على طريقة Node ويشغّل نفس ملفات `api/*.js` و`railway/editor-host.js` بدون تعديل في منطقها.
+- فيديو الصفحة الرئيسية (`assets/hero.mp4`) يمر عبر الـ Worker (`run_worker_first`) لأن طبقة الملفات الثابتة في Cloudflare لا تردّ على طلبات `Range` (تعيد الملف كاملاً بـ 200) وSafari/iPhone لا يشغّل الفيديو بدونها؛ `worker-core.js` يردّ بـ 206. أي فيديو جديد يُضاف إلى `run_worker_first` (اختبار يفشل إن نُسي).
+- `cloudflare/api-registry.js`: قائمة ثابتة بدوال الـ API (الحزمة لا تستطيع قراءة المجلد وقت التشغيل). اختبار يفشل إن أضفتَ ملفاً في `api/` ونسيتَ القائمة.
+- `tests/cloudflare-*.test.js`: يتأكدان أن الملفات العامة مطابقة لـ Railway بالبايت، وأن رؤوس الكاش مطابقة، وأن ردّ الـ Worker مطابق لردّ خادم Railway لنفس الطلب.
 
-## الأسرار والإعداد
-من لوحة Cloudflare: Workers & Pages ← `elan-scents` ← Settings ← Variables and Secrets. تُحفظ القيم السرية كـSecret ولا تضاف إلى Git.
+## الإعداد (مرة واحدة، من لوحة Cloudflare)
+1. **Workers & Pages ← `elan-scents` ← Settings ← Builds**: المستودع `hossamthapitelgharib/elan-scents` والفرع `main` مربوطان؛ كل دفع إلى `main` يُبنى ويُنشر تلقائياً (بما فيه حفظات المحرر) وتظهر نتيجته على الكوميت باسم «Workers Builds: elan-scents». Build command فارغ (الـ Worker يبنّي نفسه)، وأمر النشر `npx wrangler deploy`.
+2. **Settings ← Variables and Secrets**: أضف الأسرار التالية بنوع **Secret** (لا تُكتب في الكود ولا في المحادثات):
 
-| المتغير | مطلوب | الاستخدام |
-|---|---:|---|
-| `SUPABASE_SERVICE_ROLE_KEY` | نعم | وظائف API الإدارية والمحرر |
-| `GITHUB_TOKEN` | للمحرر | قراءة وكتابة التصميم في هذا المستودع؛ بدونه يعمل المحرر للقراءة فقط |
-| `STORE_ORDER_WEBHOOK_SECRET` | عند ربط webhooks | مصادقة webhooks المتاجر |
-| `GUEST_HASH_SECRET` | اختياري | مفتاح ثابت لهوية الزوار؛ إن غاب تستخدم الخدمة المفتاح الافتراضي المحدد في الكود |
+| الاسم | مطلوب؟ | ملاحظة |
+|---|---|---|
+| `SUPABASE_SERVICE_ROLE_KEY` | نعم | بدونه لا تعمل دوال `/api` ولا دخول المحرر بالبريد. من Supabase ← Project Settings ← API Keys، أو انسخه من Variables في خدمة Railway `elan-editor` |
+| `GITHUB_TOKEN` | للمحرر | بدونه يعمل المحرر للقراءة فقط ولا يحفظ على `main`. صلاحية Contents: Read and write على هذا المستودع |
+| `STORE_ORDER_WEBHOOK_SECRET` | للـ webhooks | بدونه ترد الـ webhooks بـ 503 (آمن). مضبوط الآن (فحص `live-check`). يُعطى للمتجر عند ربطه |
+| `GUEST_HASH_SECRET` | لا | إن لم يُضبط يُستعمل `SUPABASE_SERVICE_ROLE_KEY` وهو القيمة التي كان مضبوطاً عليها على Railway، فيستمر سجل الضيوف. لا تضعه بقيمة أخرى |
 
-القيم العامة `SUPABASE_URL` و`SUPABASE_ANON_KEY`، وإعدادات المحرر `EDITOR_ENV` و`EDITOR_TARGET_BRANCH` و`GITHUB_REPO` محفوظة في `wrangler.jsonc`. افتراضيًا يعمل الموقع والمحرر على أصل واحد؛ لا تضبط `EDITOR_SITE_ORIGIN` أو `ELAN_EDITOR_ORIGIN` أو `ELAN_STORE_ORIGIN` إلا عند استخدام نطاقات مختلفة.
+`SUPABASE_URL` و`SUPABASE_ANON_KEY` (قيمتان عامتان يستلمهما متصفح كل زائر من `/api/config`) و`EDITOR_ENV` و`EDITOR_TARGET_BRANCH` و`GITHUB_REPO` موجودة في `wrangler.jsonc`، فلا تضفها. أما `EDITOR_SITE_ORIGIN` و`ELAN_EDITOR_ORIGIN` و`ELAN_STORE_ORIGIN` فإن لم تُضبط يستعمل الـ Worker العنوان الذي زرتَه به (المحرر والمتجر على أصل واحد)؛ اضبطها فقط إن استعملت أكثر من نطاق.
+3. افتح `https://elan-scents.hossamthapitelgharib.workers.dev/health` (يردّ `ok`) ثم `/` و`/api/config` و`/editor`.
 
-## تحقق ونشر
-1. شغّل `npm ci` ثم `npm test` و`npm run build:cloudflare`.
-2. شغّل `npm run test:browser` بعد `npx playwright install chromium`.
-3. على Cloudflare، تحقق من `/health` ثم `/` و`/api/config` و`/editor`.
-4. راقب GitHub Actions: اختبارات Node، فحص Worker، واختبارات النشر الحي/المراقبة وفق ملفات workflow.
+## نطاق خاص (لاحقاً)
+- النطاق: Settings ← Domains & Routes ← Add Custom Domain. الموقع الآن على `workers.dev` بقرار حسام.
+- غيّر رابط الـ webhook في أي متجر مربوط (`/api/store-order-status` وأخواتها) إلى العنوان الجديد، وحدّث Site URL وRedirect URLs في Supabase ← Authentication ← URL Configuration.
 
-ملفات الفيديو التي تتطلب طلبات `Range` يجب أن تبقى ضمن `run_worker_first` في `wrangler.jsonc`؛ يوجد اختبار يمنع نسيانها. لا تُضف أسرارًا إلى ملفات الإعداد العامة أو سجلات الاختبارات.
+## حدود الخطة المجانية (Workers Free)
+- الملفات الثابتة بلا حد ولا تُحسب طلبات؛ الطلبات التي تشغّل الكود (`/api/*` و`/editor`) حدّها 100 ألف في اليوم.
+- 10 ملي ثانية CPU للطلب الواحد و50 طلباً خارجياً (Supabase/GitHub) للطلب. صفحة المحرر تُحسب هاشاتها وقت البناء لهذا السبب. لو ظهر الخطأ 1102 في اللوحة فالمعالجة تحتاج الخطة المدفوعة (5$ شهرياً) وهذا قرار مالك.
+- حدّ الطلبات في `lib/rate-limit.js` وعدّاد محاولات الدخول في الذاكرة، وعلى Cloudflare الذاكرة لكل نسخة تشغيل (isolate)؛ فهو أضعف من Railway ذي النسخة الواحدة. جلسة المحرر (كوكي مشفّر) لا تتأثر.
 
-## التشغيل المحلي للاختبارات
-`npm start` يشغّل الخادم المحلي على `PORT` أو المنفذ 3000. `npx wrangler dev` يشغّل Worker محليًا، ويمكن وضع الأسرار اللازمة في `.dev.vars` (مستثنى من Git).
+## تشغيل محلي
+`npx wrangler dev` (يحتاج ملف `.dev.vars` فيه نفس الأسرار، وهو مستثنى من Git).

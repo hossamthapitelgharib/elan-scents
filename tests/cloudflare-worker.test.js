@@ -6,13 +6,13 @@ const path = require('node:path');
 const build = require('../scripts/build-cloudflare.js');
 const core = require('../cloudflare/worker-core.js');
 const registry = require('../cloudflare/api-registry.js');
-const server = require('../backend/server.js');
+const server = require('../railway/server.js');
 const root = path.resolve(__dirname, '..');
 
 const SB = 'https://sb.example.test';
 const ORIGIN = 'https://shop.example.test';
 const MANAGED = ['SUPABASE_URL', 'SUPABASE_ANON_KEY', 'SUPABASE_SERVICE_ROLE_KEY', 'GITHUB_TOKEN', 'GH_TOKEN', 'EDITOR_ENV', 'EDITOR_TARGET_BRANCH', 'EDITOR_BRANCH',
-  'EDITOR_SITE_ORIGIN', 'ELAN_EDITOR_ORIGIN', 'ELAN_STORE_ORIGIN', 'EDITOR_AUTH_BYPASS', 'EDITOR_ACCESS_KEY', 'EDITOR_ACCESS_KEY_UNTIL',
+  'RAILWAY_ENVIRONMENT_NAME', 'RAILWAY_PUBLIC_DOMAIN', 'EDITOR_SITE_ORIGIN', 'ELAN_EDITOR_ORIGIN', 'ELAN_STORE_ORIGIN', 'EDITOR_AUTH_BYPASS', 'EDITOR_ACCESS_KEY', 'EDITOR_ACCESS_KEY_UNTIL',
   'EDITOR_SESSION_SECRET', 'STORE_ORDER_WEBHOOK_SECRET'];
 
 const built = (() => {
@@ -90,7 +90,7 @@ test('health, storefront root and unknown paths', async () => {
   assert.equal(head.status, 200);
   assert.equal(await head.text(), '');
 
-  const missing = await call('/backend/server.js');
+  const missing = await call('/railway/server.js');
   assert.equal(missing.status, 404);
   assert.equal(await missing.text(), 'Not found');
   assert.equal(missing.headers.get('x-content-type-options'), 'nosniff');
@@ -105,7 +105,7 @@ test('unknown API names are 404 and cannot reach inherited properties or helper 
     assert.equal(r.status, 404, p);
     assert.deepEqual(await r.json(), { error: 'not_found' }, p);
   }
-  assert.equal((await call('/api/../backend/server')).status, 404, 'the URL is normalised to /backend/server, which is never public');
+  assert.equal((await call('/api/../railway/server')).status, 404, 'the URL is normalised to /railway/server, which is never public');
 });
 
 test('a handler gets Node-style req and res: query, JSON and form bodies, headers, caller address, helpers', async () => {
@@ -280,7 +280,7 @@ test('/api/editor reads the committed design from the assets when GitHub is not 
   });
 });
 
-test('the same request gets the same answer from the Worker and from backend/server.js', async () => {
+test('the same request gets the same answer from the Worker and from railway/server.js', async () => {
   await withEnv(Object.assign({}, configured, { EDITOR_SITE_ORIGIN: ORIGIN }), async () => {
     await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
     const base = 'http://127.0.0.1:' + server.address().port;
@@ -295,12 +295,12 @@ test('the same request gets the same answer from the Worker and from backend/ser
       for (const [method, p, payload] of cases) {
         const init = { method, headers: { 'Content-Type': 'application/json' } };
         if (payload !== undefined) init.body = JSON.stringify(payload);
-        const backend = await fetch(base + p, init);
+        const railway = await fetch(base + p, init);
         const worker = await call(p, init);
-        assert.equal(worker.status, backend.status, method + ' ' + p + ' status');
-        assert.equal(await worker.text(), await backend.text(), method + ' ' + p + ' body');
+        assert.equal(worker.status, railway.status, method + ' ' + p + ' status');
+        assert.equal(await worker.text(), await railway.text(), method + ' ' + p + ' body');
         for (const h of ['content-type', 'cache-control', 'content-security-policy', 'x-frame-options', 'x-content-type-options', 'referrer-policy']) {
-          assert.equal(worker.headers.get(h), backend.headers.get(h), method + ' ' + p + ' ' + h);
+          assert.equal(worker.headers.get(h), railway.headers.get(h), method + ' ' + p + ' ' + h);
         }
       }
     } finally { restore(); server.close(); }
@@ -319,7 +319,7 @@ test('the request shim streams the body only when asked, and a handler can stop 
 });
 
 test('the editor page and its CSP are the same whether the hashes were computed at build time or scanned from the page', async () => {
-  const host = require('../backend/editor-host.js');
+  const host = require('../railway/editor-host.js');
   const crypto = require('node:crypto');
   const provider = (skip, patch) => (name) => {
     if (name === skip) return null;
@@ -426,21 +426,21 @@ test('a video that is not in the assets is a 404, and other paths never go throu
   assert.notEqual(css.status, 206);
 });
 
-test('the same range request gets the same answer from the Worker and from backend/server.js', async () => {
+test('the same range request gets the same answer from the Worker and from railway/server.js', async () => {
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   try {
     const port = server.address().port;
     for (const value of ['bytes=0-99', 'bytes=1000-', 'bytes=-50', 'bytes=0-99999999', 'bytes=99999999-']) {
-      const backend = await fetch('http://127.0.0.1:' + port + '/assets/hero.mp4', { headers: { Range: value, 'Accept-Encoding': 'identity' } });
+      const railway = await fetch('http://127.0.0.1:' + port + '/assets/hero.mp4', { headers: { Range: value, 'Accept-Encoding': 'identity' } });
       const worker = await range(value);
-      assert.equal(worker.status, backend.status, value);
-      assert.equal(worker.headers.get('content-range'), backend.headers.get('content-range'), value);
-      assert.deepEqual(Buffer.from(await worker.arrayBuffer()), Buffer.from(await backend.arrayBuffer()), value);
+      assert.equal(worker.status, railway.status, value);
+      assert.equal(worker.headers.get('content-range'), railway.headers.get('content-range'), value);
+      assert.deepEqual(Buffer.from(await worker.arrayBuffer()), Buffer.from(await railway.arrayBuffer()), value);
     }
   } finally { server.close(); }
 });
 
-test('parseRange mirrors the rules backend/server.js applies', () => {
+test('parseRange mirrors the rules railway/server.js applies', () => {
   const size = 1000;
   assert.deepEqual(core.parseRange('bytes=0-0', size), { start: 0, end: 0 });
   assert.deepEqual(core.parseRange('bytes=999-', size), { start: 999, end: 999 });

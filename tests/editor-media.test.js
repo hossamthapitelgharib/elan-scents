@@ -7,7 +7,7 @@ const root = path.resolve(__dirname, '..');
 const SB = 'https://sb.example.test';
 const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(40, 1)]);
 function env() { process.env.SUPABASE_URL = SB; process.env.SUPABASE_ANON_KEY = 'anon'; process.env.SUPABASE_SERVICE_ROLE_KEY = 'service'; }
-function start() { const s = require('../backend/server.js'); return new Promise((r) => s.listen(0, '127.0.0.1', () => r(s))); }
+function start() { const s = require('../railway/server.js'); return new Promise((r) => s.listen(0, '127.0.0.1', () => r(s))); }
 const url = (s, p) => 'http://127.0.0.1:' + s.address().port + p;
 
 function fakeSupabase(log, opts) {

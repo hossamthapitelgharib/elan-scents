@@ -2,8 +2,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const media = require('../backend/editor-media.js');
-const editorHost = require('../backend/editor-host.js');
+const media = require('../railway/editor-media.js');
+const editorHost = require('../railway/editor-host.js');
 
 /* Videos do not pass through the Worker: the server signs an upload address on Supabase Storage, the browser uploads to it, and the
    server then checks the stored file and records it. These tests run that with a fake Supabase (no network, dummy keys). */
@@ -185,7 +185,7 @@ test('pictures still go through the server, and a video sent that way is refused
 
 /* The same flow through the real server routes, signed in as an admin. */
 const url = (s, p) => 'http://127.0.0.1:' + s.address().port + p;
-async function server() { const s = require('../backend/server.js'); await new Promise((r) => s.listen(0, '127.0.0.1', r)); return s; }
+async function server() { const s = require('../railway/server.js'); await new Promise((r) => s.listen(0, '127.0.0.1', r)); return s; }
 function fakeSupabase(state) {
   const real = global.fetch;
   global.fetch = async (u, o) => {
