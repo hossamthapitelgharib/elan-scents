@@ -11,6 +11,9 @@
    The Cloudflare build (scripts/build-cloudflare.js) also writes the design's picture into the page itself (class hero-img and
    --hero-img in the first <style>), so the first frame already shows it; this file then adopts that picture, tracks its load, and
    still reconciles with the live design file below.
+   When the build also copied the picture to this site (a Supabase object is stored with "no-cache": every visit would ask Supabase
+   about it before drawing anything), the page names the pairs "<address the design names> <copy>" in --hero-map, and every address
+   the design gives is swapped for its copy here. A copy that fails to load falls back to the design's own address.
    An external file because the page policy forbids inline scripts. It changes nothing when the home design has no hero picture. */
 (function () {
   'use strict';
@@ -20,6 +23,7 @@
   var IMAGE_EXT = /\.(?:jpe?g|png|webp|gif|avif)(?:[?#]|$)/i;
   var WAIT_MS = 15000;
   var current = '', token = 0, held = null, timer = 0;
+  var mirrors = {}, origins = {};                 // design address -> copy on this site, and back
 
   function deviceOf(width) { return width < 640 ? 'mobile' : width < 1024 ? 'tablet' : 'desktop'; }
 
@@ -49,6 +53,19 @@
     } catch (e) { return ''; }
   }
 
+  /* The copies the build made (--hero-map in the first <style>): "<design address> <copy>" pairs. */
+  function readMirrors() {
+    try {
+      var v = window.getComputedStyle(root).getPropertyValue('--hero-map') || '';
+      var m = /^\s*(?:"([^"]*)"|'([^']*)')\s*$/.exec(v);
+      var parts = m ? (m[1] || m[2] || '').split(' ') : [];
+      for (var i = 0; i + 1 < parts.length; i += 2) {
+        var from = safe(parts[i]), to = safe(parts[i + 1]);
+        if (from && to) { mirrors[from] = to; origins[to] = from; }
+      }
+    } catch (e) { /* optional */ }
+  }
+
   function settle(mine) {
     if (mine !== token) return;
     clearTimeout(timer);
@@ -57,6 +74,7 @@
 
   function fit(src) {
     src = safe(src);
+    if (mirrors[src]) src = mirrors[src];
     // The same picture again changes nothing, but "no picture" must still clear a class the page was served with.
     if (src === current && (src || !root.classList.contains('hero-img'))) return;
     current = src;
@@ -77,6 +95,9 @@
     img.onload = function () { settle(mine); };
     img.onerror = function () {
       if (mine !== token) return;
+      // The copy on this site is missing or broken: the design's own address is still good.
+      var orig = origins[src];
+      if (orig) { delete mirrors[orig]; delete origins[src]; fit(orig); return; }
       root.classList.remove('hero-img');          // a picture that will not load must not leave the hero empty
       root.style.removeProperty('--hero-img');
       settle(mine);
@@ -94,7 +115,7 @@
   // Until the design file answers, a hero picture is assumed (the page waits instead of flashing a bare hero).
   root.classList.add('hero-pending');
   // The page may already name its picture (Cloudflare build): start tracking that one at once, before the design file answers.
-  try { var first = named(); if (first) fit(first); } catch (e) { /* optional */ }
+  try { readMirrors(); var first = named(); if (first) fit(first); } catch (e) { /* optional */ }
   // design-layer.js takes this answer instead of fetching the same file again.
   var none = function () { if (!current) root.classList.remove('hero-pending'); };
   try {

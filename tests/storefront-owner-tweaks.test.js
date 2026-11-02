@@ -149,8 +149,11 @@ test('hero picture: nothing writes the hero background or rotates its colours an
 });
 
 test('hero picture: the hero is never taller than 9:16, so a 9:16 picture is not cropped left and right', () => {
-  const heights = top.split('\n').filter((line) => /(^|[\s{;])(min-)?height\s*:.*--app-vh/.test(line));
+  // Every hero height rule uses the one variable, which is capped at 9:16 (and on a phone is exactly 9:16: see tests/hero-early.test.js).
+  const heights = top.split('\n').filter((line) => /(^|[\s{;])(min-)?height\s*:.*--hero-h/.test(line));
   assert.ok(heights.length >= 5, 'the hero height rules are all still there: ' + heights.length);
-  for (const line of heights) assert.match(line, /min\(calc\(var\(--app-vh, 1vh\) \* 100\), calc\(100vw \* 16 \/ 9\)\)/, line.trim());
+  for (const line of heights) assert.match(line, /var\(--hero-h\)/, line.trim());
+  assert.match(top, /:root \{ --hero-h: min\(calc\(var\(--app-vh, 1vh\) \* 100\), calc\(100vw \* 16 \/ 9\)\); \}/);
+  assert.doesNotMatch(top, /(^|[\s{;])(min-)?height\s*:[^;\n]*--app-vh/m, 'no hero height rule reads the screen height by itself');
   assert.doesNotMatch(top, /[^(]calc\(var\(--app-vh, 1vh\) \* 100\) !important/, 'no uncapped full-viewport hero height is left');
 });

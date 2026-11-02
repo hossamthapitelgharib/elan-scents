@@ -56,7 +56,7 @@
   async function uploadVideo(file, onProgress) {
     var s = await postJson('/api/editor-upload-sign', { type: file.type, size: file.size });
     await new Promise(function (resolve, reject) {
-      var fd = new FormData(); fd.append('cacheControl', '3600'); fd.append('', file);
+      var fd = new FormData(); fd.append('cacheControl', '31536000'); fd.append('', file);
       var x = new XMLHttpRequest(); x.open('PUT', s.uploadUrl);
       x.setRequestHeader('apikey', s.apikey); x.setRequestHeader('Authorization', 'Bearer ' + s.apikey); x.setRequestHeader('x-upsert', 'false');
       x.upload.onprogress = function (e) { if (e.lengthComputable) onProgress(Math.round(e.loaded / e.total * 100)); };

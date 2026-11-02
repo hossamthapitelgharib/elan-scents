@@ -96,6 +96,7 @@ test('AI image generation is guarded, capped, never leaks the key and never leav
       assert.equal(state.storage.length, 1);
       assert.match(state.storage[0].path, /^\/storage\/v1\/object\/site-media\/ai\/\d{4}\/[0-9a-f]{20}\.png$/);
       assert.equal(state.storage[0].headers['Content-Type'], 'image/png');
+      assert.equal(state.storage[0].headers['cache-control'], 'max-age=31536000', 'stored to be kept by browsers (the storage default is no-cache)');
       assert.ok(Buffer.from(state.storage[0].body).equals(PNG));
       const row = state.mediaRows[0];
       assert.equal(row.source, 'ai_generated');

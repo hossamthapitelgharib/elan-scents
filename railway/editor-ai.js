@@ -97,7 +97,7 @@ module.exports = function createAi(sb) {
     const auth = { apikey: ctx.serviceRoleKey, Authorization: 'Bearer ' + ctx.serviceRoleKey };
     let up;
     try {
-      up = await fetch(ctx.supabaseUrl + '/storage/v1/object/' + BUCKET + '/' + path, { method: 'POST', headers: { ...auth, 'Content-Type': 'image/png', 'x-upsert': 'false' }, body: bytes });
+      up = await fetch(ctx.supabaseUrl + '/storage/v1/object/' + BUCKET + '/' + path, { method: 'POST', headers: { ...auth, 'Content-Type': 'image/png', 'x-upsert': 'false', 'cache-control': 'max-age=31536000' }, body: bytes });
     } catch (_) {
       throw fail('storage_unreachable', 502);
     }

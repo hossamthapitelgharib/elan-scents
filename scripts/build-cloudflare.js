@@ -11,6 +11,7 @@
    against the real file list (later vercel.json rule wins, as in railway/server.js) and written without overlaps. */
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const pageHashes = require('../railway/editor-page-hashes.js');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -147,8 +148,58 @@ function heroPicturesByScreen(root) {
   for (const screen of Object.keys(HERO_SCREENS)) byScreen[screen] = safeHeroUrl(pick(edits[screen] && edits[screen].hero) || pick(edits.all && edits.all.hero));
   return byScreen;
 }
-function heroPreloadLinks(root) {
-  const byScreen = heroPicturesByScreen(root);
+/* A hero picture kept on Supabase storage is stored with "Cache-Control: no-cache" (the upload sends no cache header, so storage's
+   default applies): every visit asks Supabase whether the picture changed, over a connection to another host, before it can be
+   drawn. That wait (a DNS lookup, a TLS handshake and a round trip to a host far from the visitor) is the white page before the
+   hero on every opening, however fast the page itself is. The build therefore copies the picture to this site (assets/hero/, named
+   after its own content so it can be cached for good) and the page, the Link header and the first-frame style all use the copy.
+   design/home.json is not touched (the editor compares the live file with its commit); hero-early.js maps the Supabase address
+   the design names to the copy through --hero-map. Anything that goes wrong here (no network, not an image, too big) leaves the
+   page exactly as it was, with the Supabase address. */
+const HERO_MIRROR_DIR = 'assets/hero';
+const HERO_MAX_BYTES = 6 * 1024 * 1024;
+function sniffImage(buf) {
+  if (!buf || buf.length < 12) return '';
+  if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'jpg';
+  if (buf[0] === 0x89 && buf.toString('latin1', 1, 4) === 'PNG') return 'png';
+  if (buf.toString('latin1', 0, 4) === 'RIFF' && buf.toString('latin1', 8, 12) === 'WEBP') return 'webp';
+  if (buf.toString('latin1', 0, 4) === 'GIF8') return 'gif';
+  if (buf.toString('latin1', 4, 12) === 'ftypavif') return 'avif';
+  return '';
+}
+async function fetchHeroPictures(root, options) {
+  const o = Object.assign({ fetchImpl: globalThis.fetch, log: () => {}, timeoutMs: 25000 }, options);
+  const out = new Map();
+  const urls = new Set(Object.values(heroPicturesByScreen(root)).filter((u) => u.startsWith(HERO_PREFIXES[1])));
+  for (const url of urls) {
+    const label = url.slice(url.lastIndexOf('/') + 1);
+    try {
+      if (typeof o.fetchImpl !== 'function') throw new Error('no fetch');
+      const res = await o.fetchImpl(url, { redirect: 'error', signal: typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(o.timeoutMs) : undefined });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      if (Number(res.headers.get('content-length')) > HERO_MAX_BYTES) throw new Error('larger than ' + HERO_MAX_BYTES + ' bytes');
+      const bytes = Buffer.from(await res.arrayBuffer());
+      if (!bytes.length || bytes.length > HERO_MAX_BYTES) throw new Error('empty or larger than ' + HERO_MAX_BYTES + ' bytes');
+      const kind = sniffImage(bytes);
+      const named = ((/\.([a-z0-9]+)(?:[?#]|$)/i.exec(url) || [])[1] || '').toLowerCase().replace('jpeg', 'jpg');
+      if (!kind || kind !== named) throw new Error('the file is not the ' + named + ' image its address says');
+      const name = crypto.createHash('sha256').update(bytes).digest('hex').slice(0, 20) + '.' + kind;
+      out.set(url, { path: '/' + HERO_MIRROR_DIR + '/' + name, bytes });
+      o.log('hero picture copied to this site: ' + label + ' -> /' + HERO_MIRROR_DIR + '/' + name + ' (' + bytes.length + ' bytes)');
+    } catch (e) {
+      o.log('hero picture NOT copied (' + label + '), the page keeps the Supabase address: ' + (e && e.message));
+    }
+  }
+  return out;
+}
+/* What the page uses for each screen size: the copy on this site when there is one, else the address the design names. */
+function heroShownByScreen(byScreen, mirror) {
+  const shown = {};
+  for (const screen of Object.keys(byScreen)) shown[screen] = (mirror && mirror.get(byScreen[screen]) && mirror.get(byScreen[screen]).path) || byScreen[screen];
+  return shown;
+}
+function heroPreloadLinks(root, mirror) {
+  const byScreen = heroShownByScreen(heroPicturesByScreen(root), mirror);
   const urls = Object.values(byScreen);
   const link = (url, media) => '<' + url + '>; rel=preload; as=image; fetchpriority=high' + (media ? '; media="' + media + '"' : '');
   if (urls[0] && urls.every((u) => u === urls[0])) return [link(urls[0])];
@@ -164,16 +215,26 @@ function heroPreloadLinks(root) {
 const HERO_FIRST_OPEN = '<!--hero-first-->';
 const HERO_FIRST_CLOSE = '<!--/hero-first-->';
 const HERO_FIRST_CLASS = ' class="hero-img"';
-function heroFirstPaintBlock(byScreen) {
+function heroFirstPaintBlock(byScreen, fromByScreen) {
   const urls = Object.values(byScreen);
   const decl = (url) => ':root{--hero-img:url("' + url + '")}';
   let css;
   if (urls[0] && urls.every((u) => u === urls[0])) css = decl(urls[0]);
   else css = Object.keys(HERO_SCREENS).filter((s) => byScreen[s]).map((s) => '@media ' + HERO_SCREENS[s] + '{' + decl(byScreen[s]) + '}').join('');
-  return css ? HERO_FIRST_OPEN + '<style>' + css + '</style>' + HERO_FIRST_CLOSE + '\n' : '';
+  if (!css) return '';
+  // Where the page draws a copy: "<address the design names> <copy>" pairs, so hero-early.js can swap the design's address for the copy
+  // whichever screen size it is asked about (all sizes in one declaration; addresses never contain a space).
+  const pairs = [];
+  for (const screen of Object.keys(byScreen)) {
+    const from = fromByScreen && fromByScreen[screen];
+    if (from && byScreen[screen] && from !== byScreen[screen] && !pairs.includes(from)) pairs.push(from, byScreen[screen]);
+  }
+  if (pairs.length) css += ':root{--hero-map:"' + pairs.join(' ') + '"}';
+  return HERO_FIRST_OPEN + '<style>' + css + '</style>' + HERO_FIRST_CLOSE + '\n';
 }
-function withHeroFirstPaint(html, byScreen) {
-  const block = heroFirstPaintBlock(byScreen);
+/* byScreen: what the page draws (the copy on this site, or the design's own address); fromByScreen: the addresses the design names. */
+function withHeroFirstPaint(html, byScreen, fromByScreen) {
+  const block = heroFirstPaintBlock(byScreen, fromByScreen);
   const tag = /^(\s*<!DOCTYPE html>\s*<html\b)([^>]*)>/i.exec(html);
   const anchor = html.indexOf('<link rel="stylesheet"');
   if (!block || !tag || /\sclass\s*=/i.test(tag[2]) || anchor < 0 || html.includes(HERO_FIRST_OPEN)) return html;
@@ -202,6 +263,8 @@ function withHeroLink(rules, links) {
 
 function buildHeadersFile(files, vercelConfig, extra) {
   const rules = withHeroLink(resolveRules(files, vercelConfig), (extra && extra.heroLinks) || []);
+  // The copies of the hero picture are named after their content, so they can be kept for good.
+  if (extra && extra.heroCopies) rules.push({ pattern: '/' + HERO_MIRROR_DIR + '/*', headers: [['Cache-Control', 'public, max-age=31536000, immutable']] });
   if (rules.length + 1 > MAX_HEADER_RULES) throw new Error('too many _headers rules (' + (rules.length + 1) + ', Cloudflare allows ' + MAX_HEADER_RULES + ')');
   const lines = [
     '# Generated by scripts/build-cloudflare.js from vercel.json. Do not edit: the next build overwrites this file.',
@@ -225,10 +288,18 @@ function build(options) {
     fs.mkdirSync(path.dirname(to), { recursive: true });
     fs.copyFileSync(path.join(opts.root, ...rel.split('/')), to);
   }
-  fs.writeFileSync(path.join(opts.outDir, '_headers'), buildHeadersFile(files, vercelConfig, { heroLinks: heroPreloadLinks(opts.root) }));
+  // Copies of the hero picture (fetched by fetchHeroPictures before the build; none when the option is not given).
+  const mirror = opts.heroMirror instanceof Map ? opts.heroMirror : new Map();
+  for (const copy of mirror.values()) {
+    const to = path.join(opts.outDir, ...copy.path.split('/').filter(Boolean));
+    fs.mkdirSync(path.dirname(to), { recursive: true });
+    fs.writeFileSync(to, copy.bytes);
+  }
+  fs.writeFileSync(path.join(opts.outDir, '_headers'), buildHeadersFile(files, vercelConfig, { heroLinks: heroPreloadLinks(opts.root, mirror), heroCopies: mirror.size > 0 }));
   if (files.includes('index.html')) {
     const page = path.join(opts.outDir, 'index.html');
-    fs.writeFileSync(page, withHeroFirstPaint(fs.readFileSync(page, 'utf8'), heroPicturesByScreen(opts.root)));
+    const named = heroPicturesByScreen(opts.root);
+    fs.writeFileSync(page, withHeroFirstPaint(fs.readFileSync(page, 'utf8'), heroShownByScreen(named, mirror), named));
   }
 
   const editorFiles = {};
@@ -242,8 +313,14 @@ function build(options) {
 }
 
 if (require.main === module) {
-  const result = build();
-  console.log('cloudflare build: ' + result.files.length + ' public files -> ' + path.relative(ROOT, result.outDir) + '/ (+ _headers), editor files bundled');
+  (async () => {
+    let heroMirror = new Map();
+    if (process.env.HERO_MIRROR !== '0') {
+      try { heroMirror = await fetchHeroPictures(ROOT, { log: (m) => console.log('cloudflare build: ' + m) }); } catch (e) { console.log('cloudflare build: hero picture not copied: ' + (e && e.message)); }
+    }
+    const result = build({ heroMirror });
+    console.log('cloudflare build: ' + result.files.length + ' public files -> ' + path.relative(ROOT, result.outDir) + '/ (+ _headers' + (heroMirror.size ? ', ' + heroMirror.size + ' hero picture copy' : '') + '), editor files bundled');
+  })().catch((e) => { console.error(e); process.exit(1); });
 }
 
-module.exports = { build, listPublicFiles, isPublic, buildHeadersFile, heroPreloadLinks, heroPicturesByScreen, withHeroFirstPaint, withoutHeroFirstPaint, resolveRules, headersFor, compileRules, BASELINE_HEADERS, PRIVATE_EDITOR_FILES };
+module.exports = { build, listPublicFiles, isPublic, buildHeadersFile, heroPreloadLinks, heroPicturesByScreen, heroShownByScreen, fetchHeroPictures, sniffImage, withHeroFirstPaint, withoutHeroFirstPaint, resolveRules, headersFor, compileRules, BASELINE_HEADERS, PRIVATE_EDITOR_FILES };

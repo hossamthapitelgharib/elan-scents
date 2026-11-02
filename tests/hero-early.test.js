@@ -22,7 +22,7 @@ const { designBrowser } = require('./browser-fixture');
 
 const SUPA = 'https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/uploads/2026/hero.jpg';
 
-function run(json, { width = 393, named = '', classes: served = [], cached = false } = {}) {
+function run(json, { width = 393, named = '', map = '', classes: served = [], cached = false } = {}) {
   const classes = new Set(served), props = {}, images = [], timers = [];
   const rootEl = {
     classList: { add: (...c) => c.forEach((x) => classes.add(x)), remove: (...c) => c.forEach((x) => classes.delete(x)), contains: (c) => classes.has(c) },
@@ -35,7 +35,7 @@ function run(json, { width = 393, named = '', classes: served = [], cached = fal
     Object.defineProperty(this, 'src', { get: () => src, set: (v) => { src = v; if (cached) { this.complete = true; this.naturalWidth = 540; this.naturalHeight = 960; } }, enumerable: true });
   }
   // `named` is what the stylesheet's --hero-img holds when the page itself already names its picture (the Cloudflare build does).
-  const window = { innerWidth: width, getComputedStyle: () => ({ getPropertyValue: (name) => (name === '--hero-img' ? named : '') }) };
+  const window = { innerWidth: width, getComputedStyle: () => ({ getPropertyValue: (name) => (name === '--hero-img' ? named : name === '--hero-map' ? map : '') }) };
   const requests = [];
   const fetch = async (url, opts) => { requests.push([url, opts]); if (json === 'fail') throw new Error('offline'); return { ok: true, json: async () => json }; };
   const sandbox = { document: { documentElement: rootEl }, window, fetch, Image, setTimeout: (fn, ms) => { timers.push([fn, ms]); return timers.length; }, clearTimeout: (id) => { if (timers[id - 1]) timers[id - 1] = null; } };
@@ -165,6 +165,51 @@ test('a page that names its picture (the Cloudflare build) starts tracking it be
   }
 });
 
+test('where the build copied the picture to this site, the design\'s Supabase address is swapped for the copy, and a broken copy falls back to the design\'s own address', async () => {
+  const COPY = '/assets/hero/0123456789abcdef0123.jpg';
+  const named = ' url("' + COPY + '") ';
+  const map = '"' + SUPA + ' ' + COPY + '"';
+
+  // The page names the copy; the design names the Supabase address: one picture, one download, nothing restarts.
+  let t = run(heroOf(SUPA), { named, map, classes: ['hero-img'], cached: true });
+  await t.ready();
+  assert.deepEqual(t.images.map((i) => i.src), [COPY], 'the Supabase address is never requested');
+  assert.deepEqual([...t.classes], ['hero-img']);
+  assert.equal(t.props['--hero-img'], 'url("' + COPY + '")');
+  t.window.ElanHeroFit(SUPA);                                  // design-layer.js asks with the design\'s address
+  assert.equal(t.images.length, 1, 'asking again with the design address changes nothing');
+
+  // A picture the build knew nothing about (chosen in the editor, or a newer design) is used as it is.
+  const other = SUPA.replace('hero.jpg', 'new.jpg');
+  t = run(heroOf(other), { named, map, classes: ['hero-img'] });
+  await t.ready();
+  assert.deepEqual(t.images.map((i) => i.src), [COPY, other]);
+
+  // Single quotes, several pairs and junk in the map: only well-formed safe pairs count.
+  const OTHER_COPY = '/assets/hero/aaaaaaaaaaaaaaaaaaaa.webp';
+  t = run(heroOf(other), { map: "'" + SUPA + ' ' + COPY + ' ' + other + ' ' + OTHER_COPY + " https://evil.example/x.png /assets/x.png /assets/../y.png /assets/z.mp4'" });
+  await t.ready();
+  assert.deepEqual(t.images.map((i) => i.src), [OTHER_COPY]);
+  t = run(heroOf(SUPA), { map: 'not a string' });
+  await t.ready();
+  assert.deepEqual(t.images.map((i) => i.src), [SUPA], 'a map the page does not have, or a broken one, changes nothing');
+
+  // The copy is missing or broken: fall back to the design's address (one more try, then the usual "no picture" rules).
+  t = run(heroOf(SUPA), { named, map, classes: ['hero-img'] });
+  await t.ready();
+  assert.equal(t.images.length, 1);
+  t.images[0].onerror();
+  assert.deepEqual(t.images.map((i) => i.src), [COPY, SUPA]);
+  assert.equal(t.props['--hero-img'], 'url("' + SUPA + '")');
+  assert.ok(t.classes.has('hero-img') && t.classes.has('hero-pending'), 'still waiting for the picture, which is now the design\'s own');
+  t.images[1].onload();
+  assert.deepEqual([...t.classes], ['hero-img']);
+  t.window.ElanHeroFit(SUPA);
+  assert.equal(t.images.length, 2, 'and design-layer.js asking with that address does not start a third download');
+  t.images[1].onerror();                                       // a second failure is final
+  assert.equal(t.classes.size, 0);
+});
+
 test('a picture that is already here (repeat visit) clears the waiting state before the first frame; a picture still coming clears it when it loads', async () => {
   const named = ' url("' + SUPA + '") ';
   let t = run(heroOf(SUPA), { named, classes: ['hero-img'], cached: true });
@@ -191,6 +236,19 @@ test('hero CSS: the blurred copy reaches past the hero so its fade is clipped, n
   assert.match(top, /:root \{ --app-vh: 1vh; \}\s*@supports \(height: 1svh\) \{ :root \{ --app-vh: 1svh; \} \}/, 'the hero height is the final one before app-core.js runs');
   assert.doesNotMatch(top + early, /hero-fade|--hero-ratio|mask-image/, 'no edge softening of the picture');
   assert.match(index, /<body class="hd-over bar-over">/, 'the page opens in the header-over-hero state, so the header is in its white state in the first frame (app-core.js corrects it when scrolled)');
+});
+
+test('the hero looks the same in every browser: on a phone its height comes from the width alone, and the page asks the browser for no safe-area insets', () => {
+  // A phone's hero is exactly 9:16 of its width, whatever bars the browser has: a height taken from the screen gave every browser its own
+  // hero, and a screen shorter than 16/9 of its width left blurred stripes down both sides of a 9:16 picture.
+  assert.match(top, /@media \(max-width: 639px\) \{ :root \{ --hero-h: calc\(100vw \* 16 \/ 9\); \} \}/);
+  assert.equal(early.match(/width < 640 \? 'mobile'/).length, 1, 'the same 640px line hero-early.js calls mobile');
+  // The page used to opt in to viewport-fit=cover and pad itself with env(safe-area-inset-*). Firefox for Android then reported about
+  // 48px at the top and 17px at the bottom in an ordinary tab: a white strip above the hero, the header and the ticker pushed down, and
+  // the WhatsApp button lifted. Without the opt-in the browser keeps the page inside its own bars, the same way in every browser.
+  assert.doesNotMatch(index, /viewport-fit/);
+  assert.match(index, /<meta name="viewport" content="width=device-width, initial-scale=1">/);
+  assert.doesNotMatch(base + top, /env\(\s*safe-area-inset/, 'nothing on the storefront reads a safe-area inset any more');
 });
 
 test('the hero picture is drawn by one mechanism: design-layer.js adds no second, cropped copy as a background of the hero', () => {

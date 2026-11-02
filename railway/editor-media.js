@@ -52,6 +52,9 @@ async function list(session, offset, kind) {
 }
 
 const newPath = (ext) => 'uploads/' + new Date().getUTCFullYear() + '/' + crypto.randomBytes(10).toString('hex') + '.' + ext;
+/* Every upload gets a new random name and is never replaced, so browsers may keep it for good. Without this header the storage server
+   stores "no-cache" and every visitor asks it about the picture again on every visit before it can be drawn (a white hero on every opening). */
+const FOREVER = 'max-age=31536000';
 const publicUrl = (c, path) => c.url + '/storage/v1/object/public/' + BUCKET + '/' + path;
 
 /* Adds the stored file to the media library. Returns an error answer, or null when it was recorded. */
@@ -78,7 +81,7 @@ async function upload(session, buf, type, fileName) {
   if (!looksLike(buf, type)) return { status: 415, error: 'file_does_not_match_type' };
   const path = newPath(ext);
   let up;
-  try { up = await fetch(c.url + '/storage/v1/object/' + BUCKET + '/' + path, { method: 'POST', headers: headers(session, { 'Content-Type': type, 'x-upsert': 'false' }), body: buf }); }
+  try { up = await fetch(c.url + '/storage/v1/object/' + BUCKET + '/' + path, { method: 'POST', headers: headers(session, { 'Content-Type': type, 'x-upsert': 'false', 'cache-control': FOREVER }), body: buf }); }
   catch (_) { return { status: 502, error: 'storage_unreachable' }; }
   if (!up.ok) return { status: up.status === 401 || up.status === 403 ? up.status : 502, error: 'upload_failed' };
   const url = publicUrl(c, path);

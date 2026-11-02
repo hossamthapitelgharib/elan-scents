@@ -16,7 +16,7 @@ function fakeSupabase(log, opts) {
   global.fetch = async (u, o) => {
     u = String(u);
     if (u.startsWith('http://127.0.0.1')) return real(u, o);
-    log.push({ url: u, method: (o && o.method) || 'GET', auth: o && o.headers && o.headers.Authorization });
+    log.push({ url: u, method: (o && o.method) || 'GET', auth: o && o.headers && o.headers.Authorization, cache: o && o.headers && o.headers['cache-control'] });
     let r = { s: 200, j: {} };
     if (u.startsWith(SB + '/auth/v1/token')) r = { s: 200, j: { access_token: 'admin-token', refresh_token: 'ref', expires_in: 3600 } };
     else if (u.startsWith(SB + '/auth/v1/user')) r = { s: 200, j: { id: 'u1', email: 'owner@example.test' } };
@@ -50,6 +50,10 @@ test('media library and upload need an admin session and use that session, never
     const calls = log.filter((c) => /storage|media_library/.test(c.url));
     assert.ok(calls.length >= 3 && calls.every((c) => c.auth === 'Bearer admin-token'), 'every media call uses the admin session');
     assert.equal(calls.some((c) => c.auth === 'Bearer service'), false);
+    // A stored picture is kept by browsers for good (its name is new and random): the storage default is "no-cache", which made every visit ask Supabase about the hero first.
+    const stored = log.filter((c) => c.method === 'POST' && c.url.startsWith(SB + '/storage/v1/object/site-media/'));
+    assert.equal(stored.length, 1);
+    assert.equal(stored[0].cache, 'max-age=31536000');
   } finally { restore(); s.close(); }
 });
 
