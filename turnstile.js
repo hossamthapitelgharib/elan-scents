@@ -17,7 +17,7 @@
 (function () {
   'use strict';
   var API = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
-  var LOAD_MS = 15000;    // the Cloudflare script must arrive within this long
+  var LOAD_MS = 10000;    // the Cloudflare script must arrive within this long
   var SOLVE_MS = 120000;  // a visitor who has to tick the box gets two minutes
   var KEEP_MS = 240000;   // a token lives five minutes: one that is older than four is thrown away and asked for again
   var WATCHED = 'form[data-auth-form], #loginForm, #authForm, #resetForm';
@@ -50,21 +50,30 @@
     if (!apiPromise) {
       apiPromise = new Promise(function (resolve, reject) {
         var script = document.createElement('script');
-        var timer = setTimeout(function () { apiPromise = null; reject(fail('captcha_unavailable')); }, LOAD_MS);
+        var settled = false;
+        var timer = setTimeout(function () { finish(fail('captcha_unavailable')); }, LOAD_MS);
+        function finish(error, api) {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          if (error) {
+            apiPromise = null;
+            if (script.parentNode) script.parentNode.removeChild(script);
+            reject(error);
+          } else {
+            resolve(api);
+          }
+        }
         script.src = API;
         script.async = true;
         script.onload = function () {
-          clearTimeout(timer);
           var api = window.turnstile;
-          if (!api || typeof api.render !== 'function') { apiPromise = null; reject(fail('captcha_unavailable')); return; }
-          if (typeof api.ready === 'function') api.ready(function () { resolve(api); }); else resolve(api);
+          // The explicit-render script is ready as soon as it loads and exposes render().
+          // Waiting for turnstile.ready() here can hang forever on blocked/partial browser loads.
+          if (!api || typeof api.render !== 'function') { finish(fail('captcha_unavailable')); return; }
+          finish(null, api);
         };
-        script.onerror = function () {
-          clearTimeout(timer);
-          apiPromise = null;
-          if (script.parentNode) script.parentNode.removeChild(script);
-          reject(fail('captcha_unavailable'));
-        };
+        script.onerror = function () { finish(fail('captcha_unavailable')); };
         document.head.appendChild(script);
       });
     }

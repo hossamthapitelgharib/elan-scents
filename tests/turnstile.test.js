@@ -16,7 +16,7 @@ const settle = async () => { for (let i = 0; i < 8; i += 1) await new Promise((r
 
 /* A browser with a page, a /api/config, and Cloudflare's script that "loads" on the next tick. */
 function harness(options) {
-  const state = Object.assign({ key: 'site-key-for-tests', configFails: false, scriptFails: false }, options);
+  const state = Object.assign({ key: 'site-key-for-tests', configFails: false, scriptFails: false, readyHangs: false }, options);
   const timers = [], rendered = [], removed = [], scripts = [], fetches = [], listeners = {};
   const clock = { now: 1700000000000 };
   const element = (tag) => ({
@@ -28,7 +28,7 @@ function harness(options) {
   const api = {
     render(holder, opts) { const id = 'widget-' + (rendered.length + 1); rendered.push({ id, holder, opts }); return id; },
     remove(id) { removed.push(id); },
-    ready(fn) { fn(); }
+    ready(fn) { if (!state.readyHangs) fn(); }
   };
   const head = element('head');
   head.appendChild = (el) => {
@@ -87,6 +87,15 @@ test('with a key: Cloudflare\'s script is loaded once, the widget is drawn quiet
   assert.equal(h.scripts.length, 1, 'but the script is not loaded again');
   h.rendered[1].opts.callback('token-two');
   assert.equal(await second, 'token-two');
+});
+
+test('a loaded explicit-render script does not wait forever for turnstile.ready()', async () => {
+  const h = harness({ readyHangs: true });
+  const pending = h.ts.token(h.form());
+  await settle();
+  assert.equal(h.rendered.length, 1, 'render starts as soon as the loaded API exposes render()');
+  h.rendered[0].opts.callback('ready-timeout-fixed');
+  assert.equal(await pending, 'ready-timeout-fixed');
 });
 
 test('a check started early (the form was opened) is the one the button uses: one widget, one token', async () => {

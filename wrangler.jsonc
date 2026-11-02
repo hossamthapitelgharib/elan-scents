@@ -34,7 +34,9 @@
     "TURNSTILE_SITE_KEY": "",
     "EDITOR_ENV": "production",
     "EDITOR_TARGET_BRANCH": "main",
-    "GITHUB_REPO": "hossamthapitelgharib/elan-scents"
+    "GITHUB_REPO": "hossamthapitelgharib/elan-scents",
+    // All security-sensitive async API limits use the atomic Supabase RPC; fail closed if unavailable.
+    "STATE_STORE_REQUIRED": "1"
   },
 
   "observability": { "enabled": true }

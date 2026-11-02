@@ -17,12 +17,14 @@
 
 | الاسم | مطلوب؟ | ملاحظة |
 |---|---|---|
-| `SUPABASE_SERVICE_ROLE_KEY` | نعم | بدونه لا تعمل دوال `/api` ولا دخول المحرر بالبريد. من Supabase ← Project Settings ← API Keys، أو انسخه من Variables في خدمة Railway `elan-editor` |
-| `GITHUB_TOKEN` | للمحرر | بدونه يعمل المحرر للقراءة فقط ولا يحفظ على `main`. صلاحية Contents: Read and write على هذا المستودع |
+| `SUPABASE_SERVICE_ROLE_KEY` | نعم | **Secret**؛ بدونه لا تعمل دوال `/api` ولا دخول المحرر بالبريد. من Supabase ← Project Settings ← API Keys، أو انسخه من Variables في خدمة Railway `elan-editor` |
+| `GITHUB_TOKEN` | للمحرر | **Secret**؛ بدونه يعمل المحرر للقراءة فقط ولا يحفظ على `main`. صلاحية Contents: Read and write على هذا المستودع |
 | `STORE_ORDER_WEBHOOK_SECRET` | للـ webhooks | بدونه ترد الـ webhooks بـ 503 (آمن). مضبوط الآن (فحص `live-check`). يُعطى للمتجر عند ربطه |
 | `GUEST_HASH_SECRET` | لا | إن لم يُضبط يُستعمل `SUPABASE_SERVICE_ROLE_KEY` وهو القيمة التي كان مضبوطاً عليها على Railway، فيستمر سجل الضيوف. لا تضعه بقيمة أخرى |
 
 `SUPABASE_URL` و`SUPABASE_ANON_KEY` (قيمتان عامتان يستلمهما متصفح كل زائر من `/api/config`) و`EDITOR_ENV` و`EDITOR_TARGET_BRANCH` و`GITHUB_REPO` موجودة في `wrangler.jsonc`، فلا تضفها. أما `EDITOR_SITE_ORIGIN` و`ELAN_EDITOR_ORIGIN` و`ELAN_STORE_ORIGIN` فإن لم تُضبط يستعمل الـ Worker العنوان الذي زرتَه به (المحرر والمتجر على أصل واحد)؛ اضبطها فقط إن استعملت أكثر من نطاق.
+
+`STATE_STORE_REQUIRED=1` إعداد غير سري في `wrangler.jsonc`: يفرض عداد المعدل الذري المشترك عبر RPC في Supabase ويمنع الرجوع لحد محلي قابل للتجاوز. الترحيل المطبق هو `20261102201001_shared_rate_limit_buckets.sql`؛ يخزن HMAC لمفتاح endpoint/client/window لا عنوان IP الخام، ولا يمنح أدوار المتصفح أو `service_role` وصولًا مباشرًا للجدول. عند تعذر Supabase، ترفض المسارات المحدودة الطلب مؤقتًا بدل تجاوز الحماية. كل فحص موزع يضيف طلب REST داخليًا إلى Supabase.
 3. افتح `https://elan-scents.hossamthapitelgharib.workers.dev/health` (يردّ `ok`) ثم `/` و`/api/config` و`/editor`.
 
 ## نطاق خاص (لاحقاً)
@@ -32,7 +34,7 @@
 ## حدود الخطة المجانية (Workers Free)
 - الملفات الثابتة بلا حد ولا تُحسب طلبات؛ الطلبات التي تشغّل الكود (`/api/*` و`/editor`) حدّها 100 ألف في اليوم.
 - 10 ملي ثانية CPU للطلب الواحد و50 طلباً خارجياً (Supabase/GitHub) للطلب. صفحة المحرر تُحسب هاشاتها وقت البناء لهذا السبب. لو ظهر الخطأ 1102 في اللوحة فالمعالجة تحتاج الخطة المدفوعة (5$ شهرياً) وهذا قرار مالك.
-- حدّ الطلبات في `lib/rate-limit.js` وعدّاد محاولات الدخول في الذاكرة، وعلى Cloudflare الذاكرة لكل نسخة تشغيل (isolate)؛ فهو أضعف من Railway ذي النسخة الواحدة. جلسة المحرر (كوكي مشفّر) لا تتأثر.
+- المسارات التي تستخدم `createDistributedLimiter` تعدّ عبر Supabase RPC ذريًا ومشتركًا بين نسخ Worker؛ الطلبات محدودة تفشل مغلقة عند غياب الخدمة. أما محددات الذاكرة المحلية غير المتزامنة فتبقى لكل isolate.
 
 ## تشغيل محلي
 `npx wrangler dev` (يحتاج ملف `.dev.vars` فيه نفس الأسرار، وهو مستثنى من Git).
