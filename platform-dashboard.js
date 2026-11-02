@@ -1,5 +1,7 @@
 const AUDIT_PAGE = 20;
-const state = { auditOffset: 0, auditHasMore: false, auditBusy: false };
+/* The registered-customers card follows new sign-ups without a page reload: it re-reads the (cheap) count this often while the tab is visible. */
+const LIVE_COUNT_MS = 20000;
+const state = { auditOffset: 0, auditHasMore: false, auditBusy: false, orders: null, liveTimer: null, countBusy: false };
 
 /* The page may be opened with the API codes only; Portal.errorText turns each into a sentence (and keeps an unknown code in brackets). */
 function errorTextP(error, fallback) {
@@ -161,9 +163,34 @@ async function loadPlatform() {
   $('#refresh').disabled = false;
   const refused = settled.find(result => result.status === 'rejected' && (result.reason.status === 401 || result.reason.status === 403));
   if (refused) return sessionProblem(refused.reason);
+  state.orders = settled[0];
   renderStats(settled[0], settled[1]);
   renderStores(settled[2]);
   renderAudit(settled[3], false);
+  startLiveCount();
+}
+
+/* Only the customer count is re-read: a failed read leaves the numbers on screen and the next tick tries again; a dead session goes back to sign-in. */
+async function refreshCustomerCount() {
+  if (state.countBusy || !state.orders || !Portal.session() || $('#app').hidden || document.hidden) return;
+  state.countBusy = true;
+  try {
+    const [customers] = await Promise.allSettled([request('/api/platform-customer-summary')]);
+    if (customers.status === 'rejected') {
+      if (customers.reason.status === 401 || customers.reason.status === 403) sessionProblem(customers.reason);
+      return;
+    }
+    renderStats(state.orders, customers);
+  } finally {
+    state.countBusy = false;
+  }
+}
+
+function startLiveCount() {
+  if (state.liveTimer || typeof setInterval !== 'function') return;
+  state.liveTimer = setInterval(() => { refreshCustomerCount().catch(() => {}); }, LIVE_COUNT_MS);
+  // Node (the tests) must not be held open by this timer; a browser's timer id is a number and has no unref.
+  if (state.liveTimer && typeof state.liveTimer.unref === 'function') state.liveTimer.unref();
 }
 
 $('#loginForm').addEventListener('submit', async event => {

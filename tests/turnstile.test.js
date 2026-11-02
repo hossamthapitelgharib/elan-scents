@@ -246,7 +246,7 @@ function storefront(turnstile, server) {
   const toasts = [], calls = [], saved = [];
   const context = vm.createContext({
     SB: { url: 'https://project.example.invalid', key: 'anon-key' }, AUTH: null, PENDING_STORE: '', CART_FIRST_SYNC_DONE: true,
-    toast: (text) => toasts.push(text), buildMenu() {}, syncCartFromCloud: async () => {}, openStoreOrder() {}, sheet() {},
+    lang: 'ar', closeSheet() {}, toast: (text) => toasts.push(text), buildMenu() {}, syncCartFromCloud: async () => {}, openStoreOrder() {}, sheet() {},
     localStorage: { setItem: (k, v) => saved.push(k) },
     fetch: async (url, init) => { calls.push({ url: String(url), init }); return server(String(url), init); },
     Promise, JSON, String, RegExp
