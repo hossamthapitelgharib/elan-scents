@@ -60,7 +60,7 @@ Same mouse model as the original editor: **right-click = the tools menu, left-cl
 
 ## Pictures and videos
 
-Menu → **رفع صورة أو فيديو داخل العناصر أو الهيرو**, **إنشاء بانر صورة أو فيديو** and **إنشاء صورة أو فيديو** open the same picker: the library (pictures and videos, a video shows its first frame), upload from the device, or AI generation (pictures only, needs a key and your approval of the cost).
+Menu → **رفع صورة أو فيديو داخل العناصر أو الهيرو**, **إنشاء بانر صورة أو فيديو** and **إنشاء صورة أو فيديو** open the same picker: the library (pictures and videos, a video shows its first frame) or upload from the device. There is no AI generation of pictures or videos (removed at the owner's request).
 
 | | Pictures | Videos |
 |--|----------|--------|

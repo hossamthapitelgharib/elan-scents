@@ -74,14 +74,14 @@
       function finish(v) { if (done) return; done = true; try { dlg.close(); } catch (_) { /* closed */ } dlg.remove(); resolve(v || null); }
       dlg.addEventListener('cancel', function () { finish(null); }); dlg.addEventListener('close', function () { finish(null); });
       dlg.appendChild(el('b', 'اختيار صورة أو فيديو'));
-      var tabs = el('div', '', { className: 'tabs' }), bLib = el('button', 'المكتبة'), bUp = el('button', 'رفع من الجهاز'), bAi = el('button', 'توليد بالذكاء الاصطناعي');
-      tabs.append(bLib, bUp, bAi); dlg.appendChild(tabs);
+      var tabs = el('div', '', { className: 'tabs' }), bLib = el('button', 'المكتبة'), bUp = el('button', 'رفع من الجهاز');
+      tabs.append(bLib, bUp); dlg.appendChild(tabs);
       var body = el('div'), note = el('div', '', { className: 'note' });
       dlg.append(body);
       var foot = el('div'); if (opts.optional) { var skip = el('button', 'بدون صورة دلوقتي'); skip.onclick = function () { finish(null); }; foot.appendChild(skip); }
       var close = el('button', 'إلغاء'); close.onclick = function () { finish(null); }; foot.appendChild(close); dlg.appendChild(foot);
 
-      function mark(b) { [bLib, bUp, bAi].forEach(function (x) { x.classList.toggle('on', x === b); }); }
+      function mark(b) { [bLib, bUp].forEach(function (x) { x.classList.toggle('on', x === b); }); }
       function showLibrary() {
         mark(bLib); body.textContent = ''; var grid = el('div', '', { className: 'grid' }), more = el('button', 'المزيد'), offset = 0; body.append(note, grid, more);
         async function load() {
@@ -114,8 +114,7 @@
           catch (e) { note.textContent = messages(isVideo)[e.code] || 'الرفع فشل.'; }
         };
       }
-      function showAi() { mark(bAi); body.textContent = ''; body.append(el('div', 'توليد الصور بالذكاء الاصطناعي محتاج مفتاح على السيرفر وموافقتك على التكلفة، ولسه ما اتفعّلش.', { className: 'note' })); }
-      bLib.onclick = showLibrary; bUp.onclick = showUpload; bAi.onclick = showAi;
+      bLib.onclick = showLibrary; bUp.onclick = showUpload;
       document.body.appendChild(dlg); dlg.showModal(); showLibrary();
     });
   };
