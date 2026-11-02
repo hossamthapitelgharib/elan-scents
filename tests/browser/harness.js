@@ -15,7 +15,7 @@ const ACCESS_KEY = 'browser-test-key-0123456789';          // a throw-away value
 const SUPABASE_HOST = 'sbgdtuqfrnfeggkwqtrw.supabase.co';
 const WIDTHS = [{ name: 'phone', width: 390, height: 844 }, { name: 'tablet', width: 820, height: 1180 }, { name: 'laptop', width: 1366, height: 768 }];
 
-function loadPlaywright() { try { return require('playwright'); } catch (_) { return null; } }
+ function loadPlaywright() { return require('playwright'); }
 
 function freePort() {
   return new Promise((resolve, reject) => {

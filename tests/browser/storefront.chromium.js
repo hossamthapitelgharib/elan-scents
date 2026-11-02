@@ -5,10 +5,9 @@ const assert = require('node:assert/strict');
 const H = require('./harness.js');
 
 const pw = H.loadPlaywright();
-const skip = pw ? false : 'Playwright is not installed (npm install, then npx playwright install chromium)';
 
 let browser, server;
-test.before(async () => { if (!pw) return; server = await H.startServer(); browser = await pw.chromium.launch({ args: ['--no-sandbox'] }); });
+test.before(async () => { server = await H.startServer(); browser = await pw.chromium.launch({ args: ['--no-sandbox'] }); });
 test.after(async () => { if (browser) await browser.close(); if (server) await server.stop(); });
 
 async function visit(size) {
@@ -21,7 +20,7 @@ async function visit(size) {
 }
 
 for (const size of H.WIDTHS) {
-  test('storefront at ' + size.width + 'px (' + size.name + '): no page errors, no sideways scroll, the hero spans the screen', { skip }, async () => {
+  test('storefront at ' + size.width + 'px (' + size.name + '): no page errors, no sideways scroll, the hero spans the screen', async () => {
     const { context, page, errors, problems } = await visit(size);
     try {
       assert.deepEqual(errors, [], 'the page must raise no error');
@@ -39,7 +38,7 @@ for (const size of H.WIDTHS) {
     } finally { await context.close(); }
   });
 
-  test('storefront at ' + size.width + 'px: the sections follow the page order and never wider than the screen', { skip }, async () => {
+  test('storefront at ' + size.width + 'px: the sections follow the page order and never wider than the screen', async () => {
     const { context, page } = await visit(size);
     try {
       const sections = await page.evaluate(() => Array.from(document.querySelectorAll('#main > section[id]')).map((s) => { const r = s.getBoundingClientRect(); return { id: s.id, top: Math.round(r.top + scrollY), width: Math.round(r.width), display: getComputedStyle(s).display }; }).concat([{ id: '#client', width: document.body.clientWidth }]));

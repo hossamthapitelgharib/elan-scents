@@ -10,12 +10,11 @@ const F = require('./panel-fidelity.js');
 const golden = require('../fixtures/elan-original-panels-golden.json');
 
 const pw = H.loadPlaywright();
-const skip = pw ? false : 'Playwright is not installed (npm install, then npx playwright install chromium)';
 const WINDOW = { width: 1366, height: 860 };            // what the original was captured in
 const REVISION = 'a'.repeat(64);
 
 let browser, server;
-test.before(async () => { if (!pw) return; server = await H.startServer(); browser = await pw.chromium.launch({ args: ['--no-sandbox'] }); });
+test.before(async () => { server = await H.startServer(); browser = await pw.chromium.launch({ args: ['--no-sandbox'] }); });
 test.after(async () => { if (browser) await browser.close(); if (server) await server.stop(); });
 
 /* The editor, with /api/editor-data answered from the same lists the original panels were given. */
@@ -78,7 +77,7 @@ function same(live, name, drop, looseText) {
   assert.deepEqual(problems.slice(0, 12), [], name + ' differs from the original in ' + problems.length + ' places');
 }
 
-test('section panel: the same as the original (manual, automatic, with the timer)', { skip }, async () => {
+test('section panel: the same as the original (manual, automatic, with the timer)', async () => {
   const { context, page, frame, errors } = await openEditor();
   try {
     await chooseTool(page, frame, /إنشاء سيكشن/);
@@ -96,7 +95,7 @@ test('section panel: the same as the original (manual, automatic, with the timer
   } finally { await context.close(); }
 });
 
-test('text format panel (font, colour, size): the same as the original', { skip }, async () => {
+test('text format panel (font, colour, size): the same as the original', async () => {
   const { context, page, frame } = await openEditor();
   try {
     await chooseTool(page, frame, /تنسيق النص/);
@@ -113,7 +112,7 @@ test('text format panel (font, colour, size): the same as the original', { skip 
   } finally { await context.close(); }
 });
 
-test('perfume card panel: the same as the original', { skip }, async () => {
+test('perfume card panel: the same as the original', async () => {
   const { context, page, frame } = await openEditor();
   try {
     await chooseTool(page, frame, /إنشاء كارت عطر/);
@@ -122,7 +121,7 @@ test('perfume card panel: the same as the original', { skip }, async () => {
   } finally { await context.close(); }
 });
 
-test('brand card panel: the same as the original', { skip }, async () => {
+test('brand card panel: the same as the original', async () => {
   const { context, page, frame } = await openEditor();
   try {
     await chooseTool(page, frame, /إنشاء كارت براند/);
@@ -130,7 +129,7 @@ test('brand card panel: the same as the original', { skip }, async () => {
   } finally { await context.close(); }
 });
 
-test('library window: the same layout as the original, with the cloud library behind it and nothing from the AI', { skip }, async () => {
+test('library window: the same layout as the original, with the cloud library behind it and nothing from the AI', async () => {
   const { context, page, calls, errors } = await openEditor();
   try {
     /* the original was captured on an empty page: this platform's own archived blocks would add an "others" folder */
@@ -148,7 +147,7 @@ test('library window: the same layout as the original, with the cloud library be
 });
 
 for (const width of [390, 411]) {
-  test('phone window ' + width + 'px: the platform inside the editor fills the whole screen', { skip }, async () => {
+  test('phone window ' + width + 'px: the platform inside the editor fills the whole screen', async () => {
     const { context, page } = await openEditor({ width, height: 844 });
     try {
       const box = await page.locator('iframe').first().boundingBox();

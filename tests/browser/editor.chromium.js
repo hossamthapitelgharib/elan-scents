@@ -7,10 +7,9 @@ const assert = require('node:assert/strict');
 const H = require('./harness.js');
 
 const pw = H.loadPlaywright();
-const skip = pw ? false : 'Playwright is not installed (npm install, then npx playwright install chromium)';
 
 let browser, server;
-test.before(async () => { if (!pw) return; server = await H.startServer(); browser = await pw.chromium.launch({ args: ['--no-sandbox'] }); });
+test.before(async () => { server = await H.startServer(); browser = await pw.chromium.launch({ args: ['--no-sandbox'] }); });
 test.after(async () => { if (browser) await browser.close(); if (server) await server.stop(); });
 
 async function openEditor(size) {
@@ -40,7 +39,7 @@ const SHAPE = () => {
 };
 
 for (const size of H.WIDTHS) {
-  test('editor in a ' + size.width + 'px window: opens with no page errors and shows the platform as a phone does', { skip }, async () => {
+  test('editor in a ' + size.width + 'px window: opens with no page errors and shows the platform as a phone does', async () => {
     const { context, page, frame, errors, problems } = await openEditor(size);
     try {
       assert.deepEqual(errors, [], 'the editor must raise no error while it loads');
@@ -56,7 +55,7 @@ for (const size of H.WIDTHS) {
     } finally { await context.close(); }
   });
 
-  test('editor in a ' + size.width + 'px window: the platform inside looks exactly like the storefront on a phone', { skip }, async () => {
+  test('editor in a ' + size.width + 'px window: the platform inside looks exactly like the storefront on a phone', async () => {
     const editor = await openEditor(size);
     try {
       const inEditor = await editor.frame.evaluate(SHAPE);
@@ -82,7 +81,7 @@ for (const size of H.WIDTHS) {
   });
 }
 
-test('editor: a right click on the platform opens the original tools menu', { skip }, async () => {
+test('editor: a right click on the platform opens the original tools menu', async () => {
   const { context, page, frame } = await openEditor(H.WIDTHS[2]);
   try {
     /* bring a section into view first, then click inside it (coordinates are the platform's own, the editor scales them) */
