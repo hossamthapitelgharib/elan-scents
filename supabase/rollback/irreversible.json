@@ -346,6 +346,16 @@
       "migration": "20261019222030_remove_duplicate_archive_expired_editor_sections.sql",
       "reason": "Historical migration predates the rollback policy; preserve forward-only behavior and rely on a verified database backup for recovery.",
       "backupRequired": true
+    },
+    {
+      "migration": "20261102074625_store_order_commissions_and_merchant_evidence.sql",
+      "reason": "Adds the financial commission ledger and order evidence; dropping it could irreversibly erase accrued, reviewed, or voided commission records and customer purchase-confirmation evidence. Recovery requires a verified backup.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261102184350_customer_mail_log.sql",
+      "reason": "The mail log is the durable deduplication and send-history record; dropping it could permit duplicate customer/platform emails and erase audit evidence. Recovery requires a verified backup.",
+      "backupRequired": true
     }
   ]
 }

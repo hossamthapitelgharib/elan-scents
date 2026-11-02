@@ -8,12 +8,13 @@ const labelsStore = {
   needs_review: 'يحتاج مراجعة', completed: 'مكتمل', cancelled: 'ملغى', preparing: 'قيد التجهيز',
   handed_to_carrier: 'سُلّم لشركة الشحن', in_transit: 'في الطريق', out_for_delivery: 'خرج للتسليم',
   delayed: 'متأخر', returned: 'مرتجع', pending: 'قيد الانتظار', payable: 'مستحق', paid: 'مدفوع',
-  matched: 'مطابق', mismatched: 'غير مطابق', unmatched: 'غير مربوط', percentage: 'نسبة مئوية',
+  matched: 'مطابق', mismatched: 'غير مطابق', unmatched: 'غير مربوط', percentage: 'نسبة مئوية', accrued: 'مُسجّلة', voided: 'ملغاة',
+  store_completed: 'إتمام شراء المتجر', store_report_mismatch: 'تقرير يحتاج مراجعة', status_shipped: 'حالة الشحن: أُرسل', status_delivered: 'حالة الشحن: سُلّم', shipment: 'إشارة شحن',
   fixed: 'مبلغ ثابت', package: 'باقة', success: 'ناجح', failed: 'فشل', running: 'جارٍ', skipped: 'تم التخطي'
 };
 const sectionLabels = {
   overview: 'الملخص والحسابات', catalog: 'الكتالوج والمخزون', offers: 'العروض', orders: 'الطلبات',
-  shipments: 'الشحن', commissions: 'العمولات', sync: 'المزامنة', reconciliation: 'المطابقة والتدقيق'
+  shipments: 'الشحن', commissions: 'عمولات الطلبات القديمة', 'store-order-commissions': 'دفتر عمولات طلبات المتاجر', sync: 'المزامنة', reconciliation: 'المطابقة والتدقيق'
 };
 const stateStore = { stores: [], selected: null, section: 'overview', offset: 0, limit: 50, hasMore: false, busy: false, unlinked: { notifications: { offset: 0, hasMore: false, busy: false }, events: { offset: 0, hasMore: false, busy: false } } };
 function labelValue(value) { return escStore(labelsStore[value] || value || '—'); }
@@ -122,7 +123,9 @@ function setDetailFilterOptions(section) {
   const options = section === 'orders'
     ? [['', 'كل حالات الطلب'], ['awaiting_store_confirmation', 'بانتظار المتجر'], ['store_confirmed', 'تم التأكيد'], ['processing', 'قيد التجهيز'], ['shipped', 'تم الشحن'], ['delivered', 'تم التسليم'], ['needs_review', 'يحتاج مراجعة'], ['store_rejected', 'مرفوض'], ['store_cancelled', 'ملغى'], ['completed', 'مكتمل'], ['cancelled', 'ملغى']]
     : section === 'commissions'
-      ? [['', 'كل حالات العمولة'], ['pending', 'قيد الانتظار'], ['payable', 'مستحقة'], ['paid', 'مدفوعة']]
+      ? [['', 'كل حالات العمولة القديمة'], ['pending', 'قيد الانتظار'], ['payable', 'مستحقة'], ['paid', 'مدفوعة']]
+      : section === 'store-order-commissions'
+        ? [['', 'كل حالات العمولة'], ['accrued', 'مُسجّلة'], ['voided', 'ملغاة']]
       : [];
   form.hidden = options.length === 0;
   if (!options.length) return;
@@ -190,6 +193,15 @@ function renderShipmentRows(rows) {
 function renderCommissionRows(rows) {
   return (rows || []).map(row => `<tr><td>${labelValue(row.status)}<small>معرّف العمولة: <code>${escStore(row.id)}</code></small></td><td>${nStore(row.rate)}%</td><td>${moneyStore(row.amount, row.item && row.item.product && row.item.product.currency)}</td><td>${escStore(row.item && row.item.product && row.item.product.product && row.item.product.product.name || '—')}</td><td>${nStore(row.item && row.item.quantity)}</td><td>${moneyStore(row.item && row.item.price_at_time, row.item && row.item.product && row.item.product.currency)}</td><td dir="ltr">${escStore(row.order && row.order.id || '—')}<small>${labelValue(row.order && row.order.status)}</small></td><td>${escStore(dateStore(row.created_at))}<small>آخر تحديث: ${escStore(dateStore(row.updated_at))}</small></td></tr>`).join('');
 }
+function renderStoreOrderCommissionRows(rows) {
+  return (rows || []).map(row => {
+    const order = row.order || {};
+    const review = row.review_required ? '<strong>تحتاج مراجعة</strong>' : 'لا تحتاج مراجعة';
+    const reason = row.review_reason || row.void_reason;
+    const details = reason ? `<details class="store-audit-details"><summary>سبب المراجعة/الإلغاء</summary><span>${escStore(reason)}</span></details>` : '';
+    return `<tr><td>${labelValue(row.status)}<small>${review}</small>${details}</td><td>${nStore(row.rate)}%</td><td>${moneyStore(row.gross_amount, row.currency)}</td><td>${moneyStore(row.returned_amount, row.currency)}</td><td><strong>${moneyStore(row.commission_amount, row.currency)}</strong></td><td>${labelValue(row.evidence)}</td><td dir="ltr">${escStore(order.tracking_number || row.request_id || '—')}<small>${escStore(order.store_order_reference || 'لا يوجد رقم متجر')}</small></td><td>${labelValue(order.status)}<small>${labelValue(order.reconciliation_status)}</small></td><td>${escStore(dateStore(row.accrued_at || row.created_at))}<small>آخر تحديث: ${escStore(dateStore(row.updated_at))}</small></td></tr>`;
+  }).join('');
+}
 function renderSyncRows(rows) {
   return (rows || []).map(row => `<tr><td>${labelValue(row.status)}</td><td>${nStore(row.records_count)}</td><td>${escStore(dateStore(row.created_at))}</td><td>${escStore(dateStore(row.updated_at))}</td></tr>`).join('');
 }
@@ -206,6 +218,7 @@ function renderSectionRecords(section, records) {
   if (section === 'orders') return renderOrderRows(records);
   if (section === 'shipments') return renderShipmentRows(records);
   if (section === 'commissions') return renderCommissionRows(records);
+  if (section === 'store-order-commissions') return renderStoreOrderCommissionRows(records);
   if (section === 'sync') return renderSyncRows(records);
   if (section === 'reconciliation') return renderReconciliationRows(records);
   return '';
@@ -218,6 +231,7 @@ function renderSection(data) {
     offers: ['العرض', 'العطر', 'العلامة', 'الخصم', 'الحالة', 'يبدأ', 'ينتهي'],
     shipments: ['رقم الطلب', 'حالة الطلب', 'شركة الشحن', 'رقم التتبع', 'حالة الشحن', 'التسليم المتوقع', 'تم التسليم', 'ملاحظة التشغيل', 'تاريخ السجل والتحديث'],
     commissions: ['الحالة', 'النسبة', 'قيمة العمولة', 'العطر', 'الكمية', 'سعر الوحدة', 'رقم الطلب', 'تاريخ التسجيل'],
+    'store-order-commissions': ['الحالة والمراجعة', 'النسبة', 'قيمة المنتجات', 'المردودات', 'العمولة المسجلة', 'مصدر الإثبات', 'رقم التتبع / المتجر', 'حالة الطلب والمطابقة', 'تاريخ التسجيل'],
     sync: ['الحالة', 'عدد السجلات', 'بدأت/سُجلت', 'آخر تحديث'],
     reconciliation: ['رقم التتبع', 'نوع الحدث', 'نتيجة المطابقة', 'الحقول المختلفة', 'حالة الطلب', 'وقت الفحص']
   };
@@ -244,7 +258,7 @@ async function loadStoreSection(section, append = false) {
   }
   try {
     const params = new URLSearchParams({ storeId: stateStore.selected.id, section, limit: String(stateStore.limit), offset: String(offset) });
-    if (section === 'orders' || section === 'commissions') {
+    if (section === 'orders' || section === 'commissions' || section === 'store-order-commissions') {
       const filters = detailFilterParams();
       for (const [key, value] of filters) if (value) params.set(key, value);
     }

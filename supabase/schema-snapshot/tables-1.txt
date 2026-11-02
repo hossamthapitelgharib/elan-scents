@@ -1,4 +1,4 @@
-TABLE analytics_events  rls=on  grants: anon=- authenticated=rawd service_role=rawdDxt
+TABLE analytics_events  rls=on  grants: anon=- authenticated=ra service_role=rawdDxt
   id uuid NOT NULL DEFAULT gen_random_uuid()
   event_type text NOT NULL
   product_id uuid
@@ -20,7 +20,7 @@ TABLE analytics_events  rls=on  grants: anon=- authenticated=rawd service_role=r
   POLICY event_insert PERMISSIVE FOR INSERT TO authenticated WITH CHECK ((((user_id IS NULL) OR (user_id = ( SELECT auth.uid() AS uid))) AND (pg_column_size(metadata) <= 2048)))
   CREATE TRIGGER set_updated_at BEFORE UPDATE ON analytics_events FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
 
-TABLE aromatic_notes  rls=on  grants: anon=r authenticated=rawd service_role=rawdDxt
+TABLE aromatic_notes  rls=on  grants: anon=r authenticated=r service_role=rawdDxt
   id uuid NOT NULL DEFAULT gen_random_uuid()
   name text NOT NULL
   image_url text
@@ -32,7 +32,7 @@ TABLE aromatic_notes  rls=on  grants: anon=r authenticated=rawd service_role=raw
   POLICY public_read PERMISSIVE FOR SELECT TO anon,authenticated USING (true)
   CREATE TRIGGER set_updated_at BEFORE UPDATE ON aromatic_notes FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
 
-TABLE brands  rls=on  grants: anon=- authenticated=awd service_role=rawdDxt
+TABLE brands  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
   id uuid NOT NULL DEFAULT gen_random_uuid()
   name text NOT NULL
   slug text NOT NULL
@@ -71,7 +71,7 @@ TABLE cart_items  rls=on  grants: anon=- authenticated=d service_role=rawdDxt
   CREATE TRIGGER cart_items_product_snapshot BEFORE INSERT OR UPDATE OF store_product_id, quantity ON cart_items FOR EACH ROW EXECUTE FUNCTION populate_cart_item_product_snapshot()
   CREATE TRIGGER set_updated_at BEFORE UPDATE ON cart_items FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
 
-TABLE categories  rls=on  grants: anon=r authenticated=rawd service_role=rawdDxt
+TABLE categories  rls=on  grants: anon=r authenticated=r service_role=rawdDxt
   id uuid NOT NULL DEFAULT gen_random_uuid()
   name text NOT NULL
   image_url text
@@ -113,7 +113,7 @@ TABLE checkout_sessions  rls=on  grants: anon=- authenticated=- service_role=raw
   POLICY checkout_sessions_admin_all PERMISSIVE FOR ALL TO authenticated USING (private.is_platform_admin()) WITH CHECK (private.is_platform_admin())
   POLICY checkout_sessions_owner_read PERMISSIVE FOR SELECT TO authenticated USING ((user_id = ( SELECT auth.uid() AS uid)))
 
-TABLE commissions  rls=on  grants: anon=- authenticated=awd service_role=rawdDxt
+TABLE commissions  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
   id uuid NOT NULL DEFAULT gen_random_uuid()
   store_id uuid NOT NULL
   order_item_id uuid NOT NULL
@@ -132,7 +132,7 @@ TABLE commissions  rls=on  grants: anon=- authenticated=awd service_role=rawdDxt
   POLICY member_read PERMISSIVE FOR SELECT TO authenticated USING (private.is_store_member(store_id))
   CREATE TRIGGER set_updated_at BEFORE UPDATE ON commissions FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
 
-TABLE contact_messages  rls=on  grants: anon=- authenticated=rawd service_role=rawdDxt
+TABLE contact_messages  rls=on  grants: anon=- authenticated=ra service_role=rawdDxt
   id uuid NOT NULL DEFAULT gen_random_uuid()
   name text
   email text
@@ -149,6 +149,14 @@ TABLE contact_messages  rls=on  grants: anon=- authenticated=rawd service_role=r
   POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
   POLICY auth_insert PERMISSIVE FOR INSERT TO authenticated WITH CHECK ((( SELECT auth.uid() AS uid) IS NOT NULL))
   CREATE TRIGGER set_updated_at BEFORE UPDATE ON contact_messages FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
+
+TABLE customer_mail_log  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
+  user_id uuid NOT NULL
+  kind text NOT NULL
+  sent_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT customer_mail_log_pkey PRIMARY KEY (user_id, kind)
+  CONSTRAINT customer_mail_log_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+  CONSTRAINT customer_mail_log_kind_check CHECK ((kind = ANY (ARRAY['login'::text, 'logout'::text, 'registered'::text])))
 
 TABLE customer_product_events  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
   id uuid NOT NULL DEFAULT gen_random_uuid()
@@ -216,7 +224,7 @@ TABLE customer_sessions  rls=on  grants: anon=- authenticated=- service_role=raw
   CREATE INDEX customer_sessions_guest_started_idx ON customer_sessions USING btree (guest_id, started_at DESC) WHERE (guest_id IS NOT NULL)
   CREATE INDEX customer_sessions_user_started_idx ON customer_sessions USING btree (user_id, started_at DESC) WHERE (user_id IS NOT NULL)
 
-TABLE editor_archive  rls=on  grants: anon=- authenticated=rawd service_role=rawdDxt
+TABLE editor_archive  rls=on  grants: anon=- authenticated=r service_role=rawdDxt
   id uuid NOT NULL DEFAULT gen_random_uuid()
   element_id text NOT NULL
   kind text NOT NULL
@@ -239,7 +247,7 @@ TABLE editor_archive  rls=on  grants: anon=- authenticated=rawd service_role=raw
   POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
   CREATE TRIGGER set_updated_at BEFORE UPDATE ON editor_archive FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
 
-TABLE editor_saved_elements  rls=on  grants: anon=- authenticated=rawd service_role=rawdDxt
+TABLE editor_saved_elements  rls=on  grants: anon=- authenticated=r service_role=rawdDxt
   id uuid NOT NULL DEFAULT gen_random_uuid()
   name text NOT NULL
   kind text NOT NULL
@@ -258,7 +266,7 @@ TABLE editor_saved_elements  rls=on  grants: anon=- authenticated=rawd service_r
   POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
   CREATE TRIGGER set_updated_at BEFORE UPDATE ON editor_saved_elements FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
 
-TABLE editor_section_items  rls=on  grants: anon=r authenticated=rawd service_role=rawdDxt
+TABLE editor_section_items  rls=on  grants: anon=r authenticated=r service_role=rawdDxt
   section_id uuid NOT NULL
   product_size_id uuid NOT NULL
   sort_order integer NOT NULL DEFAULT 0
@@ -270,7 +278,7 @@ TABLE editor_section_items  rls=on  grants: anon=r authenticated=rawd service_ro
   POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
   POLICY public_read PERMISSIVE FOR SELECT TO anon,authenticated USING ((EXISTS ( SELECT 1 FROM editor_sections s WHERE (s.id = editor_section_items.section_id))))
 
-TABLE editor_sections  rls=on  grants: anon=r authenticated=rawd service_role=rawdDxt
+TABLE editor_sections  rls=on  grants: anon=r authenticated=r service_role=rawdDxt
   id uuid NOT NULL DEFAULT gen_random_uuid()
   element_id text NOT NULL
   name text NOT NULL

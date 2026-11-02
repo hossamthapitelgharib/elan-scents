@@ -202,10 +202,42 @@ test('store admin UI exposes read-only operational sections and routes detail re
   const root = path.join(__dirname, '..');
   const html = fs.readFileSync(path.join(root, 'stores-dashboard.html'), 'utf8');
   const js = fs.readFileSync(path.join(root, 'stores-dashboard.js'), 'utf8');
-  for (const section of ['overview', 'catalog', 'offers', 'orders', 'shipments', 'commissions', 'sync', 'reconciliation']) assert.match(html, new RegExp(`data-store-section="${section}"`));
+  for (const section of ['overview', 'catalog', 'offers', 'orders', 'shipments', 'commissions', 'store-order-commissions', 'sync', 'reconciliation']) assert.match(html, new RegExp(`data-store-section="${section}"`));
   assert.match(js, /\/api\/platform-store-detail/);
   assert.match(html, /id="unlinkedOperations"/);
   assert.match(js, /\/api\/platform-store-unlinked/);
   assert.match(html, /id="storeFilters"/);
   assert.match(html, /لا تظهر بيانات اتصال العملاء أو الحمولات الخام/);
+});
+
+test('platform store detail reads only the new store-order commission ledger and safe order identifiers', async () => {
+  const commissionId = 'f3c67ded-4300-48b7-9b7e-e3a51c7ef001';
+  const { res, requests } = await run({ storeId, section: 'store-order-commissions', status: 'accrued', limit: '10' }, 'platform_admin', async url => {
+    if (url.pathname.endsWith('/stores')) return response([store]);
+    if (url.pathname.endsWith('/store_order_commissions')) return response([{
+      id: commissionId, request_id: requestId, store_id: storeId, rate: 8, gross_amount: 1000, returned_amount: 100,
+      commission_amount: 72, currency: 'EGP', evidence: 'store_completed', review_required: true,
+      review_reason: 'synthetic review reason', status: 'accrued', void_reason: null, voided_at: null,
+      accrued_at: '2026-01-01T00:00:00Z', created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-02T00:00:00Z',
+      private_payload: 'must-not-return'
+    }]);
+    if (url.pathname.endsWith('/store_order_requests')) return response([{
+      id: requestId, store_id: storeId, tracking_number: 'TRK-1', store_order_reference: 'STORE-1', status: 'completed',
+      reconciliation_status: 'matched', subtotal: 1000, shipping_amount: 50, total_amount: 1050, currency: 'EGP',
+      created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-02T00:00:00Z', customer_email: 'private@example.test', initial_payload: { secret: true }
+    }]);
+    throw new Error(`unexpected ${url.pathname}`);
+  });
+  assert.equal(res.status, 200);
+  assert.equal(res.body.records.length, 1);
+  assert.equal(res.body.records[0].commission_amount, 72);
+  assert.equal(res.body.records[0].order.tracking_number, 'TRK-1');
+  assert.equal(res.body.records[0].order.store_order_reference, 'STORE-1');
+  const json = JSON.stringify(res.body);
+  for (const secret of ['private_payload', 'private@example.test', 'initial_payload']) assert.equal(json.includes(secret), false);
+  const commissionQuery = requests.find(item => item.url.pathname.endsWith('/store_order_commissions')).url;
+  assert.equal(commissionQuery.searchParams.get('store_id'), `eq.${storeId}`);
+  assert.equal(commissionQuery.searchParams.get('status'), 'eq.accrued');
+  const requestQuery = requests.find(item => item.url.pathname.endsWith('/store_order_requests')).url;
+  assert.equal(requestQuery.searchParams.get('store_id'), `eq.${storeId}`);
 });

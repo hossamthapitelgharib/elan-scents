@@ -14,7 +14,7 @@ SCHEMA PRIVILEGES (U=usage C=create)
 
 DEFAULT PRIVILEGES
   postgres in public on f: postgres=X/postgres anon=X/postgres authenticated=X/postgres service_role=X/postgres
-  postgres in public on r: postgres=arwdDxtm/postgres anon=rm/postgres authenticated=arwdm/postgres service_role=arwdDxtm/postgres
+  postgres in public on r: postgres=arwdDxtm/postgres anon=r/postgres authenticated=r/postgres service_role=arwdDxtm/postgres
   postgres in public on S: postgres=rwU/postgres anon=rwU/postgres authenticated=rwU/postgres service_role=rwU/postgres
   postgres in storage on f: postgres=X/postgres anon=X/postgres authenticated=X/postgres service_role=X/postgres
   postgres in storage on r: postgres=arwdDxtm/postgres anon=arwdDxtm/postgres authenticated=arwdDxtm/postgres service_role=arwdDxtm/postgres
@@ -42,7 +42,7 @@ DEFAULT PRIVILEGES
   supabase_auth_admin in auth on S: postgres=rwU/supabase_auth_admin dashboard_user=rwU/supabase_auth_admin
 
 VIEWS
-VIEW cheapest_offers | security_invoker | grants: anon=r authenticated=rawd service_role=rawd
+VIEW cheapest_offers | security_invoker | grants: anon=r authenticated=r service_role=rawd
   cols: product_size_id uuid, product_id uuid, brand_id uuid, store_id uuid, store_name text, price numeric, stock_quantity integer, currency text, price_includes_tax boolean, price_includes_shipping boolean, last_synced_at timestamp with time zone
   def_md5=c2de1d868a39bb85a8f9dbb2566289d7
 VIEW customer_product_cart_add_events | security_invoker | grants: anon=- authenticated=- service_role=r
@@ -60,13 +60,16 @@ VIEW customer_product_view_events | security_invoker | grants: anon=- authentica
 VIEW guest_current_cart_items | security_invoker | grants: anon=- authenticated=- service_role=r
   cols: guest_id uuid, fingerprint_hash text, first_seen_at timestamp with time zone, last_seen_at timestamp with time zone, item_position integer, product_size_id uuid, store_product_id uuid, quantity integer, product_snapshot jsonb, cart_item_snapshot jsonb
   def_md5=30b263dc090d6250302f3cfde17eb919
-VIEW public_brands | security_invoker | grants: anon=r authenticated=rawd service_role=rawd
+VIEW platform_commission_watch | security_invoker | grants: anon=- authenticated=- service_role=rawd
+  cols: request_id uuid, tracking_number text, store_id uuid, status text, reconciliation_status text, created_at timestamp with time zone, updated_at timestamp with time zone, flag text
+  def_md5=ce576c22f9da04adf654685ece8e6d73
+VIEW public_brands | security_invoker | grants: anon=r authenticated=r service_role=rawd
   cols: id uuid, name text, slug text, official_logo_url text, description text
   def_md5=8f549fb40f164c3dc59ab08b32a64639
-VIEW public_products | security_invoker | grants: anon=r authenticated=rawd service_role=rawd
+VIEW public_products | security_invoker | grants: anon=r authenticated=r service_role=rawd
   cols: id uuid, brand_id uuid, brand_name text, brand_slug text, name text, slug text, short_description text, official_description text, composition text, gender text, notes_source text, meta_title text, meta_description text, min_price numeric, available_sizes bigint, views_count integer, sales_count integer, search_count integer, request_count integer, average_rating numeric(3,2), reviews_count integer, distinctiveness_score numeric(5,2), catalog_bestseller boolean
   def_md5=f851689ee3bcd8bd0986d82fb9855ec7
-VIEW public_stores | security_invoker | grants: anon=r authenticated=rawd service_role=rawd
+VIEW public_stores | security_invoker | grants: anon=r authenticated=r service_role=rawd
   cols: id uuid, name text, slug text, logo_url text, image_url text, short_description text, status text
   def_md5=44d3e340da1fe2c0685ecc9d0f0cd2b2
 VIEW registered_customer_best_sellers | owner-privileges | grants: anon=- authenticated=- service_role=rawd

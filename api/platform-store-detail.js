@@ -1,10 +1,11 @@
 const { getContext, requireRoles } = require('./_auth');
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const SECTIONS = new Set(['overview', 'catalog', 'offers', 'orders', 'shipments', 'commissions', 'sync', 'reconciliation']);
+const SECTIONS = new Set(['overview', 'catalog', 'offers', 'orders', 'shipments', 'commissions', 'store-order-commissions', 'sync', 'reconciliation']);
 const ORDER_STATUSES = new Set(['awaiting_store_confirmation', 'store_confirmed', 'processing', 'shipped', 'delivered', 'store_rejected', 'store_cancelled', 'needs_review', 'completed', 'cancelled']);
 const RECONCILIATION_STATUSES = new Set(['pending', 'matched', 'mismatched']);
 const COMMISSION_STATUSES = new Set(['pending', 'payable', 'paid']);
+const STORE_ORDER_COMMISSION_STATUSES = new Set(['accrued', 'voided']);
 const STORE_SELECT = 'id,name,slug,logo_url,image_url,short_description,website_url,status,commission_rate,priority_rank,created_at,updated_at';
 const STORE_PRODUCT_SELECT = 'id,store_id,product_size_id,price,original_price,discount_percentage,stock_quantity,is_available,is_new_arrival,is_coming_soon,price_includes_tax,price_includes_shipping,currency,data_source,sync_status,last_synced_at,created_at,updated_at,product_url,is_catalog_bestseller';
 const ORDER_SELECT = 'id,store_id,tracking_number,checkout_tracking_number,status,subtotal,shipping_amount,total_amount,currency,store_order_reference,failure_reason,reconciliation_status,mismatch_fields,created_at,updated_at';
@@ -242,6 +243,22 @@ module.exports = async function platformStoreDetail(req, res) {
       const itemById = new Map(items.map(row => [row.id, { ...row, product: productById.get(row.store_product_id) || null }]));
       const orderById = new Map(orders.map(row => [row.id, row]));
       records = rows.map(row => ({ ...pick(row, ['id', 'store_id', 'order_item_id', 'rate', 'amount', 'status', 'created_at', 'updated_at']), item: itemById.get(row.order_item_id) || null, order: orderById.get((itemById.get(row.order_item_id) || {}).order_id) || null }));
+      hasMore = rows.length === limit;
+    } else if (section === 'store-order-commissions') {
+      const params = storeParams(storeId, 'id,request_id,store_id,rate,gross_amount,returned_amount,commission_amount,currency,evidence,review_required,review_reason,status,void_reason,voided_at,accrued_at,created_at,updated_at', limit, offset);
+      const status = String(query.status || '');
+      if (status && !STORE_ORDER_COMMISSION_STATUSES.has(status)) return reply(res, 400, { ok: false, error: 'invalid_store_order_commission_status' });
+      if (status) params.set('status', `eq.${status}`);
+      const rows = await readRows(context, 'store_order_commissions', params);
+      const requestIds = rows.map(row => row.request_id).filter(id => UUID.test(String(id || '')));
+      let requests = [];
+      if (requestIds.length) {
+        const requestParams = new URLSearchParams({ select: 'id,store_id,tracking_number,store_order_reference,status,reconciliation_status,subtotal,shipping_amount,total_amount,currency,created_at,updated_at', id: inFilter(requestIds), store_id: `eq.${storeId}`, limit: String(requestIds.length) });
+        requests = await readRows(context, 'store_order_requests', requestParams);
+      }
+      const requestById = new Map(requests.map(row => [row.id, pick(row, ['id', 'tracking_number', 'store_order_reference', 'status', 'reconciliation_status', 'subtotal', 'shipping_amount', 'total_amount', 'currency', 'created_at', 'updated_at'])]));
+      const allowed = ['id', 'request_id', 'store_id', 'rate', 'gross_amount', 'returned_amount', 'commission_amount', 'currency', 'evidence', 'review_required', 'review_reason', 'status', 'void_reason', 'voided_at', 'accrued_at', 'created_at', 'updated_at'];
+      records = rows.map(row => ({ ...pick(row, allowed), order: requestById.get(row.request_id) || null }));
       hasMore = rows.length === limit;
     } else if (section === 'sync') {
       const params = storeParams(storeId, 'id,store_id,status,records_count,created_at,updated_at', limit, offset);

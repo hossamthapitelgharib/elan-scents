@@ -117,6 +117,7 @@ Portal.errorMessages = {
   invalid_order_status: 'حالة الطلب المطلوبة غير صحيحة.',
   invalid_reconciliation_status: 'حالة المطابقة المطلوبة غير صحيحة.',
   invalid_commission_status: 'حالة العمولة المطلوبة غير صحيحة.',
+  invalid_store_order_commission_status: 'حالة دفتر عمولة المتجر المطلوبة غير صحيحة.',
   weak_password: 'كلمة المرور ضعيفة، اختر كلمة أطول وأصعب في التخمين.',
   same_password: 'كلمة المرور الجديدة يجب أن تختلف عن القديمة.',
   email_address_invalid: 'البريد الإلكتروني غير صحيح.',
@@ -148,6 +149,22 @@ Portal.toast = (text, kind = 'info') => {
   setTimeout(() => item.remove(), 5000);
 };
 
+function notificationOrderDetails(order) {
+  if (!order || typeof order !== 'object') return '';
+  const esc = value => Portal.escape(value == null || value === '' ? '—' : value);
+  const amount = value => Number.isFinite(Number(value)) ? Number(value).toLocaleString('ar-EG', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
+  const customer = order.customer || {}, store = order.store || {};
+  const shipment = order.shipment || {};
+  const statusLabels = { awaiting_store_confirmation: 'بانتظار المتجر', store_confirmed: 'تم التأكيد', processing: 'قيد التجهيز', shipped: 'تم الشحن', delivered: 'تم التسليم', completed: 'مكتمل', needs_review: 'يحتاج مراجعة', store_rejected: 'مرفوض', store_cancelled: 'ملغى', cancelled: 'ملغى', preparing: 'قيد التجهيز', handed_to_carrier: 'سُلّم لشركة الشحن', in_transit: 'في الطريق', out_for_delivery: 'خرج للتسليم', delayed: 'متأخر', returned: 'مرتجع' };
+  const statusLabel = value => esc(statusLabels[value] || value);
+  const items = Array.isArray(order.items) ? order.items.slice(0, 100).map(item => `<li><b>${esc(item.productName || 'منتج')}</b>${item.brandName ? ` · ${esc(item.brandName)}` : ''}${item.size ? ` · ${esc(item.size)}` : ''} × ${esc(item.quantity)}<small>${amount(item.unitPrice)} ${esc(order.currency || '')} للواحدة · الإجمالي ${amount(item.lineTotal)} ${esc(order.currency || '')}</small></li>`).join('') : '';
+  const tracking = order.trackingNumber ? `<b dir="ltr">${esc(order.trackingNumber)}</b>` : '—';
+  const result = order.matched === true ? 'مطابق' : order.matched === false ? `يحتاج مراجعة${Array.isArray(order.mismatches) && order.mismatches.length ? `: ${order.mismatches.map(esc).join('، ')}` : ''}` : '—';
+  const totals = order.shipping != null || order.total != null ? `<br><b>شحن المتجر:</b> ${amount(order.shipping)} ${esc(order.currency || '')}<br><b>إجمالي المتجر:</b> ${amount(order.total)} ${esc(order.currency || '')}` : '';
+  const shipmentDetails = shipment.carrier || shipment.trackingCode || shipment.status ? `<p><b>الشحن:</b> ${statusLabel(shipment.status)} · ${esc(shipment.carrier)} · <span dir="ltr">${esc(shipment.trackingCode)}</span></p>` : '';
+  return `<details class="notification-order-details"><summary>تفاصيل الطلب · ${tracking}</summary><div class="notification-order-body"><p><b>المتجر:</b> ${esc(store.name)}<br><b>رقم التتبع الموحد:</b> <span dir="ltr">${esc(order.checkoutTrackingNumber || order.trackingNumber)}</span><br><b>رقم طلب المتجر:</b> <span dir="ltr">${esc(order.storeOrderReference)}</span><br><b>حالة الطلب:</b> ${statusLabel(order.status)}<br><b>المطابقة:</b> ${result}<br><b>قيمة السلة:</b> ${amount(order.subtotal)} ${esc(order.currency || '')}${totals}<br><b>عدد البنود:</b> ${esc(order.itemCount)}</p><p><b>اسم العميل:</b> ${esc(customer.name)}<br><b>الهاتف:</b> <span dir="ltr">${esc(customer.phone)}</span><br><b>البريد:</b> <span dir="ltr">${esc(customer.email)}</span><br><b>العنوان:</b> ${esc(customer.address)}<br><b>ملاحظات:</b> ${esc(customer.notes)}</p>${shipmentDetails}<ul>${items || '<li>لا توجد بنود مسجلة</li>'}</ul></div></details>`;
+}
+
 Portal.renderNotifications = () => {
   const wrap = document.querySelector('#portalNotifications');
   if (!wrap) return;
@@ -157,7 +174,7 @@ Portal.renderNotifications = () => {
   count.textContent = unread > 99 ? '99+' : String(unread);
   count.hidden = unread === 0;
   wrap.querySelector('[data-notification-list]').innerHTML = list.length
-    ? list.map(notification => `<button class="notification-row ${notification.is_read ? 'read' : 'unread'}" data-notification-id="${Portal.escape(notification.id)}"><span class="notification-dot"></span><span><b>${Portal.escape(notification.title)}</b><small>${Portal.escape(notification.body)}</small><em>${new Date(notification.created_at).toLocaleString('ar-EG')}</em></span></button>`).join('')
+    ? list.map(notification => `<article class="notification-entry"><button class="notification-row ${notification.is_read ? 'read' : 'unread'}" data-notification-id="${Portal.escape(notification.id)}"><span class="notification-dot"></span><span><b>${Portal.escape(notification.title)}</b><small>${Portal.escape(notification.body)}</small><em>${new Date(notification.created_at).toLocaleString('ar-EG')}</em></span></button>${notificationOrderDetails(notification.order)}</article>`).join('')
     : '<p class="notification-empty">لا توجد إشعارات</p>';
 };
 

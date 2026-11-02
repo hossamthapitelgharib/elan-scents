@@ -164,7 +164,7 @@ test('notification API returns only UI fields and marks only the customer’s ow
   assert.deepEqual(read.body.notifications, [{ id: notificationId, title: 'تم إلغاء الطلب', body: 'تم تحديث الطلب.', is_read: false, created_at: '2026-10-13T00:00:00Z' }]);
   assert.equal(JSON.stringify(read.body).includes('private'), false);
   const readQuery = new URL(calls[0].url).searchParams;
-  assert.equal(readQuery.get('select'), 'id,title,body,is_read,created_at');
+  assert.equal(readQuery.get('select'), 'id,title,body,is_read,created_at,type,tracking_number,payload');
   assert.equal(readQuery.get('user_id'), 'eq.customer-1');
   const marked = await invoke(api('notifications'), { method: 'PATCH', headers: { authorization: 'Bearer token' }, body: { id: notificationId } });
   assert.equal(marked.status, 200);

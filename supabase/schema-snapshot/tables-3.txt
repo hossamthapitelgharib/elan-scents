@@ -18,7 +18,7 @@ TABLE order_reconciliation_checks  rls=on  grants: anon=- authenticated=- servic
   CREATE INDEX order_reconciliation_checks_tracking_idx ON order_reconciliation_checks USING btree (tracking_number, checked_at DESC)
   POLICY order_reconciliation_checks_internal_read PERMISSIVE FOR SELECT TO authenticated USING ((private.is_platform_admin() OR (EXISTS ( SELECT 1 FROM store_order_requests r WHERE ((r.id = order_reconciliation_checks.request_id) AND private.is_store_member(r.store_id))))))
 
-TABLE orders  rls=on  grants: anon=- authenticated=awd service_role=rawdDxt
+TABLE orders  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
   id uuid NOT NULL DEFAULT gen_random_uuid()
   user_id uuid NOT NULL
   status text NOT NULL DEFAULT 'pending'::text
@@ -50,7 +50,7 @@ TABLE platform_audit_log  rls=on  grants: anon=- authenticated=- service_role=ra
   CREATE INDEX platform_audit_log_created_idx ON platform_audit_log USING btree (created_at DESC)
   CREATE INDEX platform_audit_log_target_idx ON platform_audit_log USING btree (target_type, target_id, created_at DESC)
 
-TABLE product_categories  rls=on  grants: anon=r authenticated=rawd service_role=rawdDxt
+TABLE product_categories  rls=on  grants: anon=r authenticated=r service_role=rawdDxt
   product_id uuid NOT NULL
   category_id uuid NOT NULL
   created_at timestamp with time zone NOT NULL DEFAULT now()
@@ -63,7 +63,7 @@ TABLE product_categories  rls=on  grants: anon=r authenticated=rawd service_role
   POLICY public_read PERMISSIVE FOR SELECT TO anon,authenticated USING (private.product_is_available(product_id))
   CREATE TRIGGER set_updated_at BEFORE UPDATE ON product_categories FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
 
-TABLE product_images  rls=on  grants: anon=r authenticated=rawd service_role=rawdDxt
+TABLE product_images  rls=on  grants: anon=r authenticated=r service_role=rawdDxt
   id uuid NOT NULL DEFAULT gen_random_uuid()
   product_id uuid NOT NULL
   product_size_id uuid
@@ -82,7 +82,7 @@ TABLE product_images  rls=on  grants: anon=r authenticated=rawd service_role=raw
   POLICY public_read PERMISSIVE FOR SELECT TO anon,authenticated USING (private.product_is_available(product_id))
   CREATE TRIGGER set_updated_at BEFORE UPDATE ON product_images FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
 
-TABLE product_notes  rls=on  grants: anon=r authenticated=rawd service_role=rawdDxt
+TABLE product_notes  rls=on  grants: anon=r authenticated=r service_role=rawdDxt
   product_id uuid NOT NULL
   note_id uuid NOT NULL
   created_at timestamp with time zone NOT NULL DEFAULT now()
@@ -95,7 +95,7 @@ TABLE product_notes  rls=on  grants: anon=r authenticated=rawd service_role=rawd
   POLICY public_read PERMISSIVE FOR SELECT TO anon,authenticated USING (private.product_is_available(product_id))
   CREATE TRIGGER set_updated_at BEFORE UPDATE ON product_notes FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
 
-TABLE product_occasions  rls=on  grants: anon=r authenticated=rawd service_role=rawdDxt
+TABLE product_occasions  rls=on  grants: anon=r authenticated=r service_role=rawdDxt
   product_id uuid NOT NULL
   occasion_id uuid NOT NULL
   created_at timestamp with time zone NOT NULL DEFAULT now()
@@ -108,7 +108,7 @@ TABLE product_occasions  rls=on  grants: anon=r authenticated=rawd service_role=
   POLICY public_read PERMISSIVE FOR SELECT TO anon,authenticated USING (private.product_is_available(product_id))
   CREATE TRIGGER set_updated_at BEFORE UPDATE ON product_occasions FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
 
-TABLE product_sizes  rls=on  grants: anon=r authenticated=rawd service_role=rawdDxt
+TABLE product_sizes  rls=on  grants: anon=r authenticated=r service_role=rawdDxt
   id uuid NOT NULL DEFAULT gen_random_uuid()
   product_id uuid NOT NULL
   size_ml integer
@@ -125,7 +125,7 @@ TABLE product_sizes  rls=on  grants: anon=r authenticated=rawd service_role=rawd
   POLICY public_read PERMISSIVE FOR SELECT TO anon,authenticated USING (private.size_is_available(id))
   CREATE TRIGGER set_updated_at BEFORE UPDATE ON product_sizes FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
 
-TABLE product_stats  rls=on  grants: anon=r authenticated=rawd service_role=rawdDxt
+TABLE product_stats  rls=on  grants: anon=r authenticated=r service_role=rawdDxt
   product_id uuid NOT NULL
   views_count integer NOT NULL DEFAULT 0
   sales_count integer NOT NULL DEFAULT 0
@@ -143,7 +143,7 @@ TABLE product_stats  rls=on  grants: anon=r authenticated=rawd service_role=rawd
   POLICY public_read PERMISSIVE FOR SELECT TO anon,authenticated USING (private.product_is_available(product_id))
   CREATE TRIGGER set_updated_at BEFORE UPDATE ON product_stats FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
 
-TABLE products  rls=on  grants: anon=r authenticated=rawd service_role=rawdDxt
+TABLE products  rls=on  grants: anon=r authenticated=r service_role=rawdDxt
   id uuid NOT NULL DEFAULT gen_random_uuid()
   brand_id uuid NOT NULL
   name text NOT NULL
@@ -173,7 +173,7 @@ TABLE products  rls=on  grants: anon=r authenticated=rawd service_role=rawdDxt
   CREATE TRIGGER products_create_stats AFTER INSERT ON products FOR EACH ROW EXECUTE FUNCTION private.create_product_stats()
   CREATE TRIGGER set_updated_at BEFORE UPDATE ON products FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
 
-TABLE profiles  rls=on  grants: anon=- authenticated=rawd service_role=rawdDxt
+TABLE profiles  rls=on  grants: anon=- authenticated=r service_role=rawdDxt
   id uuid NOT NULL
   full_name text
   phone text
@@ -187,6 +187,7 @@ TABLE profiles  rls=on  grants: anon=- authenticated=rawd service_role=rawdDxt
   CONSTRAINT profiles_full_name_len CHECK (((full_name IS NULL) OR (char_length(full_name) <= 120)))
   CONSTRAINT profiles_phone_len CHECK (((phone IS NULL) OR (char_length(phone) <= 32)))
   CONSTRAINT profiles_role_check CHECK ((role = ANY (ARRAY['customer'::text, 'store_admin'::text, 'platform_admin'::text])))
+  COLUMN GRANTS authenticated=update: full_name,phone,avatar_url
   POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
   POLICY own_read PERMISSIVE FOR SELECT TO authenticated USING ((id = ( SELECT auth.uid() AS uid)))
   POLICY own_update PERMISSIVE FOR UPDATE TO authenticated USING ((id = ( SELECT auth.uid() AS uid))) WITH CHECK ((id = ( SELECT auth.uid() AS uid)))
@@ -218,7 +219,7 @@ TABLE reviews  rls=on  grants: anon=r authenticated=rawd service_role=rawdDxt
   CREATE TRIGGER reviews_refresh_rating AFTER INSERT OR DELETE OR UPDATE ON reviews FOR EACH ROW EXECUTE FUNCTION private.refresh_product_rating()
   CREATE TRIGGER set_updated_at BEFORE UPDATE ON reviews FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
 
-TABLE site_settings  rls=on  grants: anon=r authenticated=rawd service_role=rawdDxt
+TABLE site_settings  rls=on  grants: anon=r authenticated=r service_role=rawdDxt
   key text NOT NULL
   value text
   created_at timestamp with time zone NOT NULL DEFAULT now()
@@ -228,7 +229,7 @@ TABLE site_settings  rls=on  grants: anon=r authenticated=rawd service_role=rawd
   POLICY public_read PERMISSIVE FOR SELECT TO anon,authenticated USING (true)
   CREATE TRIGGER set_updated_at BEFORE UPDATE ON site_settings FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
 
-TABLE store_accounts  rls=on  grants: anon=- authenticated=awd service_role=rawdDxt
+TABLE store_accounts  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
   id uuid NOT NULL DEFAULT gen_random_uuid()
   store_id uuid NOT NULL
   user_id uuid NOT NULL
@@ -303,3 +304,38 @@ TABLE store_order_cart_restorations  rls=on  grants: anon=- authenticated=- serv
   POLICY store_order_cart_restorations_admin_all PERMISSIVE FOR ALL TO authenticated USING (private.is_platform_admin()) WITH CHECK (private.is_platform_admin())
   POLICY store_order_cart_restorations_owner_read PERMISSIVE FOR SELECT TO authenticated USING ((user_id = ( SELECT auth.uid() AS uid)))
   CREATE TRIGGER restoration_notifications_realtime_trigger AFTER UPDATE ON store_order_cart_restorations FOR EACH ROW EXECUTE FUNCTION notifications_on_restoration_change()
+
+TABLE store_order_commissions  rls=on  grants: anon=- authenticated=r service_role=rawdDxt
+  id uuid NOT NULL DEFAULT gen_random_uuid()
+  request_id uuid NOT NULL
+  store_id uuid NOT NULL
+  rate numeric(5,2) NOT NULL
+  gross_amount numeric(14,2) NOT NULL
+  returned_amount numeric(14,2) NOT NULL DEFAULT 0
+  commission_amount numeric(14,2) NOT NULL
+  currency text NOT NULL
+  evidence text NOT NULL
+  review_required boolean NOT NULL DEFAULT false
+  review_reason text
+  status text NOT NULL DEFAULT 'accrued'::text
+  void_reason text
+  voided_at timestamp with time zone
+  voided_by uuid
+  accrued_at timestamp with time zone NOT NULL DEFAULT now()
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT store_order_commissions_pkey PRIMARY KEY (id)
+  CONSTRAINT store_order_commissions_request_id_key UNIQUE (request_id)
+  CONSTRAINT store_order_commissions_request_id_fkey FOREIGN KEY (request_id) REFERENCES store_order_requests(id) ON DELETE RESTRICT
+  CONSTRAINT store_order_commissions_store_id_fkey FOREIGN KEY (store_id) REFERENCES stores(id) ON DELETE RESTRICT
+  CONSTRAINT store_order_commissions_check CHECK ((returned_amount <= gross_amount))
+  CONSTRAINT store_order_commissions_commission_amount_check CHECK ((commission_amount >= (0)::numeric))
+  CONSTRAINT store_order_commissions_evidence_check CHECK ((evidence = ANY (ARRAY['store_completed'::text, 'store_report_mismatch'::text, 'status_shipped'::text, 'status_delivered'::text, 'shipment'::text])))
+  CONSTRAINT store_order_commissions_gross_amount_check CHECK ((gross_amount >= (0)::numeric))
+  CONSTRAINT store_order_commissions_rate_check CHECK (((rate >= (0)::numeric) AND (rate <= (100)::numeric)))
+  CONSTRAINT store_order_commissions_returned_amount_check CHECK ((returned_amount >= (0)::numeric))
+  CONSTRAINT store_order_commissions_review_reason_check CHECK (((review_reason IS NULL) OR (char_length(review_reason) <= 200)))
+  CONSTRAINT store_order_commissions_status_check CHECK ((status = ANY (ARRAY['accrued'::text, 'voided'::text])))
+  CONSTRAINT store_order_commissions_void_reason_check CHECK (((void_reason IS NULL) OR (char_length(void_reason) <= 500)))
+  CREATE INDEX store_order_commissions_store_idx ON store_order_commissions USING btree (store_id, accrued_at DESC)
+  POLICY store_order_commissions_read PERMISSIVE FOR SELECT TO authenticated USING ((( SELECT private.is_platform_admin() AS is_platform_admin) OR ( SELECT private.is_store_member(store_order_commissions.store_id) AS is_store_member)))
