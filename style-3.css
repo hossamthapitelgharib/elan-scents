@@ -55,7 +55,7 @@ footer a{color:var(--gold1);margin:0 8px;font-size:13px;text-decoration:none}
 [dir=rtl] #menu{transform:translateX(110%)}[dir=ltr] #menu{transform:translateX(-110%)}
 #menu.open{transform:none!important}
 #menu a{background:none;-webkit-text-fill-color:#a37e2c;display:block;padding:10px 0;border-bottom:1px solid #eadfc6;color:#a37e2c;text-decoration:none;font-weight:600}
-body.inner #hero,body.inner #main,body.inner .about,body.inner #contact{display:none}
+body.inner #hero,body.inner #intro,body.inner #main,body.inner .about,body.inner #contact{display:none}
 #view{display:none;padding:120px 16px 10px;min-height:70vh}body.inner #view{display:block}
 .bc{display:flex;flex-wrap:wrap;gap:6px;font-size:12.5px;color:var(--gray);margin-bottom:10px;align-items:center}
 .bc a{color:var(--gold3);cursor:pointer;font-weight:600}.bc i{font-style:normal;opacity:.6}.bc b{color:var(--ink)}
