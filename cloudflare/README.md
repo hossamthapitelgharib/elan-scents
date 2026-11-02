@@ -25,6 +25,7 @@
 `SUPABASE_URL` و`SUPABASE_ANON_KEY` (قيمتان عامتان يستلمهما متصفح كل زائر من `/api/config`) و`EDITOR_ENV` و`EDITOR_TARGET_BRANCH` و`GITHUB_REPO` موجودة في `wrangler.jsonc`، فلا تضفها. أما `EDITOR_SITE_ORIGIN` و`ELAN_EDITOR_ORIGIN` و`ELAN_STORE_ORIGIN` فإن لم تُضبط يستعمل الـ Worker العنوان الذي زرتَه به (المحرر والمتجر على أصل واحد)؛ اضبطها فقط إن استعملت أكثر من نطاق.
 
 `STATE_STORE_REQUIRED=1` إعداد غير سري في `wrangler.jsonc`: يفرض عداد المعدل الذري المشترك عبر RPC في Supabase ويمنع الرجوع لحد محلي قابل للتجاوز. الترحيل المطبق هو `20261102201001_shared_rate_limit_buckets.sql`؛ يخزن HMAC لمفتاح endpoint/client/window لا عنوان IP الخام، ولا يمنح أدوار المتصفح أو `service_role` وصولًا مباشرًا للجدول. عند تعذر Supabase، ترفض المسارات المحدودة الطلب مؤقتًا بدل تجاوز الحماية. كل فحص موزع يضيف طلب REST داخليًا إلى Supabase.
+`observability.redactQueryString=true` في `wrangler.jsonc`؛ يحذف query strings من عناوين الطلبات التي تُسجَّل في logs وtraces، ويُعاد تفعيله تلقائيًا مع كل نشر.
 3. افتح `https://elan-scents.hossamthapitelgharib.workers.dev/health` (يردّ `ok`) ثم `/` و`/api/config` و`/editor`.
 
 ## نطاق خاص (لاحقاً)

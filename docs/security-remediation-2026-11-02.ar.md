@@ -9,6 +9,8 @@
 
 تحققت قراءةً من إعداد Worker الحي بعد التحويل: `GITHUB_TOKEN` و`SUPABASE_SERVICE_ROLE_KEY` أصبحا `secret_text`، و`redact_query_string=true`. لم أقرأ أو أُظهر أي قيمة سرية. هذا يحمي الإعدادات والسجلات من العرض كنص عادي، **لكنه لا يدوّر القيم القديمة**.
 
+بعد النشر الأول رصدت أن deployment أعاد `redact_query_string` إلى `false`. أعدت تفعيله على Worker الحي، وثبّت `redactQueryString: true` في `wrangler.jsonc`، وأضفت اختبار إعداد يمنع تراجعه في النشر التالي.
+
 **إجراء أمني ما زال مطلوبًا:** دوّر GitHub token إلى token محدود بالمستودع وصلاحية Contents اللازمة فقط، ودوّر `SUPABASE_SERVICE_ROLE_KEY` من Supabase ثم حدّث Cloudflare Secret. تعريضهما السابق كـ`plain_text` يعني أن تغيير نوع binding وحده ليس دليلًا كافيًا على أن القيم القديمة لم تُنسخ أو تُلتقط.
 
 ### 2. حد معدل مركزي وفشل مغلق

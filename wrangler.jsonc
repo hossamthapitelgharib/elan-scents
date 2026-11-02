@@ -39,5 +39,6 @@
     "STATE_STORE_REQUIRED": "1"
   },
 
-  "observability": { "enabled": true }
+  // Keep query parameters out of request URLs in logs and traces on every deployment.
+  "observability": { "enabled": true, "redactQueryString": true }
 }

@@ -157,7 +157,8 @@ test('every video file in the assets is routed through the Worker, where Range r
   for (const rel of videos) assert.ok(first.has('/' + rel), rel + ' must be in run_worker_first (wrangler.jsonc), or Safari cannot play it');
 });
 
-test('production Worker requires shared rate-limit state rather than per-isolate fallback', () => {
+test('production Worker requires shared rate-limit state and redacts query strings', () => {
   const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'wrangler.jsonc'), 'utf8').split('\n').filter((l) => !l.trim().startsWith('//')).join('\n'));
   assert.equal(config.vars.STATE_STORE_REQUIRED, '1');
+  assert.equal(config.observability.redactQueryString, true);
 });
