@@ -186,6 +186,8 @@ test('Worker variables and secrets become process.env, and the site origin defau
     await call('/health', {}, { EDITOR_SITE_ORIGIN: 'https://custom.example.test' });
     assert.equal(process.env.EDITOR_SITE_ORIGIN, 'https://custom.example.test', 'an explicit value always wins');
     assert.equal(process.env.ELAN_STORE_ORIGIN, ORIGIN);
+    assert.equal(process.env.SUPABASE_URL, undefined, 'a binding absent from the next request is cleared');
+    assert.equal(process.env.FLAG, undefined, 'an optional binding cannot leak into the next request');
   });
 });
 

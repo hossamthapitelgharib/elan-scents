@@ -208,13 +208,31 @@ function loadHandler(deps, name) {
 }
 
 /* Every variable and secret of the Worker becomes process.env (Workers do this by themselves on recent compatibility dates;
-   doing it here too keeps the modules working under any date and in tests). */
+   doing it here too keeps the modules working under any date and in tests). Only values written by this adapter are tracked,
+   so a later request cannot inherit a binding that was absent from its own env object. */
+const syncedEnvKeys = new Set();
 function syncEnv(env, url) {
-  for (const key of Object.keys(env || {})) {
-    const value = env[key];
-    if (typeof value === 'string' && process.env[key] !== value) process.env[key] = value;
+  const source = env && typeof env === 'object' ? env : {};
+  for (const key of syncedEnvKeys) {
+    if (!Object.prototype.hasOwnProperty.call(source, key)) {
+      delete process.env[key];
+      syncedEnvKeys.delete(key);
+    }
   }
-  for (const key of ORIGIN_VARS) if (!(env && typeof env[key] === 'string' && env[key])) process.env[key] = url.origin;
+  for (const key of Object.keys(source)) {
+    const value = source[key];
+    if (typeof value === 'string') {
+      if (process.env[key] !== value) process.env[key] = value;
+      syncedEnvKeys.add(key);
+    } else if (syncedEnvKeys.has(key)) {
+      delete process.env[key];
+      syncedEnvKeys.delete(key);
+    }
+  }
+  for (const key of ORIGIN_VARS) {
+    if (!(typeof source[key] === 'string' && source[key])) process.env[key] = url.origin;
+    syncedEnvKeys.add(key);
+  }
 }
 
 function wireProviders(deps, env, url) {

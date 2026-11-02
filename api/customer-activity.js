@@ -1,6 +1,6 @@
 const { createHmac } = require('node:crypto');
 const { guestHashSecret } = require('../lib/guest-hash-secret.js');
-const { createLimiter, clientIp } = require('../lib/rate-limit');
+const { createLimiter, clientIp, setRateLimitHeaders } = require('../lib/rate-limit');
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function reply(res, status, body) {
@@ -27,7 +27,7 @@ module.exports = async function customerActivity(req, res) {
   if (String((req.headers && req.headers['sec-fetch-site']) || '') === 'cross-site') return reply(res, 403, { ok: false, error: 'cross_site_not_allowed' });
   const limit = limiter(clientIp(req));
   if (!limit.allowed) {
-    res.setHeader('Retry-After', String(limit.retryAfter));
+    setRateLimitHeaders(res, limit, 600);
     return reply(res, 429, { ok: false, error: 'too_many_requests' });
   }
   const body = req.body || {};

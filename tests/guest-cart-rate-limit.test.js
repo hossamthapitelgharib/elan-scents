@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
-const { createLimiter, clientIp } = require(path.join(__dirname, '..', 'lib', 'rate-limit'));
+const { createLimiter, clientIp, setRateLimitHeaders } = require(path.join(__dirname, '..', 'lib', 'rate-limit'));
 const handler = require(path.join(__dirname, '..', 'api', 'guest-cart'));
 
 function recorder() { const out = { headers: {} }; return { out, status(n) { out.status = n; return this; }, setHeader(k, v) { out.headers[k] = v; }, json(body) { out.body = body; return this; } }; }
@@ -35,6 +35,12 @@ test('clientIp prefers the edge header, falls back to the forwarded chain, and n
   assert.equal(clientIp({ headers: { 'x-real-ip': '198.51.100.2', 'x-forwarded-for': '1.2.3.4' } }), '198.51.100.2');
   assert.equal(clientIp({ headers: {}, socket: { remoteAddress: '::1' } }), '::1');
   assert.equal(clientIp({}), 'unknown');
+});
+
+test('setRateLimitHeaders publishes a bounded retry contract without exposing internal state', () => {
+  const res = recorder();
+  setRateLimitHeaders(res, { remaining: 0, retryAfter: 17, internal: 'no' }, 30);
+  assert.deepEqual(res.out.headers, { 'X-RateLimit-Limit': '30', 'X-RateLimit-Remaining': '0', 'Retry-After': '17' });
 });
 
 test('guest-cart answers 429 with Retry-After after 30 resolves from one browser and still serves other browsers, even on the same address', async () => {

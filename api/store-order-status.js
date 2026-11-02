@@ -1,6 +1,7 @@
 const crypto = require('node:crypto');
 const { checkSecret, publicDatabaseError } = require('../lib/secure');
-const { storeIdFromRequest, authenticateStoreWebhook, checkOrderOwnership, scopeIdempotencyKey, storeFailureStatus } = require('../lib/store-webhook-auth');
+const { storeIdFromRequest, authenticateStoreWebhook, checkOrderOwnership, scopeIdempotencyKey, storeFailureStatus, RATE_LIMIT } = require('../lib/store-webhook-auth');
+const { setRateLimitHeaders } = require('../lib/rate-limit');
 const ALLOWED_STATUSES = new Set([
   'completed',
   'success',
@@ -62,7 +63,7 @@ module.exports = async function storeOrderStatus(req, res) {
   if (storeId) {
     const result = await authenticateStoreWebhook(req, storeId);
     if (result.denied) {
-      if (result.denied.retryAfter) res.setHeader('Retry-After', String(result.denied.retryAfter));
+      if (result.denied.retryAfter) setRateLimitHeaders(res, { retryAfter: result.denied.retryAfter, remaining: 0 }, RATE_LIMIT.max);
       send(res, result.denied.status, result.denied.body);
       return;
     }

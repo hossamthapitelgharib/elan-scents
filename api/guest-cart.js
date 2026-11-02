@@ -1,6 +1,6 @@
 const { createHmac } = require('node:crypto');
 const { guestHashSecret } = require('../lib/guest-hash-secret.js');
-const { createLimiter, clientIp } = require('../lib/rate-limit');
+const { createLimiter, clientIp, setRateLimitHeaders } = require('../lib/rate-limit');
 const match = require('../lib/guest-match');
 
 // Per client address and per minute. Creating a visitor row (resolve) and claiming are the expensive actions.
@@ -14,6 +14,7 @@ const LIMITS = {
   track: createLimiter({ max: 300, windowMs: 60000 }),
   forget: createLimiter({ max: 30, windowMs: 60000 })     // keyed by address: the erase is one call per refusal
 };
+const LIMIT_VALUES = { resolve: 30, identify: 12, claim: 30, save: 120, track: 300, forget: 30 };
 const NETWORK_LIMITS = {
   resolve: createLimiter({ max: 600, windowMs: 60000 }),
   identify: createLimiter({ max: 240, windowMs: 60000 }),
@@ -163,7 +164,7 @@ module.exports = async (req, res) => {
     const ip = clientIp(req);
     const limit = LIMITS.forget(`${ip}:forget`);
     if (!limit.allowed) {
-      res.setHeader('Retry-After', String(limit.retryAfter));
+      setRateLimitHeaders(res, limit, 30);
       return json(res, 429, { error: 'too_many_requests' });
     }
     const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -194,7 +195,7 @@ module.exports = async (req, res) => {
     return json(res, 200, { ok: true, tracked: false, bot: true, cart: [] });
   }
   if (!limit.allowed) {
-    res.setHeader('Retry-After', String(limit.retryAfter));
+    setRateLimitHeaders(res, limit, LIMIT_VALUES[action]);
     return json(res, 429, { error: 'too_many_requests' });
   }
 

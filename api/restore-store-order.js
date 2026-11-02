@@ -1,4 +1,4 @@
-const { createLimiter, clientIp } = require('../lib/rate-limit');
+const { createLimiter, clientIp, setRateLimitHeaders } = require('../lib/rate-limit');
 
 // The restore token is a random UUID (gen_random_uuid), so anything else can never match a row.
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -27,7 +27,7 @@ module.exports = async function restoreStoreOrder(req, res) {
   }
   const limit = limiter(clientIp(req));
   if (!limit.allowed) {
-    res.setHeader('Retry-After', String(limit.retryAfter));
+    setRateLimitHeaders(res, limit, 30);
     reply(res, 429, { ok: false, error: 'too_many_requests' });
     return;
   }

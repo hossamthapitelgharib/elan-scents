@@ -5,9 +5,9 @@
 
 ## Historical result
 
-The production site returned the same HTML and static asset references for Chrome on Windows, Safari on macOS, Firefox on Ubuntu, and Googlebot. The measured HTML SHA-256 began `0fa745b7f3997af6...`. The referenced assets were `/style.css`, `/style-3.css`, `/texts.js`, `/app.js`, and `/assets/hero.mp4`.
+The historical Railway site returned the same HTML and static asset references for Chrome on Windows, Safari on macOS, Firefox on Ubuntu, and Googlebot. The measured HTML SHA-256 began `0fa745b7f3997af6...`. At that time the referenced hero asset was `/assets/hero.mp4`.
 
-This is a historical baseline from before the move to Railway. It does not verify the current deployment. Current production checks must use the single public origin configured for the Railway site service; no legacy host aliases are part of the check.
+This is a historical baseline from before the current single-Worker Cloudflare deployment. It does not verify the current deployment. Current checks use the Cloudflare origin and are covered by `tests/browser/*.chromium.js` and the live-check workflows.
 
 ## Browser runtime baseline
 
@@ -17,7 +17,7 @@ A real Chrome runtime loaded the page at a `1280 × 1100` viewport with DPR `1`.
 
 There was no server-side User-Agent branching producing different HTML pages. The likely causes of visibly different rendering were viewport-responsive CSS, stale cached assets, hero-video loading state, and browser-specific font/video rendering.
 
-The active host is Railway. A current production verification requires comparing the Railway public origin from the relevant browsers, with browser names and viewport sizes recorded alongside any differing screenshots.
+The active host is the Cloudflare Worker. A current production verification requires running the live-check workflows against the configured public origin, with browser names and viewport sizes recorded alongside any differing screenshots.
 
 ## Repository checks at the time
 
