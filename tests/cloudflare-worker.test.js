@@ -341,7 +341,7 @@ test('the editor page and its CSP are the same whether the hashes were computed 
       const sha = (s) => "'sha256-" + crypto.createHash('sha256').update(s, 'utf8').digest('base64') + "'";
       let html = built.editorFiles['elan-editor.html'];
       html = html.replace('</head>', '<script>window.ELAN_EDITOR_SITE_ORIGIN=' + JSON.stringify(ORIGIN) + ';</script></head>');
-      html = html.replace('</body>', '<script src="/editor-guard.js"></script><script src="/editor-media.js"></script><script src="/editor/editor-live-library.js?v=20261016-01"></script></body>');
+      html = html.replace('</body>', '<script src="/editor-guard.js"></script><script src="/editor-media.js"></script><script src="/editor/editor-live-library.js?v=20261016-01"></script><script src="/editor/editor-live-create.js?v=20261101-01"></script></body>');
       const hashes = [];
       html.replace(/<script>([\s\S]*?)<\/script>/g, (_, code) => { hashes.push(sha(code)); return ''; });
       const handlers = [];

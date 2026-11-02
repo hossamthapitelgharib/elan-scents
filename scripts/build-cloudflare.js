@@ -18,7 +18,7 @@ const ROOT = path.resolve(__dirname, '..');
 
 // Keep in step with railway/server.js (tests/cloudflare-build.test.js checks every file of the repository against the running server).
 const BLOCKED_TOP = new Set(['api', 'tests', 'supabase', 'railway', 'cloudflare', 'dist', 'node_modules', 'src', 'lib', 'scripts', 'reports', 'docs', '.github', '.git']);
-const EDITOR_PUBLIC_FILES = new Set(['edit-model.js', 'editor-data-bridge.js', 'editor-geometry.js', 'editor-live-library.js']);
+const EDITOR_PUBLIC_FILES = new Set(['edit-model.js', 'editor-data-bridge.js', 'editor-geometry.js', 'editor-live-library.js', 'editor-live-create.js']);
 const BLOCKED_FILES = new Set(['package.json', 'package-lock.json', 'vercel.json', 'server.js', 'wrangler.jsonc', 'wrangler.json', 'wrangler.toml', 'claude.md', 'readme.md']);
 // Editor files that only the Worker may serve (after the owner signs in, or for the login page itself).
 const PRIVATE_EDITOR_FILES = ['elan-editor.html', 'login.html', 'editor-login.js', 'editor-login.css', 'editor-guard.js', 'editor-media.js', 'reset.html', 'editor-reset.js'];

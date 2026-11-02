@@ -51,7 +51,7 @@ function buildPage() {
   const siteOrigin = editorSiteOrigin();
   const injectedCode = 'window.ELAN_EDITOR_SITE_ORIGIN=' + JSON.stringify(siteOrigin) + ';';
   let html = base.replace('</head>', '<script>' + injectedCode + '</script></head>');
-  html = html.replace('</body>', '<script src="/editor-guard.js"></script><script src="/editor-media.js"></script><script src="/editor/editor-live-library.js?v=20261016-01"></script></body>');
+  html = html.replace('</body>', '<script src="/editor-guard.js"></script><script src="/editor-media.js"></script><script src="/editor/editor-live-library.js?v=20261016-01"></script><script src="/editor/editor-live-create.js?v=20261101-01"></script></body>');
   // Hashes computed at build time (Cloudflare bundle) are used only while they still describe this exact page.
   let found = null;
   try { const stored = editorFile('elan-editor.hashes.json'); found = stored ? JSON.parse(stored) : null; } catch (_) { found = null; }

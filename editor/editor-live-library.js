@@ -1,4 +1,8 @@
-/* Read-only cloud-library browser for the live editor. Design changes happen only after an explicit item action. */
+/* Élan Editor — the library window of the live editor.
+   Same window as the original editor's library: title, the two tabs, the twelve section buttons in a 3-column grid, the section heading,
+   one row per item, the upload button with its note, "إغلاق", the load/sync buttons and the message line. What is shown comes from the
+   platform page (its archive) and from the cloud library (media, saved elements, archive). Nothing here saves or publishes the page:
+   inserting, restoring or using a picture changes the preview only, until the owner presses "حفظ". */
 (function () {
   'use strict';
 
@@ -246,50 +250,6 @@
     return !!block && typeof block === 'object' && !Array.isArray(block) && ['text', 'banner', 'image', 'smart'].includes(block.type);
   }
 
-  function setCloudMessage(dialog, text) {
-    let message = dialog.querySelector('[data-cloud-message]');
-    if (!message) {
-      message = document.createElement('p');
-      message.dataset.cloudMessage = 'true';
-      message.style.cssText = 'font-size:12px;line-height:1.8;color:#846631';
-      const note = dialog.querySelector('small');
-      dialog.insertBefore(message, note || null);
-    }
-    message.textContent = text;
-  }
-
-  function ensureSection(dialog, id, title, before) {
-    let list = dialog.querySelector('#' + id);
-    if (list) return list;
-    const heading = document.createElement('h4');
-    heading.textContent = title;
-    list = document.createElement('div');
-    list.id = id;
-    const reference = before || dialog.querySelector('small');
-    dialog.insertBefore(heading, reference || null);
-    dialog.insertBefore(list, reference || null);
-    return list;
-  }
-
-  /* Messages for the codes /api/editor-data answers with when image generation is refused or fails. */
-  const AI_MESSAGES = {
-    ai_not_configured: 'التوليد غير مُفعّل: لم يُضبط مفتاح الخدمة على الخادم.',
-    cost_confirmation_required: 'وافقي على احتساب التكلفة أولًا.',
-    invalid_ai_prompt: 'الوصف غير صالح (من 3 إلى 1000 حرف).',
-    invalid_ai_size: 'مقاس الصورة غير مدعوم.',
-    ai_daily_limit_reached: 'تم الوصول إلى الحد الأقصى لعدد الصور خلال 24 ساعة.',
-    ai_rate_limited: 'خدمة التوليد مشغولة الآن. حاولي بعد قليل.',
-    ai_prompt_rejected: 'رفضت الخدمة هذا الوصف. غيّريه وحاولي مرة أخرى.',
-    ai_not_authorized: 'مفتاح خدمة التوليد المضبوط على الخادم غير صالح.',
-    ai_provider_unreachable: 'تعذر الاتصال بخدمة التوليد.',
-    ai_provider_failed: 'لم تُرجع خدمة التوليد صورة صالحة.',
-    ai_invalid_response: 'استجابة التوليد غير صالحة؛ لم تُضف صورة.',
-    upload_failed: 'تعذر حفظ الصورة المولّدة في المكتبة.',
-    storage_unreachable: 'تعذر حفظ الصورة المولّدة في المكتبة.',
-    library_record_failed: 'تعذر تسجيل الصورة المولّدة في المكتبة.',
-    data_provider_failed: 'تعذر الاتصال بقاعدة البيانات.'
-  };
-
   window.connectElanLibrary = async function (provider) {
     const selectedProvider = provider || window.elanLibraryDataProvider;
     if (!selectedProvider || typeof selectedProvider.getLibrary !== 'function' || typeof selectedProvider.saveLibrary !== 'function') {
@@ -302,34 +262,9 @@
     return data;
   };
 
-  window.loadCloudLibrary = async function () {
-    try {
-      if (typeof cloudLibraryPending !== 'undefined' && cloudLibraryPending) {
-        if (typeof showLibraryCloudMessage === 'function') showLibraryCloudMessage('توجد تغييرات محلية غير مؤكدة؛ لم نستبدلها بالمكتبة السحابية.');
-        return false;
-      }
-      const data = await window.connectElanLibrary(window.elanLibraryDataProvider);
-      state.archive = clone(data.archive);
-      state.media = clone(data.media);
-      state.savedElements = clone(data.savedElements);
-      cloudLibraryRevision = data.revision;
-      cloudLibraryReady = true;
-      cloudLibraryPending = false;
-      lastLibrarySignature = JSON.stringify(librarySnapshot());
-      library();
-      if (typeof showLibraryCloudMessage === 'function') {
-        showLibraryCloudMessage('تم تحميل المكتبة السحابية. لم يُحفظ أو يُنشر تصميم الصفحة.');
-      }
-      return true;
-    } catch (_) {
-      if (typeof showLibraryCloudMessage === 'function') showLibraryCloudMessage('تعذر تحميل المكتبة السحابية؛ لم تتغير بيانات التصميم.');
-      return false;
-    }
-  };
-
-  /* ---------- Library window chrome: the two explicit buttons, the section tabs and the old local library box ---------- */
-  var activeCategory = 'all';
-  var forcedNote = '';
+  /* ---------- the window ---------- */
+  var libTab = 'archive', libCategory = 'section', forcedNote = '';
+  var ACTIVE = '#e8d6ad';
 
   function make(tag, text, css) {
     var node = document.createElement(tag);
@@ -337,6 +272,9 @@
     if (css) node.style.cssText = css;
     return node;
   }
+  function libButton(text, fn) { var b = make('button', text); b.type = 'button'; b.onclick = fn; return b; }
+  function labelOf(key) { var hit = CATEGORIES.filter(function (c) { return c[0] === key; })[0]; return hit ? hit[1] : key === 'other' ? 'أخرى' : ''; }
+  function say(text) { if (typeof window.markBridge === 'function') window.markBridge(text); }
 
   async function sha256Hex(text) {
     var digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(text)));
@@ -375,64 +313,156 @@
     setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
   }
 
-  function applyCategoryFilter(dialog) {
-    var rows = dialog.querySelectorAll('[data-cat]'), shown = 0;
-    rows.forEach(function (row) {
-      if (row.dataset.d === undefined) row.dataset.d = row.style.display || '';
-      var visible = activeCategory === 'all' || row.dataset.cat === activeCategory;
-      row.style.display = visible ? row.dataset.d : 'none';
-      if (visible) shown += 1;
+  /* Everything the window lists, already placed in its section. */
+  function collect(st, cloud) {
+    var pageArchive = Array.isArray(st && st.archive) ? st.archive : [];
+    var pageIds = new Set(pageArchive.map(function (item) { return String(item.id); }));
+    var activeIds = new Set((st && st.design && Array.isArray(st.design.blocks) ? st.design.blocks : []).map(function (block) { return String(block.id); }));
+    var archive = pageArchive.map(function (item) {
+      return { section: categoryOfElementId(item.id), name: String(item.name || item.id), restore: { elementId: item.id }, can: true };
     });
-    var empty = dialog.querySelector('[data-lib-empty]');
-    if (empty) {
-      var label = activeCategory === 'all' ? '' : (CATEGORIES.filter(function (c) { return c[0] === activeCategory; })[0] || ['', 'هذا القسم'])[1];
-      empty.textContent = shown || activeCategory === 'all' ? '' : 'لا توجد عناصر في قسم «' + label + '» بعد.';
-      empty.style.display = empty.textContent ? '' : 'none';
+    (cloud ? cloud.archive : []).forEach(function (item) {
+      if (pageIds.has(String(item.element_id))) return;
+      var block = blockFromPayload(item.payload);
+      var can = supportedBlock(item.payload) && block.id === item.element_id && !activeIds.has(String(item.element_id));
+      archive.push({ section: categoryOf(item), name: String(item.name || item.element_id || 'عنصر'), restore: { elementId: item.element_id, payload: item.payload }, can: can });
+    });
+    var saved = (cloud ? cloud.savedElements : []).map(function (item) {
+      return { section: categoryOf(item), name: String(item.name || 'عنصر'), payload: item.payload, can: supportedBlock(item.payload) };
+    });
+    var media = (cloud ? cloud.media : []).filter(function (m) { return m && m.src; }).map(function (m) {
+      return { section: categoryOf(m), name: String(m.name || m.id || 'وسيط'), src: m.src, type: String(m.type || ''), can: safeMediaUrl(m.src) };
+    });
+    return { archive: archive, saved: saved, media: media };
+  }
+
+  function row(list, entry, label, run, preview) {
+    var box = make('div', '', 'display:flex;align-items:center;gap:10px;padding:10px;border:1px solid #dfd0b3;border-radius:10px');
+    if (preview && entry.can && /^image(?:\/|$)/i.test(entry.type)) {
+      var img = make('img', '', 'width:60px;height:50px;object-fit:contain');
+      img.src = entry.src; img.alt = entry.name; img.loading = 'lazy'; img.referrerPolicy = 'no-referrer';
+      box.append(img);
     }
+    var text = make('span', entry.name, 'flex:1');
+    var act = libButton(label, run);
+    act.disabled = !entry.can;
+    box.append(text, act);
+    list.append(box);
   }
 
-  function buildTabs(dialog) {
-    var old = dialog.querySelector('[data-lib-tabs]');
-    var tabs = old || make('div', '', 'display:flex;flex-wrap:wrap;gap:6px;margin:10px 0');
-    tabs.dataset.libTabs = 'true'; tabs.dataset.libChrome = 'true';
-    tabs.replaceChildren();
-    var counts = {}, total = 0;
-    dialog.querySelectorAll('[data-cat]').forEach(function (row) { counts[row.dataset.cat] = (counts[row.dataset.cat] || 0) + 1; total += 1; });
-    var entries = [['all', 'الكل']].concat(CATEGORIES);
-    if (counts.other) entries.push(['other', 'أخرى']);
-    entries.forEach(function (entry) {
-      var count = entry[0] === 'all' ? total : (counts[entry[0]] || 0);
-      var button = make('button', entry[1] + ' (' + count + ')', 'padding:5px 10px;border:1px solid #d9cfb7;border-radius:999px;background:' + (activeCategory === entry[0] ? '#e8d6ad' : '#fff') + ';font:inherit;font-size:12px;cursor:pointer');
-      button.type = 'button'; button.dataset.libCat = entry[0];
-      button.setAttribute('aria-pressed', activeCategory === entry[0] ? 'true' : 'false');
-      button.onclick = function () { activeCategory = entry[0]; buildTabs(dialog); };
-      tabs.append(button);
+  function setNote(dialog, text) {
+    var message = dialog.querySelector('[data-cloud-message]');
+    if (message) message.textContent = text;
+  }
+
+  async function paint(dialog, ctx) {
+    var bridge = window.elanLiveEditorBridge;
+    var data = collect(ctx.st, ctx.cloud);
+    var selectedId = ctx.st && ctx.st.selected && ctx.st.selected.id || null;
+    dialog.replaceChildren();
+    dialog.style.width = '720px';
+    dialog.append(make('h3', 'مكتبة إيلان'));
+
+    var tabs = make('div', '', 'display:flex;gap:8px;margin-bottom:12px');
+    [['archive', 'العناصر المحذوفة'], ['saved', 'الميديا والعناصر المحفوظة']].forEach(function (entry) {
+      var b = libButton(entry[1], function () { libTab = entry[0]; paint(dialog, ctx); });
+      b.dataset.libTab = entry[0];
+      if (libTab === entry[0]) b.style.background = ACTIVE;
+      tabs.append(b);
     });
-    if (!old) { var anchor = dialog.querySelector('[data-lib-toolbar]'); dialog.insertBefore(tabs, anchor ? anchor.nextSibling : null); }
-    applyCategoryFilter(dialog);
-  }
+    dialog.append(tabs);
 
-  async function buildChrome(dialog, cloud, defaultNote) {
-    dialog.querySelectorAll('[data-lib-chrome]').forEach(function (node) { node.remove(); });
-    var title = dialog.querySelector('h3'), after = title ? title.nextSibling : dialog.firstChild;
-    var bar = make('div', '', 'display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0');
-    bar.dataset.libToolbar = 'true'; bar.dataset.libChrome = 'true';
-    var load = make('button', 'تحميل المكتبة من سابابيس'), sync = make('button', 'مزامنة التغييرات');
-    load.type = sync.type = 'button'; load.dataset.libAction = 'load'; sync.dataset.libAction = 'sync';
-    var status = make('span', forcedNote || defaultNote, 'flex:1 1 100%;font-size:12px;line-height:1.8;color:#846631');
-    status.dataset.libStatus = 'true';
-    forcedNote = '';
-    bar.append(load, sync, status);
-    dialog.insertBefore(bar, after);
+    function inTab(key) {
+      var pool = libTab === 'archive' ? data.archive : data.saved.concat(data.media);
+      return pool.filter(function (x) { return x.section === key; }).length;
+    }
+    var keys = CATEGORIES.map(function (c) { return c[0]; });
+    if (inTab('other')) keys.push('other');
+    var folders = make('div', '', 'display:grid;grid-template-columns:repeat(3,1fr);gap:8px');
+    keys.forEach(function (key) {
+      var b = libButton(labelOf(key) + ' (' + inTab(key) + ')', function () { libCategory = key; paint(dialog, ctx); });
+      b.dataset.libCat = key;
+      if (libCategory === key) b.style.background = ACTIVE;
+      folders.append(b);
+    });
+    dialog.append(folders);
+    if (keys.indexOf(libCategory) < 0) libCategory = 'section';
+
+    var heading = make('h4', labelOf(libCategory));
+    dialog.append(heading);
+    var list = make('div', '', 'display:grid;gap:10px');
+    list.dataset.libList = 'true';
+    dialog.append(list);
+
+    function applied(text) { dialog.close(); say(text); }
+    function failed(error, fallback) { setNote(dialog, error && error.message || fallback); }
+
+    if (libTab === 'archive') {
+      data.archive.filter(function (x) { return x.section === libCategory; }).forEach(function (entry) {
+        row(list, entry, 'استرجاع', async function () {
+          try { await bridge.request('archive.restore', entry.restore); applied('أُعيد العنصر إلى المعاينة فقط. اضغطي «حفظ» لنشره.'); }
+          catch (error) { failed(error, 'تعذر استرجاع العنصر.'); }
+        });
+      });
+    } else {
+      data.saved.filter(function (x) { return x.section === libCategory; }).forEach(function (entry) {
+        row(list, entry, 'إضافة نسخة', async function () {
+          try { await bridge.request('library.insert', { payload: entry.payload }); applied('أُدرج العنصر في المعاينة فقط. اضغطي «حفظ» لنشره إلى المتجر.'); }
+          catch (error) { failed(error, 'تعذر إدراج العنصر المحفوظ.'); }
+        });
+      });
+      data.media.filter(function (x) { return x.section === libCategory; }).forEach(function (entry) {
+        row(list, entry, 'استخدام', async function () {
+          try {
+            if (selectedId) await bridge.request('element.setMedia', { elementId: selectedId, src: entry.src });
+            else await bridge.request('tool.run', { id: 'create_image', src: entry.src, at: null });
+            applied('تم تطبيق الوسيط على المعاينة فقط؛ اضغطي «حفظ» لنشره.');
+          } catch (error) { failed(error, 'تعذر تطبيق الوسيط.'); }
+        }, true);
+      });
+      /* A file uploaded here is kept in the cloud library as a picture or a video, so only those two sections take an upload. */
+      if (libCategory === 'image' || libCategory === 'video') {
+        var picker = make('input'); picker.type = 'file'; picker.hidden = true;
+        picker.accept = libCategory === 'image' ? 'image/jpeg,image/png,image/webp,image/gif,image/avif' : 'video/mp4,video/webm';
+        var upload = libButton('رفع ملف وحفظه في ' + heading.textContent, function () { picker.click(); });
+        upload.dataset.libAction = 'upload';
+        picker.onchange = async function () {
+          var file = picker.files && picker.files[0]; picker.value = '';
+          if (!file) return;
+          upload.disabled = true; setNote(dialog, 'جارٍ رفع الملف…');
+          try {
+            await uploadFile(file);
+            forcedNote = 'تم رفع الملف وحفظه في مكتبة سابابيس. لم يُطبّق على الصفحة ولم يُحفظ أو يُنشر التصميم.';
+            await window.openLiveLibrary();
+          } catch (error) {
+            upload.disabled = false;
+            setNote(dialog, 'تعذر رفع الملف: ' + (REASONS[error && error.message] || (error && error.message) || 'خطأ') + '.');
+          }
+        };
+        dialog.append(upload, picker);
+        dialog.append(make('small', 'صور حتى 10 ميجا، وفيديو حتى 50 ميجا. تُحفظ الملفات في مكتبة سابابيس، ولا تُضاف للصفحة عند الرفع للمكتبة.'));
+      }
+    }
+    if (!list.children.length) list.append(make('p', 'لا توجد عناصر في هذا القسم بعد.'));
+    dialog.append(libButton('إغلاق', function () { dialog.close(); }));
+
+    var controls = make('div', '', 'display:flex;gap:8px;flex-wrap:wrap;margin-top:12px');
+    var load = libButton('تحميل المكتبة من سابابيس'), sync = libButton('مزامنة التغييرات');
+    load.dataset.libAction = 'load'; sync.dataset.libAction = 'sync';
+    controls.append(load, sync);
+    dialog.append(controls);
+    var message = make('p', ctx.note, 'font-size:12px;line-height:1.8;color:#846631');
+    message.dataset.cloudMessage = 'true';
+    dialog.append(message);
 
     load.onclick = async function () {
-      load.disabled = sync.disabled = true; status.textContent = 'جارٍ تحميل المكتبة من سابابيس…';
+      load.disabled = sync.disabled = true; setNote(dialog, 'جارٍ تحميل المكتبة من سابابيس…');
       await window.openLiveLibrary();
     };
     sync.onclick = async function () {
       load.disabled = sync.disabled = true;
       try {
-        var report = await model.syncLocal({ provider: window.elanLibraryDataProvider, storage: window.localStorage, uploadFile: uploadFile, sha256: sha256Hex, onProgress: function (text) { status.textContent = text; } });
+        var report = await model.syncLocal({ provider: window.elanLibraryDataProvider, storage: window.localStorage, uploadFile: uploadFile, sha256: sha256Hex, onProgress: function (text) { setNote(dialog, text); } });
         forcedNote = summarizeSync(report);
       } catch (error) {
         forcedNote = 'تعذرت المزامنة (' + (error && error.message || 'خطأ') + '). لم يُحذف شيء، ويمكن المحاولة مرة أخرى.';
@@ -440,294 +470,51 @@
       await window.openLiveLibrary();
     };
 
-    if (!cloud) return; // the library could not be read: only the retry buttons and the message are shown
-    var empty = make('p', '', 'font-size:12px;color:#846631;margin:4px 0');
-    empty.dataset.libEmpty = 'true'; empty.dataset.libChrome = 'true'; empty.style.display = 'none';
-    dialog.insertBefore(empty, after);
-    var tabs = make('div'); tabs.dataset.libTabs = 'true'; tabs.dataset.libChrome = 'true';
-    dialog.insertBefore(tabs, empty);
+    if (ctx.cloud) await paintLocalBox(dialog, ctx.cloud);
+  }
 
+  /* The old browser-only library (from before the cloud library), shown only while this browser still holds one. */
+  async function paintLocalBox(dialog, cloud) {
     var local = null;
     try { local = model.readLocalLibrary(window.localStorage); } catch (_) { local = null; }
-    if (local && local.present) {
-      var info = await model.describeLocal(local, cloud, window.localStorage, sha256Hex);
-      var box = make('div', '', 'display:grid;gap:8px;margin:10px 0;padding:10px;border:1px solid #e5dcc5;border-radius:8px');
-      box.dataset.libLocal = 'true'; box.dataset.libChrome = 'true';
-      box.append(make('strong', 'مكتبة قديمة محفوظة في هذا المتصفح'));
-      box.append(make('span', info.saved + ' عنصر محفوظ · ' + info.archive + ' عنصر مؤرشف · ' + info.media + ' ملف وسائط', 'font-size:12px;color:#846631'));
-      box.append(make('span', info.pending
-        ? 'لم يُنقل منها بعد: ' + info.pending + '. «مزامنة التغييرات» تنقلها إلى سابابيس بالدمج فقط، ولا تحذف أي شيء هنا أو هناك.'
-        : 'كل ما فيها موجود الآن في سابابيس. يمكنك حذف النسخة المحلية بعد أخذ نسخة احتياطية.', 'font-size:12px;line-height:1.8'));
-      var row = make('div', '', 'display:flex;gap:8px;flex-wrap:wrap');
-      var backup = make('button', 'تنزيل نسخة احتياطية (JSON)');
-      backup.type = 'button'; backup.dataset.libAction = 'backup';
-      backup.onclick = function () { downloadLocalBackup(local); };
-      var drop = make('button', 'حذف النسخة المحلية القديمة');
-      drop.type = 'button'; drop.dataset.libAction = 'clear-local'; drop.disabled = info.pending > 0;
-      drop.title = info.pending > 0 ? 'يتاح بعد نقل كل شيء إلى سابابيس وتأكيده' : '';
-      drop.onclick = async function () {
-        if (!window.confirm('سيُحذف من هذا المتصفح فقط: العناصر المحفوظة والمؤرشفة والوسائط في المكتبة القديمة. المكتبة في سابابيس لا تتأثر. هل أنت متأكد؟')) return;
-        model.clearLocalLibrary(window.localStorage);
-        forcedNote = 'تم حذف المكتبة المحلية القديمة من هذا المتصفح. المكتبة في سابابيس كما هي.';
-        await window.openLiveLibrary();
-      };
-      row.append(backup, drop);
-      box.append(row);
-      dialog.insertBefore(box, after);
-    }
-    buildTabs(dialog);
+    if (!local || !local.present) return;
+    var info = await model.describeLocal(local, cloud, window.localStorage, sha256Hex);
+    var box = make('div', '', 'display:grid;gap:8px;margin:10px 0;padding:10px;border:1px solid #e5dcc5;border-radius:8px');
+    box.dataset.libLocal = 'true';
+    box.append(make('strong', 'مكتبة قديمة محفوظة في هذا المتصفح'));
+    box.append(make('span', info.saved + ' عنصر محفوظ · ' + info.archive + ' عنصر مؤرشف · ' + info.media + ' ملف وسائط', 'font-size:12px;color:#846631'));
+    box.append(make('span', info.pending
+      ? 'لم يُنقل منها بعد: ' + info.pending + '. «مزامنة التغييرات» تنقلها إلى سابابيس بالدمج فقط، ولا تحذف أي شيء هنا أو هناك.'
+      : 'كل ما فيها موجود الآن في سابابيس. يمكنك حذف النسخة المحلية بعد أخذ نسخة احتياطية.', 'font-size:12px;line-height:1.8'));
+    var actions = make('div', '', 'display:flex;gap:8px;flex-wrap:wrap');
+    var backup = libButton('تنزيل نسخة احتياطية (JSON)', function () { downloadLocalBackup(local); });
+    backup.dataset.libAction = 'backup';
+    var drop = libButton('حذف النسخة المحلية القديمة', async function () {
+      if (!window.confirm('سيُحذف من هذا المتصفح فقط: العناصر المحفوظة والمؤرشفة والوسائط في المكتبة القديمة. المكتبة في سابابيس لا تتأثر. هل أنت متأكد؟')) return;
+      model.clearLocalLibrary(window.localStorage);
+      forcedNote = 'تم حذف المكتبة المحلية القديمة من هذا المتصفح. المكتبة في سابابيس كما هي.';
+      await window.openLiveLibrary();
+    });
+    drop.dataset.libAction = 'clear-local'; drop.disabled = info.pending > 0;
+    drop.title = info.pending > 0 ? 'يتاح بعد نقل كل شيء إلى سابابيس وتأكيده' : '';
+    actions.append(backup, drop);
+    box.append(actions);
+    dialog.append(box);
   }
 
   window.openLiveLibrary = async function () {
-    const dialog = document.getElementById('libraryDialog');
-    const mediaList = document.getElementById('mediaList');
-    const archiveList = document.getElementById('archiveList');
-    if (!dialog || !mediaList || !archiveList || !window.elanLiveEditorBridge) return;
-
-    try {
-      const bridge = window.elanLiveEditorBridge;
-      const st = await bridge.request('page.getState');
-      const cloud = await window.connectElanLibrary(window.elanLibraryDataProvider);
-      mediaList.replaceChildren();
-      archiveList.replaceChildren();
-      const addMedia = document.getElementById('addMedia');
-      if (addMedia) addMedia.hidden = true;
-
-      const mediaHeading = mediaList.previousElementSibling;
-      if (mediaHeading && mediaHeading.tagName === 'H4') mediaHeading.textContent = 'وسائط المكتبة السحابية';
-      const archiveHeading = archiveList.previousElementSibling;
-      if (archiveHeading && archiveHeading.tagName === 'H4') archiveHeading.textContent = 'أرشيف الصفحة الحالية';
-      const savedList = ensureSection(dialog, 'cloudSavedElements', 'العناصر المحفوظة سحابيًا', archiveHeading);
-      savedList.replaceChildren();
-      const cloudArchive = ensureSection(dialog, 'cloudArchiveItems', 'الأرشيف السحابي', dialog.querySelector('small'));
-      cloudArchive.replaceChildren();
-
-      let emptyMedia = null;
-      const picker = document.createElement('button');
-      picker.textContent = 'رفع صورة إلى المكتبة السحابية';
-      mediaList.append(picker);
-      const mediaInput = document.createElement('input');
-      mediaInput.type = 'file';
-      mediaInput.accept = 'image/jpeg,image/png,image/webp,image/gif,image/avif';
-      mediaInput.hidden = true;
-      mediaInput.onchange = async function () {
-        const file = mediaInput.files && mediaInput.files[0];
-        mediaInput.value = '';
-        if (!file) return;
-        const provider = window.elanLibraryDataProvider;
-        if (!provider || typeof provider.uploadMedia !== 'function') {
-          setCloudMessage(dialog, 'رفع الصور السحابي غير مهيأ في هذه الجلسة.');
-          return;
-        }
-        picker.disabled = true;
-        try {
-          const uploaded = await provider.uploadMedia(file, { category: 'general' });
-          if (!uploaded || !safeMediaUrl(uploaded.src) || !/^image(?:\/|$)/i.test(String(uploaded.type || ''))) throw new Error('استجابة رفع الصورة غير صالحة.');
-          const record = { ...uploaded, name: String(uploaded.name || file.name || 'صورة') };
-          if (emptyMedia) emptyMedia.remove();
-          const row = renderMediaRow(record);
-          mediaList.insertBefore(row, mediaInput);
-          buildTabs(dialog);
-          setCloudMessage(dialog, 'تم تأكيد رفع الصورة إلى المكتبة السحابية. لم تُطبّق على الصفحة ولم يُحفظ أو يُنشر التصميم.');
-        } catch (error) {
-          setCloudMessage(dialog, error.message || 'تعذر رفع الصورة إلى المكتبة السحابية.');
-        } finally {
-          picker.disabled = false;
-        }
-      };
-      picker.onclick = function () { mediaInput.click(); };
-      mediaList.append(mediaInput);
-
-      /* AI image generation. Off until the server has a key; every image needs the owner's explicit cost
-         confirmation; the result only lands in the library, it is never applied to the page automatically. */
-      const aiBox = document.createElement('div');
-      aiBox.dataset.aiBox = 'true';
-      aiBox.style.cssText = 'display:grid;gap:8px;margin:10px 0;padding:10px;border:1px solid #e5dcc5;border-radius:8px';
-      const aiTitle = document.createElement('strong');
-      aiTitle.textContent = 'توليد صورة بالذكاء الاصطناعي';
-      /* A <span>, not <small>: the dialog's own note is found with dialog.querySelector('small'). */
-      const aiState = document.createElement('span');
-      aiState.style.cssText = 'font-size:11px;line-height:1.7;color:#846631';
-      aiState.textContent = 'جارٍ قراءة حالة الخدمة…';
-      const aiPrompt = document.createElement('textarea');
-      aiPrompt.rows = 3;
-      aiPrompt.maxLength = 1000;
-      aiPrompt.placeholder = 'صفي الصورة المطلوبة';
-      aiPrompt.setAttribute('aria-label', 'وصف الصورة المطلوبة');
-      aiPrompt.style.cssText = 'width:100%;box-sizing:border-box;padding:8px;border:1px solid #d9cfb7;border-radius:7px;font:inherit';
-      const aiConfirmLabel = document.createElement('label');
-      aiConfirmLabel.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:12px';
-      const aiConfirm = document.createElement('input');
-      aiConfirm.type = 'checkbox';
-      aiConfirmLabel.append(aiConfirm, 'أوافق على احتساب تكلفة هذه الصورة على حساب خدمة التوليد الخاص بالموقع');
-      const aiGo = document.createElement('button');
-      aiGo.textContent = 'توليد الصورة';
-      aiBox.append(aiTitle, aiState, aiPrompt, aiConfirmLabel, aiGo);
-      mediaList.insertBefore(aiBox, mediaInput);
-
-      function aiEnabled(on) { aiPrompt.disabled = !on; aiConfirm.disabled = !on; aiGo.disabled = !on; }
-      async function refreshAiStatus() {
-        aiEnabled(false);
-        const provider = window.elanLibraryDataProvider;
-        if (!provider || typeof provider.getAiStatus !== 'function' || typeof provider.generateImage !== 'function') {
-          aiState.textContent = 'توليد الصور غير متاح في هذه الجلسة.';
-          return;
-        }
-        try {
-          const status = await provider.getAiStatus();
-          if (!status || status.configured !== true) { aiState.textContent = 'التوليد غير مُفعّل: لم يُضبط مفتاح الخدمة على الخادم بعد.'; return; }
-          if (!(status.remaining > 0)) { aiState.textContent = 'تم الوصول إلى الحد الأقصى (' + status.dailyLimit + ' صورة كل 24 ساعة).'; return; }
-          aiState.textContent = 'المتاح الآن: ' + status.remaining + ' من ' + status.dailyLimit + ' صورة كل 24 ساعة.';
-          aiEnabled(true);
-        } catch (_) {
-          aiState.textContent = 'تعذر قراءة حالة توليد الصور.';
-        }
-      }
-      aiGo.onclick = async function () {
-        const prompt = aiPrompt.value.trim();
-        if (prompt.length < 3) { setCloudMessage(dialog, 'اكتبي وصفًا للصورة (3 أحرف على الأقل).'); return; }
-        if (!aiConfirm.checked) { setCloudMessage(dialog, AI_MESSAGES.cost_confirmation_required); return; }
-        aiEnabled(false);
-        setCloudMessage(dialog, 'جارٍ توليد الصورة… قد يستغرق ذلك حتى دقيقتين.');
-        try {
-          const item = await window.elanLibraryDataProvider.generateImage(prompt, { confirmCost: true });
-          if (!item || !safeMediaUrl(item.src) || !/^image(?:\/|$)/i.test(String(item.type || ''))) throw new Error('ai_invalid_response');
-          if (emptyMedia) emptyMedia.remove();
-          mediaList.insertBefore(renderMediaRow({ ...item, name: String(item.name || 'صورة مولّدة') }), aiBox.nextSibling);
-          buildTabs(dialog);
-          aiConfirm.checked = false;
-          aiPrompt.value = '';
-          setCloudMessage(dialog, 'تم توليد الصورة وحفظها في المكتبة. لم تُطبّق على الصفحة ولم يُحفظ أو يُنشر التصميم.');
-        } catch (error) {
-          setCloudMessage(dialog, AI_MESSAGES[error && error.message] || 'تعذر توليد الصورة.');
-        }
-        refreshAiStatus();
-      };
-      refreshAiStatus();
-
-      const selectedId = st && st.selected && st.selected.id || null;
-      const mediaRows = Array.isArray(cloud.media) ? cloud.media.filter((item) => item && item.src) : [];
-      function renderMediaRow(item) {
-        const row = document.createElement('div');
-        row.style.cssText = 'display:flex;align-items:center;gap:10px;margin:8px 0;padding:8px;border:1px solid #e5dcc5;border-radius:8px';
-        row.dataset.cat = categoryOf(item);
-        if (safeMediaUrl(item.src) && /^image(?:\/|$)/i.test(String(item.type || ''))) {
-          const preview = document.createElement('img');
-          preview.src = item.src;
-          preview.alt = String(item.name || 'وسيط محفوظ');
-          preview.loading = 'lazy';
-          preview.referrerPolicy = 'no-referrer';
-          preview.style.cssText = 'width:64px;height:52px;object-fit:cover;border-radius:5px';
-          row.append(preview);
-        }
-        const label = document.createElement('span');
-        label.textContent = [item.name || item.id || 'وسيط', item.type || ''].filter(Boolean).join(' · ');
-        label.style.cssText = 'flex:1;overflow-wrap:anywhere';
-        row.append(label);
-        const use = document.createElement('button');
-        use.textContent = selectedId && safeMediaUrl(item.src) ? 'استخدام للعنصر المحدد' : 'حددي عنصرًا أولًا';
-        use.disabled = !selectedId || !safeMediaUrl(item.src);
-        use.onclick = async function () {
-          try {
-            await bridge.request('element.setMedia', { elementId: selectedId, src: item.src });
-            setCloudMessage(dialog, 'تم تطبيق الوسيط على المعاينة فقط؛ اضغطي «حفظ» لنشره.');
-          } catch (error) {
-            setCloudMessage(dialog, error.message || 'تعذر تطبيق الوسيط على العنصر.');
-          }
-        };
-        row.append(use);
-        return row;
-      }
-      if (!mediaRows.length) {
-        emptyMedia = document.createElement('p');
-        emptyMedia.textContent = 'لا توجد وسائط محفوظة في المكتبة السحابية.';
-        mediaList.append(emptyMedia);
-      }
-      mediaRows.forEach((item) => mediaList.insertBefore(renderMediaRow(item), mediaInput));
-
-      const savedRows = Array.isArray(cloud.savedElements) ? cloud.savedElements : [];
-      if (!savedRows.length) {
-        const empty = document.createElement('p');
-        empty.textContent = 'لا توجد عناصر محفوظة سحابيًا حتى الآن.';
-        savedList.append(empty);
-      }
-      savedRows.forEach((item) => {
-        const row = document.createElement('div');
-        row.style.cssText = 'display:flex;align-items:center;gap:8px;margin:7px 0';
-        row.dataset.cat = categoryOf(item);
-        const label = document.createElement('span');
-        label.textContent = [item.name || 'عنصر', item.kind || 'عام', item.category || ''].filter(Boolean).join(' · ');
-        label.style.flex = '1';
-        row.append(label);
-        const insert = document.createElement('button');
-        const canInsert = supportedBlock(item.payload);
-        insert.textContent = canInsert ? 'إدراج في المعاينة' : 'غير قابل للإدراج هنا';
-        insert.disabled = !canInsert;
-        insert.onclick = async function () {
-          try {
-            await bridge.request('library.insert', { payload: item.payload });
-            setCloudMessage(dialog, 'أُدرج العنصر في المعاينة فقط. اضغطي «حفظ» لنشره إلى المتجر.');
-          } catch (error) {
-            setCloudMessage(dialog, error.message || 'تعذر إدراج العنصر المحفوظ.');
-          }
-        };
-        row.append(insert);
-        savedList.append(row);
-      });
-
-      const pageArchive = Array.isArray(st && st.archive) ? st.archive : [];
-      const pageArchiveIds = new Set(pageArchive.map((item) => String(item.id)));
-      const activeBlockIds = new Set((st && st.design && Array.isArray(st.design.blocks) ? st.design.blocks : []).map((block) => String(block.id)));
-      if (!pageArchive.length) archiveList.textContent = 'أرشيف الصفحة فارغ.';
-      pageArchive.forEach((item) => {
-        const button = document.createElement('button');
-        button.textContent = 'استرجاع: ' + (item.name || item.id);
-        button.dataset.cat = categoryOfElementId(item.id);
-        button.onclick = async function () {
-          try { await bridge.request('archive.restore', { elementId: item.id }); dialog.close(); }
-          catch (error) { setCloudMessage(dialog, error.message || 'تعذر استرجاع العنصر.'); }
-        };
-        archiveList.append(button);
-      });
-
-      const cloudRows = Array.isArray(cloud.archive) ? cloud.archive : [];
-      if (!cloudRows.length) cloudArchive.textContent = 'الأرشيف السحابي فارغ.';
-      cloudRows.forEach((item) => {
-        const row = document.createElement('div');
-        row.style.cssText = 'display:flex;align-items:center;gap:8px;margin:7px 0';
-        row.dataset.cat = categoryOf(item);
-        const label = document.createElement('span');
-        label.textContent = [item.name || item.element_id || 'عنصر', item.kind || 'عام', item.archived_at || ''].filter(Boolean).join(' · ');
-        label.style.flex = '1';
-        row.append(label);
-        const restore = document.createElement('button');
-        const cloudBlock = blockFromPayload(item.payload);
-        const canRestore = pageArchiveIds.has(String(item.element_id)) || (supportedBlock(item.payload) && cloudBlock.id === item.element_id && !activeBlockIds.has(String(item.element_id)));
-        restore.textContent = canRestore ? 'استعادة للمعاينة' : 'غير متاح في هذه الصفحة';
-        restore.disabled = !canRestore;
-        restore.onclick = async function () {
-          try {
-            await bridge.request('archive.restore', { elementId: item.element_id, payload: item.payload });
-            setCloudMessage(dialog, 'أُعيد العنصر إلى المعاينة فقط. اضغطي «حفظ» لنشره.');
-          } catch (error) {
-            setCloudMessage(dialog, error.message || 'تعذر استعادة العنصر المؤرشف.');
-          }
-        };
-        row.append(restore);
-        cloudArchive.append(row);
-      });
-
-      const note = dialog.querySelector('small');
-      if (note) note.textContent = 'الرفع والحفظ في المكتبة السحابية منفصلان عن تصميم الصفحة. الإدراج أو الاستعادة يغيّران المعاينة فقط حتى تضغطي «حفظ».';
-      const title = dialog.querySelector('h3');
-      if (title) title.textContent = 'المكتبة السحابية والأرشيف';
-      setCloudMessage(dialog, 'اتصال القراءة ناجح · وسائط: ' + mediaRows.length + ' · عناصر محفوظة: ' + savedRows.length + ' · مراجعة المكتبة: ' + cloud.revision.slice(0, 12));
-      await buildChrome(dialog, cloud, 'تم تحميل المكتبة من سابابيس · وسائط: ' + mediaRows.length + ' · عناصر محفوظة: ' + savedRows.length + ' · أرشيف: ' + cloudRows.length);
-      if (!dialog.open) dialog.showModal();
-    } catch (error) {
-      setCloudMessage(dialog, error.message || 'تعذر تحميل المكتبة السحابية.');
-      try { await buildChrome(dialog, null, 'تعذر تحميل المكتبة من سابابيس: ' + (error && error.message || 'خطأ') + '. اضغط «تحميل المكتبة من سابابيس» للمحاولة مرة أخرى.'); } catch (_) { /* the message above is enough */ }
-      if (!dialog.open) dialog.showModal();
-    }
+    var dialog = document.getElementById('libraryDialog');
+    var bridge = window.elanLiveEditorBridge;
+    if (!dialog || !bridge) return;
+    var ctx = { st: null, cloud: null, note: '' };
+    try { ctx.st = await bridge.request('page.getState'); } catch (_) { ctx.st = null; }
+    var failure = '';
+    try { ctx.cloud = await window.connectElanLibrary(window.elanLibraryDataProvider); }
+    catch (error) { failure = error && error.message || 'خطأ'; }
+    var counts = ctx.cloud ? 'وسائط: ' + ctx.cloud.media.length + ' · عناصر محفوظة: ' + ctx.cloud.savedElements.length + ' · أرشيف: ' + ctx.cloud.archive.length : '';
+    ctx.note = forcedNote || (failure ? 'تعذر تحميل المكتبة من سابابيس: ' + failure + '. اضغط «تحميل المكتبة من سابابيس» للمحاولة مرة أخرى.' : 'تم تحميل المكتبة من سابابيس · ' + counts);
+    forcedNote = '';
+    await paint(dialog, ctx);
+    if (!dialog.open) dialog.showModal();
   };
 })();

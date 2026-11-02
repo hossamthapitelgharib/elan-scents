@@ -250,8 +250,9 @@ test('the library window has the two explicit buttons, the tabs, and the local b
   assert.match(source, /'مزامنة التغييرات'/);
   assert.match(source, /dataset\.libAction = 'load'/);
   assert.match(source, /dataset\.libAction = 'sync'/);
-  assert.match(source, /'الكل'/);
-  assert.match(source, /data-lib-tabs|dataset\.libTabs/);
+  assert.match(source, /\['archive', 'العناصر المحذوفة'\], \['saved', 'الميديا والعناصر المحفوظة'\]/, 'the original two tabs, in its order and wording');
+  assert.match(source, /repeat\(3,1fr\)/, 'the sections sit in the original three-column grid');
+  assert.doesNotMatch(source, /الذكاء الاصطناعي|generateImage|getAiStatus/, 'no image or video generation anywhere in the library');
   assert.match(source, /drop\.disabled = info\.pending > 0/, 'the delete stays locked until everything is confirmed in the cloud');
   assert.match(source, /window\.confirm\(/, 'and still asks first');
   assert.match(source, /تنزيل نسخة احتياطية/);
@@ -261,7 +262,14 @@ test('the library window has the two explicit buttons, the tabs, and the local b
   assert.match(media, /window\.elanUploadMediaFile = function/);
 });
 
-test('rows of every list are tagged with their section so a tab can filter them', () => {
-  assert.equal((source.match(/\.dataset\.cat = /g) || []).length, 4, 'media rows, saved elements, page archive and cloud archive');
+test('every list is split by section: page archive by element id, the rest by saved category, kind or type', () => {
   assert.match(source, /categoryOfElementId\(item\.id\)/);
+  assert.match(source, /section: categoryOf\(item\)/);
+  assert.match(source, /section: categoryOf\(m\)/);
+  assert.match(source, /x\.section === libCategory/);
+});
+
+test('the cloud has no delete, so the window offers none: only restore, insert and use', () => {
+  for (const label of ["'استرجاع'", "'إضافة نسخة'", "'استخدام'"]) assert.ok(source.includes(label), label);
+  assert.doesNotMatch(source, /حذف نهائي/);
 });

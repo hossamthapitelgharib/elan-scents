@@ -9,7 +9,7 @@ const { read } = require('./browser-fixture');
 const CREAM = /background(?:-color)?\s*:\s*#(?:fffdf9|fffdf8|fffaf0|fffcf6|faf7f0|f1eee7|eae7e1|f6ecd3|fdfbf7|f8f2e6|f6efe2)\b/i;
 
 test('the editor chrome has no cream or off-white backgrounds', () => {
-  for (const file of ['editor/elan-editor.html', 'editor/editor-media.js', 'edit-mode.js', 'edit-panels.js', 'editor/editor-live-library.js']) {
+  for (const file of ['editor/elan-editor.html', 'editor/editor-media.js', 'edit-mode.js', 'editor/editor-live-create.js', 'editor/editor-live-library.js']) {
     const css = read(file);
     assert.doesNotMatch(css, CREAM, file + ' still declares a cream or off-white background');
   }

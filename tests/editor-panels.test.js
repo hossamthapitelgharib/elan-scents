@@ -4,41 +4,43 @@ const fs = require('node:fs');
 const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
-const panels = require('../edit-panels.js');
+const panels = require('../editor/editor-live-create.js');
 
-test('the approved panels load with edit mode only, before edit-mode.js, and never for customers', () => {
+test('the creation panels belong to the editor window, not to the platform frame, and customers never receive them', () => {
   const boot = read('edit-boot.js');
-  const order = ['/elan-host-bridge.js', '/editor/editor-geometry.js', '/edit-panels.js', '/edit-mode.js'].map((name) => boot.indexOf("'" + name + "'"));
-  assert.ok(order.every((i) => i >= 0), 'every script is listed');
-  assert.deepEqual(order.slice().sort((a, b) => a - b), order, 'panels are installed before edit mode asks the bridge to start');
+  assert.doesNotMatch(boot, /edit-panels/, 'the 390px frame no longer draws the panels');
   assert.match(boot, /elan_editor/);
   assert.match(boot, /window\.parent === window/);
-  for (const page of ['index.html']) assert.doesNotMatch(read(page), /edit-panels\.js/);
+  assert.ok(!fs.existsSync(path.join(root, 'edit-panels.js')), 'no second copy of the panels in the platform frame');
+  assert.match(read('railway/editor-host.js'), /\/editor\/editor-live-create\.js\?v=/, 'the editor page loads the panels');
+  for (const file of ['railway/server.js', 'scripts/build-cloudflare.js']) assert.match(read(file), /'editor-live-create\.js'/, file + ' serves the panels file to the editor');
+  for (const page of ['index.html']) assert.doesNotMatch(read(page), /editor-live-create\.js/);
 });
 
-test('the panels file only talks to the admin data endpoint with the delegated ticket and never uses native dialogs or storage', () => {
-  const source = read('edit-panels.js');
+test('the panels file only talks to the admin data endpoint and to the platform page through the bridge, and never uses native dialogs or storage', () => {
+  const source = read('editor/editor-live-create.js');
   assert.doesNotMatch(source, /localStorage|sessionStorage|document\.cookie/);
   assert.doesNotMatch(source, /\bprompt\(|\bconfirm\(|\balert\(/);
   assert.doesNotMatch(source, /innerHTML|insertAdjacentHTML|eval\(/);
   const urls = source.match(/fetch\('[^']+'/g) || [];
   assert.deepEqual(urls, ["fetch('/api/editor-data'"]);
-  assert.match(source, /headers\['X-Elan-Editor-Ticket'\] = ticket/);
-  assert.match(source, /getElementById\('elan-eo-root'\)/, 'the panel lives inside edit mode\'s own overlay so its page-blocking listeners treat it as editor UI');
-  assert.match(source, /root\.ElanEditMode\.execute\('element\.create', \{ kind: 'smart'/);
-  assert.match(source, /ui\.openCreatePanel/);
+  assert.match(source, /credentials: 'same-origin'/, 'the owner session is what authorises the catalogue calls');
+  assert.match(source, /live\.request\('element\.create', \{ kind: 'smart'/, 'the block is created inside the platform page by edit mode itself, so undo, save and publish stay unchanged');
+  assert.match(source, /elanLiveEditorBridge/);
+  assert.match(source, /root\.elanLiveCreate = /);
 });
 
-test('only the run() of the six creation tools is replaced; the menu order and every other tool stay as they are', () => {
-  const source = read('edit-panels.js');
-  assert.match(source, /\^create_\(section\|brand\|store\|perfume\|occasion\|note\)\$/);
-  assert.doesNotMatch(source, /ElanEditTools\.register|registerTool/);
+test('only the menu click of the six creation tools is routed to the editor window; the menu order and every other tool stay as they are', () => {
   const mode = read('edit-mode.js');
-  for (const id of ['create_section', 'create_brand', 'create_store', 'create_perfume', 'create_occasion', 'create_note']) assert.match(mode, new RegExp(id));
+  assert.match(mode, /\['create_section', 'إنشاء سيكشن'\], \['create_brand', 'إنشاء كارت براند'\], \['create_store', 'إنشاء كارت متجر'\], \['create_perfume', 'إنشاء كارت عطر'\], \['create_occasion', 'إنشاء مناسبة'\], \['create_note', 'إنشاء نوتة عطر'\]/);
+  assert.match(mode, /registerTool\(\{ id: x\[0\], label: x\[1\], ui: 'create'/);
+  const host = read('editor/elan-editor.html');
+  assert.match(host, /t\.ui==='create'&&window\.elanLiveCreate/);
+  assert.match(read('editor/editor-live-create.js'), /\^create_\(section\|brand\|store\|perfume\|occasion\|note\)\$/);
 });
 
 test('panel copy matches the approved designs', () => {
-  const source = read('edit-panels.js');
+  const source = read('editor/editor-live-create.js');
   for (const text of [
     'إنشاء سيكشن', 'إنشاء كارت عطر', 'إنشاء كارت براند', 'إنشاء كارت متجر', 'إنشاء كارت مناسبة', 'إنشاء كارت نوتة عطرية',
     'اسم السيكشن', 'الغرض من السيكشن', 'اختيار العطور', 'توقيت السيكشن', 'اختيار عطور محددة', 'تلقائي حسب الفلاتر',
@@ -89,12 +91,12 @@ test('the saved section body matches what /api/editor-data accepts', () => {
   assert.deepEqual(automatic.product_size_ids, [], 'an automatic section never carries manual items');
 });
 
-test('the railway host serves the panels file to the editor iframe', { skip: !fs.existsSync(path.join(root, 'railway/server.js')) }, async () => {
+test('the railway host serves the panels file to the editor window', { skip: !fs.existsSync(path.join(root, 'railway/server.js')) }, async () => {
   const server = require('../railway/server.js');
   const port = await new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server.address().port)));
   try {
-    const res = await fetch('http://127.0.0.1:' + port + '/edit-panels.js');
+    const res = await fetch('http://127.0.0.1:' + port + '/editor/editor-live-create.js');
     assert.equal(res.status, 200);
-    assert.match(await res.text(), /approved creation panels/);
+    assert.match(await res.text(), /creation panels/);
   } finally { server.close(); }
 });
