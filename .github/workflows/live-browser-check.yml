@@ -10,6 +10,11 @@ on:
       url:
         description: Site address to open
         default: https://elan-scents.hossamthapitelgharib.workers.dev
+      auth_probe:
+        description: Verify a live Turnstile token against Supabase using a nonexistent identity; creates no account
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -32,6 +37,11 @@ jobs:
         env:
           SITE_URL: ${{ github.event.inputs.url || 'https://elan-scents.hossamthapitelgharib.workers.dev' }}
         run: node scripts/live-browser-check.js "$SITE_URL" live-shots
+      - name: Verify live Turnstile without creating an account
+        if: ${{ inputs.auth_probe }}
+        env:
+          SITE_URL: ${{ github.event.inputs.url || 'https://elan-scents.hossamthapitelgharib.workers.dev' }}
+        run: node scripts/live-turnstile-auth-probe.js "$SITE_URL"
       - name: Keep the screenshots
         if: always()
         uses: actions/upload-artifact@v4
