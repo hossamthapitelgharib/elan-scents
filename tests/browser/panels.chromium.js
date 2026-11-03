@@ -2,7 +2,7 @@
 /* The editor's creation panels and library window, in a real Chromium, against the owner's ORIGINAL editor file.
    tests/fixtures/elan-original-panels-golden.json holds what the original file draws for each panel (scripts/capture-original-panels.js
    writes it); here the live editor opens the same panels with the same lists and every drawn element must sit in the same place
-   with the same type, spacing and borders (backgrounds excepted: the editor's surfaces are white on purpose). */
+   with the same type, colours, spacing and borders (the owner asked for the original's colours too, 2026-11-02). */
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const H = require('./harness.js');
@@ -32,6 +32,7 @@ async function openEditor(size) {
     if (action === 'library') return json({ ok: true, library: { media: [], archive: [], savedElements: [], revision: REVISION } });
     return json({ ok: false, error: 'not_expected_in_this_test' });
   });
+  await context.route('**/api/editor-media*', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, items: F.MEDIA.map((m) => ({ kind: m.kind, url: m.url, title: m.title })) }) }));
   await H.loginAsOwner(context, server);
   const errors = []; const page = await context.newPage(); H.watchErrors(page, errors);
   await page.goto(H.SITE + '/editor', { waitUntil: 'load' });
@@ -71,6 +72,7 @@ async function chooseTool(page, frame, re) {
 const closeDialogs = (page) => page.evaluate(() => document.querySelectorAll('dialog[open]').forEach((d) => d.close()));
 const shape = (page, selector) => page.evaluate(F.describePanel, { selector, props: F.PROPS });
 const isAi = (e) => /الذكاء الاصطناعي/.test(e.text);
+const isAiStacked = (e) => isAi(e) ? 'stack' : false;      // in the source dialog the AI choice is one of a stack of buttons
 function same(live, name, drop, looseText) {
   assert.ok(live, name + ' is open');
   const problems = F.compare(live, golden.panels[name], { x: 4, w: 4, y: 2, h: 2 }, drop, looseText);
@@ -100,13 +102,16 @@ test('text format panel (font, colour, size): the same as the original', async (
   try {
     await chooseTool(page, frame, /تنسيق النص/);
     assert.ok(await page.evaluate(() => !!document.querySelector('#format[open]')), 'the format panel is open in the editor window');
-    /* the panel shows the chosen element's own values: give it the ones the original was captured with (42px, centred, its three colours) */
-    await page.evaluate((colors) => {
-      const fire = (input) => { input.dispatchEvent(new Event('input', { bubbles: true })); input.dispatchEvent(new Event('change', { bubbles: true })); };
-      Array.from(document.querySelectorAll('#format input[type=color]')).forEach((input, i) => { if (colors[i]) { input.value = colors[i]; fire(input); } });
-      const size = document.getElementById('size'), align = document.getElementById('align');
-      size.value = '42'; fire(size); align.value = 'center'; fire(align);
-    }, ['#a17b35', '#fffdf9', '#b99755']);
+    /* the panel shows the chosen element's own values: give every control the value the original's panel had. Only the colour boxes
+       are told (their chips redraw on that); the preview is then redrawn once, as the original does when it opens. */
+    await page.evaluate((controls) => {
+      Array.from(document.querySelectorAll('#format input, #format select')).forEach((input, i) => {
+        const c = controls[i]; if (!c) return;
+        if (c.type === 'checkbox') input.checked = c.checked; else input.value = c.value;
+        if (c.type === 'color') { input.dispatchEvent(new Event('input', { bubbles: true })); input.dispatchEvent(new Event('change', { bubbles: true })); }
+      });
+      if (typeof updatePanelPreview === 'function') updatePanelPreview();
+    }, golden.formatControls);
     await page.waitForTimeout(300);
     same(await shape(page, '#format[open]'), 'format', null, ['Élan Scents']);
   } finally { await context.close(); }
@@ -126,6 +131,26 @@ test('brand card panel: the same as the original', async () => {
   try {
     await chooseTool(page, frame, /إنشاء كارت براند/);
     same(await shape(page, 'dialog[open]'), 'brand');
+  } finally { await context.close(); }
+});
+
+test('store card panel: the same as the original', async () => {
+  const { context, page, frame } = await openEditor();
+  try {
+    await chooseTool(page, frame, /إنشاء كارت متجر/);
+    same(await shape(page, 'dialog[open]'), 'store');
+  } finally { await context.close(); }
+});
+
+test('the picture / video source dialog (banner and image creation): the same as the original, without the AI choice', async () => {
+  const { context, page, frame, errors } = await openEditor();
+  try {
+    await chooseTool(page, frame, /إنشاء صورة أو فيديو/);
+    await page.waitForSelector('#elanMediaDlg[open]');
+    same(await shape(page, '#elanMediaDlg[open]'), 'media-source', isAiStacked);
+    await page.locator('#elanMediaDlg button', { hasText: 'من مكتبة سابابيس' }).click(); await page.waitForTimeout(700);
+    same(await shape(page, '#elanMediaDlg[open]'), 'media-library', isAiStacked);
+    assert.deepEqual(errors, []);
   } finally { await context.close(); }
 });
 

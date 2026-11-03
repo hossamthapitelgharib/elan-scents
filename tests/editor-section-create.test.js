@@ -140,7 +140,7 @@ test('dynamic section creation only accepts safe filters and currently published
   }
 });
 
-test('visual editor card tools match or create catalog records and the left-click open chip remains available', () => {
+test('visual editor card tools match or create catalog records and entering a page is a menu tool (the old open chip is gone)', () => {
   const fs = require('node:fs');
   const path = require('node:path');
   const root = path.resolve(__dirname, '..');
@@ -165,6 +165,7 @@ test('visual editor card tools match or create catalog records and the left-clic
   assert.match(designLayer, /sameCatalogName\(o\.store, f\.store\)/);
   assert.match(designLayer, /sameCatalogName\(p\.brand, f\.brand\)/);
   assert.match(designLayer, /offers\.sort\(function \(a, b\) \{ return a\.price - b\.price; \}\)/);
-  assert.match(editMode, /openEl\.addEventListener\('pointerdown'/);
+  assert.doesNotMatch(editMode, /openEl|eo-open/);
+  assert.match(editMode, /id: 'open', label: 'دخول لصفحة'/);
   assert.match(editMode, /function enterPage\(e\)/);
 });

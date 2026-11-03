@@ -1,9 +1,8 @@
 'use strict';
 /* What "the same as the original editor" means for a panel, in numbers: every element that is really drawn
    (not display:none, not zero-sized) is listed in document order with its tag, class, own text, its box relative
-   to the panel (x, y, width, height) and the typography, spacing, border and layout properties that decide how it looks.
-   Backgrounds are left out on purpose: the editor's surfaces are white (tests/editor-white-surfaces.test.js) where the
-   original file had cream. The same function runs on the original editor file (scripts/capture-original-panels.js writes
+   to the panel (x, y, width, height) and the typography, colours, spacing, border and layout properties that decide how it looks
+   (the owner asked for the original's colours too, 2026-11-02). The same function runs on the original editor file (scripts/capture-original-panels.js writes
    tests/fixtures/elan-original-panels-golden.json) and on the live editor (tests/browser/panels.chromium.js). */
 
 /* Data both sides are given, so the lists in the panels are the same. */
@@ -11,12 +10,14 @@ const OPTIONS = {
   brands: [{ id: 'b1', name: 'براند أ' }], stores: [{ id: 's1', name: 'متجر أ' }], categories: [{ id: 'c1', name: 'فئة أ' }],
   occasions: [{ id: 'o1', name: 'مناسبة أ' }], notes: [{ id: 'n1', name: 'عود' }], sizes: [{ size_ml: 100, name: '100 مل' }]
 };
+/* The pictures and videos the media dialog lists (the original reads them from its provider, the live editor from /api/editor-media). */
+const MEDIA = [{ title: 'صورة أولى', kind: 'image', url: 'https://elan.test/a.jpg' }, { title: 'فيديو ثان', kind: 'video', url: 'https://elan.test/b.mp4' }];
 const PERFUMES = [
   { product_id: 'p1', product_size_id: 'ps1', name: 'عطر أول', size_label: '100 مل' },
   { product_id: 'p2', product_size_id: 'ps2', name: 'عطر ثان', size_label: '50 مل' }
 ];
 
-const PROPS = ['fontSize', 'fontWeight', 'color', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft', 'marginTop', 'marginBottom', 'borderTopWidth', 'borderBottomWidth', 'borderTopLeftRadius', 'display', 'textAlign', 'gap'];
+const PROPS = ['fontSize', 'fontWeight', 'color', 'backgroundColor', 'borderTopColor', 'borderBottomColor', 'borderLeftColor', 'boxShadow', 'opacity', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft', 'marginTop', 'marginBottom', 'borderTopWidth', 'borderBottomWidth', 'borderTopLeftRadius', 'display', 'textAlign', 'gap'];
 
 /* Runs inside the page (Playwright passes one argument: { selector, props }). */
 function describePanel(arg) {
@@ -46,7 +47,15 @@ function describePanel(arg) {
 function compare(live, golden, tolerance, drop, looseText) {
   const tol = typeof tolerance === 'number' ? { x: tolerance, y: tolerance, w: tolerance, h: tolerance } : tolerance;
   const problems = [];
-  const orig = golden.filter((e) => !(drop && drop(e)));
+  /* drop(entry) may answer 'stack' for an element in a vertical stack: what follows it then moves up by the room it took */
+  const kept = []; let cut = 0;
+  for (let g = 0; g < golden.length; g++) {
+    const e = golden[g], d = drop && drop(e);
+    if (d) { if (d === 'stack') { const next = golden.slice(g + 1).find((x) => !(drop && drop(x))); if (next && next.y > e.y) cut += next.y - e.y; } continue; }
+    kept.push(Object.assign({}, e, { y: e.y - cut }));
+  }
+  if (cut && kept.length) kept[0].h -= cut;
+  const orig = kept;
   const hint = (list) => list.findIndex((e) => e.tag === 'small');
   const li = hint(live), gi = hint(orig);
   const dy = li >= 0 && gi >= 0 ? live[li].h - orig[gi].h : 0;
@@ -67,4 +76,23 @@ function compare(live, golden, tolerance, drop, looseText) {
   return problems;
 }
 
-module.exports = { OPTIONS, PERFUMES, PROPS, describePanel, compare };
+/* For a panel filled with real data (the live site's lists, not the test's): which looks of the original are missing?
+   Every distinct look (tag, class, colours, type size and weight, border colour and radius) the original draws must be drawn
+   somewhere in the live panel too, and the panel itself must be as wide. Texts, counts and positions are data and are not compared. */
+function looks(list) {
+  const set = new Map();
+  list.forEach((e) => {
+    const st = e.style, key = [e.tag, e.cls, st.backgroundColor, st.color, st.fontSize, st.fontWeight, st.borderTopColor, st.borderTopLeftRadius].join('|');
+    if (!set.has(key)) set.set(key, e.tag + (e.cls ? '.' + e.cls.replace(/ /g, '.') : '') + ' "' + e.text + '" bg ' + st.backgroundColor + ' color ' + st.color + ' ' + st.fontSize + ' border ' + st.borderTopColor + ' r' + st.borderTopLeftRadius);
+  });
+  return set;
+}
+function missingLooks(live, golden, drop) {
+  const have = looks(live), want = looks(golden.filter((e) => !(drop && drop(e))));
+  const missing = [];
+  want.forEach((label, key) => { if (!have.has(key)) missing.push(label); });
+  const wide = live[0] && golden[0] && Math.abs(live[0].w - golden[0].w) > 4 ? ['panel width ' + live[0].w + ' (original ' + golden[0].w + ')'] : [];
+  return wide.concat(missing);
+}
+
+module.exports = { OPTIONS, MEDIA, PERFUMES, looks, missingLooks, PROPS, describePanel, compare };

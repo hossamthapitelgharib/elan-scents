@@ -5,12 +5,11 @@
   'use strict';
   var css = document.createElement('style');
   css.textContent = [
-    '#elanMediaDlg{border:1px solid #b59655;border-radius:12px;padding:16px;width:min(640px,94vw);max-height:88vh;background:#fff;direction:rtl;font-family:Tahoma,Arial}',
-    '#elanMediaDlg::backdrop{background:rgba(0,0,0,.35)}',
-    '#elanMediaDlg .tabs{display:flex;gap:6px;margin:10px 0}#elanMediaDlg button{font:inherit;padding:7px 12px;border:1px solid #c2a66a;border-radius:7px;background:#fff;cursor:pointer}',
-    '#elanMediaDlg button.on{background:#fff;border-color:#a88032;box-shadow:inset 0 0 0 1px #a88032;font-weight:bold}#elanMediaDlg .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;max-height:46vh;overflow:auto;margin:8px 0}',
-    '#elanMediaDlg .grid img,#elanMediaDlg .grid video{width:100%;height:100px;object-fit:cover;border-radius:8px;border:2px solid transparent;cursor:pointer;background:#fff}#elanMediaDlg .grid img:hover,#elanMediaDlg .grid video:hover{border-color:#a88032}',
-    '#elanMediaDlg .note{font-size:13px;color:#6b4e00;min-height:18px;margin:6px 0}'
+    /* the original editor file's "مصدر الصورة أو الفيديو" dialog: 420px, cream, gold border, stacked full-width buttons */
+    '#elanMediaDlg{width:420px;max-width:94vw;padding:22px;background:#fffdf8;border:1px solid #c6aa70;border-radius:14px;direction:rtl;font-family:Tahoma,Arial}',
+    '#elanMediaDlg::backdrop{background:#0005}',
+    '#elanMediaDlg h3{color:#87652d}',
+    '#elanMediaDlg .note{font-size:12px;line-height:1.7;color:#7d6a49}#elanMediaDlg .note:empty{display:none}'
   ].join('\n');
   document.head.appendChild(css);
 
@@ -73,38 +72,42 @@
       var dlg = el('dialog', '', { id: 'elanMediaDlg' }), done = false;
       function finish(v) { if (done) return; done = true; try { dlg.close(); } catch (_) { /* closed */ } dlg.remove(); resolve(v || null); }
       dlg.addEventListener('cancel', function () { finish(null); }); dlg.addEventListener('close', function () { finish(null); });
-      dlg.appendChild(el('b', 'اختيار صورة أو فيديو'));
-      var tabs = el('div', '', { className: 'tabs' }), bLib = el('button', 'المكتبة'), bUp = el('button', 'رفع من الجهاز');
-      tabs.append(bLib, bUp); dlg.appendChild(tabs);
-      var body = el('div'), note = el('div', '', { className: 'note' });
-      dlg.append(body);
-      var foot = el('div'); if (opts.optional) { var skip = el('button', 'بدون صورة دلوقتي'); skip.onclick = function () { finish(null); }; foot.appendChild(skip); }
-      var close = el('button', 'إلغاء'); close.onclick = function () { finish(null); }; foot.appendChild(close); dlg.appendChild(foot);
+      dlg.appendChild(el('h3', 'مصدر الصورة أو الفيديو'));
+      var note = el('p', '', { className: 'note' });
+      function source(label, fn) { var b = el('button', label); b.type = 'button'; b.style.cssText = 'display:block;width:100%;margin:9px 0'; b.onclick = fn; dlg.appendChild(b); return b; }
+      source('من مكتبة سابابيس', function () { showLibrary(); });
+      source('من الجهاز', function () { showUpload(); });
+      var slot = null;      // the library list or the file box, added after the buttons
+      function put(node) { if (slot) slot.remove(); slot = node; dlg.appendChild(node); }
+      if (opts.optional) { var skip = el('button', 'بدون صورة دلوقتي'); skip.type = 'button'; skip.style.cssText = 'display:block;width:100%;margin:9px 0'; skip.onclick = function () { finish(null); }; dlg.appendChild(skip); }
+      var close = el('button', 'إلغاء'); close.type = 'button'; close.style.cssText = 'display:block;width:100%;margin:9px 0'; close.onclick = function () { finish(null); }; dlg.appendChild(close);
+      dlg.insertBefore(note, close.nextSibling);      // like the original: the message and the list come after the buttons
 
-      function mark(b) { [bLib, bUp].forEach(function (x) { x.classList.toggle('on', x === b); }); }
+      /* the library: one full-width button per picture or video (its name), like the original's list */
       function showLibrary() {
-        mark(bLib); body.textContent = ''; var grid = el('div', '', { className: 'grid' }), more = el('button', 'المزيد'), offset = 0; body.append(note, grid, more);
+        var list = el('div'), more = el('button', 'المزيد'), offset = 0;
+        more.type = 'button'; more.style.cssText = 'display:none;width:100%;margin:6px 0';
+        list.appendChild(el('h4', 'اختر الميديا')); put(list);
         async function load() {
           note.textContent = 'بيتحمّل...';
           try {
             var r = await fetch('/api/editor-media?kind=all&offset=' + offset, { credentials: 'same-origin', cache: 'no-store' });
             var j = await r.json().catch(function () { return {}; });
             if (!r.ok || !j.ok) throw new Error(r.status === 401 ? 'انتهت الجلسة، سجلي الدخول تاني.' : 'تعذر تحميل المكتبة.');
-            offset += j.items.length; note.textContent = (!offset) ? 'المكتبة فاضية. ارفعي صورة أو فيديو من الجهاز.' : '';
+            offset += j.items.length; note.textContent = '';
+            if (!offset) list.appendChild(el('p', 'لا توجد صور أو فيديوهات محفوظة في المكتبة المركزية.'));
             j.items.forEach(function (it) {
-              // a video shows its first frame (muted, never played here); a click picks it like a picture
-              var im = it.kind === 'video' ? el('video', '', { src: it.url + '#t=0.1', muted: true, preload: 'metadata', title: it.title || '' }) : el('img', '', { src: it.url, alt: it.title || '', loading: 'lazy' });
-              im.onclick = function () { finish(it.url); }; grid.appendChild(im);
+              var b = el('button', it.title || (it.kind === 'video' ? 'فيديو' : 'صورة')); b.type = 'button'; b.dataset.kind = it.kind || '';
+              b.style.cssText = 'display:block;width:100%;margin:6px 0'; b.onclick = function () { finish(it.url); }; list.appendChild(b);
             });
-            more.hidden = j.items.length < 24;
-          } catch (e) { note.textContent = e.message; more.hidden = true; }
+            list.appendChild(more); more.style.display = j.items.length < 24 ? 'none' : 'block';
+          } catch (e) { note.textContent = e.message; more.style.display = 'none'; }
         }
         more.onclick = load; load();
       }
       function showUpload() {
-        mark(bUp); body.textContent = '';
         var f = el('input', '', { type: 'file', accept: 'image/jpeg,image/png,image/webp,image/gif,image/avif,video/mp4,video/webm' });
-        note.textContent = 'صور (JPG, PNG, WebP, GIF, AVIF) لحد 10 ميجا، أو فيديو (MP4, WebM) لحد 50 ميجا.'; body.append(f, note);
+        note.textContent = 'صور (JPG, PNG, WebP, GIF, AVIF) لحد 10 ميجا، أو فيديو (MP4, WebM) لحد 50 ميجا.'; put(f);
         f.onchange = async function () {
           var file = f.files[0]; if (!file) return;
           var isVideo = /^video\//.test(file.type), limit = (isVideo ? 50 : 10) * 1024 * 1024;
@@ -114,8 +117,7 @@
           catch (e) { note.textContent = messages(isVideo)[e.code] || 'الرفع فشل.'; }
         };
       }
-      bLib.onclick = showLibrary; bUp.onclick = showUpload;
-      document.body.appendChild(dlg); dlg.showModal(); showLibrary();
+      document.body.appendChild(dlg); dlg.showModal();
     });
   };
 
@@ -123,7 +125,7 @@
      before any picking or uploading starts, and offers the delete that clears the way. */
   function busyNotice(element) {
     var dlg = el('dialog', '', { id: 'elanMediaDlg' });
-    dlg.appendChild(el('b', 'العنصر ده فيه ميديا بالفعل'));
+    dlg.appendChild(el('h3', 'العنصر ده فيه ميديا بالفعل'));
     dlg.appendChild(el('div', 'مينفعش ترفعي صورة أو فيديو فوق الموجود، عشان ما يتراكمش حاجات على المنصة. احذفي الميديا الحالية الأول، وبعدين ارفعي الجديدة.', { className: 'note' }));
     var foot = el('div'), del = el('button', 'حذف الميديا الحالية'), close = el('button', 'إلغاء');
     function end() { try { dlg.close(); } catch (_) { /* closed */ } dlg.remove(); }

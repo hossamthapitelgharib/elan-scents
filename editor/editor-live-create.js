@@ -145,7 +145,7 @@
 
   /* ---------- panel styling: the original editor's section panel rules, in the order the original loads them ---------- */
   var STYLE = [
-    '.sectionPanelClean{width:760px;max-width:95vw;background:#fff;color:#28251e;padding:22px}',
+    '.sectionPanelClean{width:760px;max-width:95vw;background:#fffdf8;color:#28251e;padding:22px}',
     '.sectionPanelClean h3{margin:0 0 18px;color:#866329}',
     '.sectionPanelClean .sectionGrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}',
     '.sectionPanelClean .filterGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}',
@@ -162,21 +162,21 @@
     '.sectionPanelClean .toggle{display:flex;flex-direction:row;align-items:center;gap:8px}.sectionPanelClean .toggle input{width:auto;min-height:0}',
     '@media(max-width:560px){.sectionPanelClean .filterGrid{grid-template-columns:1fr 1fr}.sectionPanelClean{padding:14px}.sectionPanelClean .sectionGrid{grid-template-columns:1fr}}',
     '.sectionPanelClean [hidden]{display:none!important}',
-    '.sectionPanelClean{width:1000px!important}.sectionPanelClean .manualLayout{display:grid;grid-template-columns:minmax(0,1fr) 270px;gap:14px}.sectionPanelClean .manualResults{border:1px solid #d7c29c;border-radius:12px;padding:12px;background:#fff;max-height:420px;overflow:auto}.sectionPanelClean .manualResults h4{margin-top:0}.sectionPanelClean .manualResults label{display:flex;flex-direction:row;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid #e7ddc8}.sectionPanelClean .manualResults input{width:auto;min-height:0}.sectionPanelClean .modeHelp{font-size:12px;line-height:1.8;color:#756443;margin:8px 0}@media(max-width:700px){.sectionPanelClean .manualLayout{grid-template-columns:1fr}}',
-    '.sectionPanelClean{width:min(790px,94vw)!important;max-height:92dvh!important;padding:20px!important;background:#fff;color:#302b23;border:1px solid #c8ae79;border-radius:18px;box-shadow:0 24px 80px #0003;overflow:auto}',
+    '.sectionPanelClean{width:1000px!important}.sectionPanelClean .manualLayout{display:grid;grid-template-columns:minmax(0,1fr) 270px;gap:14px}.sectionPanelClean .manualResults{border:1px solid #d7c29c;border-radius:12px;padding:12px;background:#fffaf0;max-height:420px;overflow:auto}.sectionPanelClean .manualResults h4{margin-top:0}.sectionPanelClean .manualResults label{display:flex;flex-direction:row;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid #e7ddc8}.sectionPanelClean .manualResults input{width:auto;min-height:0}.sectionPanelClean .modeHelp{font-size:12px;line-height:1.8;color:#756443;margin:8px 0}@media(max-width:700px){.sectionPanelClean .manualLayout{grid-template-columns:1fr}}',
+    '.sectionPanelClean{width:min(790px,94vw)!important;max-height:92dvh!important;padding:20px!important;background:#fffdf9;color:#302b23;border:1px solid #c8ae79;border-radius:18px;box-shadow:0 24px 80px #0003;overflow:auto}',
     '.sectionPanelClean::backdrop{background:rgba(21,19,15,.45)}',
     '.sectionPanelClean h3{font-size:19px;font-weight:700;line-height:1.4;color:#86642e;margin:0 0 15px!important;padding-bottom:12px;border-bottom:1px solid #e9dec8}',
     '.sectionPanelClean label{font-size:12px;line-height:1.5;font-weight:500;gap:5px;min-width:0}',
     '.sectionPanelClean input,.sectionPanelClean select{width:100%;min-width:0;font:12px Tahoma,Arial;min-height:35px!important;height:35px;padding:7px 9px;border:1px solid #dccfb6;border-radius:7px;background:#fff;box-shadow:none;color:#302b23}',
     '.sectionPanelClean input:focus,.sectionPanelClean select:focus{outline:2px solid #cfb57966;outline-offset:1px;border-color:#ae8d4e}',
-    '.sectionPanelClean input:disabled,.sectionPanelClean select:disabled{background:#f3f3f3;color:#938977}',
+    '.sectionPanelClean input:disabled,.sectionPanelClean select:disabled{background:#f1eee7;color:#938977}',
     '.sectionPanelClean button{font:12px Tahoma,Arial;padding:8px 12px;border-radius:8px;min-height:34px}',
-    '.sectionPanelClean fieldset{margin:12px 0;padding:12px;border:1px solid #e2d6bd;border-radius:12px;background:#fff;min-width:0}',
+    '.sectionPanelClean fieldset{margin:12px 0;padding:12px;border:1px solid #e2d6bd;border-radius:12px;background:#faf7f0;min-width:0}',
     '.sectionPanelClean legend{font-size:13px;font-weight:700;color:#86642e;padding:0 7px}',
     '.sectionPanelClean .sectionGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}',
     '.sectionPanelClean .filterGrid{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:9px}',
     '.sectionPanelClean .manualLayout{grid-template-columns:minmax(0,1fr) 225px;gap:12px;align-items:start}',
-    '.sectionPanelClean .manualResults{padding:10px;max-height:255px!important;min-height:110px;border:1px solid #ddcba7;background:#fff;border-radius:10px;overflow:auto}',
+    '.sectionPanelClean .manualResults{padding:10px;max-height:255px!important;min-height:110px;border:1px solid #ddcba7;background:#fffdf8;border-radius:10px;overflow:auto}',
     '.sectionPanelClean .manualResults h4{font-size:13px;color:#76582a;margin:0 0 9px;padding-bottom:7px;border-bottom:1px solid #ece2cf}',
     '.sectionPanelClean .manualResults label{font-size:12px;padding:7px 0;gap:6px}',
     '.sectionPanelClean .manualResults p{font-size:12px;line-height:1.8;color:#827459;margin:6px 0}',
@@ -237,7 +237,7 @@
   /* ---------- name-only panels: brand, store, occasion, note (the original's 380px panel) ---------- */
   function openName(kind, at) {
     var spec = NAME_KINDS[kind];
-    var dlg = h('dialog', { style: 'width:380px;max-width:92vw;padding:22px;background:#fff;border:1px solid #c6aa70;border-radius:14px' });
+    var dlg = h('dialog', { style: 'width:380px;max-width:92vw;padding:22px;background:#fffdf8;border:1px solid #c6aa70;border-radius:14px' });
     var title = h('h3', { text: spec.title, style: 'margin:0 0 18px;color:#87652d' });
     var input = h('input', { type: 'text', autocomplete: 'off', maxlength: '120', style: 'display:block;width:100%;margin-top:8px;padding:10px;background:white' });
     var label = h('label', {}, [spec.label, input]);
@@ -338,7 +338,7 @@
       results.slice(0, 500).forEach(function (p) {
         var added = picks.some(function (x) { return x.productSizeId === p.product_size_id; });
         var name = p.name + (p.size_label ? ' — ' + p.size_label : '');
-        var button = h('button', { type: 'button', 'data-single-add': 'true', style: 'white-space:nowrap;padding:7px 10px;background:' + (added ? '#e3efe2' : '#fff'), text: added ? '✓ تمت الإضافة' : 'إضافة' });
+        var button = h('button', { type: 'button', 'data-single-add': 'true', style: 'white-space:nowrap;padding:7px 10px;background:' + (added ? '#e3efe2' : '#fffaf0'), text: added ? '✓ تمت الإضافة' : 'إضافة' });
         button.disabled = added;
         button.onclick = function (ev) {
           ev.preventDefault();
@@ -441,7 +441,8 @@
     };
 
     mount(dlg);
-    (perfume ? mode : nameInput).focus();
+    /* the section panel puts the cursor in its name box; the perfume card has no name box, and the original shows no focused field there */
+    if (!perfume) nameInput.focus(); else if (root.document.activeElement && root.document.activeElement.blur) root.document.activeElement.blur();
     loadOptions();
   }
 

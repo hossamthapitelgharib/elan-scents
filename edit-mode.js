@@ -125,14 +125,13 @@
     '.eo-dlg input[type=text]{width:100%;padding:7px;border:1px solid #c2a66a;border-radius:7px;direction:ltr;margin:8px 0}' +
     '.eo-dlg button{font:inherit;padding:6px 12px;border:1px solid #c2a66a;border-radius:7px;background:#fff;cursor:pointer;margin-inline-end:6px}' +
     '.eo-tag{position:absolute;top:-24px;right:-2px;background:#c8962a;color:#fff;font-size:11px;padding:2px 8px;border-radius:5px 5px 0 0;white-space:nowrap;pointer-events:none}' +
-    '.eo-open{position:absolute;bottom:-26px;right:-2px;background:#29251c;color:#fff;font-size:12px;padding:3px 10px;border-radius:0 0 6px 6px;white-space:nowrap;cursor:pointer;pointer-events:auto;display:none;user-select:none}.eo-open:hover{background:#c8962a}' +
     '.eo-drop{position:fixed;display:none;background:#b48b38;border-radius:3px;box-shadow:0 0 0 3px rgba(180,139,56,.28);pointer-events:none}' +
     '[contenteditable]{outline:2px dashed #c8962a;outline-offset:2px}' +
-    '</style><div class="eo-drop"></div><div class="eo-box"><span class="eo-tag"></span><span class="eo-open">فتح الصفحة ⤢</span><i class="eo-h" data-h="se"></i></div><div class="eo-msg"></div>' +
+    '</style><div class="eo-drop"></div><div class="eo-box"><span class="eo-tag"></span><i class="eo-h" data-h="se"></i></div><div class="eo-msg"></div>' +
     '<div class="eo-dlg"><div><b class="eo-dt"></b><input type="text" class="eo-di" dir="ltr"><p class="eo-dh" style="margin:0 0 8px;color:#7a6a52"></p><button class="eo-ok">تأكيد</button><button class="eo-no">إلغاء</button></div></div>';
   document.body.appendChild(root);
 
-  var tagEl = root.querySelector('.eo-tag'), openEl = root.querySelector('.eo-open');
+  var tagEl = root.querySelector('.eo-tag');
   var dropEl = root.querySelector('.eo-drop');
   var box = root.querySelector('.eo-box'), msgEl = root.querySelector('.eo-msg'), dlg = root.querySelector('.eo-dlg');
 
@@ -161,9 +160,6 @@
     box.style.left = r.left + 'px'; box.style.top = r.top + 'px'; box.style.width = r.width + 'px'; box.style.height = r.height + 'px';
     tagEl.textContent = e.name || e.id;
     tagEl.style.top = r.top < 30 ? '2px' : '-24px';
-    var dyn = !!dynamicTarget(e);
-    openEl.style.display = dyn ? 'block' : 'none';
-    openEl.style.bottom = r.bottom > innerHeight - 34 ? '2px' : '-26px';
   }
   function rgbToHex(c) {
     var m = /rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(c || '');
@@ -336,7 +332,7 @@
     if (g && g.strip) { if (g.strip.base) g.strip.node.setAttribute('style', g.strip.base); else g.strip.node.removeAttribute('style'); g.strip = null; }
   }
 
-  /* The open chip explicitly enters a dynamic page; a normal left click remains a selection/drag gesture. */
+  /* Entering a dynamic page is a tool of the right-click menu ("دخول لصفحة"); a normal left click only selects or drags. */
   function dynamicTarget(e) { return e && layer.goTargetOf ? layer.goTargetOf(e.el) : null; }
   function pageName() { var h = document.querySelector('#view h3'); return (h && h.textContent.trim()) || ''; }
   function inner() { return document.body.classList.contains('inner'); }
@@ -361,11 +357,10 @@
     if (editing) commitText();
     trail.push({ y: Math.round(scrollY), id: e.id, depth: depthNow() }); selectedId = null;
     window.go(g);
-    setTimeout(function () { reselect(); say('دخلتي صفحة جديدة' + (pageName() ? ': ' + pageName() : '') + '. كليك يمين فيها للأدوات، ومن القايمة ترجعي.'); }, 60);
+    setTimeout(function () { reselect(); say('دخلتي صفحة جديدة' + (pageName() ? ': ' + pageName() : '') + '. كليك يمين فيها للأدوات، ومن زرار «صفحة سابقة» فوق ترجعي.'); }, 60);
     return true;
   }
 
-  openEl.addEventListener('pointerdown', function (ev) { ev.preventDefault(); ev.stopPropagation(); if (selectedId) enterPage(entryById(selectedId)); });
   window.addEventListener('pointerdown', function (ev) {
     if (inUi(ev.target) && !ev.target.classList.contains('eo-h')) return;
     if (editing) { if (editing.node.contains(ev.target)) return; commitText(); }
@@ -885,7 +880,7 @@
   registerTool({ id: 'library_save', label: 'حفظ العنصر في المكتبة', when: has, run: saveToLibrary });
   registerTool({ id: 'library_download', label: 'تنزيل العنصر للمكتبة كملف', when: has, run: downloadFromLibrary });
   registerTool({ id: 'create_image', label: 'إنشاء صورة أو فيديو', ui: 'media_new', run: function (c) { if (!c.src) throw new Error('اختاري صورة أو فيديو الأول.'); return createBlock('image', { at: c.at, src: c.src }); } });
-  registerTool({ id: 'open', show: function (i) { return !!(i && i.dynamic); }, label: 'فتح العنصر (الدخول لصفحته)', when: function (i) { return !!(i && i.dynamic); }, run: function (c) { enterPage(entryById(c.id)); return null; } });
+  registerTool({ id: 'open', label: 'دخول لصفحة', when: function (i) { return !!(i && i.dynamic); }, run: function (c) { enterPage(entryById(c.id)); return null; } });
   registerTool({ id: 'go_back', show: inner, label: 'رجوع للصفحة السابقة', when: inner, run: function () { goBack(); return null; } });
   registerTool({ id: 'go_home', show: inner, label: 'رجوع للصفحة الرئيسية', when: inner, run: function () { goHome(); return null; } });
   /* the scope tools come after the original editor's, and only show on a page that has a default page */

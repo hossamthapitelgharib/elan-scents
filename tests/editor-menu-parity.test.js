@@ -46,8 +46,13 @@ test('the menu keeps the original editor tools in the original order, new ones a
   // contextual extras only appear where they make sense
   stack(b);
   const idsOn = (el) => plain(b.tools.menu(el).map((t) => t.id));
-  assert.deepEqual(idsOn(null).slice(17), ['create_image'], 'an empty page: no open / back / home');
+  assert.deepEqual(idsOn(null).slice(17), ['create_image', 'open'], 'an empty page: "دخول لصفحة" is listed (the owner asked for it in the menu) but no back / home');
   assert.deepEqual(idsOn({ dynamic: true }).slice(17), ['create_image', 'open']);
+  const open = (el) => plain(b.tools.menu(el).find((t) => t.id === 'open'));
+  assert.equal(open(null).label, 'دخول لصفحة');
+  assert.equal(open(null).enabled, false, 'nothing to enter on an empty area');
+  assert.equal(open({ dynamic: false }).enabled, false, 'a plain element has no page of its own');
+  assert.equal(open({ dynamic: true }).enabled, true, 'a card, brand or store opens its page');
 });
 
 test('on a card, a title and the empty page the tools are enabled exactly as in the original editor', async () => {

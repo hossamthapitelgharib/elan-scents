@@ -8,9 +8,8 @@ const F = require('./panel-fidelity.js');
 const { check } = require('../../scripts/live-editor-check.js');
 
 const pw = H.loadPlaywright();
-const skip = pw ? false : 'Playwright is not installed (npm install, then npx playwright install chromium)';
 
-test('the live editor check passes on the local editor', { skip }, async () => {
+test('the live editor check passes on the local editor', async () => {
   const server = await H.startServer(), browser = await pw.chromium.launch({ args: ['--no-sandbox'] });
   try {
     const { context } = await H.openContext(browser, server, { width: 1366, height: 860 });
