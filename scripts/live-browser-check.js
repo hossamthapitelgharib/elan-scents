@@ -1,5 +1,6 @@
 /* Opens the real shop in a real Chromium (a phone-sized window), the way a visitor would, and checks the part of the home page under the
-   hero ("سحر الخليج بين يديك" and the three counters) on the home page and on inner pages. Takes screenshots into a folder.
+   hero ("سحر الخليج بين يديك" and the three counters) on the home page and on inner pages, then the brands strip right under the counters
+   (no title, no gold line) and a brand's own page (no title). Takes screenshots into a folder.
    Run by the "Live browser check" workflow (GitHub runners can reach the site; the Claude sandbox cannot), or by hand:
      node scripts/live-browser-check.js [site address] [folder for the screenshots]
    Exits 1 when something is not as expected. It only reads the public site and clicks; it sends nothing and uses no secret. */
@@ -51,6 +52,36 @@ const look = () => {
   await page.evaluate(() => document.getElementById('intro') && document.getElementById('intro').scrollIntoView({ block: 'center' }));
   await page.waitForTimeout(600);
   await shot('2-home-intro');
+
+  // The brands strip: no title and no gold line, the oval arrow and the brand icons right under the counters.
+  const strip = await page.evaluate(() => {
+    const sec = document.getElementById('brands'), counters = document.querySelector('#intro .counters');
+    if (!sec || !counters) return null;
+    const pill = sec.querySelector('.sub'), cards = sec.querySelectorAll('.strip .card'), c = counters.getBoundingClientRect();
+    return { title: !!sec.querySelector('h3'), cards: cards.length, hasArrow: !!pill, gap: pill ? Math.round(pill.getBoundingClientRect().top - c.bottom) : null, firstCardBelowArrow: !!(pill && cards[0]) && cards[0].getBoundingClientRect().top >= pill.getBoundingClientRect().bottom, others: [...document.querySelectorAll('#main > section[id]')].filter((x) => x.id !== 'brands').map((x) => x.id + ':' + !!x.querySelector('h3')).join(' ') };
+  });
+  say('brands strip: ' + JSON.stringify(strip));
+  expect(strip && !strip.title, 'the brands section has no title (so no gold line under it)');
+  expect(strip && strip.hasArrow && strip.cards > 0 && strip.firstCardBelowArrow, 'the oval arrow and the brand icons are there, icons below the arrow');
+  expect(strip && strip.gap !== null && strip.gap >= 0 && strip.gap <= 40, 'the arrow sits right under the counters (' + (strip && strip.gap) + ' px below them)');
+  await page.evaluate(() => { const b = document.getElementById('brands'); b && b.scrollIntoView({ block: 'start' }); window.scrollBy(0, -120); });
+  await page.waitForTimeout(500);
+  await shot('2b-home-brands');
+  // A brand's own page: click a brand icon like a visitor.
+  const brandGo = await page.evaluate(() => { const c = [...document.querySelectorAll('#brands .strip .card')].find((x) => /^brand\|/.test(x.getAttribute('data-go') || '')); return c ? c.getAttribute('data-go') : null; });
+  expect(!!brandGo, 'the brand icons open brand pages (' + brandGo + ')');
+  if (brandGo) {
+    await page.evaluate((g) => { const c = [...document.querySelectorAll('#brands .strip .card')].find((x) => x.getAttribute('data-go') === g); c.scrollIntoView({ block: 'center' }); c.click(); }, brandGo);
+    await page.waitForTimeout(1800);
+    const bp = await page.evaluate(() => ({ inner: document.body.classList.contains('inner'), titles: document.querySelectorAll('#view h3').length, crumb: ((document.querySelector('#view .bc b') || {}).textContent || '').trim(), filters: !!document.querySelector('#view .filter-panel') }));
+    say('brand page: ' + JSON.stringify(bp));
+    await page.evaluate(() => scrollTo(0, 0));
+    await page.waitForTimeout(400);
+    await shot('2c-brand-page');
+    expect(bp.inner && bp.titles === 0, 'a brand\'s own page has no title');
+    expect(!!bp.crumb, 'the breadcrumb names the brand: «' + bp.crumb + '»');
+    expect(bp.filters, 'the filters follow the breadcrumb');
+  }
 
   // Inner pages: open them the way a visitor does (click what has data-go), and look again.
   const targets = await page.evaluate(() => {
