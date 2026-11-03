@@ -125,9 +125,10 @@ function sel(k,lbl,opts){return '<select data-k="'+k+'"><option value="">'+lbl+'
 function view(){var t=T(),l=LB[lang],x=P[P.length-1],V=document.getElementById('view');
 var h='<nav class="bc">'+P.map(function(c,i){return i==P.length-1?'<b>'+lab(c)+'</b>':'<a data-bc="'+i+'">'+lab(c)+'</a>'}).join('<i>›</i>')+'</nav>';
 if(x.k=='prod'){V.innerHTML=h+prodView(x,l,t);return}
-/* the brands pages carry no title of their own (neither a brand's page nor the page of all brands): the breadcrumb above already says
-   where the visitor is, and the brands section is called by its plain name there («البراندات» / «Brands»), see lab() */
-if(x.k!='brand'&&!(x.k=='sec'&&x.id=='brands'))h+='<h3>'+lab(x)+'</h3>';var hub=x.k=='sec'&&{brands:1,stores:1,cats:1}[x.id];
+/* these pages carry no title of their own (no heading, so no gold line under it): a brand's page, the page of all brands and the page of all
+   perfumes (the inner page of «سحر الخليج بين يديك»). The breadcrumb above already says where the visitor is: the brands section is called
+   by its plain name there («البراندات» / «Brands», see lab()) and the all-perfumes page keeps «كل العطور» there. */
+if(x.k!='brand'&&!(x.k=='sec'&&(x.id=='brands'||x.id=='all')))h+='<h3>'+lab(x)+'</h3>';var hub=x.k=='sec'&&{brands:1,stores:1,cats:1}[x.id];
 if((x.k=='sec'||x.k=='col')&&(x.id=='cats'||x.id=='occ'||x.id=='notes')){var field=x.id=='cats'?'cats':x.id=='occ'?'occs':'notes',items=x.k=='sec'?allSectionCards(field,sec(x.id)[3].length,x.id=='cats'?10:6):topSectionCards(field,+x.i,30),cards=items.map(function(y){return pc(y)}).join('');h+='<div class="grid section-perfume-grid">'+(cards||'<div class="empty">'+l.none+'</div>')+'</div>';V.innerHTML=h;return}
 if(hub){var c=x.id=='brands'?BR.map(function(b){return card('','<span class="gold" style="font-weight:700">'+b+'</span>','',t.wait,'brand|'+b)}):x.id=='stores'?ST.map(function(s){return card('wide','<b>'+s[0]+'</b>',s[1]||t.sdesc,t.status,'store|'+s[0])}):sec(x.id)[3].map(function(n,i){return card('round',n,'',t.view,'col|'+x.id+'|'+i,ART[x.id+i])});h+='<div class="grid">'+c.join('')+'</div>'}
 else{

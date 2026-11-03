@@ -51,7 +51,7 @@ for (const size of H.WIDTHS) {
   });
 }
 
-test('the brands strip has no title and no gold line and sits right under the counters; the brands pages have no title and the breadcrumb says «البراندات»', async () => {
+test('the brands strip has no title and no gold line and sits right under the counters; the brands pages and the all-perfumes page have no title, the breadcrumb says «البراندات» / «كل العطور»', async () => {
   const { context, page, errors } = await visit(H.WIDTHS[0]);
   try {
     /* the test server answers every catalog request with an empty list, so give the page a few brands to draw */
@@ -89,7 +89,15 @@ test('the brands strip has no title and no gold line and sits right under the co
     assert.ok(all.cards >= 1, 'the brand cards are still there');
     assert.ok(!/للفخامة عنوان وللرقي حضور/.test(all.text), 'the tagline is nowhere on the page');
 
+    // the inner page of «سحر الخليج بين يديك» (all perfumes): no title and no gold line, but «كل العطور» stays in the breadcrumb
     await page.evaluate(() => { go('sec|all'); });
+    await page.waitForTimeout(400);
+    const perfumes = await page.evaluate(() => ({ titles: document.querySelectorAll('#view h3').length, crumb: (document.querySelector('#view .bc b') || {}).textContent || '', filters: !!document.querySelector('#view .filter-panel'), text: document.getElementById('view').innerText }));
+    assert.equal(perfumes.titles, 0, 'the all-perfumes page has no title (so no gold line under it either)');
+    assert.equal(perfumes.crumb, 'كل العطور', 'but «كل العطور» stays in the breadcrumb');
+    assert.ok(perfumes.filters, 'the filters follow the breadcrumb');
+
+    await page.evaluate(() => { go('sec|offers'); });
     await page.waitForTimeout(400);
     assert.equal(await page.evaluate(() => document.querySelectorAll('#view h3').length), 1, 'the other inner pages keep their title');
     assert.deepEqual(errors, [], 'no page error');

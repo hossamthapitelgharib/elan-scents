@@ -1,6 +1,6 @@
 /* Opens the real shop in a real Chromium (a phone-sized window), the way a visitor would, and checks the part of the home page under the
    hero ("سحر الخليج بين يديك" and the three counters) on the home page and on inner pages, then the brands strip right under the counters
-   (no title, no gold line), a brand's own page and the page of all brands (no title; the breadcrumb says «البراندات»). Takes screenshots into a folder.
+   (no title, no gold line), a brand's own page, the page of all brands and the page of all perfumes (no title; the breadcrumb says «البراندات» / «كل العطور»). Takes screenshots into a folder.
    Run by the "Live browser check" workflow (GitHub runners can reach the site; the Claude sandbox cannot), or by hand:
      node scripts/live-browser-check.js [site address] [folder for the screenshots]
    Exits 1 when something is not as expected. It only reads the public site and clicks; it sends nothing and uses no secret. */
@@ -93,6 +93,17 @@ const look = () => {
     expect(hub.titles === 0 && !hub.tagline, 'the page of all brands has no title and no «للفخامة عنوان وللرقي حضور»');
     expect(hub.crumb === 'البراندات', 'its breadcrumb says «البراندات»: «' + hub.crumb + '»');
     expect(hub.cards > 0, 'it still lists the brand cards (' + hub.cards + ')');
+    // The inner page of «سحر الخليج بين يديك» (all perfumes): no title and no gold line, «كل العطور» stays in the breadcrumb.
+    await page.evaluate(() => { go('sec|all'); });
+    await page.waitForTimeout(1500);
+    const allp = await page.evaluate(() => ({ titles: document.querySelectorAll('#view h3').length, crumb: ((document.querySelector('#view .bc b') || {}).textContent || '').trim(), filters: !!document.querySelector('#view .filter-panel') }));
+    say('all-perfumes page: ' + JSON.stringify(allp));
+    await page.evaluate(() => scrollTo(0, 0));
+    await page.waitForTimeout(400);
+    await shot('2e-all-perfumes-page');
+    expect(allp.titles === 0, 'the all-perfumes page has no title (no «كل العطور» heading, no gold line)');
+    expect(allp.crumb === 'كل العطور', 'but «كل العطور» stays in its breadcrumb: «' + allp.crumb + '»');
+    expect(allp.filters, 'the filters follow the breadcrumb');
   }
 
   // Inner pages: open them the way a visitor does (click what has data-go), and look again.
