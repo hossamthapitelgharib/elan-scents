@@ -109,7 +109,7 @@ addEventListener('scroll',function(){var y=scrollY,b=document.body,on=b.classLis
 /* The hero is a plain white slot (style.css). Nothing rotates its colours or writes its background any more: a picture or video added in the editor sits on top of it and has to stay put. */
 function best(p){var o=p.offers.filter(function(x){return x.avail}).sort(function(a,b){return a.price-b.price});return o[0]||null}
 function sec(id){return T().S.filter(function(s){return s[0]==id})[0]}
-function lab(c){var l=LB[lang];return c.k=='home'?l.home:c.k=='sec'?(c.id=='all'?l.all2:sec(c.id)[1]):c.k=='col'?sec(c.id)[3][c.i]:c.k=='prod'?((byId(c.sid)||{}).pn||''):c.n}
+function lab(c){var l=LB[lang];return c.k=='home'?l.home:c.k=='sec'?(c.id=='all'?l.all2:c.id=='brands'?T().menu[2]:sec(c.id)[1]):c.k=='col'?sec(c.id)[3][c.i]:c.k=='prod'?((byId(c.sid)||{}).pn||''):c.n}
 function go(g){var a=g.split('|'),H={k:'home'},p=a[0];
 if(p=='prod'){var viewed=byId(a[1]),offer=viewed&&best(viewed);if(viewed)trackGuestProduct('view',viewed.pid||viewed.id,viewed.id,offer&&offer.storeProductId,1)}
 P=p=='prod'?[H,{k:'sec',id:'all'},{k:'prod',sid:a[1]}]:p=='sec'?[H,{k:'sec',id:a[1]}]:p=='brand'?[H,{k:'sec',id:'brands'},{k:'brand',n:esc(a[1])}]:p=='store'?[H,{k:'sec',id:'stores'},{k:'store',n:esc(a[1])}]:[H,{k:'sec',id:a[1]},{k:'col',id:a[1],i:+a[2]}];
@@ -125,8 +125,9 @@ function sel(k,lbl,opts){return '<select data-k="'+k+'"><option value="">'+lbl+'
 function view(){var t=T(),l=LB[lang],x=P[P.length-1],V=document.getElementById('view');
 var h='<nav class="bc">'+P.map(function(c,i){return i==P.length-1?'<b>'+lab(c)+'</b>':'<a data-bc="'+i+'">'+lab(c)+'</a>'}).join('<i>›</i>')+'</nav>';
 if(x.k=='prod'){V.innerHTML=h+prodView(x,l,t);return}
-/* a brand's own page carries no title of its own: the breadcrumb above already names it */
-if(x.k!='brand')h+='<h3>'+lab(x)+'</h3>';var hub=x.k=='sec'&&{brands:1,stores:1,cats:1}[x.id];
+/* the brands pages carry no title of their own (neither a brand's page nor the page of all brands): the breadcrumb above already says
+   where the visitor is, and the brands section is called by its plain name there («البراندات» / «Brands»), see lab() */
+if(x.k!='brand'&&!(x.k=='sec'&&x.id=='brands'))h+='<h3>'+lab(x)+'</h3>';var hub=x.k=='sec'&&{brands:1,stores:1,cats:1}[x.id];
 if((x.k=='sec'||x.k=='col')&&(x.id=='cats'||x.id=='occ'||x.id=='notes')){var field=x.id=='cats'?'cats':x.id=='occ'?'occs':'notes',items=x.k=='sec'?allSectionCards(field,sec(x.id)[3].length,x.id=='cats'?10:6):topSectionCards(field,+x.i,30),cards=items.map(function(y){return pc(y)}).join('');h+='<div class="grid section-perfume-grid">'+(cards||'<div class="empty">'+l.none+'</div>')+'</div>';V.innerHTML=h;return}
 if(hub){var c=x.id=='brands'?BR.map(function(b){return card('','<span class="gold" style="font-weight:700">'+b+'</span>','',t.wait,'brand|'+b)}):x.id=='stores'?ST.map(function(s){return card('wide','<b>'+s[0]+'</b>',s[1]||t.sdesc,t.status,'store|'+s[0])}):sec(x.id)[3].map(function(n,i){return card('round',n,'',t.view,'col|'+x.id+'|'+i,ART[x.id+i])});h+='<div class="grid">'+c.join('')+'</div>'}
 else{

@@ -51,7 +51,7 @@ for (const size of H.WIDTHS) {
   });
 }
 
-test('the brands strip has no title and no gold line and sits right under the counters; a brand\'s own page has no title', async () => {
+test('the brands strip has no title and no gold line and sits right under the counters; the brands pages have no title and the breadcrumb says «البراندات»', async () => {
   const { context, page, errors } = await visit(H.WIDTHS[0]);
   try {
     /* the test server answers every catalog request with an empty list, so give the page a few brands to draw */
@@ -75,14 +75,23 @@ test('the brands strip has no title and no gold line and sits right under the co
 
     await page.evaluate(() => { go('brand|AMOUAGE'); });
     await page.waitForTimeout(600);
-    const brand = await page.evaluate(() => ({ titles: document.querySelectorAll('#view h3').length, crumb: (document.querySelector('#view .bc b') || {}).textContent || '', filters: !!document.querySelector('#view .filter-panel') }));
+    const brand = await page.evaluate(() => ({ titles: document.querySelectorAll('#view h3').length, crumb: (document.querySelector('#view .bc b') || {}).textContent || '', middle: ((document.querySelector('#view .bc a[data-bc="1"]') || {}).textContent || '').trim(), filters: !!document.querySelector('#view .filter-panel') }));
     assert.equal(brand.titles, 0, 'a brand\'s own page has no title');
     assert.equal(brand.crumb, 'AMOUAGE', 'the breadcrumb still says which brand this is');
     assert.ok(brand.filters, 'the filters follow the breadcrumb');
+    assert.equal(brand.middle, 'البراندات', 'on a brand\'s page the breadcrumb calls the brands section «البراندات», not its long tagline');
 
     await page.evaluate(() => { go('sec|brands'); });
     await page.waitForTimeout(400);
-    assert.equal(await page.evaluate(() => document.querySelectorAll('#view h3').length), 1, 'the page of all brands keeps its title');
+    const all = await page.evaluate(() => ({ titles: document.querySelectorAll('#view h3').length, crumb: (document.querySelector('#view .bc b') || {}).textContent || '', cards: document.querySelectorAll('#view .grid .card').length, text: document.getElementById('view').innerText }));
+    assert.equal(all.titles, 0, 'the page of all brands has no title (so no gold line under it either)');
+    assert.equal(all.crumb, 'البراندات', 'its breadcrumb says «البراندات»');
+    assert.ok(all.cards >= 1, 'the brand cards are still there');
+    assert.ok(!/للفخامة عنوان وللرقي حضور/.test(all.text), 'the tagline is nowhere on the page');
+
+    await page.evaluate(() => { go('sec|all'); });
+    await page.waitForTimeout(400);
+    assert.equal(await page.evaluate(() => document.querySelectorAll('#view h3').length), 1, 'the other inner pages keep their title');
     assert.deepEqual(errors, [], 'no page error');
   } finally { await context.close(); }
 });

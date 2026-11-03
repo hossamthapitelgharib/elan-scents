@@ -1,6 +1,6 @@
 /* Opens the real shop in a real Chromium (a phone-sized window), the way a visitor would, and checks the part of the home page under the
    hero ("سحر الخليج بين يديك" and the three counters) on the home page and on inner pages, then the brands strip right under the counters
-   (no title, no gold line) and a brand's own page (no title). Takes screenshots into a folder.
+   (no title, no gold line), a brand's own page and the page of all brands (no title; the breadcrumb says «البراندات»). Takes screenshots into a folder.
    Run by the "Live browser check" workflow (GitHub runners can reach the site; the Claude sandbox cannot), or by hand:
      node scripts/live-browser-check.js [site address] [folder for the screenshots]
    Exits 1 when something is not as expected. It only reads the public site and clicks; it sends nothing and uses no secret. */
@@ -73,7 +73,7 @@ const look = () => {
   if (brandGo) {
     await page.evaluate((g) => { const c = [...document.querySelectorAll('#brands .strip .card')].find((x) => x.getAttribute('data-go') === g); c.scrollIntoView({ block: 'center' }); c.click(); }, brandGo);
     await page.waitForTimeout(1800);
-    const bp = await page.evaluate(() => ({ inner: document.body.classList.contains('inner'), titles: document.querySelectorAll('#view h3').length, crumb: ((document.querySelector('#view .bc b') || {}).textContent || '').trim(), filters: !!document.querySelector('#view .filter-panel') }));
+    const bp = await page.evaluate(() => ({ inner: document.body.classList.contains('inner'), titles: document.querySelectorAll('#view h3').length, crumb: ((document.querySelector('#view .bc b') || {}).textContent || '').trim(), middle: ((document.querySelector('#view .bc a[data-bc="1"]') || {}).textContent || '').trim(), filters: !!document.querySelector('#view .filter-panel') }));
     say('brand page: ' + JSON.stringify(bp));
     await page.evaluate(() => scrollTo(0, 0));
     await page.waitForTimeout(400);
@@ -81,6 +81,18 @@ const look = () => {
     expect(bp.inner && bp.titles === 0, 'a brand\'s own page has no title');
     expect(!!bp.crumb, 'the breadcrumb names the brand: «' + bp.crumb + '»');
     expect(bp.filters, 'the filters follow the breadcrumb');
+    expect(bp.middle === 'البراندات', 'its breadcrumb calls the brands section «البراندات»: «' + bp.middle + '»');
+    // The page of all brands: no title, no gold line, and the breadcrumb says «البراندات».
+    await page.evaluate(() => { go('sec|brands'); });
+    await page.waitForTimeout(1500);
+    const hub = await page.evaluate(() => ({ titles: document.querySelectorAll('#view h3').length, crumb: ((document.querySelector('#view .bc b') || {}).textContent || '').trim(), cards: document.querySelectorAll('#view .grid .card').length, tagline: /للفخامة عنوان وللرقي حضور/.test(document.getElementById('view').innerText) }));
+    say('all-brands page: ' + JSON.stringify(hub));
+    await page.evaluate(() => scrollTo(0, 0));
+    await page.waitForTimeout(400);
+    await shot('2d-all-brands-page');
+    expect(hub.titles === 0 && !hub.tagline, 'the page of all brands has no title and no «للفخامة عنوان وللرقي حضور»');
+    expect(hub.crumb === 'البراندات', 'its breadcrumb says «البراندات»: «' + hub.crumb + '»');
+    expect(hub.cards > 0, 'it still lists the brand cards (' + hub.cards + ')');
   }
 
   // Inner pages: open them the way a visitor does (click what has data-go), and look again.
