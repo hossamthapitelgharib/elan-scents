@@ -118,6 +118,17 @@ test('without the mailbox settings the endpoint does nothing and touches nothing
   }
 });
 
+test('an app password pasted in Google\'s four groups works, and a blank one counts as not set', async () => {
+  configure({ SMTP_PASSWORD: ' abcd efgh\tijkl mnop \n' });
+  const { log } = await call('login');
+  assert.equal(log.sent.length, 1);
+  assert.equal(log.sent[0].pass, 'abcdefghijklmnop', 'the spaces are not sent to the mail server');
+  configure({ SMTP_PASSWORD: '   ' });
+  const blank = await call('login');
+  assert.equal(blank.res.body.reason, 'mail_not_configured');
+  assert.equal(blank.log.sent.length, 0);
+});
+
 test('staff and platform accounts, and unconfirmed addresses, get nothing', async () => {
   for (const role of ['platform_admin', 'store_admin']) {
     const { res, log } = await call('login', { profile: { role } });

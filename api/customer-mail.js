@@ -18,7 +18,8 @@ function reply(res, status, body) { res.setHeader('Cache-Control', 'no-store'); 
 
 function mailConfig() {
   const user = String(process.env.SMTP_USER || '').trim();
-  const pass = String(process.env.SMTP_PASSWORD || '');
+  // Google shows an app password in four groups ("abcd efgh ijkl mnop"); the spaces are not part of it, so a paste with them still works.
+  const pass = String(process.env.SMTP_PASSWORD || '').replace(/\s+/g, '');
   if (!user || !pass) return null;
   return {
     user, pass,
