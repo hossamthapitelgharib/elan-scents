@@ -1,6 +1,6 @@
 /* Élan Scents — owner editor on the same site (same origin as the storefront).
    "/editor" shows a login page; after an admin login it serves the original editor page, which opens
-   this same site inside it. The editor page is never a public file. Sessions live in server memory only. */
+   this same site inside it. The editor page is never a public file. Sessions use encrypted cookies; only development fallback state is in memory. */
 const fs = require('node:fs');
 const path = require('node:path');
 const sessions = require('./editor-session.js');
@@ -170,7 +170,7 @@ async function handle(req, res, pathname) {
   }
   if (pathname === '/api/editor-logout') {
     if (req.method !== 'POST' || !sameOrigin(req)) return json(res, 403, { ok: false, error: 'forbidden' }), true;
-    sessions.destroy(sid); setCookie(req, res, '', true);
+    await sessions.destroy(sid); setCookie(req, res, '', true);
     return json(res, 200, { ok: true }), true;
   }
   if (pathname === '/api/editor-media') {

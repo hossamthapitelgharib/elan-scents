@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { config, incrementWindow } = require('../lib/state-store');
+const { config, incrementWindow, getValue, setValue, deleteValue } = require('../lib/state-store');
 const { createDistributedLimiter } = require('../lib/rate-limit');
 
 const keys = ['STATE_STORE_URL', 'STATE_STORE_TOKEN', 'STATE_STORE_REQUIRED', 'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY'];
@@ -14,7 +14,6 @@ test.after(() => {
 function clearStoreEnv() {
   for (const key of keys) delete process.env[key];
 }
-
 function setEnv(key, value) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }
 
 test('shared state remains optional for local development', () => {
@@ -96,5 +95,31 @@ test('distributed limiter preserves its local fallback when no shared store is r
   } finally {
     clearStoreEnv();
     for (const [key, value] of Object.entries(original)) setEnv(key, value);
+  }
+});
+
+test('shared state supports session revocation reads and writes through the REST pipeline', async () => {
+  const oldUrl = process.env.STATE_STORE_URL;
+  const oldToken = process.env.STATE_STORE_TOKEN;
+  const oldFetch = global.fetch;
+  process.env.STATE_STORE_URL = 'https://redis.example.test';
+  process.env.STATE_STORE_TOKEN = 'token';
+  const calls = [];
+  global.fetch = async (url, options) => {
+    calls.push({ url, options: JSON.parse(options.body) });
+    return { ok: true, json: async () => [{ result: '1' }] };
+  };
+  try {
+    assert.equal(await setValue('revoked', '1', 1000), true);
+    assert.equal(await getValue('revoked'), '1');
+    assert.equal(await deleteValue('revoked'), true);
+    assert.equal(calls.length, 3);
+    assert.deepEqual(calls[0].options[0], ['SET', 'revoked', '1', 'PX', '1000']);
+    assert.deepEqual(calls[1].options[0], ['GET', 'revoked']);
+    assert.deepEqual(calls[2].options[0], ['DEL', 'revoked']);
+  } finally {
+    global.fetch = oldFetch;
+    if (oldUrl === undefined) delete process.env.STATE_STORE_URL; else process.env.STATE_STORE_URL = oldUrl;
+    if (oldToken === undefined) delete process.env.STATE_STORE_TOKEN; else process.env.STATE_STORE_TOKEN = oldToken;
   }
 });

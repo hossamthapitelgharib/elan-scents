@@ -78,7 +78,7 @@ function watchErrors(page, sink) {
 
 async function loginAsOwner(context, server) {
   const r = await fetch(server.local + '/editor?key=' + ACCESS_KEY, { redirect: 'manual', headers: FORWARDED });
-  const m = /elan_sess=([0-9a-f]+)/.exec(r.headers.get('set-cookie') || '');
+  const m = /elan_sess=([A-Za-z0-9._~-]+)/.exec(r.headers.get('set-cookie') || '');
   if (!m) throw new Error('the owner key did not open a session (status ' + r.status + ')');
   await context.addCookies([{ name: 'elan_sess', value: m[1], domain: 'elan.test', path: '/', secure: true, httpOnly: true, sameSite: 'Strict' }]);
 }

@@ -2,6 +2,7 @@
    restart does not strand an already-open editor iframe with a dead in-memory session. */
 const crypto = require('node:crypto');
 const { getContext, requireRoles } = require('../api/_auth.js');
+const { config: stateStoreConfig, getValue, setValue } = require('../lib/state-store.js');
 
 const IDLE_MS = 2 * 60 * 60 * 1000;      // 2 hours without activity (an open editor tab counts as activity, see editor-guard.js)
 const ABSOLUTE_MS = 10 * 60 * 60 * 1000; // 10 hours total
@@ -9,6 +10,7 @@ const RENEW_AFTER_MS = 5 * 60 * 1000;    // hand the browser a fresh cookie once
 const REFRESH_MARGIN_MS = 60 * 1000;     // refresh the Supabase token this long before it expires
 const REFRESH_MEMO_MS = 2 * 60 * 1000;   // how long a refresh result is reused for requests that still carry the old cookie
 const MAX_REVOKED = 5000;
+const REVOKE_TTL_MS = ABSOLUTE_MS + 60 * 60 * 1000;
 let clock = () => Date.now();             // replaced only by tests
 const sessions = new Map();
 const attempts = new Map();
@@ -26,6 +28,7 @@ function noteAttempt(ip) { const l = attempts.get(ip) || []; l.push(Date.now());
 
 function secret() { return process.env.EDITOR_SESSION_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || ''; }
 function key() { const value = secret(); return value ? crypto.createHash('sha256').update(value).digest() : null; }
+function persistentSessionsRequired() { return process.env.NODE_ENV === 'production' || process.env.EDITOR_SESSIONS_REQUIRED === '1'; }
 function seal(value) {
   const k = key(); if (!k) return null;
   const iv = crypto.randomBytes(12), cipher = crypto.createCipheriv('aes-256-gcm', k, iv);
@@ -83,7 +86,8 @@ async function login(email, password, ip, captchaToken) {
   const state = { sid: crypto.randomBytes(16).toString('hex'), token: j.access_token, refresh: j.refresh_token, expiresAt: now + (Number(j.expires_in) || 3600) * 1000, created: now, last: now, email: ctx.user.email || '' };
   const persistent = seal(state);
   if (persistent) return { status: 200, id: persistent };
-  // No secret to seal a cookie with: fall back to a server-memory session.
+  // Development-only fallback. Production must use an encrypted cookie so a second instance can validate it.
+  if (persistentSessionsRequired()) return { status: 503, error: 'editor_session_configuration_missing' };
   const id = crypto.randomBytes(32).toString('hex');
   sessions.set(id, state);
   return { status: 200, id };
@@ -182,9 +186,13 @@ function keyLogin(given, ip) {
   if (!crypto.timingSafeEqual(a, b)) return { status: 401, error: 'invalid_key' };
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || '';
   if (!serviceKey) return { status: 503, error: 'supabase_service_configuration_missing' };
-  const id = crypto.randomBytes(32).toString('hex');
   const now = clock();
-  sessions.set(id, { token: serviceKey, bypass: true, expiresAt: Math.min(now + ABSOLUTE_MS, accessKeyDeadline()), created: now, last: now, email: 'access-key' });
+  const state = { sid: crypto.randomBytes(16).toString('hex'), token: serviceKey, bypass: true, expiresAt: Math.min(now + ABSOLUTE_MS, accessKeyDeadline()), created: now, last: now, email: 'access-key' };
+  const persistent = seal(state);
+  if (persistent) return { status: 200, id: persistent };
+  if (persistentSessionsRequired()) return { status: 503, error: 'editor_session_configuration_missing' };
+  const id = crypto.randomBytes(32).toString('hex');
+  sessions.set(id, state);
   return { status: 200, id };
 }
 
@@ -221,14 +229,25 @@ function revoke(key) {
   if (revoked.size > MAX_REVOKED) revoked.delete(revoked.values().next().value); // oldest first; entries only matter until the session would expire anyway
 }
 
+function revokeKey(key) { return 'elan:editor:revoked:' + crypto.createHash('sha256').update(String(key)).digest('hex'); }
+function revocationStore() {
+  const cfg = stateStoreConfig();
+  return cfg && cfg.provider === 'upstash' ? cfg : null;
+}
+async function revokedEverywhere(key) {
+  if (!key || revoked.has(key)) return true;
+  if (!revocationStore()) return false;
+  try { return (await getValue(revokeKey(key))) === '1'; } catch (_) { return false; }
+}
+
 /* Returns the session, or null. For cookie sessions the result may carry `renewed`: a fresh cookie value the caller
    must send back (it holds the rotated tokens and the new "last used" time). */
 async function get(id) {
-  if (!id || revoked.has(id)) return null;
+  if (!id || await revokedEverywhere(id)) return null;
   const memory = sessions.get(id);
   const s = memory || unseal(id);
   if (!s) return null;
-  if (s.sid && revoked.has(s.sid)) return null;
+  if (s.sid && await revokedEverywhere(s.sid)) return null;
   const now = clock();
   const last = s.last || s.created;
   if (now - last > IDLE_MS || now - s.created > ABSOLUTE_MS) { sessions.delete(id); return null; }
@@ -245,12 +264,19 @@ async function get(id) {
   return s;
 }
 
-function destroy(id) {
+async function destroy(id) {
   if (!id) return;
   const s = sessions.get(id) || unseal(id);
   if (s && s.sid) revoke(s.sid);
   revoke(id);
   sessions.delete(id);
+  if (revocationStore()) {
+    try {
+      const writes = [setValue(revokeKey(id), '1', REVOKE_TTL_MS)];
+      if (s && s.sid) writes.push(setValue(revokeKey(s.sid), '1', REVOKE_TTL_MS));
+      await Promise.all(writes);
+    } catch (_) { /* local revocation remains effective on this instance */ }
+  }
 }
 function parseCookie(header, name) {
   const m = new RegExp('(?:^|;\\s*)' + name + '=([A-Za-z0-9._~-]+)(?:;|$)').exec(header || '');

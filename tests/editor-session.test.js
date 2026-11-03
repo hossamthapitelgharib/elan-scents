@@ -103,7 +103,7 @@ test('logging out revokes every cookie value the session ever had', async () => 
     advance(10 * MIN);
     const s = await sessions.get(t.cookie);
     assert.ok(s.renewed, 'the cookie is renewed once it is a few minutes old');
-    sessions.destroy(s.renewed);
+    await sessions.destroy(s.renewed);
     assert.equal(await sessions.get(s.renewed), null);
     assert.equal(await sessions.get(t.cookie), null, 'the first cookie value is revoked too');
   } finally { t.done(); }
