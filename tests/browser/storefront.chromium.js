@@ -50,3 +50,39 @@ for (const size of H.WIDTHS) {
     } finally { await context.close(); }
   });
 }
+
+test('the brands strip has no title and no gold line and sits right under the counters; a brand\'s own page has no title', async () => {
+  const { context, page, errors } = await visit(H.WIDTHS[0]);
+  try {
+    /* the test server answers every catalog request with an empty list, so give the page a few brands to draw */
+    await page.evaluate(() => { BR = ['AMOUAGE', 'ARMAF', 'AFNAN']; render(); });
+    await page.waitForTimeout(300);
+    const home = await page.evaluate(() => {
+      const sec = document.getElementById('brands'), counters = document.querySelector('#intro .counters').getBoundingClientRect();
+      const pill = sec.querySelector('.sub'), pillBox = pill.getBoundingClientRect();
+      const others = Array.from(document.querySelectorAll('#main > section[id]')).filter((s) => s.id !== 'brands');
+      return {
+        title: !!sec.querySelector('h3'), cards: sec.querySelectorAll('.strip .card').length, hasArrow: !!pill, gap: Math.round(pillBox.top - counters.bottom),
+        iconsBelowArrow: sec.querySelector('.strip .card').getBoundingClientRect().top >= pillBox.bottom,
+        others: others.length, othersWithTitle: others.filter((s) => s.querySelector('h3')).length
+      };
+    });
+    assert.equal(home.title, false, 'no title (and so no gold line under it) in the brands section');
+    assert.ok(home.cards >= 1 && home.hasArrow, 'the brand icons and the oval arrow are still there');
+    assert.ok(home.gap >= 0 && home.gap <= 40, 'the arrow starts right under the counters, not ' + home.gap + 'px below them');
+    assert.ok(home.iconsBelowArrow, 'the brand icons follow the arrow');
+    assert.ok(home.others >= 3 && home.othersWithTitle === home.others, 'every other section keeps its title');
+
+    await page.evaluate(() => { go('brand|AMOUAGE'); });
+    await page.waitForTimeout(600);
+    const brand = await page.evaluate(() => ({ titles: document.querySelectorAll('#view h3').length, crumb: (document.querySelector('#view .bc b') || {}).textContent || '', filters: !!document.querySelector('#view .filter-panel') }));
+    assert.equal(brand.titles, 0, 'a brand\'s own page has no title');
+    assert.equal(brand.crumb, 'AMOUAGE', 'the breadcrumb still says which brand this is');
+    assert.ok(brand.filters, 'the filters follow the breadcrumb');
+
+    await page.evaluate(() => { go('sec|brands'); });
+    await page.waitForTimeout(400);
+    assert.equal(await page.evaluate(() => document.querySelectorAll('#view h3').length), 1, 'the page of all brands keeps its title');
+    assert.deepEqual(errors, [], 'no page error');
+  } finally { await context.close(); }
+});

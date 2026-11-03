@@ -791,3 +791,10 @@ html.hero-pending #hero .hero-overlay {
   color: #6b5a3e;
   text-shadow: none;
 }
+
+/* ---------- The brands strip right under the counters ----------
+   The brands section has no title and so no gold line under it (app-core.js does not draw its <h3>): the arrow pill and the brand
+   icons follow the counters directly. The section's normal 46px of room above the title is not needed any more. */
+#brands {
+  padding-top: 8px;
+}

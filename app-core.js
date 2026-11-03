@@ -123,8 +123,10 @@ function list(){var q=F.q.toLowerCase();return PERFUMES.map(function(p){return{p
 function results(){var l=LB[lang],r=list();document.getElementById('res').innerHTML=r.length?r.map(pc).join(''):'<div class="empty">'+l.none+'</div>';scheduleGuestProductSearch(F.q,r)}
 function sel(k,lbl,opts){return '<select data-k="'+k+'"><option value="">'+lbl+' — '+LB[lang].all+'</option>'+opts.map(function(o,i){var v=o.v!==undefined?o.v:i;return '<option value="'+v+'"'+(String(F[k])===String(v)?' selected':'')+'>'+(o.l||o)+'</option>'}).join('')+'</select>'}
 function view(){var t=T(),l=LB[lang],x=P[P.length-1],V=document.getElementById('view');
-var h='<nav class="bc">'+P.map(function(c,i){return i==P.length-1?'<b>'+lab(c)+'</b>':'<a data-bc="'+i+'">'+lab(c)+'</a>'}).join('<i>›</i>')+'</nav><h3>'+lab(x)+'</h3>';
-if(x.k=='prod'){V.innerHTML=h.substring(0,h.indexOf('<h3>'))+prodView(x,l,t);return}var hub=x.k=='sec'&&{brands:1,stores:1,cats:1}[x.id];
+var h='<nav class="bc">'+P.map(function(c,i){return i==P.length-1?'<b>'+lab(c)+'</b>':'<a data-bc="'+i+'">'+lab(c)+'</a>'}).join('<i>›</i>')+'</nav>';
+if(x.k=='prod'){V.innerHTML=h+prodView(x,l,t);return}
+/* a brand's own page carries no title of its own: the breadcrumb above already names it */
+if(x.k!='brand')h+='<h3>'+lab(x)+'</h3>';var hub=x.k=='sec'&&{brands:1,stores:1,cats:1}[x.id];
 if((x.k=='sec'||x.k=='col')&&(x.id=='cats'||x.id=='occ'||x.id=='notes')){var field=x.id=='cats'?'cats':x.id=='occ'?'occs':'notes',items=x.k=='sec'?allSectionCards(field,sec(x.id)[3].length,x.id=='cats'?10:6):topSectionCards(field,+x.i,30),cards=items.map(function(y){return pc(y)}).join('');h+='<div class="grid section-perfume-grid">'+(cards||'<div class="empty">'+l.none+'</div>')+'</div>';V.innerHTML=h;return}
 if(hub){var c=x.id=='brands'?BR.map(function(b){return card('','<span class="gold" style="font-weight:700">'+b+'</span>','',t.wait,'brand|'+b)}):x.id=='stores'?ST.map(function(s){return card('wide','<b>'+s[0]+'</b>',s[1]||t.sdesc,t.status,'store|'+s[0])}):sec(x.id)[3].map(function(n,i){return card('round',n,'',t.view,'col|'+x.id+'|'+i,ART[x.id+i])});h+='<div class="grid">'+c.join('')+'</div>'}
 else{
@@ -217,7 +219,7 @@ if(s[2]=='b')inner=BR.map(function(b){return card('','<span class="gold" style="
 else if(s[2]=='r')inner=s[3].map(function(n,i){return card('round',n,'',t.view,'col|'+s[0]+'|'+i,ART[s[0]+i])}).join('');
 else if(s[2]=='s')inner=ST.map(function(x){return card('wide','<div class="ph"></div><b>'+x[0]+'</b>',(x[1]||t.sdesc),t.status,'store|'+x[0])}).join('');
 else inner=strip(s[0]);
-h+='<section id="'+s[0]+'"><h3'+(s[0]=='master'?' class="gold en"':'')+'>'+s[1]+'</h3><span class="sub" data-go="sec|'+s[0]+'"'+(s[0]=='cats'||s[0]=='master'||s[0]=='notes'||s[0]=='occ'?' style="display:none"':'')+'>'+(s[0]=='notes'?t.explore:t.view)+'</span>'+(s[0]=='cats'?catBlocks():s[0]=='master'?masterBlock():'<div class="strip">'+inner+'</div>')+'</section>';
+h+='<section id="'+s[0]+'">'+(s[0]=='brands'?'':'<h3'+(s[0]=='master'?' class="gold en"':'')+'>'+s[1]+'</h3>')+'<span class="sub" data-go="sec|'+s[0]+'"'+(s[0]=='cats'||s[0]=='master'||s[0]=='notes'||s[0]=='occ'?' style="display:none"':'')+'>'+(s[0]=='notes'?t.explore:t.view)+'</span>'+(s[0]=='cats'?catBlocks():s[0]=='master'?masterBlock():'<div class="strip">'+inner+'</div>')+'</section>';
 });
 document.getElementById('main').innerHTML=h;
 }
