@@ -304,7 +304,7 @@ test('the storefront sheet works as before without a check, and a second press w
   assert.equal(t.button.disabled, true, 'the button is held while the check is running');
   release('only-token');
   await settle();
-  assert.equal(t.calls.length, 1, 'one press, one request: a token works once');
+  assert.equal(t.calls.filter((c) => c.url.includes('/auth/v1/')).length, 1, 'one press, one sign-in request: a token works once');
 });
 
 test('the storefront sheet explains a check that failed, and a token Supabase refused', async () => {

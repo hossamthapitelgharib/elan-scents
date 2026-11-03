@@ -40,7 +40,7 @@ function harness({ lang = 'ar', auth = null, perfumes = [] } = {}) {
     oneLine('var CARTSVG='), oneLine('var CARTADD='), oneLine('var PHB='), oneLine('function inCart'), oneLine('function cartMarks'), oneLine('function cartBadge'), oneLine('var SP_BY_ID='), oneLine('function ratingHTML'), oneLine('function byId'), oneLine('function nmOf'), oneLine('function sec('), oneLine('function T()'),
     oneLine('function taxNote'), oneLine('function best('), oneLine('function closeSheet'),
     between('var FAVS=[]', '\nvar SP_BY_ID='), between('function prodView', '\nfunction strip('), oneLine('function strip('),
-    between('var MENU_ORDER=', 'function logoutNow'), oneLine('function logoutNow'),
+    between('var MENU_ORDER=', 'function logoutNow'), oneLine('function mailEvent'), oneLine('function logoutNow'),
     between('function sheet(k)', '\nfunction sendMsg')
   ].join('\n').replace(/^var LB=\{ar:/m, 'var LB={ar:');
   vm.runInContext(code.replace('var LB=', 'var LB='), context);
@@ -95,7 +95,8 @@ test('menu follows the sign-in state after login, expiry and sign-in from anothe
 
 test('menu: sign out revokes the session, clears the cart cache and reloads, like the account page', async () => {
   const h = harness({ auth: { access_token: 't' } });
-  const signOut = []; h.context.window.ElanAuth = { signOut: () => { signOut.push(1); return Promise.resolve(); } };
+  const signOut = [], order = []; h.context.window.ElanAuth = { signOut: () => { signOut.push(1); order.push('signOut'); return Promise.resolve(); } };
+  h.context.fetch = (url, init) => { order.push('mail:' + url + ':' + JSON.parse(init.body).event + ':' + init.headers.Authorization); return Promise.resolve({ ok: true }); };
   h.context.ElanAuth = h.context.window.ElanAuth;
   h.context.window.GuestIdentity = { prepareLogout: () => Promise.resolve() };
   h.context.GuestIdentity = h.context.window.GuestIdentity;
@@ -103,6 +104,7 @@ test('menu: sign out revokes the session, clears the cart cache and reloads, lik
   h.run('logoutNow()');
   await new Promise((resolve) => setImmediate(resolve)); await new Promise((resolve) => setImmediate(resolve));
   assert.equal(signOut.length, 1);
+  assert.deepEqual(order, ['mail:/api/customer-mail:logout:Bearer t', 'signOut'], 'the goodbye mail is asked for first, while the token is still valid');
   assert.equal(h.localStorage.getItem('elan_auth_session'), null);
   assert.equal(h.localStorage.getItem('elan_cart'), null);
   assert.equal(h.localStorage.getItem('elan_favs'), null, 'a shared device must not keep the previous person\'s favourites');

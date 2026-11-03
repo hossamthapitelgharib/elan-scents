@@ -70,17 +70,21 @@ test('signing up and being signed in at once says registered, not the sign-in we
 /* ---------- signing out ---------- */
 
 const OUT = CORE.slice(CORE.indexOf('function logoutNow('), CORE.indexOf('function card('));
+const MAIL = CORE.slice(CORE.indexOf('function mailEvent('), CORE.indexOf('\nfunction ', CORE.indexOf('function mailEvent(') + 10));
 function signOut(extra = {}) {
   const log = { reloaded: 0, session: {}, local: [] };
+  log.order = [];
   const context = vm.createContext(Object.assign({
-    ElanAuth: { signOut: async () => {} },
+    AUTH: null,
+    ElanAuth: { signOut: async () => { log.order.push('signOut'); } },
+    fetch: async (url, init) => { log.order.push('mail'); log.mail = { url: String(url), init }; return { ok: true }; },
     localStorage: { removeItem: (k) => log.local.push(k) },
     sessionStorage: { setItem: (k, v) => { log.session[k] = v; } },
     location: { reload: () => { log.reloaded++; } },
-    setTimeout, Promise
+    setTimeout, Promise, JSON
   }, extra));
   context.window = context;
-  vm.runInContext(OUT, context);
+  vm.runInContext(MAIL + '\n' + OUT, context);
   return { run: () => vm.runInContext('logoutNow()', context), log };
 }
 
@@ -213,4 +217,100 @@ test('a reset that fails says so in words, never a wrong-password or weak-passwo
     assert.match(s.log.toasts.at(-1).text, expected, JSON.stringify(answer));
     assert.equal(s.p.sheetB.innerHTML, '', 'no success notice');
   }
+});
+
+/* ---------- the service e-mails (api/customer-mail.js) ---------- */
+
+test('signing out asks for the goodbye mail with the customer token before the session is ended', async () => {
+  const o = signOut({ AUTH: { access_token: 'user-token' } });
+  o.run();
+  await settle();
+  assert.deepEqual(o.log.order, ['mail', 'signOut'], 'the mail request goes first, while the token is still valid');
+  assert.equal(o.log.mail.url, '/api/customer-mail');
+  assert.equal(o.log.mail.init.method, 'POST');
+  assert.equal(o.log.mail.init.headers.Authorization, 'Bearer user-token');
+  assert.deepEqual(JSON.parse(o.log.mail.init.body), { event: 'logout' });
+  assert.equal(o.log.reloaded, 1);
+});
+
+test('nobody signed in, nothing to mail: signing out sends no request', async () => {
+  const o = signOut({ AUTH: null });
+  o.run();
+  await settle();
+  assert.deepEqual(o.log.order, ['signOut']);
+  assert.equal(o.log.reloaded, 1);
+});
+
+test('a mail request that fails or hangs never keeps the customer from signing out', async () => {
+  const failing = signOut({ AUTH: { access_token: 't' }, fetch: async () => { throw new Error('offline'); } });
+  failing.run();
+  await settle();
+  assert.equal(failing.log.reloaded, 1, 'a failed request is ignored');
+  assert.ok(failing.log.local.includes('elan_auth_session'));
+
+  const hanging = signOut({ AUTH: { access_token: 't' }, fetch: () => new Promise(() => {}) });
+  const started = Date.now();
+  hanging.run();
+  await new Promise((resolve) => setTimeout(resolve, 1700));
+  assert.equal(hanging.log.reloaded, 1, 'a request that never answers is given up on after 1.5 seconds');
+  assert.ok(Date.now() - started < 3000);
+});
+
+test('mailEvent: no token or the editor preview sends nothing; the request never rejects; with a wait it gives up on time', async () => {
+  const calls = [];
+  const context = vm.createContext({ fetch: async (u, i) => { calls.push({ u, i }); return {}; }, setTimeout, Promise, JSON });
+  context.window = context;
+  vm.runInContext(MAIL, context);
+  const mailEvent = vm.runInContext('mailEvent', context);
+  await mailEvent('login', '');
+  assert.equal(calls.length, 0, 'no token, no request');
+  context.window.ELAN_EDITOR_PREVIEW = true;
+  await mailEvent('login', 'tk');
+  assert.equal(calls.length, 0, 'the editor preview records nothing');
+  context.window.ELAN_EDITOR_PREVIEW = false;
+  await mailEvent('login', 'tk');
+  await settle();
+  assert.equal(calls.length, 1);
+  assert.equal(JSON.parse(calls[0].i.body).event, 'login');
+  assert.ok(!calls[0].i.keepalive, 'no keepalive: the page wrapper skips those, and they would not be refreshed on a 401');
+
+  const hang = vm.createContext({ fetch: () => new Promise(() => {}), setTimeout, Promise, JSON });
+  hang.window = hang;
+  vm.runInContext(MAIL, hang);
+  const started = Date.now();
+  await vm.runInContext('mailEvent', hang)('logout', 'tk', 30);
+  assert.ok(Date.now() - started < 500, 'it returns after the wait even if the server never answers');
+  const boom = vm.createContext({ fetch: async () => { throw new Error('x'); }, setTimeout, Promise, JSON });
+  boom.window = boom;
+  vm.runInContext(MAIL, boom);
+  await vm.runInContext('mailEvent', boom)('logout', 'tk', 30);
+});
+
+test('signing in asks for the welcome mail, and a sign-up that is signed in at once reports the new account instead', async () => {
+  const login = shop({ access_token: 'login-token' });
+  login.submit(login.form('login', withPassword));
+  await settle();
+  const sent = login.log.requests.find((r) => r.url === '/api/customer-mail');
+  assert.ok(sent, 'a successful sign-in asks the server for the welcome mail');
+  assert.deepEqual(sent.body, { event: 'login' });
+
+  const signup = shop({ access_token: 'new-token' });
+  signup.submit(signup.form('signup', Object.assign({ name: { value: 'Test Buyer' } }, withPassword)));
+  await settle();
+  assert.deepEqual(signup.log.requests.find((r) => r.url === '/api/customer-mail').body, { event: 'registered' });
+
+  const wrong = shop({ error_code: 'invalid_credentials', msg: 'Invalid login credentials' });
+  wrong.submit(wrong.form('login', withPassword));
+  await settle();
+  assert.ok(!wrong.log.requests.some((r) => r.url === '/api/customer-mail'), 'a failed sign-in mails nothing');
+
+  const pending = shop({ id: 'x', email: 'a@b.c', identities: [{ id: 'i' }], confirmation_sent_at: 'now' });
+  pending.submit(pending.form('signup', Object.assign({ name: { value: 'Test Buyer' } }, withPassword)));
+  await settle();
+  assert.ok(!pending.log.requests.some((r) => r.url === '/api/customer-mail'), 'a sign-up that still waits for its confirmation has no session to ask with');
+});
+
+test('the confirmation link reports the new account with the link\'s own token', () => {
+  const fn = CORE.slice(CORE.indexOf('function readConfirmLink('), CORE.indexOf('\nfunction ', CORE.indexOf('function readConfirmLink(') + 10));
+  assert.match(fn, /buildMenu\(\);mailEvent\('registered',tk\);/);
 });
