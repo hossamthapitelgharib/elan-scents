@@ -27,11 +27,8 @@
     // Public values: the browser of every visitor receives both from /api/config, so they are safe to keep in git.
     "SUPABASE_URL": "https://sbgdtuqfrnfeggkwqtrw.supabase.co",
     "SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNiZ2R0dXFmcm5mZWdna3dxdHJ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA5NDUwMjgsImV4cCI6MjEwNjUyMTAyOH0.Tat-axdhjfxuDB8GnZ80KBcaxL-s35SOjU2qk9-amvg",
-    // TURNSTILE_SITE_KEY is the public key of the Cloudflare Turnstile widget "Elan Scents account forms". It is deliberately EMPTY: on the owner's phone
-    // the sign-up button hung while waiting for the widget (2026-11-01), so the check is off until it has been tried on a real device (docs/auth-turnstile.ar.md).
-    // It is set to "" rather than left out because keep_vars keeps a variable a previous deploy created. Empty means /api/config sends "" and every
-    // account form behaves exactly as it did before the check existed.
-    "TURNSTILE_SITE_KEY": "",
+    // Public key for the Cloudflare Turnstile widget "Elan Scents account forms"; the secret is configured only in Supabase Auth.
+    "TURNSTILE_SITE_KEY": "0x4AAAAAAFvBW0Qsb8VBNT08",
     "EDITOR_ENV": "production",
     "EDITOR_TARGET_BRANCH": "main",
     "GITHUB_REPO": "hossamthapitelgharib/elan-scents",
