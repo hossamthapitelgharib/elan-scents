@@ -7,6 +7,7 @@ module.exports = {
     'config': () => require('../api/config.js'),
     'customer-activity': () => require('../api/customer-activity.js'),
     'customer-best-sellers': () => require('../api/customer-best-sellers.js'),
+    'customer-mail': () => require('../api/customer-mail.js'),
     'customer-orders': () => require('../api/customer-orders.js'),
     'customer-product-rankings': () => require('../api/customer-product-rankings.js'),
     'dashboard-orders': () => require('../api/dashboard-orders.js'),

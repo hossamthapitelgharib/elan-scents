@@ -358,6 +358,8 @@ async function handleRequest(request, env, ctx, deps) {
   env = env || {};
   syncEnv(env, url);
   const req = makeRequest(request, url);
+  // Lets an API handler finish work (an e-mail) after the answer has gone out.
+  if (ctx && typeof ctx.waitUntil === 'function') req.waitUntil = (promise) => ctx.waitUntil(promise);
   const res = new NodeResponse(request.method);
   for (const key of Object.keys(BASELINE_HEADERS)) res.setHeader(key, BASELINE_HEADERS[key]);
   if (url.protocol === 'https:') res.setHeader('Strict-Transport-Security', HSTS);
