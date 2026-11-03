@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   browser:
-    # pinned like the browser job in tests.yml: Playwright 1.56 has no Chromium build for the newer ubuntu-latest image
+    # Pinned like the browser job in tests.yml for stable browser dependencies.
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:

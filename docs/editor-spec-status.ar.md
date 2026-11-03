@@ -110,7 +110,7 @@
 |---|---|
 | اختبارات Node للمحرر (33 ملفًا باسم `editor-*.test.js` ومعها `edit-model.test.js`، تنجح كلها) | ✅ |
 | اختبارات مطابقة الـgolden (ماوس، قوائم، حدود الحجم) | ✅ |
-| **اختبار Chromium حقيقي مرفوع في المستودع** (يشغّل المحرر والموقع على 390 و820 و1366 ويقارن) | ✅ | `tests/browser/*.chromium.js` عبر `npm run test:browser`، وجوب `browser` في `.github/workflows/tests.yml` (Playwright 1.56 devDependency) |
+| **اختبار Chromium حقيقي مرفوع في المستودع** (يشغّل المحرر والموقع على 390 و820 و1366 ويقارن) | ✅ | `tests/browser/*.chromium.js` عبر `npm run test:browser`، وجوب `browser` في `.github/workflows/tests.yml` (Playwright 1.64.1 المقفل) |
 | قياس الأداء وخطة الرجوع لآخر إصدار منشور | ؟ |
 
 ## 9) أخطاء معروفة في صفحة المحرر

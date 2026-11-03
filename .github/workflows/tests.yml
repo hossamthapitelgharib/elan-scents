@@ -45,7 +45,7 @@ jobs:
   # The same pages in a real Chromium (phone 390, tablet 820, laptop 1366): the storefront and the owner's editor.
   # A separate job so the fast Node suite above stays the quick signal; needs no secret and reaches no live service.
   browser:
-    # pinned: Playwright 1.56 has no Chromium build for the newer ubuntu-latest image (26.04)
+    # Pinned to ubuntu-24.04 for stable browser dependencies; Playwright is locked in package-lock.json.
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
