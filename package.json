@@ -9,6 +9,7 @@
     "test:raw": "node --test tests/*.test.js",
     "build:cloudflare": "node scripts/build-cloudflare.js",
     "test:browser": "node --test --test-concurrency=1 tests/browser/*.chromium.js",
+    "test:load": "node --test --test-concurrency=1 tests/load/*.test.js",
     "check:migrations": "node scripts/check-migrations.js"
   },
   "engines": {

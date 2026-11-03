@@ -57,7 +57,15 @@ async function openContext(browser, server, size) {
     if (url.hostname === 'elan.test') {
       const headers = Object.assign({}, request.headers(), FORWARDED); delete headers.host;
       try { return await route.fulfill({ response: await route.fetch({ url: server.local + url.pathname + url.search, headers, maxRedirects: 0 }) }); }
-      catch (e) { problems.push('local server: ' + request.url() + ' ' + e.message); return route.abort(); }
+      catch (e) {
+        problems.push('local server: ' + request.url() + ' ' + e.message);
+        // route.fetch/route.fulfill may have completed while the page/context is closing.
+        // Never call a second terminal operation: Playwright reports "Route is already handled".
+        if (typeof route.isHandled === 'function' && route.isHandled()) return;
+        try { return await route.abort(); } catch (abortError) {
+          if (!/already handled/i.test(String(abortError && abortError.message))) throw abortError;
+        }
+      }
     }
     if (url.hostname === SUPABASE_HOST) {
       const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*', 'access-control-expose-headers': '*' };

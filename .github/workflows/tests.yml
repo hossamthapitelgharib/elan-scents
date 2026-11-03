@@ -61,3 +61,19 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Run the real-browser tests
         run: npm run test:browser
+
+  # Bounded local load/stress checks: loopback only, no live service and no secrets.
+  load:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Run bounded load and stability tests
+        run: npm run test:load
