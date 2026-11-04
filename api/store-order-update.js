@@ -18,6 +18,11 @@ module.exports = async function storeOrderUpdate(req, res) {
     if (context.error) return reply(res, context.status, { ok: false, error: context.error });
     const body = req.body && typeof req.body === 'object' ? req.body : {};
     if (!body.requestId || !statuses.has(body.status)) return reply(res, 400, { ok: false, error: 'requestId and valid status are required' });
+    // A store that turns an order down says why: the reason is what the platform compares with the customer's own account
+    // and with any later confirmation, so a silent rejection (a way to bury a sale) is refused. The platform's own
+    // support override is exempt.
+    const rejectionReason = typeof body.reason === 'string' ? body.reason.trim() : '';
+    if (body.status === 'store_rejected' && context.profile.role !== 'platform_admin' && !rejectionReason) return reply(res, 400, { ok: false, error: 'reason_required' });
     const shippingAmount = body.shippingAmount == null ? undefined : money(body.shippingAmount);
     const totalAmount = body.totalAmount == null ? undefined : money(body.totalAmount);
     if (shippingAmount === null || totalAmount === null) return reply(res, 400, { ok: false, error: 'invalid_amount' });

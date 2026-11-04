@@ -101,10 +101,15 @@ function showOrderAction(message) {
 async function updateOrder(button) {
   const body = { requestId: button.dataset.update, status: button.dataset.status };
   if (body.status === 'store_rejected') {
-    // Rejecting cannot be undone by the store, so it asks first; the reason is optional and is kept with the order.
-    const reason = window.prompt('رفض هذا الطلب؟ اكتب سبب الرفض (اختياري) ثم اضغط موافق، أو اضغط إلغاء للتراجع.', '');
-    if (reason === null) return;
-    if (reason.trim()) body.reason = reason.trim().slice(0, 500);
+    // Rejecting cannot be undone by the store, so it asks first, and the reason is required: it is kept with the order and the
+    // platform reads it beside the customer's own account of the purchase.
+    let reason = '';
+    while (!reason) {
+      const answer = window.prompt('رفض هذا الطلب؟ اكتب سبب الرفض (مطلوب) ثم اضغط موافق، أو اضغط إلغاء للتراجع.', '');
+      if (answer === null) return;
+      reason = answer.trim();
+    }
+    body.reason = reason.slice(0, 500);
   }
   button.disabled = true;
   showOrderAction('');

@@ -59,11 +59,31 @@ test('valid amounts are stored as numbers rounded to two decimals, zero included
   assert.equal('total_amount' in log.patch, false);
 });
 
-test('the rejection reason is stored trimmed and capped, and a non-text reason is ignored', async () => {
+test('the rejection reason is stored trimmed and capped', async () => {
   const log = stub();
-  await update({ requestId: 'request-1', status: 'store_rejected', reason: `  ${'س'.repeat(800)}  ` });
+  const result = await update({ requestId: 'request-1', status: 'store_rejected', reason: `  ${'س'.repeat(800)}  ` });
+  assert.equal(result.status, 200);
   assert.equal(log.patch.failure_reason.length, 500);
-  await update({ requestId: 'request-1', status: 'store_rejected', reason: { $ne: null } });
+});
+
+test('a store cannot reject an order without saying why', async () => {
+  for (const reason of [undefined, '', '   ', null, { $ne: null }, ['x'], 5]) {
+    const log = stub();
+    const result = await update({ requestId: 'request-1', status: 'store_rejected', reason });
+    assert.equal(result.status, 400, JSON.stringify(reason));
+    assert.equal(result.body.error, 'reason_required');
+    assert.equal(log.patch, null, 'nothing is written');
+  }
+  // The other statuses never need a reason.
+  const log = stub();
+  assert.equal((await update({ requestId: 'request-1', status: 'processing' })).status, 200);
+  assert.equal('failure_reason' in log.patch, false);
+});
+
+test('the platform support override may still reject without a reason, and a non-text reason is ignored', async () => {
+  const log = stub({ role: 'platform_admin' });
+  const result = await update({ requestId: 'request-1', status: 'store_rejected', reason: { $ne: null } });
+  assert.equal(result.status, 200);
   assert.equal('failure_reason' in log.patch, false);
 });
 

@@ -138,11 +138,23 @@ test('rejecting asks first: a cancel sends nothing, a yes sends the reason', asy
   await tick();
   const patch = page.calls.find(call => call.method === 'PATCH');
   assert.deepEqual(patch.body, { requestId: 'o1', status: 'store_rejected', reason: 'المنتج غير متوفر' });
-  page.context.prompt = () => '';
+  // An empty answer is asked again (a reason is required); the third answer is a real one.
+  const answers = ['', '   ', 'غير متوفر'];
+  let asks = 0;
+  page.context.prompt = () => answers[asks++];
   page.calls.length = 0;
   page.clickUpdate(button);
   await tick();
-  assert.deepEqual(page.calls.find(call => call.method === 'PATCH').body, { requestId: 'o1', status: 'store_rejected' }, 'an empty reason is not sent');
+  assert.equal(asks, 3, 'an empty reason is asked for again');
+  assert.deepEqual(page.calls.find(call => call.method === 'PATCH').body, { requestId: 'o1', status: 'store_rejected', reason: 'غير متوفر' });
+  // Giving up on the question sends nothing.
+  asks = 0;
+  const giveUp = ['', null];
+  page.context.prompt = () => giveUp[asks++];
+  page.calls.length = 0;
+  page.clickUpdate(button);
+  await tick();
+  assert.equal(page.calls.some(call => call.method === 'PATCH'), false, 'cancelling after an empty answer changes nothing');
 });
 
 test('confirming does not ask', async () => {
@@ -161,7 +173,8 @@ test('a refused update shows an Arabic message on the page (no alert), and a cha
     ['financial_update_locked', 409, /لا يمكن تعديل المبالغ/, false],
     ['order_not_found', 404, /لم يعد موجودًا/, false],
     ['order_status_changed', 409, /تغيّرت حالة الطلب/, true],
-    ['invalid_status_transition', 409, /تغيّرت حالة الطلب/, true]
+    ['invalid_status_transition', 409, /تغيّرت حالة الطلب/, true],
+    ['reason_required', 400, /اكتب السبب/, false]
   ];
   for (const [error, status, pattern, refreshes] of cases) {
     const page = boot({ 'GET /api/store-dashboard-orders': list([order()]), 'PATCH /api/store-order-update': json(status, { ok: false, error }) });
