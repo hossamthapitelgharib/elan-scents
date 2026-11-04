@@ -279,7 +279,7 @@ test('the storefront sheet sends the token with a login and with a sign-up', asy
     const form = s.makeForm(mode, mode === 'signup' ? { name: { value: 'Test Buyer' } } : {});
     s.submit(form);
     assert.equal(s.button.disabled, true);
-    assert.equal(s.button.textContent, 'جارٍ التحقق الأمني...');
+    assert.equal(s.button.textContent, 'إرسال', 'keep the original button label while Auth responds');
     await settle();
     assert.equal(boxes[0], form);
     const request = s.calls[0];
@@ -308,7 +308,7 @@ test('the storefront sheet works as before without a check, and a second press w
   t.submit(form);
   t.submit(form);
   assert.equal(t.button.disabled, true, 'the button is held while the check is running');
-  assert.equal(t.button.textContent, 'جارٍ التحقق الأمني...', 'the visitor sees why it is temporarily disabled');
+  assert.equal(t.button.textContent, 'إرسال', 'do not display a CAPTCHA wait message on the restored path');
   release('only-token');
   await settle();
   assert.equal(t.calls.filter((c) => c.url.includes('/auth/v1/')).length, 1, 'one press, one sign-in request: a token works once');

@@ -161,5 +161,5 @@ test('production Worker requires shared rate-limit state and redacts query strin
   const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'wrangler.jsonc'), 'utf8').split('\n').filter((l) => !l.trim().startsWith('//')).join('\n'));
   assert.equal(config.vars.STATE_STORE_REQUIRED, '1');
   assert.equal(config.observability.redactQueryString, true);
-  assert.equal(config.vars.TURNSTILE_SITE_KEY, '0x4AAAAAAFvBW0Qsb8VBNT08');
+  assert.equal(config.vars.TURNSTILE_SITE_KEY, '', 'do not re-enable CAPTCHA until a real phone completes the challenge and Auth flow');
 });
