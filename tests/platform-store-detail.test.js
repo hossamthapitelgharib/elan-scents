@@ -202,7 +202,8 @@ test('store admin UI exposes read-only operational sections and routes detail re
   const root = path.join(__dirname, '..');
   const html = fs.readFileSync(path.join(root, 'stores-dashboard.html'), 'utf8');
   const js = fs.readFileSync(path.join(root, 'stores-dashboard.js'), 'utf8');
-  for (const section of ['overview', 'catalog', 'offers', 'orders', 'shipments', 'commissions', 'store-order-commissions', 'sync', 'reconciliation']) assert.match(html, new RegExp(`data-store-section="${section}"`));
+  for (const section of ['overview', 'catalog', 'offers', 'orders', 'shipments', 'commissions', 'sync', 'reconciliation']) assert.match(html, new RegExp(`data-store-section="${section}"`));
+  assert.doesNotMatch(html, /store-order-commissions/);
   assert.match(js, /\/api\/platform-store-detail/);
   assert.match(html, /id="unlinkedOperations"/);
   assert.match(js, /\/api\/platform-store-unlinked/);
@@ -210,19 +211,24 @@ test('store admin UI exposes read-only operational sections and routes detail re
   assert.match(html, /لا تظهر بيانات اتصال العملاء أو الحمولات الخام/);
 });
 
-test('platform store detail reads only the new store-order commission ledger and safe order identifiers', async () => {
+test('platform store detail reads store-order commissions from the original unified commissions ledger', async () => {
   const commissionId = 'f3c67ded-4300-48b7-9b7e-e3a51c7ef001';
-  const { res, requests } = await run({ storeId, section: 'store-order-commissions', status: 'accrued', limit: '10' }, 'platform_admin', async url => {
+  const requestItemId = '62718575-2ef5-4efe-91c2-758d7d9fdc45';
+  const { res, requests } = await run({ storeId, section: 'commissions', status: 'pending', limit: '10' }, 'platform_admin', async url => {
     if (url.pathname.endsWith('/stores')) return response([store]);
-    if (url.pathname.endsWith('/store_order_commissions')) return response([{
-      id: commissionId, request_id: requestId, store_id: storeId, rate: 8, gross_amount: 1000, returned_amount: 100,
-      commission_amount: 72, currency: 'EGP', evidence: 'store_completed', review_required: true,
-      review_reason: 'synthetic review reason', status: 'accrued', void_reason: null, voided_at: null,
-      accrued_at: '2026-01-01T00:00:00Z', created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-02T00:00:00Z',
+    if (url.pathname.endsWith('/commissions')) return response([{
+      id: commissionId, store_id: storeId, order_item_id: null, store_order_request_item_id: requestItemId,
+      rate: 15, amount: 135, status: 'pending', return_window_days: 14, return_deadline_at: '2026-01-20T00:00:00Z',
+      paid_at: null, payment_reference: null, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-02T00:00:00Z',
       private_payload: 'must-not-return'
     }]);
+    if (url.pathname.endsWith('/store_order_request_items')) return response([{
+      id: requestItemId, request_id: requestId, product_name: 'عطر ورد', brand_name: 'علامة', size_label: '50 مل',
+      quantity: 1, unit_price: 900, line_total: 900, currency: 'EGP', platform_order_number: 'TRK-1-01',
+      merchant_order_reference: 'ITEM-STORE-77', created_at: '2026-01-01T00:00:00Z', customer_email: 'private@example.test'
+    }]);
     if (url.pathname.endsWith('/store_order_requests')) return response([{
-      id: requestId, store_id: storeId, tracking_number: 'TRK-1', store_order_reference: 'STORE-1', status: 'completed',
+      id: requestId, store_id: storeId, tracking_number: 'TRK-1', store_order_reference: null, status: 'completed',
       reconciliation_status: 'matched', subtotal: 1000, shipping_amount: 50, total_amount: 1050, currency: 'EGP',
       created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-02T00:00:00Z', customer_email: 'private@example.test', initial_payload: { secret: true }
     }]);
@@ -230,14 +236,18 @@ test('platform store detail reads only the new store-order commission ledger and
   });
   assert.equal(res.status, 200);
   assert.equal(res.body.records.length, 1);
-  assert.equal(res.body.records[0].commission_amount, 72);
+  assert.equal(res.body.records[0].amount, 135);
+  assert.equal(res.body.records[0].rate, 15);
+  assert.equal(res.body.records[0].return_window_days, 14);
+  assert.equal(res.body.records[0].item.platform_order_number, 'TRK-1-01');
+  assert.equal(res.body.records[0].item.merchant_order_reference, 'ITEM-STORE-77');
   assert.equal(res.body.records[0].order.tracking_number, 'TRK-1');
-  assert.equal(res.body.records[0].order.store_order_reference, 'STORE-1');
   const json = JSON.stringify(res.body);
-  for (const secret of ['private_payload', 'private@example.test', 'initial_payload']) assert.equal(json.includes(secret), false);
-  const commissionQuery = requests.find(item => item.url.pathname.endsWith('/store_order_commissions')).url;
+  for (const secret of ['private_payload', 'private@example.test', 'initial_payload', 'customer_email']) assert.equal(json.includes(secret), false);
+  const commissionQuery = requests.find(item => item.url.pathname.endsWith('/commissions')).url;
   assert.equal(commissionQuery.searchParams.get('store_id'), `eq.${storeId}`);
-  assert.equal(commissionQuery.searchParams.get('status'), 'eq.accrued');
+  assert.equal(commissionQuery.searchParams.get('status'), 'eq.pending');
+  assert.equal(requests.some(item => item.url.pathname.endsWith('/store_order_commissions')), false);
   const requestQuery = requests.find(item => item.url.pathname.endsWith('/store_order_requests')).url;
   assert.equal(requestQuery.searchParams.get('store_id'), `eq.${storeId}`);
 });

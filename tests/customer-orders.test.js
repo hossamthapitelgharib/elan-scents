@@ -67,6 +67,7 @@ test('personal orders page exposes controls for complete active and archived ord
   assert.match(js, /accountTotal !== null \? accountSessions\.length < accountTotal/);
   assert.match(js, /loadArchive\(null, true\)/);
   assert.match(js, /loadAccount\(true\)/);
+  assert.match(js, /جارٍ تحقق المنصة من بيانات شركة الشحن/);
 });
 
 test('customer orders expose the item lines and shipping amount the orders page shows, and still no contact data', async () => {
@@ -74,16 +75,18 @@ test('customer orders expose the item lines and shipping amount the orders page 
     id: 'request-7', tracking_number: 'ELN-20261001-000007', status: 'processing', subtotal: 300, shipping_amount: 40, total_amount: 340, currency: 'EGP',
     customer_name: 'must-not-leak', customer_email: 'must-not-leak', customer_notes: 'must-not-leak', user_id: 'must-not-leak',
     stores: { name: 'Store', id: 'must-not-leak' },
-    store_order_request_items: [{ product_name: 'Perfume', brand_name: 'Brand', size_label: '100 ml', product_size_id: '3f2f7d1e-6a58-4a38-9d0c-0c1f7d3a9b11', quantity: 2, unit_price: 150, line_total: 300, currency: 'EGP', store_product_id: 'must-not-leak' }]
+    store_order_request_items: [{ product_name: 'Perfume', brand_name: 'Brand', size_label: '100 ml', product_size_id: '3f2f7d1e-6a58-4a38-9d0c-0c1f7d3a9b11', quantity: 2, unit_price: 150, line_total: 300, currency: 'EGP', store_product_id: 'must-not-leak' }],
+    store_shipments: [{ carrier_name: 'Carrier', tracking_code: 'TRACK-1', shipping_status: 'delivered', delivered_at: '2026-10-05T12:00:00Z', delivery_verified_at: '2026-10-05T14:00:00Z', delivery_verification_reference: 'must-not-leak', updated_at: '2026-10-05T14:00:00Z' }]
   }] }]));
   assert.equal(res.status, 200);
   const request = res.body.sessions[0].store_order_requests[0];
   assert.equal(request.shipping_amount, 40);
   assert.deepEqual(request.store_order_request_items[0], { product_name: 'Perfume', brand_name: 'Brand', size_label: '100 ml', product_size_id: '3f2f7d1e-6a58-4a38-9d0c-0c1f7d3a9b11', quantity: 2, unit_price: 150, line_total: 300, currency: 'EGP' });
+  assert.equal(request.store_shipments[0].delivery_verified_at, '2026-10-05T14:00:00Z');
   assert.equal(JSON.stringify(res.body).includes('must-not-leak'), false);
   const select = requests.find(item => item.url.pathname.endsWith('/checkout_sessions')).url.searchParams.get('select');
-  for (const field of ['brand_name', 'size_label', 'product_size_id', 'unit_price', 'shipping_amount']) assert.equal(select.includes(field), true, field);
-  for (const field of ['customer_', 'user_id', 'store_product_id']) assert.equal(select.includes(field), false, field);
+  for (const field of ['brand_name', 'size_label', 'product_size_id', 'unit_price', 'shipping_amount', 'delivery_verified_at']) assert.equal(select.includes(field), true, field);
+  for (const field of ['customer_', 'user_id', 'store_product_id', 'delivery_verification_reference']) assert.equal(select.includes(field), false, field);
 });
 
 test('the customer sees only the time of his own cancellation request, as a list, and never the reason or the user id', async () => {

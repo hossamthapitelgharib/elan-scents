@@ -14,7 +14,7 @@ const labelsStore = {
 };
 const sectionLabels = {
   overview: 'الملخص والحسابات', catalog: 'الكتالوج والمخزون', offers: 'العروض', orders: 'الطلبات',
-  shipments: 'الشحن', commissions: 'عمولات الطلبات القديمة', 'store-order-commissions': 'دفتر عمولات طلبات المتاجر', sync: 'المزامنة', reconciliation: 'المطابقة والتدقيق'
+  shipments: 'الشحن', commissions: 'العمولات والتسويات', sync: 'المزامنة', reconciliation: 'المطابقة والتدقيق'
 };
 const stateStore = { stores: [], selected: null, section: 'overview', offset: 0, limit: 50, hasMore: false, busy: false, unlinked: { notifications: { offset: 0, hasMore: false, busy: false }, events: { offset: 0, hasMore: false, busy: false } } };
 function labelValue(value) { return escStore(labelsStore[value] || value || '—'); }
@@ -123,9 +123,7 @@ function setDetailFilterOptions(section) {
   const options = section === 'orders'
     ? [['', 'كل حالات الطلب'], ['awaiting_store_confirmation', 'بانتظار المتجر'], ['store_confirmed', 'تم التأكيد'], ['processing', 'قيد التجهيز'], ['shipped', 'تم الشحن'], ['delivered', 'تم التسليم'], ['needs_review', 'يحتاج مراجعة'], ['store_rejected', 'مرفوض'], ['store_cancelled', 'ملغى'], ['completed', 'مكتمل'], ['cancelled', 'ملغى']]
     : section === 'commissions'
-      ? [['', 'كل حالات العمولة القديمة'], ['pending', 'قيد الانتظار'], ['payable', 'مستحقة'], ['paid', 'مدفوعة']]
-      : section === 'store-order-commissions'
-        ? [['', 'كل حالات العمولة'], ['accrued', 'مُسجّلة'], ['voided', 'ملغاة']]
+      ? [['', 'كل حالات العمولة'], ['pending', 'قيد الانتظار'], ['payable', 'مستحقة'], ['paid', 'مدفوعة']]
       : [];
   form.hidden = options.length === 0;
   if (!options.length) return;
@@ -146,16 +144,16 @@ function renderOverview(data) {
     ['العروض النشطة', nStore(summary.active_offer_count)],
     ['الطلبات', `${nStore(summary.open_order_count)} مفتوح من ${nStore(summary.order_request_count)}`],
     ['الشحن', nStore(summary.shipment_count)], ['تحتاج مراجعة', nStore(summary.review_order_count)],
-    ['العمولة الافتراضية', `${nStore(store.commission_rate)}%`]
+    ['عمولة العقد', store.return_window_days ? '15%' : 'غير مفعّلة']
   ].map(([label, value]) => `<div class="store-detail-kpi"><small>${escStore(label)}</small><b>${escStore(value)}</b></div>`).join('');
   const info = detailInfoMarkup([
     ['معرّف المتجر', store.id], ['حالة المتجر', labelsStore[store.status] || store.status], ['الرابط المختصر', store.slug],
     ['الموقع الرسمي', store.website_url ? safeLink(store.website_url) : '—', true], ['الشعار', store.logo_url ? safeLink(store.logo_url, 'فتح الشعار') : '—', true],
     ['صورة المتجر', store.image_url ? safeLink(store.image_url, 'فتح الصورة') : '—', true], ['ترتيب الظهور', store.priority_rank],
-    ['نسبة العمولة الافتراضية', `${store.commission_rate ?? '—'}%`], ['تاريخ الإنشاء', dateStore(store.created_at)],
+    ['نسبة عمولة العقد', store.return_window_days ? '15%' : 'لم تُفعّل'], ['مهلة الإرجاع', store.return_window_days ? `${nStore(store.return_window_days)} يومًا` : 'غير محددة'], ['تاريخ الإنشاء', dateStore(store.created_at)],
     ['آخر تحديث', dateStore(store.updated_at)], ['الوصف', store.short_description]
   ]);
-  return `<div class="store-detail-kpis">${cards}</div><section class="store-detail-block"><h3>بيانات المتجر</h3>${info}</section><section class="store-detail-block" id="storeAccountsBlock"><h3>حسابات المتجر</h3><p class="muted">الحسابات المسموح لها بدخول لوحة هذا المتجر ومتابعة طلباته. الربط وفكّه يُسجَّلان في سجل المنصة.</p><p id="storeAccountsError" class="platform-error" hidden></p><div id="storeAccountsBody"><p class="muted">جارٍ تحميل الحسابات…</p></div><form id="storeAccountForm" class="platform-filters" autocomplete="off"><input name="email" type="email" required maxlength="320" dir="ltr" placeholder="بريد حساب مسجّل ومؤكَّد في الموقع" aria-label="بريد الحساب"><button class="ghost" type="submit">ربط الحساب بالمتجر</button></form><p class="muted">الحساب لازم يكون مسجّلًا في الموقع وأكّد بريده. بعد الربط يصير حساب متجر ويفتح لوحة المتجر، ولا يستخدم «طلباتي» كعميل. حساب عميل له طلبات سابقة لا يُربط (استعمل بريدًا جديدًا للمتجر)، وعند فك آخر ربط يرجع حساب عميل عاديًا.</p></section>`;
+  return `<div class="store-detail-kpis">${cards}</div><section class="store-detail-block"><h3>بيانات المتجر</h3>${info}</section><section class="store-detail-block"><h3>شروط العمولة والإرجاع</h3><p class="muted">لا تحفظ الشروط إلا بعد توقيع التعاقد. العمولة الثابتة 15٪ من قيمة المنتجات فقط، ولا تشمل الشحن. يبدأ احتساب المهلة بعد إثبات تسليم موثوق، وليس بمجرد إدخال المتجر لحالة «تم التسليم».</p><p id="storeTermsError" class="platform-error" hidden></p><form id="storeCommercialTermsForm" class="platform-filters" data-store-id="${escStore(store.id)}"><label>العمولة: 15٪ من المنتجات (ثابتة)</label><label>مهلة الإرجاع/الاستبدال بالأيام <input name="returnWindowDays" type="number" min="1" max="365" step="1" required value="${store.return_window_days || ''}" aria-label="مدة مهلة الإرجاع بالأيام"></label><button class="ghost" type="submit">حفظ شروط العقد</button></form></section><section class="store-detail-block" id="storeAccountsBlock"><h3>حسابات المتجر</h3><p class="muted">الحسابات المسموح لها بدخول لوحة هذا المتجر ومتابعة طلباته. الربط وفكّه يُسجَّلان في سجل المنصة.</p><p id="storeAccountsError" class="platform-error" hidden></p><div id="storeAccountsBody"><p class="muted">جارٍ تحميل الحسابات…</p></div><form id="storeAccountForm" class="platform-filters" autocomplete="off"><input name="email" type="email" required maxlength="320" dir="ltr" placeholder="بريد حساب مسجّل ومؤكَّد في الموقع" aria-label="بريد الحساب"><button class="ghost" type="submit">ربط الحساب بالمتجر</button></form><p class="muted">الحساب لازم يكون مسجّلًا في الموقع وأكّد بريده. بعد الربط يصير حساب متجر ويفتح لوحة المتجر، ولا يستخدم «طلباتي» كعميل. حساب عميل له طلبات سابقة لا يُربط (استعمل بريدًا جديدًا للمتجر)، وعند فك آخر ربط يرجع حساب عميل عاديًا.</p></section>`;
 }
 function renderCatalogRows(rows) {
   return (rows || []).map(row => {
@@ -188,18 +186,23 @@ function renderOrderRows(rows) {
   }).join('');
 }
 function renderShipmentRows(rows) {
-  return (rows || []).map(row => `<tr><td dir="ltr">${escStore(row.order && row.order.tracking_number || row.request_id)}<small>${escStore(row.request_id)}</small></td><td>${labelValue(row.order && row.order.status)}</td><td>${escStore(row.carrier_name || '—')}</td><td dir="ltr">${escStore(row.tracking_code || '—')}</td><td>${labelValue(row.shipping_status)}</td><td>${escStore(dateStore(row.estimated_delivery_at))}</td><td>${escStore(dateStore(row.delivered_at))}</td><td>${escStore(row.status_note || '—')}</td><td>${escStore(dateStore(row.created_at))}<small>آخر تحديث: ${escStore(dateStore(row.updated_at))}</small></td></tr>`).join('');
+  return (rows || []).map(row => {
+    const canVerify = !row.delivery_verified_at && ['handed_to_carrier', 'in_transit', 'out_for_delivery', 'delayed', 'delivered'].includes(row.shipping_status);
+    const verification = row.delivery_verified_at
+      ? `موثق من المنصة<small>${escStore(dateStore(row.delivery_verified_at))}</small><small>مرجع التحقق: ${escStore(row.delivery_verification_reference || '—')}</small>`
+      : canVerify ? `<button class="ghost" type="button" data-verify-delivery="${escStore(row.request_id)}" data-delivered-at="${escStore(row.delivered_at || '')}">تحقق من التسليم</button><small>بعد مراجعة بوابة الناقل فقط</small>` : 'بانتظار تحديث الشحن';
+    return `<tr><td dir="ltr">${escStore(row.order && row.order.tracking_number || row.request_id)}<small>${escStore(row.request_id)}</small></td><td>${labelValue(row.order && row.order.status)}</td><td>${escStore(row.carrier_name || '—')}</td><td dir="ltr">${escStore(row.tracking_code || '—')}</td><td>${labelValue(row.shipping_status)}</td><td>${escStore(dateStore(row.estimated_delivery_at))}</td><td>${escStore(dateStore(row.delivered_at))}</td><td>${verification}</td><td>${escStore(row.status_note || '—')}</td><td>${escStore(dateStore(row.created_at))}<small>آخر تحديث: ${escStore(dateStore(row.updated_at))}</small></td></tr>`;
+  }).join('');
 }
 function renderCommissionRows(rows) {
-  return (rows || []).map(row => `<tr><td>${labelValue(row.status)}<small>معرّف العمولة: <code>${escStore(row.id)}</code></small></td><td>${nStore(row.rate)}%</td><td>${moneyStore(row.amount, row.item && row.item.product && row.item.product.currency)}</td><td>${escStore(row.item && row.item.product && row.item.product.product && row.item.product.product.name || '—')}</td><td>${nStore(row.item && row.item.quantity)}</td><td>${moneyStore(row.item && row.item.price_at_time, row.item && row.item.product && row.item.product.currency)}</td><td dir="ltr">${escStore(row.order && row.order.id || '—')}<small>${labelValue(row.order && row.order.status)}</small></td><td>${escStore(dateStore(row.created_at))}<small>آخر تحديث: ${escStore(dateStore(row.updated_at))}</small></td></tr>`).join('');
-}
-function renderStoreOrderCommissionRows(rows) {
   return (rows || []).map(row => {
-    const order = row.order || {};
-    const review = row.review_required ? '<strong>تحتاج مراجعة</strong>' : 'لا تحتاج مراجعة';
-    const reason = row.review_reason || row.void_reason;
-    const details = reason ? `<details class="store-audit-details"><summary>سبب المراجعة/الإلغاء</summary><span>${escStore(reason)}</span></details>` : '';
-    return `<tr><td>${labelValue(row.status)}<small>${review}</small>${details}</td><td>${nStore(row.rate)}%</td><td>${moneyStore(row.gross_amount, row.currency)}</td><td>${moneyStore(row.returned_amount, row.currency)}</td><td><strong>${moneyStore(row.commission_amount, row.currency)}</strong></td><td>${labelValue(row.evidence)}</td><td dir="ltr">${escStore(order.tracking_number || row.request_id || '—')}<small>${escStore(order.store_order_reference || 'لا يوجد رقم متجر')}</small></td><td>${labelValue(order.status)}<small>${labelValue(order.reconciliation_status)}</small></td><td>${escStore(dateStore(row.accrued_at || row.created_at))}<small>آخر تحديث: ${escStore(dateStore(row.updated_at))}</small></td></tr>`;
+    const item = row.item || {}, order = row.order || {}, product = item.product || {}, name = product.product && product.product.name || product.name || '—';
+    const currency = product.currency || item.currency || '';
+    const identifier = item.platform_order_number || order.tracking_number || order.id || '—';
+    const merchantReference = item.merchant_order_reference || order.store_order_reference || '—';
+    const settlement = row.status === 'payable' ? `<button class="ghost" type="button" data-settle-commission="${escStore(row.id)}">تسجيل التسوية</button>`
+      : row.status === 'paid' ? `مدفوعة${row.payment_reference ? `<small>مرجع الدفع: ${escStore(row.payment_reference)}</small>` : ''}` : '—';
+    return `<tr><td>${labelValue(row.status)}<small>معرّف العمولة: <code>${escStore(row.id)}</code></small></td><td>${nStore(row.rate)}%</td><td><strong>${moneyStore(row.amount, currency)}</strong></td><td>${escStore(name)}<small>${escStore(product.product && product.product.brand_name || product.brand_name || '')}</small></td><td>${nStore(item.quantity)}</td><td>${moneyStore(item.price_at_time ?? item.unit_price, currency)}<small>إجمالي المنتجات: ${moneyStore(item.line_total, currency)}</small></td><td dir="ltr">${escStore(identifier)}<small>مرجع التاجر: ${escStore(merchantReference)}</small></td><td>${row.return_deadline_at ? escStore(dateStore(row.return_deadline_at)) : 'بانتظار إثبات التسليم/المهلة'}<small>مدة الاسترجاع: ${row.return_window_days ? `${nStore(row.return_window_days)} يومًا` : 'غير محددة'}</small></td><td>${settlement}</td><td>${escStore(dateStore(row.created_at))}<small>آخر تحديث: ${escStore(dateStore(row.updated_at))}</small></td></tr>`;
   }).join('');
 }
 function renderSyncRows(rows) {
@@ -218,7 +221,6 @@ function renderSectionRecords(section, records) {
   if (section === 'orders') return renderOrderRows(records);
   if (section === 'shipments') return renderShipmentRows(records);
   if (section === 'commissions') return renderCommissionRows(records);
-  if (section === 'store-order-commissions') return renderStoreOrderCommissionRows(records);
   if (section === 'sync') return renderSyncRows(records);
   if (section === 'reconciliation') return renderReconciliationRows(records);
   return '';
@@ -229,9 +231,8 @@ function renderSection(data) {
   const tableHeaders = {
     catalog: ['العطر', 'العلامة', 'الحجم', 'السعر', 'المخزون', 'التوفر', 'المزامنة والمصدر', 'آخر مزامنة', 'الرابط'],
     offers: ['العرض', 'العطر', 'العلامة', 'الخصم', 'الحالة', 'يبدأ', 'ينتهي'],
-    shipments: ['رقم الطلب', 'حالة الطلب', 'شركة الشحن', 'رقم التتبع', 'حالة الشحن', 'التسليم المتوقع', 'تم التسليم', 'ملاحظة التشغيل', 'تاريخ السجل والتحديث'],
-    commissions: ['الحالة', 'النسبة', 'قيمة العمولة', 'العطر', 'الكمية', 'سعر الوحدة', 'رقم الطلب', 'تاريخ التسجيل'],
-    'store-order-commissions': ['الحالة والمراجعة', 'النسبة', 'قيمة المنتجات', 'المردودات', 'العمولة المسجلة', 'مصدر الإثبات', 'رقم التتبع / المتجر', 'حالة الطلب والمطابقة', 'تاريخ التسجيل'],
+    shipments: ['رقم الطلب', 'حالة الطلب', 'شركة الشحن', 'رقم التتبع', 'حالة الشحن', 'التسليم المتوقع', 'تم التسليم', 'تحقق المنصة', 'ملاحظة التشغيل', 'تاريخ السجل والتحديث'],
+    commissions: ['الحالة', 'النسبة', 'قيمة العمولة', 'المنتج', 'الكمية', 'سعر الوحدة/إجمالي المنتجات', 'رقم المنصة/مرجع التاجر', 'نهاية مهلة الإرجاع', 'التسوية', 'تاريخ التسجيل'],
     sync: ['الحالة', 'عدد السجلات', 'بدأت/سُجلت', 'آخر تحديث'],
     reconciliation: ['رقم التتبع', 'نوع الحدث', 'نتيجة المطابقة', 'الحقول المختلفة', 'حالة الطلب', 'وقت الفحص']
   };
@@ -258,7 +259,7 @@ async function loadStoreSection(section, append = false) {
   }
   try {
     const params = new URLSearchParams({ storeId: stateStore.selected.id, section, limit: String(stateStore.limit), offset: String(offset) });
-    if (section === 'orders' || section === 'commissions' || section === 'store-order-commissions') {
+    if (section === 'orders' || section === 'commissions') {
       const filters = detailFilterParams();
       for (const [key, value] of filters) if (value) params.set(key, value);
     }
@@ -322,6 +323,7 @@ async function refreshStoreCounts() {
     const data = await response.json();
     if (!response.ok || !Array.isArray(data.stores)) return;
     stateStore.stores = data.stores;
+    if (stateStore.selected) stateStore.selected = stateStore.stores.find(item => item.id === stateStore.selected.id) || stateStore.selected;
     renderStoreStats(stateStore.stores);
     renderStoreList();
   } catch (_) { /* the counts refresh on the next reload; the change itself is already saved */ }
@@ -336,6 +338,67 @@ async function storeAccountsRequest(method, payload, query) {
   try { data = await response.json(); } catch (_) { data = null; }
   if (!response.ok || !data || data.ok === false) throw new Error(data && data.error || 'store_accounts_request_failed');
   return data;
+}
+async function submitStoreTerms(form) {
+  const store = stateStore.selected;
+  const button = form.querySelector('button[type="submit"]');
+  const returnWindowDays = Number(form.elements.returnWindowDays.value);
+  const error = document.querySelector('#storeTermsError');
+  if (!store || !Number.isInteger(returnWindowDays) || (button && button.disabled)) return;
+  if (button) button.disabled = true;
+  error.hidden = true;
+  try {
+    const response = await fetch('/api/platform-store-terms', { method: 'PUT', headers: { ...Portal.auth(), 'Content-Type': 'application/json' }, body: JSON.stringify({ storeId: store.id, commissionRate: 15, returnWindowDays }) });
+    const data = await response.json();
+    if (!response.ok || !data.ok) throw new Error(data.error || 'store_terms_update_failed');
+    Portal.toast('تم حفظ عمولة 15٪ ومدة الإرجاع لهذا المتجر.', 'info');
+    await refreshStoreCounts();
+    if (stateStore.selected) await loadStoreSection('overview');
+  } catch (failure) {
+    error.textContent = Portal.errorText(failure.message, 'تعذر حفظ شروط التعاقد.');
+    error.hidden = false;
+  } finally { if (button) button.disabled = false; }
+}
+async function settleCommission(button) {
+  const commissionId = button.dataset.settleCommission;
+  const paymentReference = window.prompt('أدخل مرجع التحويل/التسوية الذي يثبت دفع هذه العمولة:');
+  if (paymentReference === null) return;
+  const value = paymentReference.trim();
+  if (!value || value.length > 160) return Portal.toast('مرجع التسوية مطلوب وبحد أقصى 160 حرفًا.', 'error');
+  button.disabled = true;
+  try {
+    const response = await fetch('/api/platform-commission-payment', { method: 'POST', headers: { ...Portal.auth(), 'Content-Type': 'application/json' }, body: JSON.stringify({ commissionId, paymentReference: value }) });
+    const data = await response.json();
+    if (!response.ok || !data.ok) throw new Error(data.error || 'commission_payment_record_failed');
+    Portal.toast('تم تسجيل العمولة كمدفوعة مع مرجع التسوية.', 'info');
+    await loadStoreSection('commissions');
+  } catch (failure) {
+    button.disabled = false;
+    Portal.toast(Portal.errorText(failure.message, 'تعذر تسجيل التسوية.'), 'error');
+  }
+}
+async function verifyShipmentDelivery(button) {
+  const requestId = button.dataset.verifyDelivery;
+  const defaultTime = button.dataset.deliveredAt ? new Date(button.dataset.deliveredAt).toISOString() : new Date().toISOString();
+  const deliveredAtText = window.prompt('بعد مراجعة بوابة شركة الشحن، أدخل وقت التسليم المثبت بصيغة ISO 8601 (مثال: 2026-11-04T14:30:00+02:00):', defaultTime);
+  if (deliveredAtText === null) return;
+  const deliveredAt = new Date(deliveredAtText.trim());
+  if (Number.isNaN(deliveredAt.getTime()) || deliveredAt.getTime() > Date.now() + 5 * 60 * 1000) return Portal.toast('وقت التسليم غير صحيح أو يقع في المستقبل.', 'error');
+  const evidenceReference = window.prompt('أدخل مرجعًا يمكن الرجوع إليه لإثبات التحقق من بوابة الناقل (رقم بوليصة/مرجع صفحة/ملاحظة):');
+  if (evidenceReference === null) return;
+  const evidence = evidenceReference.trim();
+  if (evidence.length < 3 || evidence.length > 200) return Portal.toast('مرجع التحقق مطلوب وبحد أقصى 200 حرف.', 'error');
+  button.disabled = true;
+  try {
+    const response = await fetch('/api/platform-verify-delivery', { method: 'POST', headers: { ...Portal.auth(), 'Content-Type': 'application/json' }, body: JSON.stringify({ requestId, deliveredAt: deliveredAt.toISOString(), evidenceReference: evidence }) });
+    const data = await response.json();
+    if (!response.ok || !data.ok) throw new Error(data.error || 'delivery_verification_failed');
+    Portal.toast('تم توثيق التسليم وبدأ احتساب مهلة الإرجاع لهذا الطلب.', 'info');
+    await loadStoreSection('shipments');
+  } catch (failure) {
+    button.disabled = false;
+    Portal.toast(Portal.errorText(failure.message, 'تعذر توثيق التسليم.'), 'error');
+  }
 }
 async function loadStoreAccounts() {
   const store = stateStore.selected;
@@ -417,13 +480,17 @@ document.addEventListener('click', event => {
   if (event.target.closest('#unlinkedEventsMore')) return loadUnlinked('events', true);
   const unlink = event.target.closest('[data-unlink-account]');
   if (unlink) return removeStoreAccount(unlink);
+  const settle = event.target.closest('[data-settle-commission]');
+  if (settle) return settleCommission(settle);
+  const verify = event.target.closest('[data-verify-delivery]');
+  if (verify) return verifyShipmentDelivery(verify);
   if (event.target.closest('#closeStoreDetail')) document.querySelector('#storeDetail').hidden = true;
 });
 document.addEventListener('submit', event => {
+  const terms = event.target.closest && event.target.closest('#storeCommercialTermsForm');
+  if (terms) { event.preventDefault(); return submitStoreTerms(terms); }
   const form = event.target.closest && event.target.closest('#storeAccountForm');
-  if (!form) return;
-  event.preventDefault();
-  submitStoreAccount(form);
+  if (form) { event.preventDefault(); submitStoreAccount(form); }
 });
 document.querySelector('#storeDetailFilters').addEventListener('submit', event => {
   event.preventDefault();

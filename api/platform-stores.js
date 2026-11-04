@@ -30,7 +30,7 @@ module.exports = async function platformStores(req, res) {
     if (context.error) return reply(res, context.status, { ok: false, error: context.error });
     const headers = { apikey: context.serviceRoleKey, Authorization: `Bearer ${context.serviceRoleKey}` };
     const base = `${context.supabaseUrl}/rest/v1/`;
-    const storeParams = new URLSearchParams({ select: 'id,name,slug,logo_url,image_url,short_description,website_url,status,commission_rate,priority_rank,created_at,updated_at', order: 'name.asc,id.asc' });
+    const storeParams = new URLSearchParams({ select: 'id,name,slug,logo_url,image_url,short_description,website_url,status,commission_rate,return_window_days,priority_rank,created_at,updated_at', order: 'name.asc,id.asc' });
     const [stores, summaryResponse] = await Promise.all([
       readAllRows(base, headers, storeParams),
       fetch(`${base}rpc/platform_store_summary`, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: '{}' })

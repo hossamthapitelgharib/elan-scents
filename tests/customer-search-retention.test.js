@@ -43,6 +43,6 @@ test('no database job or function deletes rows that belong to a registered custo
   const dir = path.join(root, 'supabase/migrations');
   const sql = fs.readdirSync(dir).sort().map((f) => fs.readFileSync(path.join(dir, f), 'utf8')).join('\n');
   const jobs = [...sql.matchAll(/cron\.schedule\(\s*'([a-z0-9-]+)'/g)].map((m) => m[1]);
-  const allowed = ['customer-searches-retention-365d', 'guest-fingerprint-retention-400d', 'expire-editor-sections', 'archive-expired-editor-sections', 'order-idempotency-retention-7d'];
+  const allowed = ['customer-searches-retention-365d', 'guest-fingerprint-retention-400d', 'expire-editor-sections', 'archive-expired-editor-sections', 'order-idempotency-retention-7d', 'release-due-store-commissions'];
   for (const job of new Set(jobs)) assert.ok(allowed.includes(job), 'unreviewed scheduled job: ' + job + ' (registered customer data is never deleted automatically)');
 });

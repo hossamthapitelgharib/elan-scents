@@ -1,16 +1,15 @@
 const { getContext, requireRoles } = require('./_auth');
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const SECTIONS = new Set(['overview', 'catalog', 'offers', 'orders', 'shipments', 'commissions', 'store-order-commissions', 'sync', 'reconciliation']);
+const SECTIONS = new Set(['overview', 'catalog', 'offers', 'orders', 'shipments', 'commissions', 'sync', 'reconciliation']);
 const ORDER_STATUSES = new Set(['awaiting_store_confirmation', 'store_confirmed', 'processing', 'shipped', 'delivered', 'store_rejected', 'store_cancelled', 'needs_review', 'completed', 'cancelled']);
 const RECONCILIATION_STATUSES = new Set(['pending', 'matched', 'mismatched']);
 const COMMISSION_STATUSES = new Set(['pending', 'payable', 'paid']);
-const STORE_ORDER_COMMISSION_STATUSES = new Set(['accrued', 'voided']);
-const STORE_SELECT = 'id,name,slug,logo_url,image_url,short_description,website_url,status,commission_rate,priority_rank,created_at,updated_at';
+const STORE_SELECT = 'id,name,slug,logo_url,image_url,short_description,website_url,status,commission_rate,return_window_days,priority_rank,created_at,updated_at';
 const STORE_PRODUCT_SELECT = 'id,store_id,product_size_id,price,original_price,discount_percentage,stock_quantity,is_available,is_new_arrival,is_coming_soon,price_includes_tax,price_includes_shipping,currency,data_source,sync_status,last_synced_at,created_at,updated_at,product_url,is_catalog_bestseller';
 const ORDER_SELECT = 'id,store_id,tracking_number,checkout_tracking_number,status,subtotal,shipping_amount,total_amount,currency,store_order_reference,failure_reason,reconciliation_status,mismatch_fields,created_at,updated_at';
 const ORDER_ITEM_SELECT = 'request_id,store_product_id,product_size_id,product_name,brand_name,size_label,quantity,unit_price,line_total,currency,created_at';
-const SHIPMENT_SELECT = 'id,request_id,carrier_name,tracking_code,shipping_status,status_note,estimated_delivery_at,delivered_at,created_at,updated_at';
+const SHIPMENT_SELECT = 'id,request_id,carrier_name,tracking_code,shipping_status,status_note,estimated_delivery_at,delivered_at,delivery_verified_at,delivery_verification_source,delivery_verification_reference,created_at,updated_at';
 
 function reply(res, status, body) {
   res.setHeader('Cache-Control', 'no-store');
@@ -212,7 +211,7 @@ module.exports = async function platformStoreDetail(req, res) {
       records = rows.map(row => ({ ...pick(row, SHIPMENT_SELECT.split(',')), order: pick(requestById.get(row.request_id), ['id', 'tracking_number', 'status', 'reconciliation_status']) }));
       hasMore = rows.length === limit;
     } else if (section === 'commissions') {
-      const params = new URLSearchParams({ select: 'id,store_id,order_item_id,rate,amount,status,created_at,updated_at', store_id: `eq.${storeId}`, order: 'created_at.desc,id.asc', limit: String(limit), offset: String(offset) });
+      const params = new URLSearchParams({ select: 'id,store_id,order_item_id,store_order_request_item_id,rate,amount,status,return_window_days,return_deadline_at,paid_at,payment_reference,created_at,updated_at', store_id: `eq.${storeId}`, order: 'created_at.desc,id.asc', limit: String(limit), offset: String(offset) });
       const status = String(query.status || '');
       if (status && !COMMISSION_STATUSES.has(status)) return reply(res, 400, { ok: false, error: 'invalid_commission_status' });
       if (status) params.set('status', `eq.${status}`);
@@ -242,23 +241,36 @@ module.exports = async function platformStoreDetail(req, res) {
       const productById = new Map(enrichedStoreProducts.map(row => [row.id, row]));
       const itemById = new Map(items.map(row => [row.id, { ...row, product: productById.get(row.store_product_id) || null }]));
       const orderById = new Map(orders.map(row => [row.id, row]));
-      records = rows.map(row => ({ ...pick(row, ['id', 'store_id', 'order_item_id', 'rate', 'amount', 'status', 'created_at', 'updated_at']), item: itemById.get(row.order_item_id) || null, order: orderById.get((itemById.get(row.order_item_id) || {}).order_id) || null }));
-      hasMore = rows.length === limit;
-    } else if (section === 'store-order-commissions') {
-      const params = storeParams(storeId, 'id,request_id,store_id,rate,gross_amount,returned_amount,commission_amount,currency,evidence,review_required,review_reason,status,void_reason,voided_at,accrued_at,created_at,updated_at', limit, offset);
-      const status = String(query.status || '');
-      if (status && !STORE_ORDER_COMMISSION_STATUSES.has(status)) return reply(res, 400, { ok: false, error: 'invalid_store_order_commission_status' });
-      if (status) params.set('status', `eq.${status}`);
-      const rows = await readRows(context, 'store_order_commissions', params);
-      const requestIds = rows.map(row => row.request_id).filter(id => UUID.test(String(id || '')));
-      let requests = [];
-      if (requestIds.length) {
-        const requestParams = new URLSearchParams({ select: 'id,store_id,tracking_number,store_order_reference,status,reconciliation_status,subtotal,shipping_amount,total_amount,currency,created_at,updated_at', id: inFilter(requestIds), store_id: `eq.${storeId}`, limit: String(requestIds.length) });
-        requests = await readRows(context, 'store_order_requests', requestParams);
+      records = rows.map(row => ({ ...pick(row, ['id', 'store_id', 'order_item_id', 'store_order_request_item_id', 'rate', 'amount', 'status', 'return_window_days', 'return_deadline_at', 'paid_at', 'payment_reference', 'created_at', 'updated_at']), item: itemById.get(row.order_item_id) || null, order: orderById.get((itemById.get(row.order_item_id) || {}).order_id) || null }));
+      const requestItemIds = rows.map(row => row.store_order_request_item_id).filter(id => UUID.test(String(id || '')));
+      let requestItems = [];
+      if (requestItemIds.length) {
+        const requestItemParams = new URLSearchParams({ select: 'id,request_id,product_name,brand_name,size_label,quantity,unit_price,line_total,currency,platform_order_number,merchant_order_reference,created_at', id: inFilter(requestItemIds), limit: String(requestItemIds.length) });
+        requestItems = await readRows(context, 'store_order_request_items', requestItemParams);
       }
-      const requestById = new Map(requests.map(row => [row.id, pick(row, ['id', 'tracking_number', 'store_order_reference', 'status', 'reconciliation_status', 'subtotal', 'shipping_amount', 'total_amount', 'currency', 'created_at', 'updated_at'])]));
-      const allowed = ['id', 'request_id', 'store_id', 'rate', 'gross_amount', 'returned_amount', 'commission_amount', 'currency', 'evidence', 'review_required', 'review_reason', 'status', 'void_reason', 'voided_at', 'accrued_at', 'created_at', 'updated_at'];
-      records = rows.map(row => ({ ...pick(row, allowed), order: requestById.get(row.request_id) || null }));
+      const requestIds = [...new Set(requestItems.map(row => row.request_id).filter(id => UUID.test(String(id || ''))))];
+      let linkedRequests = [];
+      if (requestIds.length) {
+        const requestParams = new URLSearchParams({ select: 'id,tracking_number,checkout_tracking_number,store_order_reference,status,reconciliation_status,subtotal,shipping_amount,total_amount,currency,created_at,updated_at', id: inFilter(requestIds), store_id: `eq.${storeId}`, limit: String(requestIds.length) });
+        linkedRequests = await readRows(context, 'store_order_requests', requestParams);
+      }
+      const requestFields = ['id', 'tracking_number', 'checkout_tracking_number', 'store_order_reference', 'status', 'reconciliation_status', 'subtotal', 'shipping_amount', 'total_amount', 'currency', 'created_at', 'updated_at'];
+      const requestById = new Map(linkedRequests.map(row => [row.id, pick(row, requestFields)]));
+      const requestItemById = new Map(requestItems.map(row => [row.id, row]));
+      records = rows.map(row => {
+        if (!row.store_order_request_item_id) return { ...records.find(record => record.id === row.id), ...pick(row, ['return_window_days', 'return_deadline_at', 'paid_at', 'payment_reference']) };
+        const requestItem = requestItemById.get(row.store_order_request_item_id);
+        const request = requestItem && requestById.get(requestItem.request_id);
+        if (!requestItem || !request) return { ...pick(row, ['id', 'store_id', 'store_order_request_item_id', 'rate', 'amount', 'status', 'return_window_days', 'return_deadline_at', 'paid_at', 'payment_reference', 'created_at', 'updated_at']), item: null, order: null };
+        return {
+          ...pick(row, ['id', 'store_id', 'store_order_request_item_id', 'rate', 'amount', 'status', 'return_window_days', 'return_deadline_at', 'paid_at', 'payment_reference', 'created_at', 'updated_at']),
+          item: { id: requestItem.id, order_id: request.id, quantity: requestItem.quantity, price_at_time: requestItem.unit_price,
+            line_total: requestItem.line_total, platform_order_number: requestItem.platform_order_number,
+            merchant_order_reference: requestItem.merchant_order_reference,
+            product: { currency: requestItem.currency, product: { name: requestItem.product_name, brand_name: requestItem.brand_name, size_label: requestItem.size_label } } },
+          order: request
+        };
+      });
       hasMore = rows.length === limit;
     } else if (section === 'sync') {
       const params = storeParams(storeId, 'id,store_id,status,records_count,created_at,updated_at', limit, offset);

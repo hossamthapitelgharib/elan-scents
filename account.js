@@ -51,7 +51,10 @@ function updateCartShortcut(restored = 0) { const element = document.querySelect
 function shipmentLine(request) {
   const shipment = shipmentA(request);
   if (!shipment) return '<div class="shipment-box shipment-empty"><b>الشحن</b><span>لم يسجل المتجر بيانات الشحن بعد.</span></div>';
-  return `<div class="shipment-box"><div class="shipment-head"><div><small>شحن المتجر</small><strong>${escA(shipment.carrier_name || 'شركة الشحن غير محددة')}</strong></div>${shippingBadgeA(shipment.shipping_status)}</div><div class="shipment-meta"><span>رقم التتبع</span><b dir="ltr">${escA(shipment.tracking_code || 'لم يحدد بعد')}</b></div>${shipment.estimated_delivery_at ? `<div class="shipment-meta"><span>التسليم المتوقع</span><b>${dateA(shipment.estimated_delivery_at)}</b></div>` : ''}${shipment.status_note ? `<p class="shipment-note">${escA(shipment.status_note)}</p>` : ''}<small class="shipment-updated">آخر تحديث: ${dateTimeA(shipment.updated_at)}</small></div>`;
+  const deliveryVerification = shipment.shipping_status === 'delivered'
+    ? shipment.delivery_verified_at ? `أكدت المنصة التسليم من شركة الشحن في ${dateTimeA(shipment.delivery_verified_at)}.` : 'أبلغ المتجر عن التسليم؛ جارٍ تحقق المنصة من بيانات شركة الشحن.'
+    : '';
+  return `<div class="shipment-box"><div class="shipment-head"><div><small>شحن المتجر</small><strong>${escA(shipment.carrier_name || 'شركة الشحن غير محددة')}</strong></div>${shippingBadgeA(shipment.shipping_status)}</div><div class="shipment-meta"><span>رقم التتبع</span><b dir="ltr">${escA(shipment.tracking_code || 'لم يحدد بعد')}</b></div>${shipment.estimated_delivery_at ? `<div class="shipment-meta"><span>التسليم المتوقع</span><b>${dateA(shipment.estimated_delivery_at)}</b></div>` : ''}${deliveryVerification ? `<p class="shipment-note">${escA(deliveryVerification)}</p>` : ''}${shipment.status_note ? `<p class="shipment-note">${escA(shipment.status_note)}</p>` : ''}<small class="shipment-updated">آخر تحديث: ${dateTimeA(shipment.updated_at)}</small></div>`;
 }
 function itemLine(item) {
   const label = [item.brand_name, item.product_name, item.size_label].filter(Boolean).map(escA).join(' · ');
