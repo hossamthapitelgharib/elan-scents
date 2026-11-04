@@ -197,11 +197,10 @@ async function cancelOrder(requestId, button) {
   if (reason === null) return;
   cancelling = true; if (button) button.disabled = true;
   try {
-    const config = await authConfig();
-    const response = await fetch(`${config.url}/rest/v1/rpc/request_store_order_cancellation`, {
+    const response = await fetch('/api/request-store-order-cancellation', {
       method: 'POST',
-      headers: { apikey: config.key, Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ p_request_id: request.id, p_reason: String(reason).trim().slice(0, 500) || null })
+      headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requestId: request.id, reason: String(reason).trim().slice(0, 500) || null })
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {

@@ -5,8 +5,10 @@
 module.exports = {
   api: {
     'config': () => require('../api/config.js'),
+    'confirm-store-order-purchase': () => require('../api/confirm-store-order-purchase.js'),
     'customer-activity': () => require('../api/customer-activity.js'),
     'customer-best-sellers': () => require('../api/customer-best-sellers.js'),
+    'customer-cart': () => require('../api/customer-cart.js'),
     'customer-mail': () => require('../api/customer-mail.js'),
     'customer-orders': () => require('../api/customer-orders.js'),
     'customer-product-rankings': () => require('../api/customer-product-rankings.js'),
@@ -15,6 +17,7 @@ module.exports = {
     'guest-analytics': () => require('../api/guest-analytics.js'),
     'guest-cart': () => require('../api/guest-cart.js'),
     'notifications': () => require('../api/notifications.js'),
+    'place-store-order': () => require('../api/place-store-order.js'),
     'platform-audit-log': () => require('../api/platform-audit-log.js'),
     'platform-commission-payment': () => require('../api/platform-commission-payment.js'),
     'platform-customer-detail': () => require('../api/platform-customer-detail.js'),
@@ -27,6 +30,7 @@ module.exports = {
     'platform-store-unlinked': () => require('../api/platform-store-unlinked.js'),
     'platform-stores': () => require('../api/platform-stores.js'),
     'platform-verify-delivery': () => require('../api/platform-verify-delivery.js'),
+    'request-store-order-cancellation': () => require('../api/request-store-order-cancellation.js'),
     'restore-store-order': () => require('../api/restore-store-order.js'),
     'store-dashboard-orders': () => require('../api/store-dashboard-orders.js'),
     'store-integrations': () => require('../api/store-integrations.js'),

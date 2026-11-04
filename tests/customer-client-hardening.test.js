@@ -24,8 +24,8 @@ test('a cart line is capped at 99 in the page and in what is sent to the account
 
 test('the cart is saved with the atomic database function, not a delete followed by an insert', () => {
   const push = core.match(/async function pushCartToCloud\(\)\{.*\n/)[0];
-  assert.ok(push.includes('/rest/v1/rpc/replace_customer_cart'));
-  assert.ok(push.includes('p_items:rows'));
+  assert.ok(push.includes('/api/customer-cart'));
+  assert.ok(push.includes('items:rows'));
   assert.ok(!push.includes("method:'DELETE'"), 'no separate delete of the stored cart');
   assert.ok(!push.includes('/rest/v1/cart_items'), 'no direct write to cart_items');
   // A page that has not loaded the catalog yet must not push an empty list over the stored cart.

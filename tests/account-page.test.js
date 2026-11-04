@@ -253,11 +253,11 @@ test('the order id in the cancellation button is escaped', () => {
   assert.match(html, /data-cancel="&quot;&gt;&lt;img/);
 });
 
-test('asking to cancel sends the reason to the database function with the customer token, then refreshes the list', async () => {
+test('asking to cancel sends the reason to the server API with the customer token, then refreshes the list', async () => {
   const orderCalls = [];
   const p = page({ session: { access_token: 'customer-jwt' }, responder: async (url, options) => {
     if (url.startsWith('/api/customer-orders')) { orderCalls.push(url); return new Response('{"ok":true,"sessions":[],"pagination":{"total":0,"hasMore":false}}', { status: 200 }); }
-    if (url.endsWith('/rest/v1/rpc/request_store_order_cancellation')) return new Response('{"requestId":"r1","duplicate":false}', { status: 200 });
+    if (url.endsWith('/api/request-store-order-cancellation')) return new Response('{"requestId":"r1","duplicate":false}', { status: 200 });
     return null;
   } });
   await tick(); await tick(); await tick();
@@ -267,13 +267,11 @@ test('asking to cancel sends the reason to the database function with the custom
   const button = p.click('cancel', 'r1');
   assert.equal(button.disabled, true, 'the button is locked while the request is in flight');
   await tick(); await tick(); await tick(); await tick();
-  const call = p.calls.find(item => item.url.endsWith('/rest/v1/rpc/request_store_order_cancellation'));
-  assert.ok(call, 'the database function is called');
-  assert.equal(call.url.startsWith('https://project.supabase.example.invalid'), true, 'straight to the project the CSP allows, not to another host');
-  assert.equal(call.options.method, 'POST');
+  const call = p.calls.find(item => item.url.endsWith('/api/request-store-order-cancellation'));
+  assert.ok(call, 'the server API is called');
+    assert.equal(call.options.method, 'POST');
   assert.equal(call.options.headers.Authorization, 'Bearer customer-jwt');
-  assert.equal(call.options.headers.apikey, 'public-anon-key');
-  assert.deepEqual(JSON.parse(call.options.body), { p_request_id: 'r1', p_reason: 'غيرت رأيي' });
+    assert.deepEqual(JSON.parse(call.options.body), { requestId: 'r1', reason: 'غيرت رأيي' });
   assert.equal(orderCalls.length > before, true, 'the list is read again so the card shows the waiting note');
   assert.equal(button.disabled, false);
 });
@@ -282,23 +280,23 @@ test('a blank reason is sent as null, a long one is cut to 500 characters, and c
   const p = page({ session: { access_token: 't' } });
   await tick(); await tick();
   p.run(`accountSessions = [{ id: 's1', store_order_requests: [${ORDER(", status: 'awaiting_store_confirmation'")}] }]`);
-  const bodies = () => p.calls.filter(item => item.url.endsWith('/request_store_order_cancellation')).map(item => JSON.parse(item.options.body));
+  const bodies = () => p.calls.filter(item => item.url.endsWith('/api/request-store-order-cancellation')).map(item => JSON.parse(item.options.body));
   p.context.prompt = () => null;
   p.click('cancel', 'r1'); await tick(); await tick();
   assert.equal(bodies().length, 0, 'cancelling the box is not a request');
   p.context.prompt = () => '   ';
   p.click('cancel', 'r1'); await tick(); await tick(); await tick(); await tick();
-  assert.deepEqual(bodies()[0], { p_request_id: 'r1', p_reason: null });
+  assert.deepEqual(bodies()[0], { requestId: 'r1', reason: null });
   p.context.prompt = () => 'x'.repeat(900);
   p.click('cancel', 'r1'); await tick(); await tick(); await tick(); await tick();
-  assert.equal(bodies()[1].p_reason.length, 500);
+  assert.equal(bodies()[1].reason.length, 500);
 });
 
 test('a refused request shows the reason in Arabic, refreshes the orders, and nothing is asked for an order that is not waiting', async () => {
   const orderCalls = [];
   const p = page({ session: { access_token: 't' }, responder: async url => {
     if (url.startsWith('/api/customer-orders')) { orderCalls.push(url); return new Response('{"ok":true,"sessions":[],"pagination":{"total":0,"hasMore":false}}', { status: 200 }); }
-    if (url.endsWith('/request_store_order_cancellation')) return new Response('{"code":"P0001","message":"Order is no longer waiting for the store"}', { status: 400 });
+    if (url.endsWith('/api/request-store-order-cancellation')) return new Response('{"code":"P0001","message":"Order is no longer waiting for the store"}', { status: 400 });
     return null;
   } });
   await tick(); await tick(); await tick();
@@ -310,7 +308,7 @@ test('a refused request shows the reason in Arabic, refreshes the orders, and no
   for (let i = 0; i < 8; i += 1) await tick();
   assert.match(p.el('#appMessage').textContent, /المتجر بدأ في معالجة الطلب/);
   assert.equal(orderCalls.length > before, true, 'the list is refreshed so the card shows the real state');
-  const sent = () => p.calls.filter(item => item.url.endsWith('/request_store_order_cancellation')).length;
+  const sent = () => p.calls.filter(item => item.url.endsWith('/api/request-store-order-cancellation')).length;
   const asked = sent();
   p.click('cancel', 'r2'); p.click('cancel', 'r3'); p.click('cancel', 'unknown');
   for (let i = 0; i < 4; i += 1) await tick();

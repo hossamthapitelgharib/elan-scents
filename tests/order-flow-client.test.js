@@ -54,8 +54,8 @@ test('the order is sent in one server call without a tracking number, with the d
   const form = formFor();
   await vm.runInContext('sendStoreOrder', context)(form);
   assert.equal(context.requests.length, 1);
-  assert.equal(context.requests[0].url, 'https://project.example.invalid/rest/v1/rpc/place_store_order');
-  const payload = JSON.parse(context.requests[0].options.body).p_payload;
+  assert.equal(context.requests[0].url, '/api/place-store-order');
+  const payload = JSON.parse(context.requests[0].options.body).payload;
   assert.equal(payload.storeId, 'store-uuid-1');
   assert.equal(payload.idempotencyKey, 'retry-key-abcd-0001');
   assert.equal(payload.subtotal, 300);
@@ -110,7 +110,7 @@ test('a lost answer is retried with the same key and the duplicate answer is tre
   assert.equal(context.shown, '');
   await send(form);
   assert.equal(context.requests.length, 2);
-  assert.equal(JSON.parse(context.requests[0].options.body).p_payload.idempotencyKey, JSON.parse(context.requests[1].options.body).p_payload.idempotencyKey);
+  assert.equal(JSON.parse(context.requests[0].options.body).payload.idempotencyKey, JSON.parse(context.requests[1].options.body).payload.idempotencyKey);
   assert.match(context.shown, /تم تسجيل طلبك/);
 });
 
