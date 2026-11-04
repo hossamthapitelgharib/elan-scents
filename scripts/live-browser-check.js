@@ -1,6 +1,6 @@
 /* Opens the real shop in a real Chromium (a phone-sized window), the way a visitor would, and checks the part of the home page under the
    hero ("سحر الخليج بين يديك" and the three counters) on the home page and on inner pages, then the brands strip right under the counters
-   (no title, no gold line), a brand's own page, the page of all brands and the page of all perfumes (no title; the breadcrumb says «البراندات» / «كل العطور»), then the menu page (no lines between items, close button like the cart page's). Takes screenshots into a folder.
+   (no title, no gold line), a brand's own page, the page of all brands and the page of all perfumes (no title; the breadcrumb says «البراندات» / «كل العطور»), then the menu page (no lines between items, close button like the cart page's, every section entry opens its own page). Takes screenshots into a folder.
    Run by the "Live browser check" workflow (GitHub runners can reach the site; the Claude sandbox cannot), or by hand:
      node scripts/live-browser-check.js [site address] [folder for the screenshots]
    Exits 1 when something is not as expected. It only reads the public site and clicks; it sends nothing and uses no secret. */
@@ -122,6 +122,21 @@ const look = () => {
     const cartX = await css('#sheet .sheet-close');
     say('cart page close: ' + JSON.stringify(cartX));
     expect(!!menuX && !!cartX && JSON.stringify(menuX) === JSON.stringify(cartX), 'the menu page close button is drawn exactly like the cart page one');
+    // Every menu entry that is a section opens that section's own page (like «سحر الخليج بين يديك»); only «عن» and «تواصل معنا» scroll.
+    const entries = await page.evaluate(() => ({ pages: [...document.querySelectorAll('#menu a[data-go]')].map((a) => a.getAttribute('data-go')), anchors: [...document.querySelectorAll('#menu a[href^="#"]:not(.mlogo)')].map((a) => a.getAttribute('href')) }));
+    say('menu entries: ' + JSON.stringify(entries));
+    expect(entries.pages.length === 9 && entries.anchors.join() === '#about,#contact', 'nine menu entries open pages, two (about, contact) scroll');
+    for (const go of entries.pages) {
+      await page.goto(site, { waitUntil: 'load' });
+      await page.waitForTimeout(1200);
+      await page.evaluate(() => document.getElementById('mb').click());
+      await page.waitForTimeout(500);
+      await page.evaluate((g) => document.querySelector('#menu a[data-go="' + g + '"]').click(), go);
+      await page.waitForTimeout(900);
+      const r = await page.evaluate(() => ({ inner: document.body.classList.contains('inner'), open: document.getElementById('menu').classList.contains('open'), crumb: ((document.querySelector('#view .bc b') || {}).textContent || '').trim(), cards: document.querySelectorAll('#view .card').length }));
+      say('menu entry ' + go + ': ' + JSON.stringify(r));
+      expect(r.inner && !r.open && r.crumb.length > 0, 'the menu entry «' + go + '» opens its own page («' + r.crumb + '»)');
+    }
   }
 
   // Inner pages: open them the way a visitor does (click what has data-go), and look again.

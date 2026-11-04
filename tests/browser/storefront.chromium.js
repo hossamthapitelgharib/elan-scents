@@ -125,3 +125,34 @@ test('the menu page has no lines between its items and its close button looks li
     assert.deepEqual(errors, [], 'no page error');
   } finally { await context.close(); }
 });
+
+test('every menu entry that is a section opens that section\'s own page; only «عن» and «تواصل معنا» scroll to their place on the home page', async () => {
+  const { context, page, errors } = await visit(H.WIDTHS[0]);
+  try {
+    const links = await page.evaluate(() => ({ pages: [...document.querySelectorAll('#menu a[data-go]')].map((a) => a.getAttribute('data-go')), anchors: [...document.querySelectorAll('#menu a[href^="#"]:not(.mlogo)')].map((a) => a.getAttribute('href')) }));
+    assert.deepEqual(links.pages, ['sec|all', 'sec|brands', 'sec|offers', 'sec|new', 'sec|cats', 'sec|master', 'sec|occ', 'sec|notes', 'sec|stores'], 'the menu entries that are sections open pages');
+    assert.deepEqual(links.anchors, ['#about', '#contact'], 'only the two parts of the home page that have no page of their own are anchors');
+    for (const go of links.pages) {
+      await page.evaluate(() => { document.body.classList.remove('inner'); document.getElementById('mb').click(); });
+      await page.waitForTimeout(400);
+      await page.evaluate((g) => document.querySelector('#menu a[data-go="' + g + '"]').click(), go);
+      await page.waitForTimeout(500);
+      const r = await page.evaluate((g) => {
+        const id = g.split('|')[1], row = T().S.find((x) => x[0] === id);
+        return { inner: document.body.classList.contains('inner'), open: document.getElementById('menu').classList.contains('open'), crumb: ((document.querySelector('#view .bc b') || {}).textContent || '').trim(), expected: id === 'all' ? LB[lang].all2 : id === 'brands' ? T().menu[2] : row[1] };
+      }, go);
+      assert.equal(r.inner, true, go + ': opens an inner page');
+      assert.equal(r.open, false, go + ': the menu closes');
+      assert.equal(r.crumb, r.expected, go + ': the page is the section\'s own page (breadcrumb «' + r.expected + '»)');
+    }
+    for (const id of ['about', 'contact']) {
+      await page.evaluate(() => { document.body.classList.add('inner'); document.getElementById('mb').click(); });
+      await page.waitForTimeout(400);
+      await page.evaluate((x) => document.querySelector('#menu a[href="#' + x + '"]').click(), id);
+      await page.waitForTimeout(500);
+      const r = await page.evaluate(() => ({ inner: document.body.classList.contains('inner'), open: document.getElementById('menu').classList.contains('open') }));
+      assert.deepEqual(r, { inner: false, open: false }, '#' + id + ': back on the home page, menu closed');
+    }
+    assert.deepEqual(errors, [], 'no page error');
+  } finally { await context.close(); }
+});
