@@ -84,6 +84,15 @@ function watchErrors(page, sink) {
   page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) sink.push('console.error: ' + m.text().slice(0, 240)); });
 }
 
+/* A route callback can still settle while a page/context is being closed. Keep that
+   teardown race from becoming an unhandled rejection, but never hide real failures. */
+function safeFulfill(route, options) {
+  return route.fulfill(options).catch((error) => {
+    if (/already handled/i.test(String(error && error.message))) return undefined;
+    throw error;
+  });
+}
+
 async function loginAsOwner(context, server) {
   const r = await fetch(server.local + '/editor?key=' + ACCESS_KEY, { redirect: 'manual', headers: FORWARDED });
   const m = /elan_sess=([A-Za-z0-9._~-]+)/.exec(r.headers.get('set-cookie') || '');
@@ -91,4 +100,4 @@ async function loginAsOwner(context, server) {
   await context.addCookies([{ name: 'elan_sess', value: m[1], domain: 'elan.test', path: '/', secure: true, httpOnly: true, sameSite: 'Strict' }]);
 }
 
-module.exports = { SITE, WIDTHS, loadPlaywright, startServer, openContext, watchErrors, loginAsOwner };
+module.exports = { SITE, WIDTHS, loadPlaywright, startServer, openContext, watchErrors, safeFulfill, loginAsOwner };

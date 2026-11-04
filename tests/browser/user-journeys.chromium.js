@@ -27,23 +27,23 @@ async function context({ session = null } = {}) {
 }
 
 async function mockPage(page) {
-  await page.route('**/api/customer-orders*', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, sessions: [{ id: 'session-1', store_order_requests: [ORDER] }], pagination: { total: 1, hasMore: false } }) }));
-  await page.route('**/api/config', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ url: 'https://sbgdtuqfrnfeggkwqtrw.supabase.co', key: 'public-test-key', turnstile_site_key: 'test-site-key' }) }));
-  await page.route('https://challenges.cloudflare.com/turnstile/v0/api.js*', route => route.fulfill({
+  await page.route('**/api/customer-orders*', route => H.safeFulfill(route, { status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, sessions: [{ id: 'session-1', store_order_requests: [ORDER] }], pagination: { total: 1, hasMore: false } }) }));
+  await page.route('**/api/config', route => H.safeFulfill(route, { status: 200, contentType: 'application/json', body: JSON.stringify({ url: 'https://sbgdtuqfrnfeggkwqtrw.supabase.co', key: 'public-test-key', turnstile_site_key: 'test-site-key' }) }));
+  await page.route('https://challenges.cloudflare.com/turnstile/v0/api.js*', route => H.safeFulfill(route, {
     status: 200,
     contentType: 'application/javascript',
     body: "window.turnstile={render:function(holder,opts){setTimeout(function(){opts.callback('test-turnstile-token');},0);return 'test-widget';},remove:function(){}};"
   }));
-  await page.route('**/api/place-store-order', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ id: 'request-1', trackingNumber: 'ELN-TEST-0001', currency: 'EGP' }) }));
-  await page.route('**/api/customer-cart', route => route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true,"items":[]}' }));
-  await page.route('**/api/request-store-order-cancellation', route => route.fulfill({ status: 200, contentType: 'application/json', body: '{"requestId":"request-1","duplicate":false}' }));
+  await page.route('**/api/place-store-order', route => H.safeFulfill(route, { status: 200, contentType: 'application/json', body: JSON.stringify({ id: 'request-1', trackingNumber: 'ELN-TEST-0001', currency: 'EGP' }) }));
+  await page.route('**/api/customer-cart', route => H.safeFulfill(route, { status: 200, contentType: 'application/json', body: '{"ok":true,"items":[]}' }));
+  await page.route('**/api/request-store-order-cancellation', route => H.safeFulfill(route, { status: 200, contentType: 'application/json', body: '{"requestId":"request-1","duplicate":false}' }));
   await page.route('**/sbgdtuqfrnfeggkwqtrw.supabase.co/**', async route => {
     const request = route.request(), url = new URL(request.url());
-    if (url.pathname === '/auth/v1/token') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(CUSTOMER_SESSION) });
-    if (url.pathname === '/auth/v1/user') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(CUSTOMER_SESSION.user) });
-    if (url.pathname.includes('/cart_items')) return route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
-    if (url.pathname.includes('/auth/v1/recover')) return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
-    return route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
+    if (url.pathname === '/auth/v1/token') return H.safeFulfill(route, { status: 200, contentType: 'application/json', body: JSON.stringify(CUSTOMER_SESSION) });
+    if (url.pathname === '/auth/v1/user') return H.safeFulfill(route, { status: 200, contentType: 'application/json', body: JSON.stringify(CUSTOMER_SESSION.user) });
+    if (url.pathname.includes('/cart_items')) return H.safeFulfill(route, { status: 200, contentType: 'application/json', body: '[]' });
+    if (url.pathname.includes('/auth/v1/recover')) return H.safeFulfill(route, { status: 200, contentType: 'application/json', body: '{}' });
+    return H.safeFulfill(route, { status: 200, contentType: 'application/json', body: '[]' });
   });
 }
 
