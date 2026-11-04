@@ -1,9 +1,9 @@
 {
-  "version": "20261104-05",
+  "version": "20261104-06",
   "files": {
     "account.js": "6f19d544754c74d2",
-    "app-core.js": "811627f24530e1ae",
-    "app.js": "a35bb1d971708677",
+    "app-core.js": "f33500233baa4c6e",
+    "app.js": "ee86dbe1d73f38f6",
     "auth-session.js": "c12caeae26af1c2c",
     "consent.css": "79e25a99fc582a15",
     "consent.js": "c383591883071ab4",
@@ -26,8 +26,8 @@
     "privacy.css": "bbb7614467979223",
     "store-dashboard.js": "96172817026935fe",
     "stores-dashboard.js": "22657020fd7bc998",
-    "style-3.css": "617367c9ab2bf606",
-    "style.css": "9cfd33865443059f",
+    "style-3.css": "65993ded14619a5b",
+    "style.css": "b15c3c0599afdba2",
     "texts.js": "4d2b3ad9bc021866",
     "turnstile.js": "1188b085c589e6d1"
   }

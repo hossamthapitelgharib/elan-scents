@@ -93,7 +93,20 @@ test('the cart icon in the header is smaller than the others, the heart and the 
   assert.match(top, /header \.ic svg \{ width: 24px !important; height: 24px !important; \}/, 'the other icons keep their size');
 });
 
-test('the lines between the menu page items are black', () => {
-  assert.match(base, /\n#menu a\{border-bottom-color:#000\}/);
-  assert.match(base, /#menu a\{[^}]*border-bottom:1px solid #eadfc6/, 'the width and style of the line are unchanged; only its colour is overridden');
+test('there are no lines between the menu page items', () => {
+  const rule = (base.match(/\n#menu a\{[^}]*\}/) || [''])[0];
+  assert.ok(rule, 'the menu items keep their rule');
+  assert.doesNotMatch(rule, /border/, 'no border on a menu item');
+  assert.doesNotMatch(base, /#menu a[^{]*\{[^}]*border-(?:bottom|top)/, 'and no later rule draws one');
+  assert.doesNotMatch(top, /#menu a[^{]*\{[^}]*border-(?:bottom|top)/);
+});
+
+test('the close button of the menu page is the cart page\'s round close button', () => {
+  const core = read('app-core.js');
+  const x = /var XBTN='([^']*)'/.exec(core);
+  assert.ok(x, 'the menu has a close button');
+  assert.match(x[1], /class="mx sheet-close"/, 'it is a .sheet-close like the one on the cart page');
+  assert.match(x[1], />×<\/button>/, 'with the same × sign');
+  assert.doesNotMatch(base, /\n\.mx\{/, 'its old stand-alone look is gone: .sheet-close draws it');
+  assert.match(top, /\[dir=rtl\] \.mx\{left:12px!important;right:auto!important\}/, 'only its corner is the menu\'s own');
 });

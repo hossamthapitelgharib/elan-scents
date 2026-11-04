@@ -1,6 +1,6 @@
 /* Opens the real shop in a real Chromium (a phone-sized window), the way a visitor would, and checks the part of the home page under the
    hero ("سحر الخليج بين يديك" and the three counters) on the home page and on inner pages, then the brands strip right under the counters
-   (no title, no gold line), a brand's own page, the page of all brands and the page of all perfumes (no title; the breadcrumb says «البراندات» / «كل العطور»). Takes screenshots into a folder.
+   (no title, no gold line), a brand's own page, the page of all brands and the page of all perfumes (no title; the breadcrumb says «البراندات» / «كل العطور»), then the menu page (no lines between items, close button like the cart page's). Takes screenshots into a folder.
    Run by the "Live browser check" workflow (GitHub runners can reach the site; the Claude sandbox cannot), or by hand:
      node scripts/live-browser-check.js [site address] [folder for the screenshots]
    Exits 1 when something is not as expected. It only reads the public site and clicks; it sends nothing and uses no secret. */
@@ -104,6 +104,24 @@ const look = () => {
     expect(allp.titles === 0, 'the all-perfumes page has no title (no «كل العطور» heading, no gold line)');
     expect(allp.crumb === 'كل العطور', 'but «كل العطور» stays in its breadcrumb: «' + allp.crumb + '»');
     expect(allp.filters, 'the filters follow the breadcrumb');
+    // The menu page: no lines between its items, and its close button is drawn like the cart page's.
+    await page.goto(site, { waitUntil: 'load' });
+    await page.waitForTimeout(1500);
+    await page.evaluate(() => document.getElementById('mb').click());
+    await page.waitForTimeout(900);
+    const css = (sel) => page.evaluate((q) => { const e = document.querySelector(q); if (!e) return null; const c = getComputedStyle(e); return { w: e.getBoundingClientRect().width, bg: c.backgroundColor, border: c.borderTopWidth + ' ' + c.borderTopColor, radius: c.borderRadius, color: c.color, font: c.fontSize, shadow: c.boxShadow, text: e.textContent.trim() }; }, sel);
+    const menu = await page.evaluate(() => ({ items: document.querySelectorAll('#menu a').length, withLine: [...document.querySelectorAll('#menu a')].filter((a) => parseFloat(getComputedStyle(a).borderBottomWidth) + parseFloat(getComputedStyle(a).borderTopWidth) > 0).length }));
+    const menuX = await css('#menu .mx');
+    await shot('2f-menu-page');
+    say('menu page: ' + JSON.stringify(menu) + ' close: ' + JSON.stringify(menuX));
+    expect(menu.items >= 10 && menu.withLine === 0, 'the menu page has no lines between its items (' + menu.items + ' items, ' + menu.withLine + ' with a line)');
+    await page.evaluate(() => document.querySelector('#menu .mx').click());
+    await page.waitForTimeout(500);
+    await page.evaluate(() => { sheet('cart'); });
+    await page.waitForTimeout(700);
+    const cartX = await css('#sheet .sheet-close');
+    say('cart page close: ' + JSON.stringify(cartX));
+    expect(!!menuX && !!cartX && JSON.stringify(menuX) === JSON.stringify(cartX), 'the menu page close button is drawn exactly like the cart page one');
   }
 
   // Inner pages: open them the way a visitor does (click what has data-go), and look again.

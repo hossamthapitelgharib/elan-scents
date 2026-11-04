@@ -1,4 +1,4 @@
-var XBTN='<button class="mx" aria-label="close"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="url(#gg)" stroke-width="2" stroke-linecap="round"><path d="M5 5l14 14M19 5L5 19"/></svg></button>';
+var XBTN='<button class="mx sheet-close" type="button" aria-label="close">×</button>';
 var LOGO='<a class="mlogo" href="#"><div class="logo"><div><b class="gold en">Élan</b> <span class="en">Scents</span></div><small class="en">THE HOME OF GULF FRAGRANCES</small><i></i></div></a>';
 var lang='ar',P=[],F={},V;
 var vuW=0,vuH=0;function setViewportUnit(){var v=window.visualViewport,h=v?v.height:window.innerHeight,w=window.innerWidth;if(v&&v.scale>1.01)return;if(vuH&&w===vuW&&Math.abs(h-vuH)<150)return;vuW=w;vuH=h;document.documentElement.style.setProperty('--app-vh',h*.01+'px')}

@@ -54,7 +54,7 @@ footer a{color:var(--gold1);margin:0 8px;font-size:13px;text-decoration:none}
 #menu{position:fixed;top:0;inset-inline-start:0;height:100%;width:62%;max-width:250px;background:var(--off);z-index:40;padding:60px 22px;transform:translateX(110%);transition:.4s;overflow:auto;box-shadow:0 0 30px #0003}
 [dir=rtl] #menu{transform:translateX(110%)}[dir=ltr] #menu{transform:translateX(-110%)}
 #menu.open{transform:none!important}
-#menu a{background:none;-webkit-text-fill-color:#a37e2c;display:block;padding:10px 0;border-bottom:1px solid #eadfc6;color:#a37e2c;text-decoration:none;font-weight:600}
+#menu a{background:none;-webkit-text-fill-color:#a37e2c;display:block;padding:10px 0;color:#a37e2c;text-decoration:none;font-weight:600}
 body.inner #hero,body.inner #intro,body.inner #main,body.inner .about,body.inner #contact{display:none}
 #view{display:none;padding:120px 16px 10px;min-height:70vh}body.inner #view{display:block}
 .bc{display:flex;flex-wrap:wrap;gap:6px;font-size:12.5px;color:var(--gray);margin-bottom:10px;align-items:center}
@@ -105,7 +105,6 @@ html{--p:0}
 .magic p.sub{background:#fff;color:#8a5e0c;font-size:0;margin:10px auto 0;padding:0}
 #mov{display:none;position:fixed;inset:0;background:rgba(20,15,5,.28);z-index:35}#menu.open+#mov{display:block}
 #menu{padding-top:96px}
-.mx{position:absolute;top:14px;inset-inline-end:14px;background:none;border:0;cursor:pointer;padding:4px}
 #menu a.mlogo{background:none;-webkit-text-fill-color:initial;padding:6px 0 14px}
 #menu a.mlogo .logo{transform:scale(.82);transform-origin:center}
 #menu a.mlogo span{color:#111;-webkit-text-fill-color:#111}
@@ -419,5 +418,3 @@ html.hero-img:not(.hero-pending) body.hd-over:not(.inner) header .logo span{colo
 html.hero-img:not(.hero-pending) body.hd-over:not(.inner) header .logo small{color:#fff!important;-webkit-text-fill-color:#fff!important;-webkit-text-stroke-color:#fff}
 /* The cart icon in the header is a little smaller than the other icons (the heart and the rest stay as they were). */
 header .ic button[data-sheet="cart"] svg{width:20px!important;height:20px!important}
-/* The lines between the items of the menu page are black. */
-#menu a{border-bottom-color:#000}

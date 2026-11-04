@@ -653,8 +653,9 @@ body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-r
 #mov,#sheet,#hero video,#heroVideo,#hero .hero-overlay,#hero .slot,.card .artbg,.card.art:after{top:0;right:0;bottom:0;left:0}
 [dir=rtl] #menu{right:0;left:auto}
 [dir=ltr] #menu{left:0;right:auto}
-[dir=rtl] .mx{left:14px;right:auto}
-[dir=ltr] .mx{right:14px;left:auto}
+/* The menu page's close button is the cart page's round close button (.sheet-close); here it only picks its corner: the one on the panel's far side. */
+[dir=rtl] .mx{left:12px!important;right:auto!important}
+[dir=ltr] .mx{right:12px!important;left:auto!important}
 [dir=rtl] #bar div{padding-right:100%}
 [dir=ltr] #bar div{padding-left:100%}
 

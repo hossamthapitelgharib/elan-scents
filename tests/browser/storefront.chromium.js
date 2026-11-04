@@ -103,3 +103,25 @@ test('the brands strip has no title and no gold line and sits right under the co
     assert.deepEqual(errors, [], 'no page error');
   } finally { await context.close(); }
 });
+
+test('the menu page has no lines between its items and its close button looks like the cart page\'s', async () => {
+  const { context, page, errors } = await visit(H.WIDTHS[0]);
+  try {
+    const css = (sel) => page.evaluate((q) => { const e = document.querySelector(q), c = getComputedStyle(e), r = e.getBoundingClientRect(); return { w: Math.round(r.width), h: Math.round(r.height), bg: c.backgroundColor, border: c.borderTopWidth + ' ' + c.borderTopStyle + ' ' + c.borderTopColor, radius: c.borderRadius, color: c.color, font: c.fontSize, shadow: c.boxShadow, text: e.textContent.trim() }; }, sel);
+    await page.evaluate(() => document.getElementById('mb').click());
+    await page.waitForTimeout(700);
+    const lines = await page.evaluate(() => [...document.querySelectorAll('#menu a')].map((a) => parseFloat(getComputedStyle(a).borderBottomWidth) + parseFloat(getComputedStyle(a).borderTopWidth)));
+    assert.ok(lines.length >= 10, 'the menu lists its items: ' + lines.length);
+    assert.deepEqual(lines.filter((n) => n > 0), [], 'no menu item has a line above or below it');
+    const menuX = await css('#menu .mx');
+    await page.evaluate(() => document.querySelector('#menu .mx').click());
+    await page.waitForTimeout(500);
+    assert.equal(await page.evaluate(() => document.getElementById('menu').classList.contains('open')), false, 'the × closes the menu');
+    await page.evaluate(() => { sheet('cart'); });
+    await page.waitForTimeout(600);
+    const cartX = await css('#sheet .sheet-close');
+    assert.deepEqual(menuX, cartX, 'the menu\'s close button is drawn exactly like the cart page\'s');
+    assert.equal(menuX.text, '\u00d7');
+    assert.deepEqual(errors, [], 'no page error');
+  } finally { await context.close(); }
+});
