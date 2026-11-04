@@ -11,6 +11,10 @@
 
 ## مفتوح
 
+### 2026-11-04: اختباران في `tests/browser/user-journeys.chromium.js` أحمران على main (ليسا من المحرر)
+- **ما لوحظ:** الاختباران 4 («login request receives a mocked session…») و9 («password recovery form posts…») يفشلان في Chromium وفي وظيفة CI `browser` منذ كوميت Turnstile `35fae79`، وهما يفشلان على `origin/main` النظيف أيضًا (تأكدت منه في worktree منفصل). الرسالة: «تعذر تهيئة التحقق الأمني…» لأن محاكاة `/api/config` في الاختبار لا تحمل مفتاح Turnstile العام فيُغلق الدخول (fail closed) كما صُمِّم.
+- **المطلوب:** من يكمل بند Turnstile أعلاه يضيف للاختبار محاكاة مفتاح الموقع وسكربت التحدي، أو يحدّد كيف يُجتاز التحقق في الاختبارات؛ لا يُخفَّف الإغلاق عند غياب المفتاح. لم ألمسهما كي لا أتعارض مع عمل تلك الجلسة.
+
 ### 2026-11-04: إصلاح ربط Turnstile مع Supabase Auth مع إبقاء CAPTCHA مفعّلة
 - **السبب المثبت من سجلات Auth:** طلبات `/signup` رجعت `captcha_failed` مع `invalid-input-secret` في 2026-11-04؛ هذا يعني أن السر المخزن في Supabase غير صالح/منتهي أو لا يطابق widget. ظهرت أيضًا استجابة سابقة `no captcha_token found` عندما كان المفتاح العام غائبًا. لا تُطفئ CAPTCHA كحل.
 - **التحقق من Cloudflare:** widget واحد باسم `Elan Scents account forms`، وضعه `managed` ونطاقه `elan-scents.hossamthapitelgharib.workers.dev`؛ المفتاح العام `0x4AAAAAAFvBW0Qsb8VBNT08`. النطاق الذي ظهر في سجلات Supabase يطابق القائمة.
