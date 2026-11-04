@@ -63,6 +63,10 @@ revoke all on function public.replace_customer_cart(jsonb) from public, anon, au
 revoke all on function public.place_store_order(jsonb) from public, anon, authenticated;
 revoke all on function public.request_store_order_cancellation(uuid, text) from public, anon, authenticated;
 revoke all on function public.confirm_store_order_purchase(uuid) from public, anon, authenticated;
+revoke all on function public.replace_customer_cart_server(jsonb, uuid) from public, anon, authenticated;
+revoke all on function public.place_store_order_server(jsonb, uuid) from public, anon, authenticated;
+revoke all on function public.request_store_order_cancellation_server(uuid, text, uuid) from public, anon, authenticated;
+revoke all on function public.confirm_store_order_purchase_server(uuid, uuid) from public, anon, authenticated;
 
 grant execute on function public.replace_customer_cart(jsonb) to service_role;
 grant execute on function public.place_store_order(jsonb) to service_role;

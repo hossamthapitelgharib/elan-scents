@@ -31,6 +31,7 @@ test('the migration removes authenticated execution from all four customer SECUR
 
 test('the migration exposes only service-role wrappers which preserve the verified user id', () => {
   for (const signature of wrappers) {
+    assert.match(migration, new RegExp(`revoke all on function public\\.${signature.replace(/[()]/g, '\\$&')} from public, anon, authenticated;`));
     assert.match(migration, new RegExp(`grant execute on function public\\.${signature.replace(/[()]/g, '\\$&')} to service_role;`));
   }
   assert.equal((migration.match(/set_config\('request\.jwt\.claims'/g) || []).length, 4);
