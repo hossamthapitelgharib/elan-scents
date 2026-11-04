@@ -211,11 +211,28 @@ test('the reset page takes the token from the link once, scrubs it from the addr
   assert.match(js, /a\.value = ''; b\.value = ''/);
   assert.match(js, /token = ''/);
   assert.match(js, /\/api\/editor-reset-password/);
-  assert.match(js, /var MIN = 10/);
-  assert.equal(sessions.MIN_NEW_PASSWORD, 10, 'the page and the server agree');
+  assert.match(js, /var MIN = 8/);
+  assert.equal(sessions.MIN_NEW_PASSWORD, 8, 'the page and the server agree');
   const html = read('editor/reset.html');
   assert.doesNotMatch(html, /<script(?![^>]*\ssrc=)[^>]*>|\son\w+=/, 'no inline script or handler (the page CSP forbids them)');
   assert.match(html, /name="referrer" content="no-referrer"/);
+});
+
+test('the new password needs 8 characters of any kind (letters, digits, symbols): 7 is refused before Supabase, 8 goes through', async () => {
+  let f = fakeAuth();
+  try {
+    assert.deepEqual(await sessions.resetPassword(TOKEN, 'ab12!?x', 'ip-k-1'), { status: 400, error: 'weak_password' });
+    assert.deepEqual(await sessions.resetPassword(TOKEN, '1234567', 'ip-k-1'), { status: 400, error: 'weak_password' });
+    assert.equal(f.calls.length, 0, 'a 7 character password never reaches Supabase');
+  } finally { f.restore(); }
+  for (const [i, pw] of ['abcdefgh', '12345678', '!@#$%^&*', 'ab12!?xy'].entries()) {
+    f = fakeAuth();
+    try {
+      const r = await sessions.resetPassword(TOKEN, pw, 'ip-k-' + (i + 2));
+      assert.equal(r.error, undefined, pw.length + ' characters are accepted');
+      assert.ok(f.calls.some((c) => c.method === 'PUT' && c.url.endsWith('/auth/v1/user')), 'the 8 character password is sent to Supabase');
+    } finally { f.restore(); }
+  }
 });
 
 test('the login page asks for the email in the same box and never says whether an account exists', () => {

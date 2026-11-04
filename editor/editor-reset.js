@@ -3,11 +3,11 @@
   /* The emailed recovery link brings the owner here with a short-lived token in the address after the "#" (it never reaches a server by itself).
      The token is read once, taken out of the address bar and the browser history, kept only in this page's memory, and sent with the new
      password to /api/editor-reset-password. It is never stored. */
-  var MIN = 10;
+  var MIN = 8;
   var state = document.getElementById('state'), box = document.getElementById('resetBox'), button = document.getElementById('resetBtn');
   var ERR = {
     invalid_or_expired_link: 'الرابط منتهي أو اتستخدم قبل كده. اطلب رابط جديد من صفحة الدخول.',
-    weak_password: 'كلمة السر ضعيفة. استخدم ' + MIN + ' حروف أو أكتر.',
+    weak_password: 'كلمة السر قصيرة. لازم ' + MIN + ' حروف أو أرقام أو رموز على الأقل.',
     same_password: 'ده نفس كلمة السر القديمة. اختار كلمة سر مختلفة.',
     too_many_attempts: 'محاولات كتير. استنى شوية وجرّب تاني.',
     invalid_request: 'البيانات مش مظبوطة، جرّب تاني.',
