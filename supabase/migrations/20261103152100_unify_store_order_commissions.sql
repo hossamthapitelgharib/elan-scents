@@ -104,11 +104,8 @@ begin
       and (j->>'total')::numeric=i.line_total and coalesce(j->>'currency','EGP')=i.currency)) then return; end if;
   if nullif(trim(coalesce(v_req.latest_store_payload->>'storeOrderReference','')),'') is null and exists(
       select 1 from jsonb_array_elements(v_items) j where nullif(trim(coalesce(j->>'merchantOrderReference','')),'') is null) then return; end if;
-  -- The order snapshot is authoritative: later edits to a store's commercial
-  -- settings must never rewrite the economics of an existing order.
-  v_rate := v_req.commission_rate;
-  select return_window_days into v_return_days from public.stores where id=v_req.store_id;
-  if v_rate is null or v_return_days is null then return; end if;
+  select commission_rate,return_window_days into v_rate,v_return_days from public.stores where id=v_req.store_id;
+  if coalesce(v_rate,0)<>15 or v_return_days is null then return; end if;
   update public.store_order_request_items i set merchant_order_reference=nullif(trim(j->>'merchantOrderReference'),'')
     from jsonb_array_elements(v_items) j where i.request_id=v_req.id and j->>'platformOrderNumber'=i.platform_order_number;
   insert into public.commissions(store_id,order_item_id,store_order_request_item_id,rate,amount,status,return_window_days,return_deadline_at)
