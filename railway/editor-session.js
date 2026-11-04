@@ -26,7 +26,7 @@ function tooManyAttempts(ip) {
 }
 function noteAttempt(ip) { const l = attempts.get(ip) || []; l.push(Date.now()); attempts.set(ip, l); }
 
-function secret() { return process.env.EDITOR_SESSION_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || ''; }
+function secret() { return process.env.EDITOR_SESSION_SECRET || ''; }
 function key() { const value = secret(); return value ? crypto.createHash('sha256').update(value).digest() : null; }
 function persistentSessionsRequired() { return process.env.NODE_ENV === 'production' || process.env.EDITOR_SESSIONS_REQUIRED === '1'; }
 function seal(value) {

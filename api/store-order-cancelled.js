@@ -1,6 +1,7 @@
 const crypto = require('node:crypto');
 const { checkSecret, publicDatabaseError } = require('../lib/secure');
 const { storeIdFromRequest, authenticateStoreWebhook, checkOrderOwnership, scopeIdempotencyKey, storeFailureStatus, RATE_LIMIT } = require('../lib/store-webhook-auth');
+const { verify: verifyWebhookSignature } = require('../lib/store-webhook-signature');
 const { setRateLimitHeaders } = require('../lib/rate-limit');
 function reply(res, status, body) {
   res.status(status).setHeader('Content-Type', 'application/json').json(body);
@@ -23,7 +24,19 @@ module.exports = async function storeOrderCancelled(req, res) {
       return;
     }
     storeAuth = result;
+    if (process.env.STORE_WEBHOOK_SIGNATURE_REQUIRED === '1') {
+      const signed = verifyWebhookSignature(req, storeAuth.webhookSecret);
+      if (!signed.ok) {
+        reply(res, 401, { ok: false, error: signed.error });
+        return;
+      }
+      req.body = { ...(req.body || {}), eventId: signed.eventId };
+    }
   } else {
+    if (process.env.LEGACY_WEBHOOK_ENABLED === '0') {
+      reply(res, 410, { ok: false, error: 'legacy_webhook_disabled' });
+      return;
+    }
     const denied = checkSecret(req, 'STORE_ORDER_WEBHOOK_SECRET', 'x-store-webhook-secret');
     if (denied) {
       reply(res, denied.status, { ok: false, error: denied.error });

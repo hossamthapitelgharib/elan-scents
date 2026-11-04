@@ -61,7 +61,7 @@ function fakeSupabase(role) {
   };
   return () => { global.fetch = real; };
 }
-const configured = { SUPABASE_URL: SB, SUPABASE_ANON_KEY: 'anon', SUPABASE_SERVICE_ROLE_KEY: 'service-role-test-value' };
+const configured = { SUPABASE_URL: SB, SUPABASE_ANON_KEY: 'anon', SUPABASE_SERVICE_ROLE_KEY: 'service-role-test-value', EDITOR_SESSION_SECRET: 'editor-session-test-secret-2026' };
 
 test('the API list matches the files in api/ (and never exposes helpers or inherited names)', () => {
   const files = fs.readdirSync(path.join(root, 'api')).filter((f) => f.endsWith('.js') && !f.startsWith('_')).map((f) => f.slice(0, -3));
