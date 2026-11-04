@@ -2,7 +2,7 @@
 
 **الحالة — 4 نوفمبر 2026:** حماية CAPTCHA في Supabase يجب أن تبقى مفعّلة. أظهرت سجلات Auth طلبات `/signup` مرفوضة بـ`captcha_failed` و`invalid-input-secret`؛ أي إن السر المحفوظ في Supabase غير صالح/منتهي أو لا يطابق Turnstile widget. وظهر أيضًا `no captcha_token found` حين كان مفتاح الموقع العام غير متاح. لذلك لا تُعالج المشكلة بإيقاف CAPTCHA.
 
-**Widget Cloudflare:** `Elan Scents account forms`، وضع `managed`، والنطاق المسموح `elan-scents.hossamthapitelgharib.workers.dev`. المفتاح العام: `0x4AAAAAAFvBW0Qsb8VBNT08`. لا تحفظ Secret في Git أو Worker vars ولا ترسله في المحادثة.
+**Widget Cloudflare:** `Elan Scents account forms`، وضع `managed`، والنطاق المسموح `elan-scents.hossamthapitelgharib.workers.dev`. المفتاح العام: `0x4AAAAAAFzPlh6-a4P9h66k`. لا تحفظ Secret في Git أو Worker vars ولا ترسله في المحادثة.
 
 ## الإجراء اللازم لإصلاح الإعداد الحي
 

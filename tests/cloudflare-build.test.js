@@ -161,6 +161,6 @@ test('production Worker requires shared rate-limit state and redacts query strin
   const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'wrangler.jsonc'), 'utf8').split('\n').filter((l) => !l.trim().startsWith('//')).join('\n'));
   assert.equal(config.vars.STATE_STORE_REQUIRED, '1');
   assert.equal(config.observability.redactQueryString, true);
-  assert.equal(config.vars.TURNSTILE_SITE_KEY, '0x4AAAAAAFvBW0Qsb8VBNT08', 'the public key must match the managed Cloudflare widget');
+  assert.equal(config.vars.TURNSTILE_SITE_KEY, '0x4AAAAAAFzPlh6-a4P9h66k', 'the public key must match the managed Cloudflare widget');
   assert.equal(JSON.stringify(config).includes('TURNSTILE_SECRET'), false, 'the matching secret must never be stored in Worker vars or git');
 });

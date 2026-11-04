@@ -32,7 +32,7 @@ async function main() {
       const config = await response.json();
       if (!config.url || !config.key || !config.turnstile_site_key) throw new Error('turnstile_public_config_incomplete');
       if (config.url.replace(/\/$/, '') !== 'https://sbgdtuqfrnfeggkwqtrw.supabase.co') throw new Error('unexpected_supabase_project');
-      if (config.turnstile_site_key !== '0x4AAAAAAFvBW0Qsb8VBNT08') throw new Error('unexpected_turnstile_sitekey');
+      if (config.turnstile_site_key !== '0x4AAAAAAFzPlh6-a4P9h66k') throw new Error('unexpected_turnstile_sitekey');
       const form = document.querySelector('form[data-auth-mode="login"]');
       if (!form) throw new Error('login_form_not_found');
       const token = await Promise.race([

@@ -28,7 +28,7 @@
     "SUPABASE_URL": "https://sbgdtuqfrnfeggkwqtrw.supabase.co",
     "SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNiZ2R0dXFmcm5mZWdna3dxdHJ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA5NDUwMjgsImV4cCI6MjEwNjUyMTAyOH0.Tat-axdhjfxuDB8GnZ80KBcaxL-s35SOjU2qk9-amvg",
     // Public Cloudflare Turnstile site key. Its matching secret belongs only in Supabase Auth CAPTCHA settings.
-    "TURNSTILE_SITE_KEY": "0x4AAAAAAFvBW0Qsb8VBNT08",
+    "TURNSTILE_SITE_KEY": "0x4AAAAAAFzPlh6-a4P9h66k",
     "EDITOR_ENV": "production",
     "EDITOR_TARGET_BRANCH": "main",
     "GITHUB_REPO": "hossamthapitelgharib/elan-scents",

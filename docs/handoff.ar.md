@@ -17,7 +17,7 @@
 
 ### 2026-11-04: إصلاح ربط Turnstile مع Supabase Auth مع إبقاء CAPTCHA مفعّلة
 - **السبب المثبت من سجلات Auth:** طلبات `/signup` رجعت `captcha_failed` مع `invalid-input-secret` في 2026-11-04؛ هذا يعني أن السر المخزن في Supabase غير صالح/منتهي أو لا يطابق widget. ظهرت أيضًا استجابة سابقة `no captcha_token found` عندما كان المفتاح العام غائبًا. لا تُطفئ CAPTCHA كحل.
-- **التحقق من Cloudflare:** widget واحد باسم `Elan Scents account forms`، وضعه `managed` ونطاقه `elan-scents.hossamthapitelgharib.workers.dev`؛ المفتاح العام `0x4AAAAAAFvBW0Qsb8VBNT08`. النطاق الذي ظهر في سجلات Supabase يطابق القائمة.
+- **التحقق من Cloudflare:** widget واحد باسم `Elan Scents account forms`، وضعه `managed` ونطاقه `elan-scents.hossamthapitelgharib.workers.dev`؛ المفتاح العام `0x4AAAAAAFzPlh6-a4P9h66k`. النطاق الذي ظهر في سجلات Supabase يطابق القائمة.
 - **الكود المحلي غير المنشور بعد:** أُعيد المفتاح العام إلى `wrangler.jsonc`، وصار غياب المفتاح يفشل مغلقًا بدل إرسال طلب Auth بلا token. يجب اجتياز الاختبارات والبناء قبل الدفع.
 - **إجراء المالك المطلوب:** دوّر Secret للـwidget في Cloudflare، ثم ألصق السر الجديد مباشرة في Supabase Auth → Protection تحت Cloudflare Turnstile واحفظ مع إبقاء **Enable CAPTCHA protection** مفعّلًا. لا ترسل السر في المحادثة أو Git. موصل Supabase المتاح لا يكتب إعداد Auth، ولا توجد جلسة Dashboard مصادق عليها في المتصفح الحالي.
 - **بعد تأكيد اكتمال تحديث السر:** اختبر تسجيل ودخول واستعادة على الهاتف ثم البريد التأكيدي/الترحيبي، تحقق من `captcha_failed` في سجلات Auth، وبعدها فقط ارفع كود الواجهة. لا تنفّذ تدويرًا ثانيًا أو تعطيل CAPTCHA.
