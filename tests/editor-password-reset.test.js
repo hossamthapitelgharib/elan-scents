@@ -115,7 +115,11 @@ test('an expired or used link, a weak or unchanged password, and a short passwor
   f = fakeAuth({ userStatus: 422, userBody: { error_code: 'same_password' } });
   try { assert.deepEqual(await sessions.resetPassword(TOKEN, 'a-long-new-password', 'ip-i-2'), { status: 422, error: 'same_password' }); } finally { f.restore(); }
   f = fakeAuth({ userStatus: 422, userBody: { error_code: 'weak_password' } });
-  try { assert.deepEqual(await sessions.resetPassword(TOKEN, 'a-long-new-password', 'ip-i-3'), { status: 422, error: 'weak_password' }); } finally { f.restore(); }
+  try { assert.deepEqual(await sessions.resetPassword(TOKEN, 'a-long-new-password', 'ip-i-3'), { status: 422, error: 'auth_weak_password' }); } finally { f.restore(); }
+  for (const [reason, error] of [['length', 'auth_weak_length'], ['characters', 'auth_weak_characters'], ['pwned', 'auth_weak_pwned']]) {
+    f = fakeAuth({ userStatus: 422, userBody: { error_code: 'weak_password', weak_password: { reasons: [reason] } } });
+    try { assert.deepEqual(await sessions.resetPassword(TOKEN, 'abcdefgh', 'ip-i-3' + reason), { status: 422, error }, 'Supabase refused for ' + reason + ': the answer says so instead of "too short"'); } finally { f.restore(); }
+  }
   f = fakeAuth({ userStatus: 500 });
   try { assert.deepEqual(await sessions.resetPassword(TOKEN, 'a-long-new-password', 'ip-i-4'), { status: 502, error: 'reset_failed' }); } finally { f.restore(); }
   f = fakeAuth();
@@ -212,6 +216,7 @@ test('the reset page takes the token from the link once, scrubs it from the addr
   assert.match(js, /token = ''/);
   assert.match(js, /\/api\/editor-reset-password/);
   assert.match(js, /var MIN = 8/);
+  for (const code of ['auth_weak_length', 'auth_weak_characters', 'auth_weak_pwned', 'auth_weak_password']) assert.match(js, new RegExp(code + ':'), 'the page words the Supabase refusal ' + code);
   assert.equal(sessions.MIN_NEW_PASSWORD, 8, 'the page and the server agree');
   const html = read('editor/reset.html');
   assert.doesNotMatch(html, /<script(?![^>]*\ssrc=)[^>]*>|\son\w+=/, 'no inline script or handler (the page CSP forbids them)');

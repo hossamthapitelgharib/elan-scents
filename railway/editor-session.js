@@ -156,7 +156,13 @@ async function resetPassword(accessToken, password, ip) {
     const code = String(j.error_code || j.code || '');
     if (r.status === 401 || r.status === 403) return { status: 401, error: 'invalid_or_expired_link' };
     if (/same_password/.test(code)) return { status: 422, error: 'same_password' };
-    if (/weak_password/.test(code)) return { status: 422, error: 'weak_password' };
+    if (/weak_password/.test(code)) {
+      // Supabase Auth has its own password rules (minimum length, required characters, leaked passwords); say which one refused, so a refusal
+      // of a password that already passed this site's minimum is not reported as "too short".
+      const reasons = Array.isArray(j.weak_password && j.weak_password.reasons) ? j.weak_password.reasons : [];
+      const why = ['length', 'characters', 'pwned'].find((x) => reasons.includes(x));
+      return { status: 422, error: why ? 'auth_weak_' + why : 'auth_weak_password' };
+    }
     return { status: 502, error: 'reset_failed' };
   }
   // The password changed: end every other session of this account, so a stolen old session does not survive the reset.
