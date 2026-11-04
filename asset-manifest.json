@@ -1,9 +1,9 @@
 {
-  "version": "20261104-01",
+  "version": "20261104-02",
   "files": {
     "account.js": "6f19d544754c74d2",
-    "app-core.js": "811627f24530e1ae",
-    "app.js": "6553ec4ca7f49ebf",
+    "app-core.js": "2faa7b842aae0d88",
+    "app.js": "5b8e8e105822a86c",
     "auth-session.js": "c12caeae26af1c2c",
     "consent.css": "79e25a99fc582a15",
     "consent.js": "c383591883071ab4",
@@ -29,6 +29,6 @@
     "style-3.css": "617367c9ab2bf606",
     "style.css": "9cfd33865443059f",
     "texts.js": "4d2b3ad9bc021866",
-    "turnstile.js": "d8d08952438bacf4"
+    "turnstile.js": "73d7b1b4d2655add"
   }
 }

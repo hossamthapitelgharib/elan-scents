@@ -94,7 +94,9 @@
       var timer = setTimeout(function () { end(reject, fail('captcha_timeout')); }, SOLVE_MS);
       var holder = document.createElement('div');
       holder.className = 'elan-turnstile';
-      container.appendChild(holder);
+      var submit = container.querySelector && container.querySelector('button[type="submit"]');
+      if (submit && submit.parentNode === container && container.insertBefore) container.insertBefore(holder, submit);
+      else container.appendChild(holder);
       entry.holder = holder;
       try {
         entry.widget = api.render(holder, {

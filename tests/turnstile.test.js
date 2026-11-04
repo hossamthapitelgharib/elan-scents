@@ -22,7 +22,9 @@ function harness(options) {
   const element = (tag) => ({
     tag, id: '', className: '', children: [], parentNode: null,
     appendChild(child) { child.parentNode = this; this.children.push(child); return child; },
+    insertBefore(child, before) { child.parentNode = this; const index = this.children.indexOf(before); this.children.splice(index < 0 ? this.children.length : index, 0, child); return child; },
     removeChild(child) { this.children = this.children.filter((c) => c !== child); child.parentNode = null; return child; },
+    querySelector(selector) { return selector === 'button[type="submit"]' ? this.submitButton || null : null; },
     closest(selector) { return this.watched && selector.split(',').map((s) => s.trim()).includes(this.watched) ? this : null; }
   });
   const api = {
@@ -52,7 +54,7 @@ function harness(options) {
   };
   sandbox.window = sandbox;
   vm.runInNewContext(SOURCE, sandbox, { filename: 'turnstile.js' });
-  const form = (watched) => { const f = element('form'); f.watched = watched || null; return f; };
+  const form = (watched) => { const f = element('form'); f.watched = watched || null; f.submitButton = element('button'); f.appendChild(f.submitButton); return f; };
   return { ts: sandbox.ElanTurnstile, state, timers, rendered, removed, scripts, fetches, listeners, clock, form, element };
 }
 
@@ -76,10 +78,11 @@ test('with a key: Cloudflare\'s script is loaded once, the widget is drawn quiet
   assert.equal(h.rendered[0].opts.sitekey, 'site-key-for-tests');
   assert.equal(h.rendered[0].opts.appearance, 'interaction-only', 'nothing is shown unless Cloudflare needs the visitor to tick the box');
   assert.equal(h.rendered[0].holder.parentNode, form, 'a box that does appear is inside the form');
+  assert.ok(form.children.indexOf(h.rendered[0].holder) < form.children.indexOf(form.submitButton), 'a required challenge is placed before the submit button and is reachable on mobile');
   h.rendered[0].opts.callback('token-one');
   assert.equal(await first, 'token-one');
   assert.deepEqual(h.removed, ['widget-1'], 'the used widget is removed');
-  assert.equal(form.children.length, 0, 'and so is its holder');
+  assert.deepEqual(form.children, [form.submitButton], 'the used holder is removed while the submit button stays in place');
 
   const second = h.ts.token(form);
   await settle();
@@ -133,7 +136,7 @@ test('a check Cloudflare could not finish fails with a sentence for the visitor 
   h.rendered[0].opts['error-callback']('300030');
   await assert.rejects(pending, (error) => error.code === 'captcha_failed' && /التحقق الأمني/.test(error.message));
   assert.deepEqual(h.removed, ['widget-1']);
-  assert.equal(form.children.length, 0);
+  assert.deepEqual(form.children, [form.submitButton], 'the failed holder is removed while the submit button stays in place');
 });
 
 test('a visitor who never finishes the check gets a time-out after two minutes', async () => {
@@ -263,7 +266,7 @@ function storefront(turnstile, server) {
   context.window = context;
   if (turnstile) context.ElanTurnstile = turnstile;
   vm.runInContext(AUTH_SOURCE, context, { filename: 'app-core.js (auth)' });
-  const button = { disabled: false };
+  const button = { disabled: false, textContent: 'إرسال' };
   const makeForm = (mode, extra) => ({ dataset: { authMode: mode }, elements: Object.assign({ email: { value: ' buyer@example.invalid ' }, password: { value: 'a-test-password' } }, extra), querySelector: () => button });
   return { submit: vm.runInContext('authSubmit', context), makeForm, toasts, calls, saved, button };
 }
@@ -275,6 +278,8 @@ test('the storefront sheet sends the token with a login and with a sign-up', asy
     const s = storefront(stub(boxes), authAnswer(200, { access_token: 'a', refresh_token: 'r' }));
     const form = s.makeForm(mode, mode === 'signup' ? { name: { value: 'Test Buyer' } } : {});
     s.submit(form);
+    assert.equal(s.button.disabled, true);
+    assert.equal(s.button.textContent, 'جارٍ التحقق الأمني...');
     await settle();
     assert.equal(boxes[0], form);
     const request = s.calls[0];
@@ -284,6 +289,7 @@ test('the storefront sheet sends the token with a login and with a sign-up', asy
     assert.equal(body.email, 'buyer@example.invalid');
     if (mode === 'signup') assert.deepEqual(body.data, { full_name: 'Test Buyer' });
     assert.equal(s.button.disabled, false, 'the button is released after the answer');
+    assert.equal(s.button.textContent, 'إرسال', 'the original button label is restored');
     assert.equal(form.dataset.busy, undefined);
   }
 });
@@ -302,9 +308,12 @@ test('the storefront sheet works as before without a check, and a second press w
   t.submit(form);
   t.submit(form);
   assert.equal(t.button.disabled, true, 'the button is held while the check is running');
+  assert.equal(t.button.textContent, 'جارٍ التحقق الأمني...', 'the visitor sees why it is temporarily disabled');
   release('only-token');
   await settle();
   assert.equal(t.calls.filter((c) => c.url.includes('/auth/v1/')).length, 1, 'one press, one sign-in request: a token works once');
+  assert.equal(t.button.disabled, false);
+  assert.equal(t.button.textContent, 'إرسال');
 });
 
 test('the storefront sheet explains a check that failed, and a token Supabase refused', async () => {
@@ -314,6 +323,7 @@ test('the storefront sheet explains a check that failed, and a token Supabase re
   assert.equal(s.calls.length, 0, 'nothing is sent without the check');
   assert.match(s.toasts.at(-1), /التحقق الأمني/);
   assert.equal(s.button.disabled, false);
+  assert.equal(s.button.textContent, 'إرسال', 'a failed challenge leaves the form ready to retry');
 
   const refused = storefront(stub([]), authAnswer(400, { error_code: 'captcha_failed', msg: 'captcha protection: request disallowed (invalid-input-response)' }));
   refused.submit(refused.makeForm('signup', { name: { value: 'Test Buyer' } }));
