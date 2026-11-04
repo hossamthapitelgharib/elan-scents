@@ -56,7 +56,12 @@ async function check({ context, base, login, shots }) {
   await page.goto(base + '/editor', { waitUntil: 'load' });
   if (await page.locator('#loginBtn').count()) { await login(page); await page.waitForURL((u) => !/login/.test(u.search) && u.pathname === '/editor', { timeout: 30000 }).catch(() => {}); await page.waitForTimeout(1000); }
   const frame = await findFrame(page);
-  if (!frame) { bad('the editor did not open the platform (login refused or the page failed to load)'); return { lines, problems }; }
+  if (!frame) {
+    // The login page's own status line (an Arabic sentence such as the security-check refusal; never the typed values) says why the sign-in did not go through.
+    const said = ((await page.locator('#msg').first().innerText({ timeout: 1000 }).catch(() => '')) || '').trim().slice(0, 200);
+    bad('the editor did not open the platform (login refused or the page failed to load)' + (said ? '; the login page says: \u00ab' + said + '\u00bb' : ''));
+    return { lines, problems };
+  }
   await page.waitForTimeout(1500);
   say('editor open at ' + base + '/editor');
   await shot(page, 'editor');

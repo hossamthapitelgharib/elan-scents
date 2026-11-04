@@ -29,6 +29,19 @@ test('the live editor check passes on the local editor', async () => {
   } finally { await browser.close(); await server.stop(); }
 });
 
+test('when the sign-in is refused the check reports what the login page says, not only that the editor did not open', async () => {
+  const server = await H.startServer(), browser = await pw.chromium.launch({ args: ['--no-sandbox'] });
+  try {
+    const { context } = await H.openContext(browser, server, { width: 1366, height: 860 });
+    const login = async (page) => { await page.fill('#email', 'owner@example.invalid'); await page.fill('#pass', 'not-the-real-password'); await page.click('#loginBtn'); };
+    const out = await check({ context, base: H.SITE, login });
+    assert.equal(out.problems.length, 1, out.lines.join('\n'));
+    assert.match(out.problems[0], /the editor did not open the platform/);
+    assert.match(out.problems[0], /the login page says: \u00ab.+\u00bb/, out.problems[0]);
+    assert.doesNotMatch(out.lines.join('\n'), /not-the-real-password/, 'the typed password never reaches the report');
+  } finally { await browser.close(); await server.stop(); }
+});
+
 test('without the secrets the check says what to add and does nothing else', () => {
   const { spawnSync } = require('node:child_process');
   const r = spawnSync(process.execPath, ['scripts/live-editor-check.js', 'https://elan.invalid'], { cwd: require('node:path').resolve(__dirname, '..', '..'), env: { PATH: process.env.PATH }, encoding: 'utf8' });
