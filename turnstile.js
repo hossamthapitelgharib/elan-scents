@@ -3,11 +3,11 @@
    arrive without a Turnstile token. This file gets that token in the visitor's own browser and does nothing else: Cloudflare's widget solves
    the check (it shows a box inside the form only when Cloudflare wants a tick, usually nothing appears), and each token works once, so every
    request asks for a fresh one.
-   The public site key comes from /api/config (turnstile_site_key). Without a key the shop has no check: token() answers '' at once and the
-   forms work exactly as before, which is also how the forms behave while the Supabase switch is still off.
+   The public site key comes from /api/config (turnstile_site_key). If it is missing, fail closed: Supabase Auth may require the token and
+   the browser must never silently submit an unprotected request.
 
    window.ElanTurnstile = {
-     token(container)  -> Promise<string>   the token for a request made from `container` (a form or any element); '' when there is no key;
+     token(container)  -> Promise<string>   the token for a request made from `container` (a form or any element); rejects if there is no key;
                                             rejects with an Error whose message is Arabic text for the visitor and whose .code is
                                             captcha_unavailable | captcha_timeout | captcha_failed
      warm(container)   start solving early (the form was just opened) so the token is ready when the visitor presses the button
@@ -23,7 +23,7 @@
   var WATCHED = 'form[data-auth-form], #loginForm, #authForm, #resetForm';
 
   var MESSAGES = {
-    captcha_unavailable: 'تعذر تحميل التحقق الأمني. تأكد من الاتصال أو عطّل مانع الإعلانات ثم حاول مرة أخرى.',
+    captcha_unavailable: 'تعذر تهيئة التحقق الأمني. تحقق من الاتصال أو إعدادات منع المحتوى ثم أعد المحاولة.',
     captcha_timeout: 'انتهت مهلة التحقق الأمني. حاول مرة أخرى.',
     captcha_failed: 'لم يكتمل التحقق الأمني. حاول مرة أخرى.'
   };
@@ -33,7 +33,7 @@
   var apiPromise = null;
   var pending = typeof WeakMap === 'function' ? new WeakMap() : null;
 
-  /* The public site key. A missing key is a real answer (the shop has no check) and is remembered; a network failure is not, so the next try asks again. */
+  /* The public site key. A missing key is remembered, but must fail closed; a network failure is not, so the next try asks again. */
   function siteKey() {
     if (!keyPromise) {
       keyPromise = fetch('/api/config')
@@ -114,7 +114,7 @@
   function start(container) {
     var entry = { at: Date.now(), widget: null, holder: null, promise: null };
     entry.promise = siteKey().then(function (key) {
-      if (!key) return '';
+      if (!key) throw fail('captcha_unavailable');
       return loadApi().then(function (api) { return solve(entry, container, key, api); });
     });
     // A token that was asked for early and never used must not surface as an unhandled rejection.

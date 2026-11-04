@@ -58,12 +58,12 @@ function harness(options) {
   return { ts: sandbox.ElanTurnstile, state, timers, rendered, removed, scripts, fetches, listeners, clock, form, element };
 }
 
-test('with no site key the check does not exist: token() answers "" at once and nothing from Cloudflare is loaded', async () => {
+test('with no site key auth fails closed: no empty token is returned and no Cloudflare script is loaded', async () => {
   const h = harness({ key: '' });
-  assert.equal(await h.ts.token(h.form()), '');
+  await assert.rejects(h.ts.token(h.form()), (error) => error.code === 'captcha_unavailable');
   assert.equal(h.scripts.length, 0);
   assert.equal(h.rendered.length, 0);
-  await h.ts.token(h.form());
+  await assert.rejects(h.ts.token(h.form()), (error) => error.code === 'captcha_unavailable');
   assert.equal(h.fetches.length, 1, 'a missing key is an answer, so /api/config is not asked again');
 });
 
@@ -151,7 +151,7 @@ test('a visitor who never finishes the check gets a time-out after two minutes',
 
 test('Cloudflare\'s script being blocked (an ad blocker, no network) is reported, and the next try loads it again', async () => {
   const h = harness({ scriptFails: true });
-  await assert.rejects(h.ts.token(h.form()), (error) => error.code === 'captcha_unavailable' && /مانع الإعلانات/.test(error.message));
+  await assert.rejects(h.ts.token(h.form()), (error) => error.code === 'captcha_unavailable' && /إعدادات منع المحتوى/.test(error.message));
   h.state.scriptFails = false;
   const again = h.ts.token(h.form());
   await settle();
@@ -162,7 +162,7 @@ test('Cloudflare\'s script being blocked (an ad blocker, no network) is reported
 
 test('a failed /api/config is not remembered as "no key": the next request asks again and finds the key', async () => {
   const h = harness({ configFails: true });
-  assert.equal(await h.ts.token(h.form()), '');
+  await assert.rejects(h.ts.token(h.form()), (error) => error.code === 'captcha_unavailable');
   h.state.configFails = false;
   const next = h.ts.token(h.form());
   await settle();
