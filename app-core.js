@@ -109,7 +109,7 @@ addEventListener('scroll',function(){var y=scrollY,b=document.body,on=b.classLis
 /* The hero is a plain white slot (style.css). Nothing rotates its colours or writes its background any more: a picture or video added in the editor sits on top of it and has to stay put. */
 function best(p){var o=p.offers.filter(function(x){return x.avail}).sort(function(a,b){return a.price-b.price});return o[0]||null}
 function sec(id){return T().S.filter(function(s){return s[0]==id})[0]}
-function lab(c){var l=LB[lang];return c.k=='home'?l.home:c.k=='sec'?(c.id=='all'?l.all2:c.id=='brands'?T().menu[2]:sec(c.id)[1]):c.k=='col'?sec(c.id)[3][c.i]:c.k=='prod'?((byId(c.sid)||{}).pn||''):c.n}
+function lab(c){var l=LB[lang];return c.k=='home'?l.home:c.k=='sec'?(c.id=='all'?l.all2:MENU_WORD[c.id]?T().menu[MENU_WORD[c.id]]:sec(c.id)[1]):c.k=='col'?sec(c.id)[3][c.i]:c.k=='prod'?((byId(c.sid)||{}).pn||''):c.n}
 function go(g){var a=g.split('|'),H={k:'home'},p=a[0];
 if(p=='prod'){var viewed=byId(a[1]),offer=viewed&&best(viewed);if(viewed)trackGuestProduct('view',viewed.pid||viewed.id,viewed.id,offer&&offer.storeProductId,1)}
 P=p=='prod'?[H,{k:'sec',id:'all'},{k:'prod',sid:a[1]}]:p=='sec'?[H,{k:'sec',id:a[1]}]:p=='brand'?[H,{k:'sec',id:'brands'},{k:'brand',n:esc(a[1])}]:p=='store'?[H,{k:'sec',id:'stores'},{k:'store',n:esc(a[1])}]:[H,{k:'sec',id:a[1]},{k:'col',id:a[1],i:+a[2]}];
@@ -125,10 +125,9 @@ function sel(k,lbl,opts){return '<select data-k="'+k+'"><option value="">'+lbl+'
 function view(){var t=T(),l=LB[lang],x=P[P.length-1],V=document.getElementById('view');
 var h='<nav class="bc">'+P.map(function(c,i){return i==P.length-1?'<b>'+lab(c)+'</b>':'<a data-bc="'+i+'">'+lab(c)+'</a>'}).join('<i>›</i>')+'</nav>';
 if(x.k=='prod'){V.innerHTML=h+prodView(x,l,t);return}
-/* these pages carry no title of their own (no heading, so no gold line under it): a brand's page, the page of all brands and the page of all
-   perfumes (the inner page of «سحر الخليج بين يديك»). The breadcrumb above already says where the visitor is: the brands section is called
-   by its plain name there («البراندات» / «Brands», see lab()) and the all-perfumes page keeps «كل العطور» there. */
-if(x.k!='brand'&&!(x.k=='sec'&&(x.id=='brands'||x.id=='all')))h+='<h3>'+lab(x)+'</h3>';var hub=x.k=='sec'&&{brands:1,stores:1,cats:1}[x.id];
+/* an inner page carries no title of its own (no heading, so no gold line under it): the breadcrumb above names the page, and each section is called
+   there by its plain menu word («البراندات», «الفئات», «كل العطور»…), see lab() */
+var hub=x.k=='sec'&&{brands:1,stores:1,cats:1}[x.id];
 if((x.k=='sec'||x.k=='col')&&(x.id=='cats'||x.id=='occ'||x.id=='notes')){var field=x.id=='cats'?'cats':x.id=='occ'?'occs':'notes',items=x.k=='sec'?allSectionCards(field,sec(x.id)[3].length,x.id=='cats'?10:6):topSectionCards(field,+x.i,30),cards=items.map(function(y){return pc(y)}).join('');h+='<div class="grid section-perfume-grid">'+(cards||'<div class="empty">'+l.none+'</div>')+'</div>';V.innerHTML=h;return}
 if(hub){var c=x.id=='brands'?BR.map(function(b){return card('','<span class="gold" style="font-weight:700">'+b+'</span>','',t.wait,'brand|'+b)}):x.id=='stores'?ST.map(function(s){return card('wide','<b>'+s[0]+'</b>',s[1]||t.sdesc,t.status,'store|'+s[0])}):sec(x.id)[3].map(function(n,i){return card('round',n,'',t.view,'col|'+x.id+'|'+i,ART[x.id+i])});h+='<div class="grid">'+c.join('')+'</div>'}
 else{
@@ -205,6 +204,8 @@ var MENU_ORDER=[1,2,3,4,6,5,7,8,9,10,11,12],MENU_HASH={2:'brands',3:'offers',4:'
    «سحر الخليج بين يديك» does. Only «عن Élan Scents» and «تواصل معنا» have no page of their own (they are places at the foot of the home page),
    so those two scroll to their place. */
 var MENU_ANCHOR={11:1,12:1};
+/* the menu's word for each section: the breadcrumb of its pages calls it that (not the longer line it has as a title on the home page) */
+var MENU_WORD={brands:2,offers:3,new:4,master:5,cats:6,occ:7,notes:8,stores:9};
 function menuLink(t,i){var x=t.menu[i];return i==1?'<a data-go="sec|all">'+x+'</a>':i==10?'<a href="/account.html">'+x+'</a>':MENU_ANCHOR[i]?'<a href="#'+MENU_HASH[i]+'">'+x+'</a>':'<a data-go="sec|'+MENU_HASH[i]+'">'+x+'</a>'}
 function buildMenu(){var m=document.getElementById('menu');if(!m)return;var t=T(),signedIn=!!(AUTH&&AUTH.access_token);m.innerHTML=XBTN+LOGO+MENU_ORDER.map(function(i){return menuLink(t,i)}).join('')+(signedIn?'<a class="off" data-menu-note="already">'+t.menu[14]+'</a><a class="off" data-menu-note="already">'+t.menu[13]+'</a><a data-logout>'+t.menu[15]+'</a>':'<a data-sheet="signup">'+t.menu[14]+'</a><a data-sheet="login">'+t.menu[13]+'</a><a class="off" data-menu-note="notin">'+t.menu[15]+'</a>')}
 function logoutNow(){if(window.ELAN_EDITOR_PREVIEW)return;var wait=function(p){return Promise.race([p,new Promise(function(r){setTimeout(r,1500)})]).catch(function(){})};var prep=window.GuestIdentity&&GuestIdentity.prepareLogout?wait(Promise.resolve().then(function(){return GuestIdentity.prepareLogout()})):Promise.resolve();var said=mailEvent('logout',AUTH&&AUTH.access_token,1500);Promise.all([prep,said]).then(function(){return window.ElanAuth?ElanAuth.signOut():null}).catch(function(){}).then(function(){try{localStorage.removeItem('elan_auth_session');localStorage.removeItem('elan_cart');localStorage.removeItem('elan_favs');sessionStorage.setItem('elan_flash','logout')}catch(e){}location.reload()})}

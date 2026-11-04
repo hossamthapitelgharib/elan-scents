@@ -482,7 +482,7 @@
     var all = ((dpg && dpg.blocks) || []).concat((pg && pg.blocks) || []);
     var top = all.filter(function (b) { return b.slot !== 'bottom'; });
     var bottom = all.filter(function (b) { return b.slot === 'bottom'; });
-    var h = V.querySelector('h3'), ref = h || null;
+    var h = V.querySelector('h3') || V.querySelector('.bc'), ref = h || null;
     top.forEach(function (b) {
       var n = buildBlock(b);
       if (ref) { ref.parentNode.insertBefore(n, ref.nextSibling); ref = n; } else { V.insertBefore(n, V.firstChild); ref = n; }

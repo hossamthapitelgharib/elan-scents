@@ -97,9 +97,17 @@ test('the brands strip has no title and no gold line and sits right under the co
     assert.equal(perfumes.crumb, 'كل العطور', 'but «كل العطور» stays in the breadcrumb');
     assert.ok(perfumes.filters, 'the filters follow the breadcrumb');
 
-    await page.evaluate(() => { go('sec|offers'); });
-    await page.waitForTimeout(400);
-    assert.equal(await page.evaluate(() => document.querySelectorAll('#view h3').length), 1, 'the other inner pages keep their title');
+    // no inner page has a title: the breadcrumb names it, and each section is called there by its plain menu word
+    const menuWord = { offers: 3, new: 4, master: 5, cats: 6, occ: 7, notes: 8, stores: 9 };
+    for (const go of ['sec|offers', 'sec|new', 'sec|cats', 'sec|master', 'sec|occ', 'sec|notes', 'sec|stores', 'col|cats|0', 'store|Afnan Egypt']) {
+      await page.evaluate((g) => { go(g); }, go);
+      await page.waitForTimeout(300);
+      const r = await page.evaluate(() => ({ titles: document.querySelectorAll('#view h3').length, crumbs: [...document.querySelectorAll('#view .bc a, #view .bc b')].map((e) => e.textContent.trim()) }));
+      assert.equal(r.titles, 0, go + ': no title (and no gold line under it)');
+      const second = r.crumbs[1], expected = await page.evaluate((id) => (id ? T().menu[id] : null), menuWord[go.split('|')[1]]);
+      if (expected) assert.equal(second, expected, go + ': the breadcrumb calls the section «' + expected + '»');
+      assert.ok(r.crumbs.length >= 2 && r.crumbs.every(Boolean), go + ': the breadcrumb names the page: ' + r.crumbs.join(' › '));
+    }
     assert.deepEqual(errors, [], 'no page error');
   } finally { await context.close(); }
 });
@@ -138,12 +146,13 @@ test('every menu entry that is a section opens that section\'s own page; only «
       await page.evaluate((g) => document.querySelector('#menu a[data-go="' + g + '"]').click(), go);
       await page.waitForTimeout(500);
       const r = await page.evaluate((g) => {
-        const id = g.split('|')[1], row = T().S.find((x) => x[0] === id);
-        return { inner: document.body.classList.contains('inner'), open: document.getElementById('menu').classList.contains('open'), crumb: ((document.querySelector('#view .bc b') || {}).textContent || '').trim(), expected: id === 'all' ? LB[lang].all2 : id === 'brands' ? T().menu[2] : row[1] };
+        const id = g.split('|')[1];
+        return { inner: document.body.classList.contains('inner'), open: document.getElementById('menu').classList.contains('open'), crumb: ((document.querySelector('#view .bc b') || {}).textContent || '').trim(), expected: id === 'all' ? LB[lang].all2 : T().menu[{ brands: 2, offers: 3, new: 4, master: 5, cats: 6, occ: 7, notes: 8, stores: 9 }[id]] };
       }, go);
       assert.equal(r.inner, true, go + ': opens an inner page');
       assert.equal(r.open, false, go + ': the menu closes');
       assert.equal(r.crumb, r.expected, go + ': the page is the section\'s own page (breadcrumb «' + r.expected + '»)');
+      assert.equal(await page.evaluate(() => document.querySelectorAll('#view h3').length), 0, go + ': and it has no title of its own');
     }
     for (const id of ['about', 'contact']) {
       await page.evaluate(() => { document.body.classList.add('inner'); document.getElementById('mb').click(); });

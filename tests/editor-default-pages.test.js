@@ -247,3 +247,15 @@ test('default-page blocks appear on every page of the kind, ahead of the page\'s
   innerPage(b, brand('AMOUAGE')); b.layer.set(design);
   assert.deepEqual(texts(), [], 'brand pages do not get the product default');
 });
+
+test('a page without a title (the storefront draws none) gets its top blocks right after the breadcrumb, not above it', () => {
+  const b = designBrowser();
+  innerPage(b, brand('AMOUAGE'), '<nav class="bc"><a>الرئيسية</a><b>AMOUAGE</b></nav><div class="grid" id="res"></div>');
+  const design = {
+    version: 1,
+    pages: { 'brand:*': { blocks: [{ id: 'x-top', type: 'text', text: { ar: 'فوق القائمة' } }, { id: 'x-bottom', type: 'text', text: { ar: 'آخر الصفحة' }, slot: 'bottom' }] } }
+  };
+  b.layer.set(design);
+  const kids = b.document.getElementById('view').children.map((n) => (n.hasAttribute('data-elan-custom') ? 'block:' + n.textContent : n.tagName.toLowerCase() + (n.id ? '#' + n.id : '')));
+  assert.deepEqual(kids, ['nav', 'block:فوق القائمة', 'div#res', 'block:آخر الصفحة'], 'the breadcrumb stays first');
+});

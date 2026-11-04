@@ -1,6 +1,6 @@
 /* Opens the real shop in a real Chromium (a phone-sized window), the way a visitor would, and checks the part of the home page under the
    hero ("سحر الخليج بين يديك" and the three counters) on the home page and on inner pages, then the brands strip right under the counters
-   (no title, no gold line), a brand's own page, the page of all brands and the page of all perfumes (no title; the breadcrumb says «البراندات» / «كل العطور»), then the menu page (no lines between items, close button like the cart page's, every section entry opens its own page). Takes screenshots into a folder.
+   (no title, no gold line), a brand's own page, the page of all brands and the page of all perfumes (no title; the breadcrumb says «البراندات» / «كل العطور»), then the menu page (no lines between items, close button like the cart page's, every section entry opens its own page, and no inner page has a title: the breadcrumb names it). Takes screenshots into a folder.
    Run by the "Live browser check" workflow (GitHub runners can reach the site; the Claude sandbox cannot), or by hand:
      node scripts/live-browser-check.js [site address] [folder for the screenshots]
    Exits 1 when something is not as expected. It only reads the public site and clicks; it sends nothing and uses no secret. */
@@ -133,9 +133,10 @@ const look = () => {
       await page.waitForTimeout(500);
       await page.evaluate((g) => document.querySelector('#menu a[data-go="' + g + '"]').click(), go);
       await page.waitForTimeout(900);
-      const r = await page.evaluate(() => ({ inner: document.body.classList.contains('inner'), open: document.getElementById('menu').classList.contains('open'), crumb: ((document.querySelector('#view .bc b') || {}).textContent || '').trim(), cards: document.querySelectorAll('#view .card').length }));
+      const r = await page.evaluate((g) => { const w = { brands: 2, offers: 3, new: 4, master: 5, cats: 6, occ: 7, notes: 8, stores: 9 }[g.split('|')[1]]; return { inner: document.body.classList.contains('inner'), open: document.getElementById('menu').classList.contains('open'), crumb: ((document.querySelector('#view .bc b') || {}).textContent || '').trim(), word: w ? T().menu[w] : null, titles: document.querySelectorAll('#view h3').length, cards: document.querySelectorAll('#view .card').length }; }, go);
       say('menu entry ' + go + ': ' + JSON.stringify(r));
       expect(r.inner && !r.open && r.crumb.length > 0, 'the menu entry «' + go + '» opens its own page («' + r.crumb + '»)');
+      expect(r.titles === 0 && (!r.word || r.crumb === r.word), '«' + go + '»: no title of its own, and the breadcrumb says the menu word («' + r.crumb + '»)');
     }
   }
 
