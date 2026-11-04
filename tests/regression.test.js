@@ -73,7 +73,7 @@ test('store status API normalizes and reconciles completed webhook events', asyn
   process.env.SUPABASE_URL = 'https://test.supabase.co'; process.env.SUPABASE_SERVICE_ROLE_KEY = 'service'; process.env.STORE_ORDER_WEBHOOK_SECRET = 'secret';
   const status = api('store-order-status'); let rpcPayload;
   global.fetch = async (url, options) => { rpcPayload = JSON.parse(options.body); return jsonResponse({ trackingNumber: 'T-1', status: 'completed', matched: true, mismatches: [] }); };
-  const payload = { trackingNumber: 'T-1', customer: { name: 'عميل', phone: '010', address: 'عنوان' }, items: [{ productSizeId: 'p1', quantity: 1 }], subtotal: 100, status: 'confirmed' };
+  const payload = { trackingNumber: 'T-1', customer: { name: 'عميل', phone: '010', address: 'عنوان' }, items: [{ productSizeId: '8d3f2a54-6c1b-4a0e-9b7d-5e2c1f0a9b34', quantity: 1 }], subtotal: 100, status: 'confirmed' };
   const result = await invoke(status, { method: 'POST', headers: { 'x-store-webhook-secret': 'secret' }, body: payload }); assert.equal(result.status, 200); assert.equal(result.body.matched, true);
   const badSecret = await invoke(status, { method: 'POST', headers: { 'x-store-webhook-secret': 'wrong' }, body: payload }); assert.equal(badSecret.status, 401);
 });

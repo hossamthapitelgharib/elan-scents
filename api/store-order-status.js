@@ -1,8 +1,8 @@
-const crypto = require('node:crypto');
 const { checkSecret, publicDatabaseError } = require('../lib/secure');
 const { storeIdFromRequest, authenticateStoreWebhook, checkOrderOwnership, scopeIdempotencyKey, storeFailureStatus, RATE_LIMIT } = require('../lib/store-webhook-auth');
 const { verify: verifyWebhookSignature } = require('../lib/store-webhook-signature');
 const { setRateLimitHeaders } = require('../lib/rate-limit');
+const { validatePurchaseNotice, fallbackIdempotencyKey } = require('../lib/purchase-notice');
 const ALLOWED_STATUSES = new Set([
   'completed',
   'success',
@@ -31,20 +31,16 @@ function normalizePayload(body) {
     trackingNumber: source.trackingNumber || source.orderNumber,
     status: String(source.status || '').toLowerCase(),
   };
-  normalized.idempotencyKey = normalized.idempotencyKey || normalized.eventId || crypto.createHash('sha256').update(JSON.stringify({ trackingNumber: normalized.trackingNumber, status: normalized.status, subtotal: normalized.subtotal, items: normalized.items })).digest('hex');
+  normalized.idempotencyKey = normalized.idempotencyKey || normalized.eventId || fallbackIdempotencyKey(normalized);
   return normalized;
 }
 
 function validatePayload(payload) {
   if (!payload.trackingNumber) return 'trackingNumber is required';
   if (!ALLOWED_STATUSES.has(payload.status)) return 'status is invalid';
-  if (!payload.customer || typeof payload.customer !== 'object') return 'customer is required';
-  if (!payload.customer.name || !payload.customer.phone || !payload.customer.address) {
-    return 'customer name, phone and address are required';
-  }
-  if (!Array.isArray(payload.items) || payload.items.length === 0) return 'items are required';
-  if (typeof payload.subtotal !== 'number' && typeof payload.subtotal !== 'string') return 'subtotal is required';
-  return null;
+  // Shape only. Whether the notice is complete and agrees with the order is decided in the database, which records the
+  // difference and keeps the commission instead of refusing the notice (a refused notice would hide the sale).
+  return validatePurchaseNotice(payload);
 }
 
 module.exports = async function storeOrderStatus(req, res) {

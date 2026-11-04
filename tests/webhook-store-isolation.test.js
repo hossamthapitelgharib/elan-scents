@@ -67,7 +67,7 @@ function webhook({ storeId = STORE_A, secret, body, headers = {} }) {
 }
 
 const CASES = [
-  { name: 'store-order-status', failureError: 'supabase_update_failed', makeBody: (trackingNumber, extra = {}) => ({ trackingNumber, customer: { name: 'Test', phone: '1', address: 'Addr' }, items: [{ productSizeId: 'p1', quantity: 1 }], subtotal: 10, status: 'completed', ...extra }) },
+  { name: 'store-order-status', failureError: 'supabase_update_failed', makeBody: (trackingNumber, extra = {}) => ({ trackingNumber, customer: { name: 'Test', phone: '1', address: 'Addr' }, items: [{ productSizeId: '8d3f2a54-6c1b-4a0e-9b7d-5e2c1f0a9b34', quantity: 1 }], subtotal: 10, status: 'completed', ...extra }) },
   { name: 'store-order-cancelled', failureError: 'cancellation_update_failed', makeBody: (trackingNumber, extra = {}) => ({ trackingNumber, items: [{ productSizeId: 'p1', quantity: 1 }], ...extra }) },
 ];
 

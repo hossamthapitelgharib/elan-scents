@@ -9,7 +9,7 @@ const jsonResponse = (data, status = 200) => new Response(JSON.stringify(data), 
 function recorder() { const out = {}; return { out, status(n) { out.status = n; return this; }, setHeader() { return this; }, json(body) { out.body = body; return this; }, end() { return this; } }; }
 async function call(handler, req) { const res = recorder(); await handler(req, res); return res.out; }
 
-const body = { trackingNumber: 'T-9', customer: { name: 'x', phone: '1', address: 'y' }, items: [{ productSizeId: 'p', quantity: 1 }], subtotal: 10, status: 'completed' };
+const body = { trackingNumber: 'T-9', customer: { name: 'x', phone: '1', address: 'y' }, items: [{ productSizeId: '8d3f2a54-6c1b-4a0e-9b7d-5e2c1f0a9b34', quantity: 1 }], subtotal: 10, status: 'completed' };
 const hits = [];
 function stubFetch() { hits.length = 0; global.fetch = async (url) => { hits.push(url); return jsonResponse({ trackingNumber: 'T-9', status: 'completed', matched: true, mismatches: [] }); }; }
 
