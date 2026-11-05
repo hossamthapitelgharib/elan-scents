@@ -63,6 +63,16 @@ function catalogTables() {
       { id: id(306), store_id: STORE_2, product_size_id: id(202), price: 1200, stock_quantity: 2, is_available: true, sync_status: 'synced', stores: { status: 'active' } },
       { id: id(307), store_id: STORE_2, product_size_id: id(203), price: 700, stock_quantity: 9, is_available: false, sync_status: 'synced', stores: { status: 'active' } }
     ],
+    catalog_platform_offers: [
+      { product_size_id: id(201), store_product_id: id(301), store_id: STORE_1, price: 100, currency: 'EGP', is_available: true, stock_quantity: null, sync_status: 'synced', store_status: 'active' },
+      { product_size_id: id(201), store_product_id: id(302), store_id: STORE_2, price: 120, currency: 'EGP', is_available: true, stock_quantity: 1, sync_status: 'synced', store_status: 'active' },
+      { product_size_id: id(201), store_product_id: id(303), store_id: STORE_2, price: 50, currency: 'EGP', is_available: true, stock_quantity: 0, sync_status: 'synced', store_status: 'active' },
+      { product_size_id: id(201), store_product_id: id(304), store_id: STORE_2, price: 60, currency: 'EGP', is_available: false, stock_quantity: 1, sync_status: 'synced', store_status: 'active' },
+      { product_size_id: id(201), store_product_id: id(305), store_id: STORE_2, price: 70, currency: 'EGP', is_available: true, stock_quantity: 1, sync_status: 'stale', store_status: 'active' },
+      { product_size_id: id(201), store_product_id: id(306), store_id: STORE_2, price: 80, currency: 'EGP', is_available: true, stock_quantity: 1, sync_status: 'synced', store_status: 'inactive' },
+      { product_size_id: id(202), store_product_id: id(307), store_id: STORE_2, price: 120, currency: 'EGP', is_available: true, stock_quantity: 2, sync_status: 'synced', store_status: 'active' },
+      { product_size_id: id(203), store_product_id: id(308), store_id: STORE_2, price: 700, currency: 'EGP', is_available: false, stock_quantity: 9, sync_status: 'synced', store_status: 'active' }
+    ],
     brands: [{ id: BRAND_A, name: 'Atelier', is_active: true }, { id: BRAND_B, name: 'Dormant', is_active: false }],
     stores: [{ id: STORE_1, name: 'Store One', status: 'active' }, { id: STORE_2, name: 'Store Two', status: 'inactive' }],
     categories: [], occasions: [], notes: []
@@ -89,28 +99,31 @@ test('category, occasion and note filters use the real relation tables and inter
   assert.deepEqual(sizeIds(both), [id(202)]);
 });
 
-test('a store filter keeps only sizes with an eligible offer from that store', async () => {
+test('a store filter returns only the store that owns the exact global cheapest eligible offer', async () => {
   const db = fakeDb(catalogTables());
   const catalog = createCatalog(db.sb);
-  assert.deepEqual(sizeIds(await catalog.perfumes({}, { store_id: STORE_1 })).sort(), [id(201), id(202)].sort());
-  // Store 2 only has an unavailable, an out-of-stock, an unsynced and an inactive-store offer for size 201,
-  // so only its available offer for 202 counts; size 203 is marked unavailable.
+  const globalRows = await catalog.perfumes({}, { price_min: 100, price_max: 100 });
+  assert.deepEqual(sizeIds(globalRows), [id(201)]);
+  assert.equal(globalRows[0].store_id, STORE_1);
+  assert.equal(globalRows[0].store_product_id, id(301));
+  assert.ok(!Object.hasOwn(globalRows[0], 'price'), 'prices are not returned to the panel');
+  assert.deepEqual(sizeIds(await catalog.perfumes({}, { store_id: STORE_1 })), [id(201)], 'store A owns size 201 global offer but not size 202 global offer');
   assert.deepEqual(sizeIds(await catalog.perfumes({}, { store_id: STORE_2 })), [id(202)]);
-  const storeCall = db.calls.find((c) => c.startsWith('store_products') && c.includes('store_id=eq.' + STORE_2));
+  const storeCall = db.calls.find((c) => c.startsWith('catalog_platform_offers'));
   assert.match(storeCall, /is_available=eq\.true/);
-  assert.match(storeCall, /stock_quantity=gt\.0/);
   assert.match(storeCall, /sync_status=eq\.synced/);
-  assert.match(storeCall, /stores\.status=eq\.active/);
+  assert.match(storeCall, /store_status=eq\.active/);
 });
 
 test('price limits compare against the cheapest eligible offer, inclusive at both ends', async () => {
   const catalog = createCatalog(fakeDb(catalogTables()).sb);
-  assert.deepEqual(sizeIds(await catalog.perfumes({}, { price_min: 900, price_max: 900 })), [id(201)]);
-  assert.deepEqual(sizeIds(await catalog.perfumes({}, { price_max: 1000 })), [id(201)]);
-  assert.deepEqual(sizeIds(await catalog.perfumes({}, { price_min: 1000 })), [id(202)]);
+  assert.deepEqual(sizeIds(await catalog.perfumes({}, { price_min: 100, price_max: 100 })), [id(201)]);
+  assert.deepEqual(sizeIds(await catalog.perfumes({}, { price_max: 100 })), [id(201)]);
+  assert.deepEqual(sizeIds(await catalog.perfumes({}, { price_min: 120 })), [id(202)]);
   assert.deepEqual(sizeIds(await catalog.perfumes({}, { price_min: 1300 })), []);
-  // With a store chosen, only that store's offers are compared: store 1 sells 202 at 1500.
-  assert.deepEqual(sizeIds(await catalog.perfumes({}, { store_id: STORE_1, price_min: 1300 })), [id(202)]);
+  // Price limits remain global even while restricting ownership to a store.
+  assert.deepEqual(sizeIds(await catalog.perfumes({}, { store_id: STORE_2, price_min: 100, price_max: 100 })), []);
+  assert.deepEqual(sizeIds(await catalog.perfumes({}, { store_id: STORE_2, price_min: 120, price_max: 120 })), [id(202)]);
 });
 
 test('search and size filters keep working together', async () => {

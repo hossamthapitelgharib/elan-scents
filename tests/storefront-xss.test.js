@@ -134,15 +134,15 @@ test('the catalog really was drawn from the fake rows (the check above is not va
   const all = page.written.map((w) => w.html).join('\n');
   assert.match(all, /&lt;img src=x onerror=__x\(&#39;public_brands\.name&#39;\)&gt;/, 'brand names are shown, escaped');
   assert.match(all, /public_stores\.name/);
-  assert.match(all, /cheapest_offers\.currency/);
+  assert.match(all, /catalog_platform_offers\.currency/);
 });
 
 test('names with & and an apostrophe are escaped once (no &amp;amp;) and still match their own filters', async () => {
   const plain = {
     'public_brands.name': "Maison & Co's", 'public_products.brand_name': "Maison & Co's", 'public_products.name': 'Oud & Musk',
-    'public_stores.name': "Store's & More", 'cheapest_offers.store_name': "Store's & More", 'public_stores.short_description': 'Fine & rare',
+    'public_stores.name': "Store's & More", 'catalog_platform_offers.store_name': "Store's & More", 'public_stores.short_description': 'Fine & rare',
     'public_products.short_description': 'a & b', 'public_products.official_description': 'c', 'public_products.composition': 'd',
-    'product_sizes.size_label': '100ml', 'cheapest_offers.currency': 'EGP', 'site_settings.footer_tagline': 'x'
+    'product_sizes.size_label': '100ml', 'catalog_platform_offers.currency': 'EGP', 'site_settings.footer_tagline': 'x'
   };
   const page = await openStorefront(plain);
   page.run('go("brand|" + dec(BR[0]))');

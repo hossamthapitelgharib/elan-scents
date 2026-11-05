@@ -444,8 +444,8 @@ test('the Coming soon section lists the perfumes a store flagged as coming soon,
 });
 
 test('the storefront reads is_coming_soon and marks those product sizes with the soon flag', () => {
-  assert.match(core, /ga\('store_products\?select=id,product_size_id&is_coming_soon=eq\.true&order=id\.asc'\)\]\);/, 'fetched last so no other result index moves');
-  assert.match(core, /d\[17\]\.forEach\(function\(r\)\{if\(r\.product_size_id\)soon\[r\.product_size_id\]=1\}\)/);
+  assert.match(core, /ga\('store_products\?select=id,product_size_id&is_coming_soon=eq\.true&order=id\.asc'\)\]\);/);
+  assert.match(core, /d\[15\]\.forEach\(function\(r\)\{if\(r\.product_size_id\)soon\[r\.product_size_id\]=1\}\)/);
   assert.strictEqual((core.match(/soon\[(?:r|o)\.product_size_id\]\?\['soon'\]:\[\]/g) || []).length, 2, 'the best offer and every store offer carry the flag');
 });
 
@@ -461,4 +461,3 @@ test('the database lets visitors read only that one extra column, with its rollb
   /* generate.sql lists the granted columns in table order, so the flag sits right after is_new_arrival */
   assert.match(read('supabase/schema-snapshot/tables-4.txt'), /COLUMN GRANTS anon=select,authenticated=select: [^\n]*is_new_arrival,is_coming_soon,price_includes_tax/);
 });
-

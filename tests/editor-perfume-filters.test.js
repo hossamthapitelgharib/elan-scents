@@ -30,10 +30,10 @@ function catalogTables() {
       { id: id(203), product_id: id(102), size_ml: 100, size_label: '100 ml' }
     ],
     product_categories: [{ product_id: id(101), category_id: CAT }],
-    store_products: [
-      { id: id(301), store_id: STORE_1, product_size_id: id(201), price: 900, stock_quantity: 4, is_available: true, sync_status: 'synced', stores: { status: 'active' } },
-      { id: id(302), store_id: STORE_1, product_size_id: id(202), price: 1500, stock_quantity: 2, is_available: true, sync_status: 'synced', stores: { status: 'active' } },
-      { id: id(303), store_id: STORE_2, product_size_id: id(203), price: 700, stock_quantity: 9, is_available: true, sync_status: 'synced', stores: { status: 'active' } }
+    catalog_platform_offers: [
+      { store_product_id: id(301), store_id: STORE_1, product_size_id: id(201), price: 900, currency: 'EGP', stock_quantity: 4, is_available: true, sync_status: 'synced', store_status: 'active' },
+      { store_product_id: id(302), store_id: STORE_1, product_size_id: id(202), price: 1500, currency: 'EGP', stock_quantity: 2, is_available: true, sync_status: 'synced', store_status: 'active' },
+      { store_product_id: id(303), store_id: STORE_2, product_size_id: id(203), price: 700, currency: 'EGP', stock_quantity: 9, is_available: true, sync_status: 'synced', store_status: 'active' }
     ],
     brands: [{ id: id(1), name: 'Atelier', is_active: true }],
     stores: [{ id: STORE_1, name: 'Store One', status: 'active' }],
@@ -105,7 +105,7 @@ test('the editor panels read real, filtered catalogue data and keep the purpose 
 
       const byPrice = await call({ action: 'perfumes', filters: { store_id: STORE_1, price_min: 1000, price_max: 2000 } });
       assert.deepEqual(byPrice.body.rows.map((r) => r.product_size_id), [id(202)]);
-      assert.deepEqual(Object.keys(byPrice.body.rows[0]).sort(), ['name', 'product_id', 'product_size_id', 'size_label'], 'the panel list never carries prices');
+      assert.deepEqual(Object.keys(byPrice.body.rows[0]).sort(), ['name', 'product_id', 'product_size_id', 'size_label', 'store_id', 'store_product_id'], 'the panel gets the exact offer identifiers but never its price');
     });
 
     await t.test('malformed filters answer 400 and read nothing from the catalogue', async () => {

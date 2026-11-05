@@ -65,6 +65,25 @@
     if (actual === wanted) return true;
     try { return typeof esc === 'function' && actual === esc(wanted); } catch (e) { return false; }
   }
+  function genderKey(value) {
+    var s = String(value == null ? '' : value).toLowerCase();
+    var aliases = { 'رجالي': 'men', 'men': 'men', 'نسائي': 'women', 'women': 'women', 'عطر يجمعنا': 'unisex', 'a scent that unites us': 'unisex' };
+    return aliases[s] || s;
+  }
+  function taxonomyMatches(p, group, value) {
+    if (!value) return true;
+    if (group === 'cats') {
+      var categoryKeyMap = window.CATALOG_TAXONOMY_KEY_BY_ID && window.CATALOG_TAXONOMY_KEY_BY_ID.cats;
+      var gender = genderKey(categoryKeyMap && categoryKeyMap[String(value)] || value);
+      if (['men', 'women', 'unisex'].indexOf(gender) > -1) return String(p.gender || '') === gender;
+    }
+    var keysField = { cats: 'categoryKeys', occ: 'occasionKeys', notes: 'noteKeys' }[group];
+    var idsField = { cats: 'categoryIds', occ: 'occasionIds', notes: 'noteIds' }[group];
+    var keys = (p[keysField] || p[group === 'occ' ? 'occs' : group] || []).map(String);
+    var ids = (p[idsField] || []).map(String), wanted = String(value);
+    if (keys.indexOf(wanted) > -1 || ids.indexOf(wanted) > -1) return true;
+    return keys.some(function (key) { return sameCatalogName(nmOf(group, key), wanted); }) || ids.some(function (id) { return sameCatalogName(nmOf(group, id), wanted); });
+  }
   function autoList(f) {
     f = f || {};
     var l = [];
@@ -82,9 +101,9 @@
       var p = x.p;
       if (f.brand && !sameCatalogName(p.brand, f.brand)) return false;
       if (f.size_ml != null && f.size_ml !== '' && Number(p.sizeMl) !== Number(f.size_ml)) return false;
-      if (f.cat && !(p.cats || []).some(function (i) { return sameCatalogName(nmOf('cats', i), f.cat); })) return false;
-      if (f.occ && !(p.occs || []).some(function (i) { return sameCatalogName(nmOf('occ', i), f.occ); })) return false;
-      if (f.note && !(p.notes || []).some(function (i) { return sameCatalogName(nmOf('notes', i), f.note); })) return false;
+      if (f.cat && !taxonomyMatches(p, 'cats', f.cat)) return false;
+      if (f.occ && !taxonomyMatches(p, 'occ', f.occ)) return false;
+      if (f.note && !taxonomyMatches(p, 'notes', f.note)) return false;
       if (f.min !== undefined && f.min !== '' && x.b.price < +f.min) return false;
       if (f.max !== undefined && f.max !== '' && x.b.price > +f.max) return false;
       return true;

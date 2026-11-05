@@ -59,9 +59,9 @@ module.exports = function createCatalog(sb) {
     const [brands, stores, categories, occasions, notes] = await Promise.all([
       sb(ctx, 'brands', '?select=id,name&is_active=eq.true&order=name.asc&limit=500'),
       sb(ctx, 'stores', '?select=id,name&status=eq.active&order=name.asc&limit=500'),
-      sb(ctx, 'categories', '?select=id,name&order=name.asc&limit=500'),
-      sb(ctx, 'occasions', '?select=id,name&order=name.asc&limit=500'),
-      sb(ctx, 'aromatic_notes', '?select=id,name&order=name.asc&limit=500')
+      sb(ctx, 'categories', '?select=id,key,name&order=name.asc&limit=500'),
+      sb(ctx, 'occasions', '?select=id,key,name&order=name.asc&limit=500'),
+      sb(ctx, 'aromatic_notes', '?select=id,key,name&order=name.asc&limit=500')
     ]);
     // One entry per distinct size, named for the panel's list (the table holds one row per perfume and size).
     const sizeRows = await fetchAll(ctx, 'product_sizes', '?select=id,size_ml&size_ml=not.is.null&order=id.asc');
@@ -82,20 +82,17 @@ module.exports = function createCatalog(sb) {
     return new Set(rows.map((row) => String(row.product_id)));
   }
 
-  /* The approved offer rule: available, in stock, synced, and from an active store.
-     Price filters compare against the cheapest such offer (of the chosen store, when one is chosen). */
-  async function bestEligiblePrices(ctx, storeId) {
-    const query = '?select=id,product_size_id,price,stores!inner(status)&is_available=eq.true&stock_quantity=gt.0&sync_status=eq.synced&stores.status=eq.active'
-      + (storeId ? '&store_id=eq.' + encodeURIComponent(storeId) : '') + '&order=id.asc';
-    const rows = await fetchAll(ctx, 'store_products', query);
-    const best = new Map();
+  /* The stable view selects the platform-cheapest currently eligible EGP offer per size. */
+  async function platformOffers(ctx) {
+    const rows = await fetchAll(ctx, 'catalog_platform_offers', '?select=product_size_id,store_product_id,store_id,price,currency,is_available,stock_quantity,sync_status,store_status&currency=eq.EGP&is_available=eq.true&sync_status=eq.synced&store_status=eq.active&order=product_size_id.asc');
+    const offers = new Map();
     for (const row of rows) {
       const price = Number(row.price);
-      if (!Number.isFinite(price)) continue;
+      if (!Number.isFinite(price) || row.currency !== 'EGP' || row.is_available !== true || row.sync_status !== 'synced' || row.store_status !== 'active' || (row.stock_quantity !== null && Number(row.stock_quantity) <= 0)) continue;
       const key = String(row.product_size_id);
-      if (!best.has(key) || price < best.get(key)) best.set(key, price);
+      if (!offers.has(key)) offers.set(key, { ...row, price });
     }
-    return best;
+    return offers;
   }
 
   async function perfumes(ctx, filters) {
@@ -106,8 +103,8 @@ module.exports = function createCatalog(sb) {
     for (const [key, table] of RELATIONS) {
       if (f[key]) limits.push(await productIdsFor(ctx, table, key, f[key]));
     }
-    const priced = f.store_id !== undefined || f.price_min !== undefined || f.price_max !== undefined;
-    const prices = priced ? await bestEligiblePrices(ctx, f.store_id) : null;
+    const needsOffer = f.store_id !== undefined || f.price_min !== undefined || f.price_max !== undefined;
+    const offers = needsOffer ? await platformOffers(ctx) : null;
     const byId = new Map(products
       .filter((p) => (!f.brand_id || String(p.brand_id) === f.brand_id) && limits.every((set) => set.has(String(p.id))))
       .map((p) => [String(p.id), p]));
@@ -118,15 +115,17 @@ module.exports = function createCatalog(sb) {
       if (!p) continue;
       if (needle && !String(p.name || '').toLocaleLowerCase().includes(needle)) continue;
       if (f.size_ml !== undefined && Number(s.size_ml) !== f.size_ml) continue;
-      if (prices) {
-        const price = prices.get(String(s.id));
-        if (price === undefined) continue;
+      let offer;
+      if (offers) {
+        offer = offers.get(String(s.id));
+        if (!offer || (f.store_id && String(offer.store_id) !== f.store_id)) continue;
+        const price = offer.price;
         if (f.price_min !== undefined && price < f.price_min) continue;
         if (f.price_max !== undefined && price > f.price_max) continue;
       }
       found.push({
         ml: Number(s.size_ml) || 0,
-        row: { product_id: p.id, product_size_id: s.id, name: p.name, size_label: s.size_label || (s.size_ml ? String(s.size_ml) + ' ml' : null) }
+        row: { product_id: p.id, product_size_id: s.id, name: p.name, size_label: s.size_label || (s.size_ml ? String(s.size_ml) + ' ml' : null), ...(offer ? { store_product_id: offer.store_product_id, store_id: offer.store_id } : {}) }
       });
     }
     found.sort((a, b) => String(a.row.name || '').localeCompare(String(b.row.name || ''), 'ar') || a.ml - b.ml);
