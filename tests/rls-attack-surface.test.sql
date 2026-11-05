@@ -257,18 +257,29 @@ begin
   ---------------------------------------------------------------------------------------------------------------------
   -- 6. Functions a client may call, and who may call them.
   ---------------------------------------------------------------------------------------------------------------------
+  -- Since 4 Nov 2026 the customer actions run behind the server APIs (lib/customer-rpc.js) and the database functions are
+  -- closed to the browser: none of them, including the purchase confirmation, may be called with a customer's own token.
   select string_agg(p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')', ', ' order by p.proname) into v_bad
   from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-  where n.nspname = 'public' and p.prokind = 'f'
-    and has_function_privilege('authenticated', p.oid, 'execute')
-    and p.proname not in ('place_store_order', 'replace_customer_cart', 'request_store_order_cancellation');
-  assert v_bad is null, 'a signed-in client may call only the three checked customer functions, found: ' || coalesce(v_bad, '');
+  where n.nspname = 'public' and p.prokind = 'f' and has_function_privilege('authenticated', p.oid, 'execute');
+  assert v_bad is null, 'no public function is callable with a customer token, found: ' || coalesce(v_bad, '');
   select string_agg(p.proname, ', ') into v_bad
   from pg_proc p join pg_namespace n on n.oid = p.pronamespace
   where n.nspname = 'public' and p.prokind = 'f' and has_function_privilege('anon', p.oid, 'execute');
   assert v_bad is null, 'a visitor may call no public function, found: ' || coalesce(v_bad, '');
   assert not has_function_privilege('anon', 'public.place_store_order(jsonb)', 'execute'), 'a visitor cannot place an order';
   assert pg_temp.attack(null, 'anon', $q$select public.place_store_order('{}'::jsonb)$q$) like 'err:%', 'a visitor calling place_store_order is refused';
+  assert not has_function_privilege('authenticated', 'public.confirm_store_order_purchase(uuid)', 'execute') and not has_function_privilege('anon', 'public.confirm_store_order_purchase(uuid)', 'execute'), 'neither a visitor nor a customer token can confirm a purchase directly';
+  assert pg_temp.blocked(u_a, 'authenticated', $q$update public.store_order_commissions set commission_amount = 0$q$), 'a customer cannot change the legacy commission ledger';
+  assert pg_temp.blocked(u_sx, 'authenticated', $q$update public.store_order_commissions set commission_amount = 0$q$), 'a store admin cannot lower a commission';
+  assert pg_temp.blocked(u_sx, 'authenticated', $q$delete from public.store_order_commissions$q$), 'a store admin cannot delete a commission';
+  assert pg_temp.blocked(u_a, 'authenticated', $q$select 1 from public.platform_commission_watch$q$), 'a customer cannot read the commission watch list';
+  assert pg_temp.blocked(u_sx, 'authenticated', $q$select 1 from public.platform_commission_watch$q$), 'a store admin cannot read the commission watch list';
+  assert pg_temp.blocked(u_admin, 'authenticated', $q$select 1 from public.platform_commission_watch$q$), 'even the owner''s browser session reads the watch list only through the checked API';
+  assert not has_function_privilege('authenticated', 'public.platform_review_commission(uuid,text,text,uuid)', 'execute'), 'only the server may confirm or void a commission';
+  assert not has_function_privilege('authenticated', 'public.platform_store_order_health(integer)', 'execute'), 'only the server reads the order health';
+  assert pg_temp.blocked(u_a, 'authenticated', $q$update public.commissions set amount = 0$q$), 'a customer cannot change a commission';
+  assert pg_temp.blocked(u_sx, 'authenticated', $q$update public.commission_settlements set status = 'paid'$q$), 'a store admin cannot mark a settlement paid';
   assert pg_temp.attack(u_a, 'authenticated', $q$select public.place_store_order('{"storeId":"00000000-0000-0000-0000-000000000000","items":[]}'::jsonb)$q$) like 'err:%', 'an empty or unknown-store order is refused';
 
   ---------------------------------------------------------------------------------------------------------------------
