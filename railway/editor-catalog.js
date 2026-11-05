@@ -24,10 +24,6 @@ function cleanPerfumeFilters(input) {
     if (typeof value !== 'string' || !UUID.test(value)) throw fail('invalid_perfume_filter');
     out[key] = value.toLowerCase();
   }
-  if (raw.gender !== undefined && raw.gender !== null && raw.gender !== '') {
-    if (!['men', 'women', 'unisex'].includes(raw.gender)) throw fail('invalid_perfume_filter');
-    out.gender = raw.gender;
-  }
   if (raw.size_ml !== undefined && raw.size_ml !== null && raw.size_ml !== '') {
     const size = Number(raw.size_ml);
     if (!Number.isInteger(size) || size < 1 || size > 10000) throw fail('invalid_perfume_filter');
@@ -63,7 +59,7 @@ module.exports = function createCatalog(sb) {
     const [brands, stores, categories, occasions, notes] = await Promise.all([
       sb(ctx, 'brands', '?select=id,name&is_active=eq.true&order=name.asc&limit=500'),
       sb(ctx, 'stores', '?select=id,name&status=eq.active&order=name.asc&limit=500'),
-      sb(ctx, 'categories', '?select=id,name&category_type=eq.catalog&order=name.asc&limit=500'),
+      sb(ctx, 'categories', '?select=id,name&order=name.asc&limit=500'),
       sb(ctx, 'occasions', '?select=id,name&order=name.asc&limit=500'),
       sb(ctx, 'aromatic_notes', '?select=id,name&order=name.asc&limit=500')
     ]);
@@ -78,7 +74,7 @@ module.exports = function createCatalog(sb) {
       sizes.push({ size_ml: ml, name: ml + ' ml' });
     }
     sizes.sort((a, b) => a.size_ml - b.size_ml);
-    return { brands, stores, genders: [{ id: 'men', name: 'رجالي' }, { id: 'women', name: 'نسائي' }, { id: 'unisex', name: 'عطر يجمعنا' }], categories, occasions, notes, sizes };
+    return { brands, stores, categories, occasions, notes, sizes };
   }
 
   async function productIdsFor(ctx, table, column, id) {
@@ -104,7 +100,7 @@ module.exports = function createCatalog(sb) {
 
   async function perfumes(ctx, filters) {
     const f = cleanPerfumeFilters(filters);
-    const products = await fetchAll(ctx, 'products', '?select=id,name,brand_id,gender,status,is_active&status=eq.published&is_active=eq.true&order=id.asc');
+    const products = await fetchAll(ctx, 'products', '?select=id,name,brand_id,status,is_active&status=eq.published&is_active=eq.true&order=id.asc');
     const sizes = await fetchAll(ctx, 'product_sizes', '?select=id,product_id,size_ml,size_label&order=id.asc');
     const limits = [];
     for (const [key, table] of RELATIONS) {
@@ -113,7 +109,7 @@ module.exports = function createCatalog(sb) {
     const priced = f.store_id !== undefined || f.price_min !== undefined || f.price_max !== undefined;
     const prices = priced ? await bestEligiblePrices(ctx, f.store_id) : null;
     const byId = new Map(products
-      .filter((p) => (!f.brand_id || String(p.brand_id) === f.brand_id) && (!f.gender || p.gender === f.gender) && limits.every((set) => set.has(String(p.id))))
+      .filter((p) => (!f.brand_id || String(p.brand_id) === f.brand_id) && limits.every((set) => set.has(String(p.id))))
       .map((p) => [String(p.id), p]));
     const needle = f.search ? f.search.toLocaleLowerCase() : '';
     const found = [];
