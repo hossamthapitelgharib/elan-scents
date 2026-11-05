@@ -38,8 +38,8 @@ function fakeDb(tables) {
 function catalogTables() {
   return {
     products: [
-      { id: id(101), name: 'Rose Oud', brand_id: BRAND_A, status: 'published', is_active: true },
-      { id: id(102), name: 'Amber Night', brand_id: BRAND_B, status: 'published', is_active: true },
+      { id: id(101), name: 'Rose Oud', brand_id: BRAND_A, gender: 'men', status: 'published', is_active: true },
+      { id: id(102), name: 'Amber Night', brand_id: BRAND_B, gender: 'women', status: 'published', is_active: true },
       { id: id(103), name: 'Hidden Draft', brand_id: BRAND_A, status: 'published', is_active: true },
       { id: id(104), name: 'Old Stock', brand_id: BRAND_A, status: 'archived', is_active: true }
     ],
@@ -78,6 +78,13 @@ test('without filters every published, active perfume size is listed and no offe
   assert.equal(rows[0].name, 'Amber Night');
   assert.ok(!db.calls.some((c) => c.startsWith('store_products')), 'store offers are only read when a store or price filter is used');
   assert.equal(rows.find((r) => r.product_size_id === id(201)).size_label, '50 ml');
+});
+
+test('gender filters use products.gender and intersect with taxonomy filters', async () => {
+  const catalog = createCatalog(fakeDb(catalogTables()).sb);
+  assert.deepEqual(sizeIds(await catalog.perfumes({}, { gender: 'men' })).sort(), [id(201), id(202)].sort());
+  assert.deepEqual(sizeIds(await catalog.perfumes({}, { gender: 'women' })).sort(), [id(203)].sort());
+  await assert.rejects(() => catalog.perfumes({}, { gender: 'children' }), (e) => e.message === 'invalid_perfume_filter' && e.status === 400);
 });
 
 test('category, occasion and note filters use the real relation tables and intersect', async () => {

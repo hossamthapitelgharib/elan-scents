@@ -21,8 +21,8 @@ function makeRes() {
 function catalogTables() {
   return {
     products: [
-      { id: id(101), name: 'Rose Oud', brand_id: id(1), status: 'published', is_active: true },
-      { id: id(102), name: 'Amber Night', brand_id: id(2), status: 'published', is_active: true }
+      { id: id(101), name: 'Rose Oud', brand_id: id(1), gender: 'men', status: 'published', is_active: true },
+      { id: id(102), name: 'Amber Night', brand_id: id(2), gender: 'women', status: 'published', is_active: true }
     ],
     product_sizes: [
       { id: id(201), product_id: id(101), size_ml: 50, size_label: '50 ml' },
@@ -37,7 +37,7 @@ function catalogTables() {
     ],
     brands: [{ id: id(1), name: 'Atelier', is_active: true }],
     stores: [{ id: STORE_1, name: 'Store One', status: 'active' }],
-    categories: [{ id: CAT, name: 'Oriental' }],
+    categories: [{ id: CAT, name: 'Oriental', category_type: 'catalog' }],
     occasions: [],
     aromatic_notes: [],
     editor_sections: []
@@ -93,9 +93,13 @@ test('the editor panels read real, filtered catalogue data and keep the purpose 
       assert.deepEqual(res.body.options.sizes, [{ size_ml: 50, name: '50 ml' }, { size_ml: 100, name: '100 ml' }]);
       assert.deepEqual(res.body.options.brands.map((b) => b.name), ['Atelier']);
       assert.deepEqual(res.body.options.categories.map((c) => [c.id, c.name]), [[CAT, 'Oriental']]);
+      assert.deepEqual(res.body.options.genders, [{ id: 'men', name: 'رجالي' }, { id: 'women', name: 'نسائي' }, { id: 'unisex', name: 'عطر يجمعنا' }]);
     });
 
     await t.test('category, store and price filters narrow the perfume list through the real tables', async () => {
+      const byGender = await call({ action: 'perfumes', filters: { gender: 'men' } });
+      assert.deepEqual(byGender.body.rows.map((r) => r.product_size_id), [id(201), id(202)]);
+
       const byCategory = await call({ action: 'perfumes', filters: { category_id: CAT } });
       assert.deepEqual(byCategory.body.rows.map((r) => r.product_size_id), [id(201), id(202)]);
       assert.ok(calls.some((c) => c.table === 'product_categories' && c.query.includes('category_id=eq.' + CAT)));
@@ -110,7 +114,7 @@ test('the editor panels read real, filtered catalogue data and keep the purpose 
 
     await t.test('malformed filters answer 400 and read nothing from the catalogue', async () => {
       const before = calls.length;
-      for (const filters of [{ brand_id: 'nope' }, { store_id: "x' or 1=1" }, { price_min: 10, price_max: 1 }, { size_ml: -5 }]) {
+      for (const filters of [{ brand_id: 'nope' }, { gender: 'children' }, { store_id: "x' or 1=1" }, { price_min: 10, price_max: 1 }, { size_ml: -5 }]) {
         const res = await call({ action: 'perfumes', filters });
         assert.equal(res.statusCode, 400, JSON.stringify(filters));
         assert.equal(res.body.error, 'invalid_perfume_filter');

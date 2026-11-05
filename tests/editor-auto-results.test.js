@@ -26,5 +26,5 @@ test('store-filtered sections use an available offer from that store, not only t
 test('public storefront table reads paginate using stable ordered keys rather than one implicit result page', () => {
   assert.match(storefront, /limit='\+step\+'&offset='\+from/);
   assert.match(storefront, /cheapest_offers\?select=product_size_id,product_id,store_id,store_name,price,currency,stock_quantity,price_includes_tax,price_includes_shipping&order=product_size_id\.asc/);
-  assert.match(storefront, /public_products\?select=id,name,brand_name,sales_count,views_count,search_count,request_count,average_rating,short_description,official_description,composition&order=id\.asc/);
+  assert.match(storefront, /public_products\?select=id,name,brand_name,gender,sales_count,views_count,search_count,request_count,average_rating,short_description,official_description,composition&order=id\.asc/);
 });
