@@ -18,8 +18,9 @@
 - **المتبقي من المالك:** جرّب حساب `+N` جديدًا: ضع عطرًا في المفضلة والسلة، اخرج (يجب أن يفرغا)، ادخل (تعود المفضلة والسلة من الحساب). رسائل الوداع والترحيب تُرسل من Gmail المتجر (ظاهرة في «المرسلة»)، فإن لم تصل فابحث عنها في Spam/Promotions.
 
 ### 2026-11-05: السبب الجذري لدخول المحرر وWorker smoke — أُصلح وتحقق
-- **السبب والتفاصيل:** رسالة «حصلت مشكلة، حاول مرة أخرى» نتجت عن غياب `EDITOR_SESSION_SECRET` المطلوب لتشفير جلسة المحرر؛ Worker رجّع `503 editor_session_configuration_missing` بعد الوصول إلى Auth. خريطة الواجهة لم تتعرف على الرمز فظهرت الرسالة العامة. التقرير الدائم: [سبب المشكلة وإصلاحها](editor-login-root-cause-2026-11-05.ar.md).
+- **السبب والتفاصيل:** رسالة «حصلت مشكلة، حاول مرة أخرى» نتجت عن غياب `EDITOR_SESSION_SECRET` المطلوب لتشفير جلسة المحرر؛ Worker رجّع `503 editor_session_configuration_missing` بعد الوصول إلى Auth. خريطة الواجهة لم تتعرف على الرمز فظهرت الرسالة العامة. المرجع التقني الموحد [يوثق السبب والإصلاح ونتائج Security Headers](editor-login-root-cause-2026-11-05.ar.md).
 - **الإصلاح والتحقق:** أُضيف سر عشوائي مستقل في Cloudflare كـ`secret_text`؛ النشر `aa93e0bd-629a-4055-810e-b5fea65a77c7` نشط بنسبة 100%. لم تُعطّل CAPTCHA ولم تُغيّر أسرارها، ولا توجد قيمة سرية في Git. أُضيفت رسالة خطأ صريحة واختبار production fail-closed، وأُصلح إعداد workerd والـsmoke. `npm test` = 1181/1181، smoke = 34/34، ونجح GitHub Actions (`41993888105` و`41993888078`) على commit `e57b4e5`.
+- **Security Headers:** الفحص الحي وجد `script-src` و`frame-src` يسمحان بنطاق Turnstile المطلوب، و`connect-src` متوافقًا مع تدفقات المتجر والمحرر؛ لم تحتج السياسة إلى توسيع. استعلام ما بعد الإصلاح وجد 24 طلب Worker للمحرر كلها `200` و6 password-grant ناجحة في Auth. اختبارات CSP وTurnstile والرؤوس 37/37 ناجحة.
 - **المتبقي المستقل:** «Supabase Preview» يقول «Remote migration versions not found in local migrations directory»؛ على مسؤول الترحيلات مطابقة `supabase/migrations/` مع إصدارات القاعدة الحية.
 
 ### 2026-11-04: اختباران في `tests/browser/user-journeys.chromium.js` أحمران على main (ليسا من المحرر)
