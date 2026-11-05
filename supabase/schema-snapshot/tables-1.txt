@@ -113,6 +113,48 @@ TABLE checkout_sessions  rls=on  grants: anon=- authenticated=- service_role=raw
   POLICY checkout_sessions_admin_all PERMISSIVE FOR ALL TO authenticated USING (private.is_platform_admin()) WITH CHECK (private.is_platform_admin())
   POLICY checkout_sessions_owner_read PERMISSIVE FOR SELECT TO authenticated USING ((user_id = ( SELECT auth.uid() AS uid)))
 
+TABLE commission_settlements  rls=on  grants: anon=- authenticated=- service_role=r
+  id uuid NOT NULL DEFAULT gen_random_uuid()
+  commission_id uuid NOT NULL
+  store_id uuid NOT NULL
+  amount numeric(12,2) NOT NULL
+  currency text NOT NULL
+  status text NOT NULL DEFAULT 'payment_requested'::text
+  requested_at timestamp with time zone NOT NULL DEFAULT now()
+  requested_by uuid
+  submitted_at timestamp with time zone
+  submitted_by uuid
+  verified_at timestamp with time zone
+  verified_by uuid
+  paid_at timestamp with time zone
+  paid_by uuid
+  payment_reference text
+  evidence_reference text
+  failure_reason text
+  notes text
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT commission_settlements_pkey PRIMARY KEY (id)
+  CONSTRAINT commission_settlements_commission_id_key UNIQUE (commission_id)
+  CONSTRAINT commission_settlements_commission_id_fkey FOREIGN KEY (commission_id) REFERENCES commissions(id) ON DELETE RESTRICT
+  CONSTRAINT commission_settlements_store_id_fkey FOREIGN KEY (store_id) REFERENCES stores(id) ON DELETE RESTRICT
+  CONSTRAINT commission_settlements_dates_check CHECK (((submitted_at IS NULL) OR (submitted_at >= requested_at)) AND ((verified_at IS NULL) OR ((submitted_at IS NOT NULL) AND (verified_at >= submitted_at))) AND ((paid_at IS NULL) OR ((verified_at IS NOT NULL) AND (paid_at >= verified_at))))
+  CONSTRAINT commission_settlements_status_fields_check CHECK (((status = 'payment_requested'::text) AND (submitted_at IS NULL) AND (verified_at IS NULL) AND (paid_at IS NULL)) OR ((status = 'payment_submitted'::text) AND (submitted_at IS NOT NULL) AND (verified_at IS NULL) AND (paid_at IS NULL)) OR ((status = 'payment_verified'::text) AND (submitted_at IS NOT NULL) AND (verified_at IS NOT NULL) AND (paid_at IS NULL)) OR ((status = 'paid'::text) AND (submitted_at IS NOT NULL) AND (verified_at IS NOT NULL) AND (paid_at IS NOT NULL) AND (payment_reference IS NOT NULL) AND (paid_by IS NOT NULL)) OR (status = ANY (ARRAY['rejected'::text, 'cancelled'::text])))
+  CONSTRAINT commission_settlements_amount_check CHECK ((amount >= 0::numeric))
+  CONSTRAINT commission_settlements_currency_check CHECK ((currency ~ '^[A-Z]{3}$'::text))
+  CONSTRAINT commission_settlements_payment_reference_check CHECK ((payment_reference IS NULL) OR (char_length(payment_reference) >= 1) AND (char_length(payment_reference) <= 160))
+  CONSTRAINT commission_settlements_evidence_reference_check CHECK ((evidence_reference IS NULL) OR (char_length(evidence_reference) >= 1) AND (char_length(evidence_reference) <= 200))
+  CONSTRAINT commission_settlements_failure_reason_check CHECK ((failure_reason IS NULL) OR (char_length(failure_reason) >= 1) AND (char_length(failure_reason) <= 400))
+  CONSTRAINT commission_settlements_notes_check CHECK ((notes IS NULL) OR (char_length(notes) <= 1000))
+  CONSTRAINT commission_settlements_requested_by_fkey FOREIGN KEY (requested_by) REFERENCES profiles(id) ON DELETE SET NULL
+  CONSTRAINT commission_settlements_submitted_by_fkey FOREIGN KEY (submitted_by) REFERENCES profiles(id) ON DELETE SET NULL
+  CONSTRAINT commission_settlements_verified_by_fkey FOREIGN KEY (verified_by) REFERENCES profiles(id) ON DELETE SET NULL
+  CONSTRAINT commission_settlements_paid_by_fkey FOREIGN KEY (paid_by) REFERENCES profiles(id) ON DELETE SET NULL
+  CREATE INDEX commission_settlements_status_due_idx ON commission_settlements USING btree (status, updated_at DESC) WHERE (status = ANY (ARRAY['payment_requested'::text, 'payment_submitted'::text, 'payment_verified'::text]))
+  CREATE INDEX commission_settlements_store_status_idx ON commission_settlements USING btree (store_id, status, updated_at DESC)
+  CREATE TRIGGER commission_settlements_updated_at BEFORE UPDATE ON commission_settlements FOR EACH ROW EXECUTE FUNCTION private.commission_settlement_touch_updated_at()
+  CREATE TRIGGER guard_commission_settlement_transition BEFORE UPDATE ON commission_settlements FOR EACH ROW EXECUTE FUNCTION private.guard_commission_settlement_transition()
+
 TABLE commissions  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
   id uuid NOT NULL DEFAULT gen_random_uuid()
   store_id uuid NOT NULL

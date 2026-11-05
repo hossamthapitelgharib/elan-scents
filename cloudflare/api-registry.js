@@ -20,6 +20,7 @@ module.exports = {
     'place-store-order': () => require('../api/place-store-order.js'),
     'platform-audit-log': () => require('../api/platform-audit-log.js'),
     'platform-commission-payment': () => require('../api/platform-commission-payment.js'),
+    'platform-commission-settlement': () => require('../api/platform-commission-settlement.js'),
     'platform-customer-detail': () => require('../api/platform-customer-detail.js'),
     'platform-customer-summary': () => require('../api/platform-customer-summary.js'),
     'platform-customers': () => require('../api/platform-customers.js'),
