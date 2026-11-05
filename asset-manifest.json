@@ -1,9 +1,9 @@
 {
-  "version": "20261105-08",
+  "version": "20261105-09",
   "files": {
     "account.js": "608008aa45491d15",
-    "app-core.js": "fcf7ef543ece4f61",
-    "app.js": "d6e771142b329062",
+    "app-core.js": "2d8e1fd8ebcb63ae",
+    "app.js": "0f970b0d065d95e2",
     "auth-session.js": "c12caeae26af1c2c",
     "consent.css": "79e25a99fc582a15",
     "consent.js": "c383591883071ab4",
