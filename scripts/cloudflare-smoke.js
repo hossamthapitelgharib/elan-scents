@@ -112,7 +112,8 @@ async function main() {
     const cfgBody = await cfg.json();
     check('/api/config returns the fake Supabase address', cfg.status === 200 && cfgBody.url === 'http://127.0.0.1:' + FAKE_SUPABASE_PORT, JSON.stringify(cfgBody));
     const denied = await post('/api/store-order-completed', {}, { 'x-store-webhook-secret': 'wrong' });
-    check('the old webhook path reaches store-order-status and refuses a wrong secret', denied.status === 401, denied.status + ' ' + (await denied.text()).slice(0, 100));
+    const deniedBody = await denied.json().catch(() => ({}));
+    check('the legacy webhook endpoint remains disabled', denied.status === 410 && deniedBody.error === 'legacy_webhook_disabled', denied.status + ' ' + JSON.stringify(deniedBody).slice(0, 100));
     const gone = await get('/api/not-a-route');
     check('unknown /api route is 404 JSON', gone.status === 404 && (await gone.json()).error === 'not_found');
 

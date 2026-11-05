@@ -17,9 +17,10 @@
 - **لم يُشغَّل:** `tests/rls-attack-surface.test.sql` كاملًا على القاعدة الحية بعد تعديل سطري المفضلة فيه (صارا بـ`product_size_id`)؛ الترحيل لا يضيف صلاحية ولا سياسة، واختبار `favorites-by-size.test.sql` يغطي قراءة الصفوف الغريبة وكتابتها وحذفها. شغّله كاملًا عند أول ترحيل يمسّ الصلاحيات.
 - **المتبقي من المالك:** جرّب حساب `+N` جديدًا: ضع عطرًا في المفضلة والسلة، اخرج (يجب أن يفرغا)، ادخل (تعود المفضلة والسلة من الحساب). رسائل الوداع والترحيب تُرسل من Gmail المتجر (ظاهرة في «المرسلة»)، فإن لم تصل فابحث عنها في Spam/Promotions.
 
-### 2026-11-05: وظيفة `worker` (smoke على workerd) حمراء منذ كوميتات الأمس، وSupabase Preview كذلك — ليستا من المحرر
-- **ما لوحظ:** `scripts/cloudflare-smoke.js` يفشل في فحصين: «the old webhook path reaches store-order-status and refuses a wrong secret» (يرجع 410 `legacy_webhook_disabled` بدل ما يتوقعه الفحص) و«email sign-in seals a cookie» (200 مع `elan_sess`)؛ والوظيفتان حمراوان على 3c847e8 و3b461c1 وما قبلهما، أي قبل تعديلات المحرر في 4585d76. و«Supabase Preview» يقول «Remote migration versions not found in local migrations directory».
-- **المطلوب:** صاحب جلسة الـwebhook والعمولات (`legacy_webhook_disabled`) يحدّث توقّع الفحص، ومن غيّر جلسة الدخول يتحقق من فحص الكوكي؛ ومن رفع «align production migration ledger» يطابق ملفات `supabase/migrations/` مع إصدارات القاعدة الحية.
+### 2026-11-05: Worker smoke والإعداد الحي لجلسة المحرر — الإصلاح أُعدّ، بانتظار CI
+- **السبب المثبت لدخول المحرر:** محاولتا `/api/editor-login` في 10:07 رجعتا `503` بعد نجاح طلبات Supabase Auth؛ سجل التسليم يوضح أن الإنتاج يشترط سرًا مستقلًا `EDITOR_SESSION_SECRET`، ولم يكن الـbinding موجودًا في النسخة الحية. أُضيف الآن إلى Cloudflare كـ`secret_text` عشوائي مستقل، وظهر في نشر API رقم `aa93e0bd-629a-4055-810e-b5fea65a77c7` بنسبة 100%. لا قيمة السر في Git أو السجل. CAPTCHA لم تُعطّل ولم تُغيّر أسرارها.
+- **اختبارات Worker:** أُضيف سر وهمي مخصص للـsmoke/workerd حتى يختبر cookie مشفرًا؛ وصُحح اختبار webhook ليتوقع 410 `legacy_webhook_disabled` المقصود بدل 401. يبقى التحقق من نجاح GitHub Actions بعد الدفع.
+- **المتبقي المستقل:** «Supabase Preview» يقول «Remote migration versions not found in local migrations directory»؛ على مسؤول الترحيلات مطابقة `supabase/migrations/` مع إصدارات القاعدة الحية.
 
 ### 2026-11-04: اختباران في `tests/browser/user-journeys.chromium.js` أحمران على main (ليسا من المحرر)
 - **ما لوحظ:** الاختباران 4 («login request receives a mocked session…») و9 («password recovery form posts…») يفشلان في Chromium وفي وظيفة CI `browser` منذ كوميت Turnstile `35fae79`، وهما يفشلان على `origin/main` النظيف أيضًا (تأكدت منه في worktree منفصل). الرسالة: «تعذر تهيئة التحقق الأمني…» لأن محاكاة `/api/config` في الاختبار لا تحمل مفتاح Turnstile العام فيُغلق الدخول (fail closed) كما صُمِّم.

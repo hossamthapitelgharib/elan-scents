@@ -52,3 +52,34 @@ test('editor login reports role-check failures separately from wrong passwords',
   const client = fs.readFileSync(path.join(root, 'editor/editor-login.js'), 'utf8');
   assert.match(client, /role_check_failed/);
 });
+
+test('production editor login fails closed with a clear error when its dedicated session secret is absent', async () => {
+  const names = ['SUPABASE_URL', 'SUPABASE_ANON_KEY', 'SUPABASE_SERVICE_ROLE_KEY', 'EDITOR_SESSION_SECRET', 'NODE_ENV'];
+  const previousEnv = Object.fromEntries(names.map((k) => [k, process.env[k]]));
+  const previousFetch = global.fetch;
+  Object.assign(process.env, {
+    SUPABASE_URL: 'https://supabase.example.test',
+    SUPABASE_ANON_KEY: 'anon',
+    SUPABASE_SERVICE_ROLE_KEY: 'service',
+    NODE_ENV: 'production'
+  });
+  delete process.env.EDITOR_SESSION_SECRET;
+  global.fetch = async (url) => {
+    url = String(url);
+    if (url.includes('/auth/v1/token?grant_type=password')) return response(200, { access_token: 'valid-token', refresh_token: 'refresh-token', expires_in: 3600 });
+    if (url.endsWith('/auth/v1/user')) return response(200, { id: 'owner-1', email: 'owner@example.test' });
+    if (url.includes('/rest/v1/profiles')) return response(200, [{ id: 'owner-1', role: 'platform_admin' }]);
+    throw new Error('Unexpected authentication request: ' + url);
+  };
+  try {
+    const result = await sessions.login('owner@example.test', 'correct', 'test-missing-session-secret');
+    assert.deepEqual(result, { status: 503, error: 'editor_session_configuration_missing' });
+    const client = fs.readFileSync(path.join(root, 'editor/editor-login.js'), 'utf8');
+    assert.match(client, /editor_session_configuration_missing/);
+  } finally {
+    global.fetch = previousFetch;
+    for (const [key, value] of Object.entries(previousEnv)) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+  }
+});

@@ -45,6 +45,7 @@ jobs:
           SUPABASE_URL=http://127.0.0.1:54321
           SUPABASE_ANON_KEY=anon-fake-key
           SUPABASE_SERVICE_ROLE_KEY=service-role-fake-key-0123456789abcdef
+          EDITOR_SESSION_SECRET=ci-only-fake-session-secret-0123456789abcdef
           STATE_STORE_REQUIRED=0
           STORE_ORDER_WEBHOOK_SECRET=smoke-webhook-secret-0123456789
           EDITOR_AUTH_BYPASS=1
