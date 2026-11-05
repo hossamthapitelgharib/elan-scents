@@ -38,7 +38,7 @@ async function call(event, world = {}, { token = 'user-token', body, method = 'P
     if (url.endsWith('/rpc/claim_customer_mail')) {
       const args = JSON.parse(options.body);
       log.rpc.push(args);
-      if (world.claimFails) return json({}, false);
+      if (world.claimFails || world.claimFailsFor === args.p_kind) return json({}, false);
       return json(claims[args.p_kind] !== false);
     }
     if (url.endsWith('/rpc/release_customer_mail')) { log.released.push(JSON.parse(options.body).p_kind); return json(null); }
@@ -93,6 +93,13 @@ test('a name or address that carries markup is escaped in the platform notice an
   assert.ok(long.subject.length < 120, 'the subject stays short');
 });
 
+test('times are shown in Cairo time, follow Egypt\'s summer time, and a missing time is a dash', () => {
+  assert.match(templates.cairoTime('2026-11-03T11:03:11Z'), /1:03 م \(توقيت القاهرة\)/, 'winter: UTC+2');
+  assert.match(templates.cairoTime('2026-07-03T11:03:11Z'), /2:03 م \(توقيت القاهرة\)/, 'summer: UTC+3');
+  assert.equal(templates.cairoTime(null), '—');
+  assert.equal(templates.cairoTime('not a date'), '—');
+});
+
 /* ---------- who can ask, and for what ---------- */
 
 test('only POST, only the three known events, and only with a signed-in customer', async () => {
@@ -144,7 +151,7 @@ test('staff and platform accounts, and unconfirmed addresses, get nothing', asyn
 
 /* ---------- welcome and goodbye ---------- */
 
-test('signing in sends the welcome to the account\'s own address, once per 12 hours', async () => {
+test('signing in sends the welcome to the account\'s own address, once per 30 minutes', async () => {
   const { res, log } = await call('login');
   assert.equal(res.statusCode, 202);
   assert.deepEqual(res.body, { ok: true, sent: true, queued: true });
@@ -156,7 +163,7 @@ test('signing in sends the welcome to the account\'s own address, once per 12 ho
   assert.equal(mail.host, 'smtp.gmail.com');
   assert.equal(mail.port, 465);
   assert.match(mail.text, /رحلة تسويقية ممتعة/);
-  assert.deepEqual(log.rpc, [{ p_user_id: USER, p_kind: 'login', p_min_interval: '12 hours' }]);
+  assert.deepEqual(log.rpc, [{ p_user_id: USER, p_kind: 'login', p_min_interval: '30 minutes' }]);
 });
 
 test('signing out sends the goodbye', async () => {
@@ -164,7 +171,7 @@ test('signing out sends the goodbye', async () => {
   assert.equal(log.sent.length, 1);
   assert.equal(log.sent[0].to, 'buyer@example.invalid');
   assert.match(log.sent[0].text, /كنا سعداء بوجودك معنا/);
-  assert.deepEqual(log.rpc, [{ p_user_id: USER, p_kind: 'logout', p_min_interval: '12 hours' }]);
+  assert.deepEqual(log.rpc, [{ p_user_id: USER, p_kind: 'logout', p_min_interval: '30 minutes' }]);
 });
 
 test('a second request inside the interval sends nothing', async () => {
@@ -183,14 +190,17 @@ test('the recipient is the token\'s own account: addresses in the request are ig
 
 /* ---------- the platform notice ---------- */
 
-test('a confirmed new account tells the platform mailbox, once, and holds the welcome back', async () => {
-  const { res, log } = await call('registered');
+test('a confirmed new account tells the platform mailbox once, with when it registered and when it confirmed', async () => {
+  const { res, log } = await call('registered', { user: { created_at: '2026-11-03T11:02:45.747505+00:00', email_confirmed_at: '2026-11-03T11:03:11.652864+00:00' } });
   assert.equal(res.statusCode, 202);
   assert.equal(log.sent.length, 1);
   assert.equal(log.sent[0].to, 'platform@example.invalid');
   assert.match(log.sent[0].text, /Test Buyer/);
   assert.match(log.sent[0].text, /buyer@example\.invalid/);
-  assert.deepEqual(log.rpc.map((r) => r.p_kind), ['registered', 'login'], 'the welcome slot is taken too: the confirmation mail already welcomed them');
+  assert.match(log.sent[0].text, /تاريخ ووقت التسجيل: .*3 نوفمبر 2026 في 1:02 م \(توقيت القاهرة\)/, 'the registration time, in Cairo time');
+  assert.match(log.sent[0].text, /تاريخ ووقت تأكيد البريد: .*3 نوفمبر 2026 في 1:03 م \(توقيت القاهرة\)/, 'and the confirmation time');
+  assert.match(log.sent[0].html, /1:02 م/);
+  assert.deepEqual(log.rpc.map((r) => r.p_kind), ['registered'], 'only its own slot: the customer\'s next sign-in is still welcomed');
   assert.equal(log.rpc[0].p_min_interval, '100 years');
 
   const again = await call('registered', { claims: { registered: false } });
@@ -205,12 +215,18 @@ test('without a platform address the notice waits and nothing is claimed', async
   assert.equal(log.rpc.length + log.sent.length, 0, 'the slot stays free for when the address is set');
 });
 
-test('the first sign-in of a young account reports it (the confirmation link may have been opened elsewhere) instead of welcoming', async () => {
+test('the first sign-in of a young account also reports it (the confirmation link may have been opened elsewhere), and still welcomes', async () => {
   const young = new Date(Date.now() - 60 * 60 * 1000).toISOString();
   const { log } = await call('login', { user: { created_at: young } });
-  assert.equal(log.sent.length, 1);
-  assert.equal(log.sent[0].to, 'platform@example.invalid');
+  assert.deepEqual(log.sent.map((m) => m.to).sort(), ['buyer@example.invalid', 'platform@example.invalid']);
   assert.deepEqual(log.rpc.map((r) => r.p_kind), ['registered', 'login']);
+});
+
+test('a database hiccup on the welcome slot does not lose a platform notice that was already claimed', async () => {
+  const young = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const { res, log } = await call('login', { user: { created_at: young }, claimFailsFor: 'login' });
+  assert.equal(res.statusCode, 202);
+  assert.deepEqual(log.sent.map((m) => m.to), ['platform@example.invalid']);
 });
 
 test('a young account that was already reported is welcomed like anyone else; an old one is never reported', async () => {
