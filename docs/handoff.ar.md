@@ -11,6 +11,10 @@
 
 ## مفتوح
 
+### 2026-11-05: وظيفة `worker` (smoke على workerd) حمراء منذ كوميتات الأمس، وSupabase Preview كذلك — ليستا من المحرر
+- **ما لوحظ:** `scripts/cloudflare-smoke.js` يفشل في فحصين: «the old webhook path reaches store-order-status and refuses a wrong secret» (يرجع 410 `legacy_webhook_disabled` بدل ما يتوقعه الفحص) و«email sign-in seals a cookie» (200 مع `elan_sess`)؛ والوظيفتان حمراوان على 3c847e8 و3b461c1 وما قبلهما، أي قبل تعديلات المحرر في 4585d76. و«Supabase Preview» يقول «Remote migration versions not found in local migrations directory».
+- **المطلوب:** صاحب جلسة الـwebhook والعمولات (`legacy_webhook_disabled`) يحدّث توقّع الفحص، ومن غيّر جلسة الدخول يتحقق من فحص الكوكي؛ ومن رفع «align production migration ledger» يطابق ملفات `supabase/migrations/` مع إصدارات القاعدة الحية.
+
 ### 2026-11-04: اختباران في `tests/browser/user-journeys.chromium.js` أحمران على main (ليسا من المحرر)
 - **ما لوحظ:** الاختباران 4 («login request receives a mocked session…») و9 («password recovery form posts…») يفشلان في Chromium وفي وظيفة CI `browser` منذ كوميت Turnstile `35fae79`، وهما يفشلان على `origin/main` النظيف أيضًا (تأكدت منه في worktree منفصل). الرسالة: «تعذر تهيئة التحقق الأمني…» لأن محاكاة `/api/config` في الاختبار لا تحمل مفتاح Turnstile العام فيُغلق الدخول (fail closed) كما صُمِّم.
 - **المطلوب:** من يكمل بند Turnstile أعلاه يضيف للاختبار محاكاة مفتاح الموقع وسكربت التحدي، أو يحدّد كيف يُجتاز التحقق في الاختبارات؛ لا يُخفَّف الإغلاق عند غياب المفتاح. لم ألمسهما كي لا أتعارض مع عمل تلك الجلسة.
