@@ -1,4 +1,4 @@
-:root{--cw:45.5vw;--cg:2.6vw;--cp:3.2vw;--bg:#fff;--off:#fff;--ink:#1c1a17;--gray:#77726a;--gold1:#f0c04a;--gold2:#c8962a;--gold3:#8a5e0c;--ivory:#f6efe0;box-sizing:border-box}
+:root{--cw:45.5vw;--cg:2.6vw;--cp:3.2vw;--bg:#fff;--off:#fff;--ink:#1c1a17;--gray:#77726a;--gold1:#f0c04a;--gold2:#c8962a;--gold3:#8a5e0c;--ivory:#f6efe0;--btn-gold:linear-gradient(135deg,var(--gold1),var(--gold2) 50%,var(--gold3));--btn-shadow:0 6px 14px #8a5e0c55;box-sizing:border-box}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#fff;--off:#fff}}
 *{box-sizing:border-box;margin:0}
 html{scroll-behavior:smooth}
@@ -46,7 +46,7 @@ h3{font-family:'El Messiri',sans-serif;font-size:24px;text-align:center}
 .quote{font-family:'El Messiri',sans-serif;font-size:19px;text-align:center;margin:14px 0}
 form{max-width:480px;margin:auto;display:grid;gap:10px}
 input,textarea{padding:12px;border:1px solid #e3d6b8;border-radius:12px;font:inherit;background:#fff}
-.btn{padding:12px;border:0;border-radius:14px;font:inherit;font-weight:700;color:#fff;background:linear-gradient(135deg,var(--gold1),var(--gold2) 50%,var(--gold3));box-shadow:0 6px 14px #8a5e0c55;cursor:pointer}
+.btn{padding:12px;border:0;border-radius:14px;font:inherit;font-weight:700;color:#fff;background:var(--btn-gold);box-shadow:var(--btn-shadow);cursor:pointer}
 footer{margin-top:30px;background:#151310;color:#d9cfb8;text-align:center;padding:30px 16px 90px}
 footer a{color:var(--gold1);margin:0 8px;font-size:13px;text-decoration:none}
 #wa{position:fixed;right:12px;bottom:16px;z-index:30;text-align:center;font-size:10px;color:var(--ink);text-decoration:none}
@@ -341,8 +341,9 @@ button[data-sheet="cart"].cart-pulse svg{animation:cartIcon .65s ease-out}
 .chip{flex:none;display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 13px;border:1px solid #e6dcc6;border-radius:999px;background:#fff;color:#5d4f36;font-family:inherit;font-size:12.5px;font-weight:500;line-height:1;letter-spacing:.1px;white-space:nowrap;cursor:pointer;transition:background .2s,border-color .2s,color .2s}
 .chip svg{width:15px;height:15px;flex:none;color:#a37e2c;transition:color .2s}
 .chip:hover{border-color:#c8962a;background:#fff}
-.chip.on{background:#2b2418;border-color:#2b2418;color:#f6efe0}
-.chip.on svg{color:#e6c46a}
+/* the selected chip is the same gold as the «إرسال» button of the contact form (.btn) */
+.chip.on{background:var(--btn-gold);border-color:transparent;color:#fff;box-shadow:0 3px 8px #8a5e0c40}
+.chip.on svg{color:#fff}
 .chip:focus-visible{outline:2px solid #c8962a;outline-offset:2px}
 .filter-panel{margin:10px 0 14px;border:1px solid #e6dcc6;border-radius:14px;background:#fff;overflow:hidden}
 .filter-head{display:flex;align-items:center;gap:8px;padding:11px 14px;cursor:pointer;list-style:none;color:#2b2418;-webkit-user-select:none;user-select:none}

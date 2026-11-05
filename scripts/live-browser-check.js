@@ -138,6 +138,28 @@ const look = () => {
       expect(r.inner && !r.open && r.crumb.length > 0, 'the menu entry «' + go + '» opens its own page («' + r.crumb + '»)');
       expect(r.titles === 0 && (!r.word || r.crumb === r.word), '«' + go + '»: no title of its own, and the breadcrumb says the menu word («' + r.crumb + '»)');
     }
+    // The Masterpieces page: the chips are the filter (no filter panel), each chip ranks the perfumes by its own figure, and the selected chip is drawn
+    // with the same gold as the contact form's send button.
+    await page.goto(site, { waitUntil: 'load' });
+    await page.waitForTimeout(1500);
+    await page.evaluate(() => { go('sec|master'); });
+    await page.waitForTimeout(900);
+    const mp = await page.evaluate(() => ({ chips: [...document.querySelectorAll('#view .chip')].map((c) => c.dataset.ind), panel: document.querySelectorAll('#view .filter-panel, #view select').length, cards: document.querySelectorAll('#res .card').length }));
+    say('masterpieces page: ' + JSON.stringify(mp));
+    expect(mp.panel === 0, 'the Masterpieces page has no filter panel under the chips');
+    expect(mp.chips.length > 0 && mp.cards > 0, 'the Masterpieces page shows chips («' + mp.chips.join(', ') + '») and perfumes (' + mp.cards + ')');
+    const figure = { sales: 'sales', views: 'views', searches: 'searches', demand: 'requests', rating: 'rating', topBrand: 'sales' };
+    for (const k of mp.chips) {
+      await page.evaluate((c) => document.querySelector('#view .chip[data-ind="' + c + '"]').click(), k);
+      await page.waitForTimeout(500);
+      const rk = await page.evaluate((a) => { const by = {}; PERFUMES.forEach((p) => { by[p.id] = p; }); const v = [...document.querySelectorAll('#res .card')].map((c) => { const p = by[(c.getAttribute('data-go') || '').split('|')[1]]; return p ? +p[a] || 0 : null; }); return { values: v, on: document.querySelectorAll('#view .chip.on').length }; }, figure[k]);
+      say('chip «' + k + '»: ' + JSON.stringify(rk));
+      expect(rk.on === 1 && rk.values.length > 0 && rk.values.every((x, i) => i === 0 || x === null || rk.values[i - 1] === null || rk.values[i - 1] >= x), 'chip «' + k + '»: one chip selected and the perfumes run from the highest ' + figure[k] + ' to the lowest');
+    }
+    await page.waitForTimeout(400);
+    const gold = await page.evaluate(() => { const on = document.querySelector('#view .chip.on'), send = document.querySelector('#contact .btn'); return { on: getComputedStyle(on).backgroundImage, send: getComputedStyle(send).backgroundImage, onColor: getComputedStyle(on).color, sendColor: getComputedStyle(send).color }; });
+    say('selected chip vs send button: ' + JSON.stringify(gold));
+    expect(/gradient/.test(gold.on) && gold.on === gold.send && gold.onColor === gold.sendColor, 'the selected chip has the same gold and white text as the contact form send button');
   }
 
   // Inner pages: open them the way a visitor does (click what has data-go), and look again.

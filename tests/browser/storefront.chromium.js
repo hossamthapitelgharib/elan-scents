@@ -165,3 +165,47 @@ test('every menu entry that is a section opens that section\'s own page; only «
     assert.deepEqual(errors, [], 'no page error');
   } finally { await context.close(); }
 });
+
+test('Masterpieces page: the chips are the filter (no filter panel under them), each one ranks the perfumes, and the selected one is the gold of the contact form\'s send button', async () => {
+  const { context, page, errors } = await visit(H.WIDTHS[0]);
+  try {
+    await page.evaluate(() => {
+      const mk = (id, name, brand, sales, views, ind) => ({ id, pid: id, name, pn: name, brand, sz: '100 مل', img: '', cats: [0], occs: [0], notes: [0], rating: 0, sales, views, searches: 0, requests: 0, rel: sales, ts: 0, ind, sd: 's', desc: 'd', comp: 'c', offers: [{ store: 'S', storeId: 's1', storeProductId: 'sp' + id, price: 100, cur: 'EGP', avail: true, flags: ['master'], stock: 5, tax: true, ship: false }], allOffers: [] });
+      PERFUMES = [mk('a', 'عطر منخفض', 'X', 10, 250, ['sales', 'views', 'topBrand']), mk('b', 'عطر الأعلى', 'Y', 100, 25, ['sales', 'views', 'topBrand']), mk('c', 'عطر وسط', 'Y', 50, 90, ['sales', 'views'])];
+      go('sec|master');
+    });
+    await page.waitForTimeout(600);
+    const names = () => page.evaluate(() => [...document.querySelectorAll('#res .card h4')].map((h) => h.textContent));
+    const state = await page.evaluate(() => ({ chips: [...document.querySelectorAll('#view .chip')].map((c) => c.dataset.ind), panel: document.querySelectorAll('#view .filter-panel, #view .filter-head, #view select').length, h3: document.querySelectorAll('#view h3').length }));
+    assert.deepEqual(state.chips, ['sales', 'views', 'topBrand'], 'the three chips of the page');
+    assert.equal(state.panel, 0, 'no filter panel, no dropdowns: the chips are the filter');
+    assert.equal(state.h3, 0);
+    assert.deepEqual(await names(), ['عطر الأعلى', 'عطر وسط', 'عطر منخفض'], 'with no chip: the usual order (by popularity)');
+    await page.click('#view .chip[data-ind="views"]');
+    assert.deepEqual(await names(), ['عطر منخفض', 'عطر وسط', 'عطر الأعلى'], 'most viewed: the most viewed first');
+    await page.click('#view .chip[data-ind="sales"]');
+    assert.deepEqual(await names(), ['عطر الأعلى', 'عطر وسط', 'عطر منخفض'], 'best sellers: the best selling first');
+    await page.click('#view .chip[data-ind="topBrand"]');
+    assert.deepEqual(await names(), ['عطر الأعلى', 'عطر منخفض'], 'each brand\'s best seller only');
+    await page.waitForTimeout(400); /* the chip fades to its selected colours over .2s */
+    const paint = await page.evaluate(() => {
+      const cs = (e) => { const s = getComputedStyle(e); return { bg: s.backgroundImage, color: s.color }; };
+      const on = document.querySelector('#view .chip.on'), send = document.querySelector('#contact .btn'), off = document.querySelector('#view .chip:not(.on)');
+      return { onCount: document.querySelectorAll('#view .chip.on').length, pressed: on.getAttribute('aria-pressed'), on: cs(on), onIcon: getComputedStyle(on.querySelector('svg')).color, send: cs(send), off: cs(off) };
+    });
+    assert.equal(paint.onCount, 1);
+    assert.equal(paint.pressed, 'true');
+    assert.equal(paint.on.bg, paint.send.bg, 'the selected chip has the same gold gradient as the «إرسال» button');
+    assert.ok(/gradient/.test(paint.on.bg), 'and it is a gradient, not the old dark brown');
+    assert.equal(paint.on.color, paint.send.color, 'with the same white text');
+    assert.equal(paint.onIcon, paint.send.color, 'and a white icon');
+    assert.ok(!/gradient/.test(paint.off.bg), 'the other chips stay plain');
+    await page.click('#view .chip[data-ind="topBrand"]');
+    assert.equal(await page.evaluate(() => document.querySelectorAll('#view .chip.on').length), 0, 'pressing the chosen chip again clears it');
+    assert.equal((await names()).length, 3, 'and all the masterpieces are back');
+    await page.evaluate(() => go('sec|offers'));
+    await page.waitForTimeout(400);
+    assert.ok(await page.evaluate(() => !!document.querySelector('#view .filter-panel')), 'the other list pages keep their filter panel');
+    assert.deepEqual(errors, [], 'no page error');
+  } finally { await context.close(); }
+});
