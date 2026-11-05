@@ -52,12 +52,13 @@ test('privacy.html is a plain page: right-to-left, external assets only, no inli
   assert.ok(fs.existsSync(path.join(root, 'privacy.css')));
 });
 
-test('the account holder agrees at sign-up, in the sign-up sentence (owner decision of 2026-10-28), not in a long policy', () => {
+test('the sign-up form carries no policy sentence (owner decision of 2026-11-03, replacing the sentence of 2026-10-28); the policy stays one tap away in the footer and the account page', () => {
   const texts = read('texts.js'), core = read('app-core.js');
-  assert.equal((texts.match(/\bac:'/g) || []).length, 2, 'the sign-up notice exists in Arabic and English');
-  assert.match(texts, /ac:'[^']*href=\\?"\/privacy\.html\\?"/);
-  assert.match(texts, /ac:'بإنشاء حسابك توافق على [^']*وعلى حفظ نشاطك في المتجر/);
-  assert.match(core, /k=='signup'\?'<p class="auth-consent">'\+t\.ac\+'<\/p>':''/, 'shown on the sign-up form only');
+  assert.equal((texts.match(/\bac:'/g) || []).length, 0, 'the sign-up sentence is gone in Arabic and English');
+  assert.ok(!core.includes('auth-consent'), 'and the form no longer draws it');
+  assert.ok(!/t\.ac\b/.test(core));
+  assert.match(core, /document\.getElementById\('fbar'\)\.innerHTML=[^;]*href="\/privacy\.html"/, 'the footer (drawn by app-core.js) still links to the policy');
+  assert.match(read('account.html'), /href="\/privacy\.html"/, 'so does the account page');
 });
 
 test('the only choice on the policy page is to refuse: no accept button, in Arabic or English', () => {
@@ -138,6 +139,4 @@ test('the tone is calm and friendly: nothing on the page sounds like surveillanc
   for (const word of ['بصمة', 'نسجّل', 'نسجل', 'توثيق', 'نوثّق', 'تتبّع', 'تتبع', 'رصد', 'مراقبة', 'نمسح', 'تسجيل نشاط']) assert.ok(!text.includes(word), 'no alarming word on the page: ' + word);
   assert.doesNotMatch(text, /fingerprint|track|monitor|surveil|\bspy|record/i, 'no alarming English word on the page');
   assert.match(text, /نحن سعداء بمرورك الكريم/, 'it opens by welcoming the visitor');
-  const texts = read('texts.js');
-  assert.doesNotMatch(texts.match(/\bac:'[^']*'/g).join(' '), /تسجيل نشاطك|recording of your activity/, 'the sign-up sentence is as calm as the policy');
 });

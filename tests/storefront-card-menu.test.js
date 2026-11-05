@@ -31,7 +31,10 @@ function harness({ lang = 'ar', auth = null, perfumes = [] } = {}) {
     querySelectorAll: (selector) => (selector === '[data-fav]' ? favButtons : selector === '.cartb[data-add]' ? cartButtons : []),
     body: { classList: { add() {}, remove() {} } }
   };
+  const fetches = [];
   const context = vm.createContext({ document, localStorage, window: {}, lang, AUTH: auth, PERFUMES: perfumes, console,
+    SB: { url: 'https://project.example.invalid', key: 'anon-key' }, Object, encodeURIComponent, RegExp, String, JSON,
+    fetch: async (url, init) => { fetches.push({ url: String(url), init: init || {} }); return { ok: true, json: async () => [] }; },
     setTimeout: (fn) => { fn(); return 0; }, location: { reload: () => calls.push('reload') } });
   const texts = vm.runInContext(read('texts.js') + ';D', context);
   context.D = texts;
@@ -39,12 +42,12 @@ function harness({ lang = 'ar', auth = null, perfumes = [] } = {}) {
     oneLine('var XBTN='), oneLine('var LOGO='), oneLine('var LB='), oneLine('en:{home:'),
     oneLine('var CARTSVG='), oneLine('var CARTADD='), oneLine('var PHB='), oneLine('function inCart'), oneLine('function cartMarks'), oneLine('function cartBadge'), oneLine('var SP_BY_ID='), oneLine('function ratingHTML'), oneLine('function byId'), oneLine('function nmOf'), oneLine('function sec('), oneLine('function T()'),
     oneLine('function taxNote'), oneLine('function best('), oneLine('function closeSheet'),
-    between('var FAVS=[]', '\nvar SP_BY_ID='), between('function prodView', '\nfunction strip('), oneLine('function strip('),
+    between('var FAVS=[]', '\nvar SP_BY_ID='), oneLine('function authUserId'), oneLine('function authHeaders'), between('/* Favourites follow the account', 'async function pushCartToCloud'), between('function prodView', '\nfunction strip('), oneLine('function strip('),
     between('var MENU_ORDER=', 'function logoutNow'), oneLine('function mailEvent'), oneLine('function logoutNow'),
     between('function sheet(k)', '\nfunction sendMsg')
   ].join('\n').replace(/^var LB=\{ar:/m, 'var LB={ar:');
   vm.runInContext(code.replace('var LB=', 'var LB='), context);
-  return { context, menu, favButtons, cartButtons, badge, sheetBody, sheetEl, localStorage, calls, run: (src) => vm.runInContext(src, context) };
+  return { context, menu, favButtons, cartButtons, badge, sheetBody, sheetEl, localStorage, calls, fetches, run: (src) => vm.runInContext(src, context) };
 }
 
 const sample = (extra = {}) => ({ id: 'p1', pid: 'q1', name: 'Club de Nuit Iconic', pn: 'Club de Nuit Iconic', brand: 'Armaf', sz: '105 مل', img: '/a.png', cats: [0], occs: [0, 1], notes: [0],
@@ -180,10 +183,101 @@ test('favourites sheet lists the saved perfumes as compact cards and says so whe
   assert.match(core, /if\(g\.closest\('#sheet'\)\)closeSheet\(\);go\(g\.dataset\.go\)/, 'opening a card from the sheet closes the sheet');
 });
 
-test('favourites never reach the cloud and stay out of the editor preview', () => {
+test('favourites stay out of the editor preview and out of the visitor tracking', () => {
   assert.match(core, /if\(!window\.ELAN_EDITOR_PREVIEW\)try\{FAVS=JSON\.parse/);
-  assert.match(core, /function saveFavs\(\)\{if\(!window\.ELAN_EDITOR_PREVIEW\)try\{localStorage\.setItem\('elan_favs'/);
-  assert.doesNotMatch(between('var FAVS=[]', 'function pc('), /fetch\(|GuestIdentity|trackGuest/);
+  assert.match(core, /function saveFavs\(\)\{if\(LOGGING_OUT\)return;if\(!window\.ELAN_EDITOR_PREVIEW\)try\{localStorage\.setItem\('elan_favs'/);
+  assert.doesNotMatch(between('var FAVS=[]', 'function pc('), /GuestIdentity|trackGuest/);
+  assert.doesNotMatch(between('/* Favourites follow the account', 'async function pushCartToCloud'), /GuestIdentity|trackGuest|service|apikey:\s*SB\.key,\s*Authorization:\s*'Bearer '\s*\+\s*SB\.key/);
+});
+
+const FAV1 = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1', FAV2 = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2', FAV3 = 'cccccccc-cccc-4ccc-8ccc-ccccccccccc3';
+const customer = { access_token: 'customer-token', user: { id: 'user-1' } };
+
+test('favourites: a visitor\'s hearts stay on the device and send nothing anywhere', () => {
+  const h = harness({ perfumes: [sample({ id: FAV1 })] });
+  h.run("toggleFav('" + FAV1 + "')");
+  assert.deepEqual(h.fetches, []);
+  assert.deepEqual(JSON.parse(h.localStorage.getItem('elan_favs')), [FAV1]);
+});
+
+test('favourites: a signed-in customer\'s heart is saved in the account with their own token, and removed the same way', async () => {
+  const h = harness({ auth: customer, perfumes: [sample({ id: FAV1 })] });
+  h.run("toggleFav('" + FAV1 + "')");
+  await new Promise((r) => setImmediate(r));
+  assert.equal(h.fetches.length, 1);
+  const add = h.fetches[0];
+  assert.equal(add.url, 'https://project.example.invalid/rest/v1/favorites?on_conflict=user_id,product_size_id');
+  assert.equal(add.init.method, 'POST');
+  assert.equal(add.init.headers.Authorization, 'Bearer customer-token', 'the customer\'s own token, never a server key');
+  assert.match(add.init.headers.Prefer, /ignore-duplicates/);
+  assert.deepEqual(JSON.parse(add.init.body), [{ user_id: 'user-1', product_size_id: FAV1 }]);
+  h.run("toggleFav('" + FAV1 + "')");
+  await new Promise((r) => setImmediate(r));
+  const del = h.fetches[1];
+  assert.equal(del.init.method, 'DELETE');
+  assert.equal(del.url, 'https://project.example.invalid/rest/v1/favorites?user_id=eq.user-1&product_size_id=eq.' + FAV1);
+});
+
+test('favourites: an id that is not a real size id is kept on the screen but never sent to the account', async () => {
+  const h = harness({ auth: customer, perfumes: [sample()] });
+  h.run("toggleFav('p1')");
+  await new Promise((r) => setImmediate(r));
+  assert.deepEqual(h.fetches, []);
+  assert.deepEqual(JSON.parse(h.localStorage.getItem('elan_favs')), ['p1']);
+});
+
+test('favourites: after signing in, the account list comes back and the visitor\'s hearts join it', async () => {
+  const h = harness({ auth: customer, perfumes: [sample({ id: FAV1 }), sample({ id: FAV2, pid: 'q2' }), sample({ id: FAV3, pid: 'q3' })] });
+  h.localStorage.setItem('elan_favs', JSON.stringify([FAV3]));
+  h.run("FAVS=['" + FAV3 + "']");
+  h.context.fetch = async (url, init) => { h.fetches.push({ url: String(url), init: init || {} }); return { ok: true, json: async () => [{ product_size_id: FAV1 }, { product_size_id: FAV2 }] }; };
+  await h.run('syncFavsFromCloud()');
+  assert.deepEqual(h.run('FAVS').slice().sort(), [FAV1, FAV2, FAV3].sort());
+  assert.equal(h.localStorage.getItem('elan_favs_owner'), 'user-1');
+  assert.equal(h.badge.attrs['data-n'], '3');
+  const read = h.fetches[0];
+  assert.equal(read.url, 'https://project.example.invalid/rest/v1/favorites?user_id=eq.user-1&select=product_size_id');
+  const push = h.fetches[1];
+  assert.equal(push.init.method, 'POST');
+  assert.deepEqual(JSON.parse(push.init.body), [{ user_id: 'user-1', product_size_id: FAV3 }], 'only the heart the account did not have yet is sent');
+});
+
+test('favourites: the account list is the truth once the device belongs to it, and another account\'s list is never merged in', async () => {
+  const answer = (rows) => async (url, init) => { answer.calls.push({ url: String(url), init: init || {} }); return { ok: true, json: async () => rows }; };
+  answer.calls = [];
+  // the device already mirrors this account: a heart removed elsewhere is not brought back from the device
+  let h = harness({ auth: customer, perfumes: [sample({ id: FAV1 }), sample({ id: FAV2, pid: 'q2' })] });
+  h.localStorage.setItem('elan_favs_owner', 'user-1'); h.run("FAV_OWNER='user-1';FAVS=['" + FAV1 + "','" + FAV2 + "']");
+  h.context.fetch = answer([{ product_size_id: FAV2 }]);
+  await h.run('syncFavsFromCloud()');
+  assert.deepEqual(h.run('FAVS'), [FAV2]);
+  assert.equal(answer.calls.length, 1, 'nothing is written back');
+  // the device still holds somebody else's list (their session ended without a sign-out): it is dropped, not copied into this account
+  answer.calls = [];
+  h = harness({ auth: customer, perfumes: [sample({ id: FAV1 }), sample({ id: FAV2, pid: 'q2' })] });
+  h.run("FAV_OWNER='someone-else';FAVS=['" + FAV1 + "']");
+  h.context.fetch = answer([{ product_size_id: FAV2 }]);
+  await h.run('syncFavsFromCloud()');
+  assert.deepEqual(h.run('FAVS'), [FAV2]);
+  assert.equal(answer.calls.length, 1, 'the other account\'s hearts are not pushed');
+  assert.equal(h.localStorage.getItem('elan_favs_owner'), 'user-1');
+});
+
+test('favourites: a late answer never overwrites a heart tapped meanwhile, and nothing is read while signing out', async () => {
+  const h = harness({ auth: customer, perfumes: [sample({ id: FAV1 }), sample({ id: FAV2, pid: 'q2' })] });
+  const releases = [];
+  h.context.fetch = (url, init) => { h.fetches.push({ url: String(url), init: init || {} }); return new Promise((resolve) => { releases.push(() => resolve({ ok: true, json: async () => [] })); }); };
+  const pending = h.run('syncFavsFromCloud()');
+  h.run("toggleFav('" + FAV2 + "')");
+  releases.forEach((release) => release());
+  await pending;
+  assert.deepEqual(h.run('FAVS'), [FAV2], 'the tap made while the list was loading survives');
+  const h2 = harness({ auth: customer });
+  h2.run('LOGGING_OUT=true');
+  await h2.run('syncFavsFromCloud()');
+  assert.deepEqual(h2.fetches, []);
+  h2.run("toggleFav('" + FAV1 + "')");
+  assert.equal(h2.localStorage.getItem('elan_favs'), null, 'while signing out nothing is written to the device either');
 });
 
 test('card CSS is calm and image-first: 45.5% of the screen wide, as tall as its content (picture 4:5 plus a short body)', () => {

@@ -16,11 +16,14 @@ const ORDER = {
   store_shipments: []
 };
 
+const FAV_SIZE = '3f2f7d1e-6a58-4a38-9d0c-0c1f7d3a9b11';
+let favRows = [], favWrites = [];
 let browser, server;
 test.before(async () => { server = await H.startServer(); browser = await pw.chromium.launch({ args: ['--no-sandbox'] }); });
 test.after(async () => { if (browser) await browser.close(); if (server) await server.stop(); });
 
 async function context({ session = null } = {}) {
+  favRows = []; favWrites = [];
   const result = await H.openContext(browser, server, WINDOW);
   if (session) await result.context.addInitScript((value) => localStorage.setItem('elan_auth_session', JSON.stringify(value)), session);
   return result;
@@ -42,6 +45,12 @@ async function mockPage(page) {
     if (url.pathname === '/auth/v1/token') return H.safeFulfill(route, { status: 200, contentType: 'application/json', body: JSON.stringify(CUSTOMER_SESSION) });
     if (url.pathname === '/auth/v1/user') return H.safeFulfill(route, { status: 200, contentType: 'application/json', body: JSON.stringify(CUSTOMER_SESSION.user) });
     if (url.pathname.includes('/cart_items')) return H.safeFulfill(route, { status: 200, contentType: 'application/json', body: '[]' });
+    if (url.pathname.includes('/rest/v1/favorites')) {
+      if (request.method() === 'GET') return H.safeFulfill(route, { status: 200, contentType: 'application/json', body: JSON.stringify(favRows) });
+      favWrites.push({ method: request.method(), url: request.url(), body: request.postData() || '' });
+      return H.safeFulfill(route, { status: request.method() === 'POST' ? 201 : 204, contentType: 'application/json', body: '' });
+    }
+    if (url.pathname.includes('/auth/v1/logout')) return H.safeFulfill(route, { status: 204, contentType: 'application/json', body: '' });
     if (url.pathname.includes('/auth/v1/recover')) return H.safeFulfill(route, { status: 200, contentType: 'application/json', body: '{}' });
     return H.safeFulfill(route, { status: 200, contentType: 'application/json', body: '[]' });
   });
@@ -76,7 +85,7 @@ test('2. cart sheet opens and is keyboard-accessible', async () => {
   } finally { await c.context.close(); }
 });
 
-test('3. sign-up sheet exposes the required safe fields and consent copy', async () => {
+test('3. sign-up sheet exposes the required safe fields and nothing else under the button', async () => {
   const c = await context();
   try {
     const page = await openPage(c, '/');
@@ -86,7 +95,8 @@ test('3. sign-up sheet exposes the required safe fields and consent copy', async
     assert.equal(await form.count(), 1);
     assert.equal(await form.locator('input[name="name"]').getAttribute('autocomplete'), 'off');
     assert.equal(await form.locator('input[name="password"]').getAttribute('autocomplete'), 'new-password');
-    assert.equal(await form.locator('.auth-consent').count(), 1);
+    assert.equal(await page.locator('#sheet .auth-consent').count(), 0, 'no privacy sentence in the sign-up panel');
+    assert.equal(await page.locator('#sheet [data-sheet="login"]').count(), 0, 'no «sign in» line after the sign-up button');
   } finally { await c.context.close(); }
 });
 
@@ -100,7 +110,19 @@ test('4. login request receives a mocked session and updates the signed-in menu'
     await page.locator('[data-auth-mode="login"] input[name="password"]').fill('correct-password');
     await page.locator('[data-auth-mode="login"] button[type="submit"]').click();
     await page.waitForFunction(() => !!JSON.parse(localStorage.getItem('elan_auth_session') || 'null'));
-    assert.equal(await page.locator('#sheet').isHidden(), false);
+    await page.waitForFunction(() => document.getElementById('sheet').hidden);
+    assert.equal(await page.locator('#sheet').isHidden(), true, 'the login panel closes and the cart does not open by itself');
+  } finally { await c.context.close(); }
+});
+
+test('4b. the sign-in panel has no «create account» line under its button', async () => {
+  const c = await context();
+  try {
+    const page = await openPage(c, '/');
+    await page.locator('#mb').click();
+    await page.locator('#menu [data-sheet="login"]').click();
+    assert.equal(await page.locator('#sheet [data-auth-mode="login"]').count(), 1);
+    assert.equal(await page.locator('#sheet [data-sheet="signup"]').count(), 0);
   } finally { await c.context.close(); }
 });
 
@@ -176,5 +198,47 @@ test('10. logout flash is rendered and clears the customer session on the next s
     await page.waitForTimeout(100);
     assert.match(await page.locator('body').innerText(), /تم تسجيل الخروج بنجاح/);
     assert.equal(await page.evaluate(() => sessionStorage.getItem('elan_flash')), null);
+  } finally { await c.context.close(); }
+});
+
+test('11. signing out empties the cart and the favourites on screen and on the device, and they stay empty after the reload', async () => {
+  const c = await context();
+  try {
+    // seed once, session included: an init script that runs on every load would put the session and the lists back on the reload that follows signing out
+    await c.context.addInitScript(([size, session]) => {
+      if (localStorage.getItem('__seeded')) return;
+      localStorage.setItem('__seeded', '1');
+      localStorage.setItem('elan_auth_session', JSON.stringify(session));
+      localStorage.setItem('elan_cart', JSON.stringify([{ sid: size, q: 2 }]));
+      localStorage.setItem('elan_favs', JSON.stringify([size]));
+    }, [FAV_SIZE, CUSTOMER_SESSION]);
+    const page = await openPage(c, '/');
+    const read = () => page.evaluate(() => ({ cart: localStorage.getItem('elan_cart'), favs: localStorage.getItem('elan_favs'), auth: localStorage.getItem('elan_auth_session'),
+      cartN: document.querySelector('button[data-sheet="cart"]').getAttribute('data-n'), favN: document.querySelector('button[data-sheet="fav"]').getAttribute('data-n') }));
+    const before = await read();
+    assert.equal(before.cartN, '2'); assert.equal(before.favN, '1');
+    await page.locator('#mb').click();
+    await Promise.all([page.waitForEvent('load', { timeout: 10000 }), page.locator('#menu [data-logout]').click()]);
+    await page.waitForTimeout(800);
+    const after = await read();
+    assert.deepEqual({ cart: after.cart, favs: after.favs, auth: after.auth, cartN: after.cartN, favN: after.favN }, { cart: null, favs: null, auth: null, cartN: '0', favN: '0' });
+    assert.deepEqual(favWrites.filter((w) => w.method === 'DELETE'), [], 'signing out never deletes the customer\'s saved favourites in the account');
+  } finally { await c.context.close(); }
+});
+
+test('12. after signing in the favourites saved in the account are back, and a heart saved while signed in goes to the account', async () => {
+  const c = await context();
+  try {
+    favRows = [{ product_size_id: FAV_SIZE }];
+    const page = await openPage(c, '/');
+    await page.locator('#mb').click();
+    await page.locator('#menu [data-sheet="login"]').click();
+    await page.locator('[data-auth-mode="login"] input[name="email"]').fill('customer@example.test');
+    await page.locator('[data-auth-mode="login"] input[name="password"]').fill('correct-password');
+    await page.locator('[data-auth-mode="login"] button[type="submit"]').click();
+    await page.waitForFunction(() => document.querySelector('button[data-sheet="fav"]').getAttribute('data-n') === '1', null, { timeout: 10000 });
+    assert.deepEqual(JSON.parse(await page.evaluate(() => localStorage.getItem('elan_favs'))), [FAV_SIZE]);
+    assert.equal(await page.evaluate(() => localStorage.getItem('elan_favs_owner')), 'customer-1');
+    assert.deepEqual(favWrites, [], 'what the account already had is not written again');
   } finally { await c.context.close(); }
 });

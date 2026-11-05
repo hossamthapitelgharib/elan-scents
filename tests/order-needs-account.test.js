@@ -28,8 +28,8 @@ test('the waiting order is forgotten when the visitor closes the sheet or goes e
 });
 
 test('after signing up or in, the visitor is taken to the order form of the store they chose', () => {
-  // A sign-up that began from «execute order» goes on to the store's form; a plain sign-up closes its sheet (tests/signup-feedback.test.js runs both).
-  assert.match(core, /if\(PENDING_STORE\)\{var st=PENDING_STORE;PENDING_STORE='';openStoreOrder\(st\)\}else if\(mode=='signup'\)closeSheet\(\);else sheet\('cart'\)/);
+  // A sign-up that began from «execute order» goes on to the store's form; a plain sign-up or sign-in closes its sheet (the cart does not open by itself) (tests/signup-feedback.test.js runs both).
+  assert.match(core, /if\(PENDING_STORE\)\{var st=PENDING_STORE;PENDING_STORE='';openStoreOrder\(st\)\}else closeSheet\(\)\}\)\.catch\(/);
 });
 
 test('the database and the API refuse orders from anyone not signed in, whatever the page does', () => {

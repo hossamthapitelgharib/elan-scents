@@ -19,13 +19,13 @@ function page() {
 }
 
 function shop(server, { lang = 'ar', turnstile } = {}) {
-  const log = { toasts: [], requests: [], sheets: [] };
+  const log = { toasts: [], requests: [], sheets: [], closed: 0 };
   const p = page();
   const context = vm.createContext({
     lang, SB: { url: 'https://project.example.invalid', key: 'anon-key' }, AUTH: null, PENDING_STORE: '', CART_FIRST_SYNC_DONE: true,
     location: { origin: 'https://shop.example.invalid' }, document: p.document,
-    toast: (text, ms) => log.toasts.push({ text, ms }), closeSheet() {}, sheet: (k) => log.sheets.push(k), openStoreOrder() {},
-    buildMenu() {}, syncCartFromCloud: async () => {}, localStorage: { setItem() {} },
+    toast: (text, ms) => log.toasts.push({ text, ms }), closeSheet() { log.closed++; }, sheet: (k) => log.sheets.push(k), openStoreOrder() {},
+    buildMenu() {}, syncCartFromCloud: async () => {}, syncFavsFromCloud: async () => {}, localStorage: { setItem() {} },
     fetch: async (url, init) => { log.requests.push({ url: String(url), body: JSON.parse(init.body) }); return { json: async () => server }; },
     Promise, JSON, String, RegExp, Array, encodeURIComponent
   });
@@ -45,7 +45,8 @@ test('after signing in the customer is welcomed on screen, for a few seconds', a
   s.submit(s.form('login', withPassword));
   await settle();
   assert.deepEqual(s.log.toasts, [{ text: 'أهلًا ومرحبًا بك ونتمنى لك رحلة تسويقية ممتعة', ms: 4500 }]);
-  assert.deepEqual(s.log.sheets, ['cart']);
+  assert.deepEqual(s.log.sheets, [], 'the cart does not open by itself after signing in');
+  assert.equal(s.log.closed, 1, 'the sign-in sheet closes');
 });
 
 test('the welcome is English on the English page, and a failed sign-in gets no welcome', async () => {
@@ -74,8 +75,10 @@ const MAIL = CORE.slice(CORE.indexOf('function mailEvent('), CORE.indexOf('\nfun
 function signOut(extra = {}) {
   const log = { reloaded: 0, session: {}, local: [] };
   log.order = [];
+  log.badges = 0; log.sheetsClosed = 0;
   const context = vm.createContext(Object.assign({
-    AUTH: null,
+    AUTH: null, LOGGING_OUT: false, CART: [{ sid: 's1', q: 2 }], FAVS: ['s1'], CART_REV: 0, FAV_REV: 0,
+    cartBadge: () => { log.badges++; }, favBadge: () => { log.badges++; }, closeSheet: () => { log.sheetsClosed++; },
     ElanAuth: { signOut: async () => { log.order.push('signOut'); } },
     fetch: async (url, init) => { log.order.push('mail'); log.mail = { url: String(url), init }; return { ok: true }; },
     localStorage: { removeItem: (k) => log.local.push(k) },
@@ -85,7 +88,7 @@ function signOut(extra = {}) {
   }, extra));
   context.window = context;
   vm.runInContext(MAIL + '\n' + OUT, context);
-  return { run: () => vm.runInContext('logoutNow()', context), log };
+  return { run: () => vm.runInContext('logoutNow()', context), log, context, read: (expr) => vm.runInContext(expr, context) };
 }
 
 test('signing out leaves a note for the page that loads next, then reloads', async () => {
@@ -104,6 +107,28 @@ test('a sign-out that the server could not complete still signs the customer out
   assert.equal(o.log.session.elan_flash, 'logout');
   assert.ok(o.log.local.includes('elan_auth_session'));
   assert.equal(o.log.reloaded, 1);
+});
+
+test('signing out empties the cart and favourites on screen at once and shuts every later write', async () => {
+  const o = signOut({ AUTH: { access_token: 'user-token' } });
+  o.run();
+  // before anything has been awaited: the screen is already empty and nothing can write the old lists back
+  assert.deepEqual(JSON.parse(JSON.stringify(o.read('CART'))), []);
+  assert.deepEqual(JSON.parse(JSON.stringify(o.read('FAVS'))), []);
+  assert.equal(o.read('LOGGING_OUT'), true);
+  assert.ok(o.log.badges >= 2, 'both header counters are redrawn');
+  assert.equal(o.log.sheetsClosed, 1, 'an open cart or favourites sheet is closed so it cannot show the old rows');
+  for (const key of ['elan_cart', 'elan_favs', 'elan_cart_owner', 'elan_favs_owner']) assert.ok(o.log.local.includes(key), key + ' is removed from the device');
+  await settle();
+  assert.equal(o.log.reloaded, 1);
+});
+
+test('a second tap on sign out while the first is running does nothing', async () => {
+  const o = signOut({ AUTH: { access_token: 'user-token' } });
+  o.run(); o.run();
+  await settle();
+  assert.equal(o.log.reloaded, 1);
+  assert.equal(o.log.order.filter((x) => x === 'signOut').length, 1);
 });
 
 function flash(value, lang = 'ar') {
@@ -155,6 +180,17 @@ test('the sign-in sheet offers «نسيت كلمة المرور؟», the sign-up
   assert.match(login.html, /<button type="button" class="back-cart" data-sheet="forgot">نسيت كلمة المرور؟<\/button>/);
   assert.match(login.html, /name="password"/);
   assert.doesNotMatch(renderSheet('signup').html, /data-sheet="forgot"/);
+});
+
+test('the sign-up and sign-in sheets carry no policy sentence and no link to each other (owner, 3 Nov 2026); only «forgot password» goes back to sign-in', () => {
+  const signup = renderSheet('signup').html, login = renderSheet('login').html;
+  assert.doesNotMatch(signup, /auth-consent|privacy\.html|سياسة الخصوصية/, 'no policy sentence under the sign-up button');
+  assert.doesNotMatch(signup, /data-sheet="login"/, 'no «sign in» line under the sign-up button');
+  assert.doesNotMatch(login, /data-sheet="signup"/, 'no «create account» line under the sign-in button');
+  assert.equal((signup.match(/<button/g) || []).length, 2, 'the close button and the submit button only');
+  assert.equal((login.match(/<button/g) || []).length, 3, 'the close button, the submit button and «forgot password»');
+  assert.match(signup, /<input name="name"/);
+  assert.match(login, /type="submit">تسجيل الدخول<\/button>/);
 });
 
 test('the forgot sheet asks for the e-mail only and can go back to sign-in', () => {

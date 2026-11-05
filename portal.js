@@ -42,8 +42,14 @@ window.Portal = {
     localStorage.removeItem('elan_auth_session');
     // The cart is saved in the account, so the browser's copy of it is only a cache. A later sign-in on a shared device
     // would merge it into somebody else's cart, so it goes. The orders copy (elan_orders) is left as it is: the
-    // order history lives in the database and logging out never touches it.
-    try { localStorage.removeItem('elan_cart'); } catch (_) {}
+    // order history lives in the database and logging out never touches it. The favourites are saved in the account too,
+    // so their local copy goes with the cart.
+    try {
+      localStorage.removeItem('elan_cart');
+      localStorage.removeItem('elan_cart_owner');
+      localStorage.removeItem('elan_favs');
+      localStorage.removeItem('elan_favs_owner');
+    } catch (_) {}
     location.reload();
   },
   notifications: { items: [], timer: null, lastSeen: null }

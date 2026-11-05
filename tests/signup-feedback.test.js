@@ -26,7 +26,7 @@ function shop(server, { lang = 'ar', pending = '' } = {}) {
   const context = vm.createContext({
     lang, SB: { url: 'https://project.example.invalid', key: 'anon-key' }, AUTH: null, PENDING_STORE: pending, CART_FIRST_SYNC_DONE: true,
     toast: (text) => log.toasts.push(text), closeSheet: () => { log.closed++; }, sheet: (k) => log.sheets.push(k), openStoreOrder: (s) => log.stores.push(s),
-    buildMenu() {}, syncCartFromCloud: async () => {}, localStorage: { setItem: (k) => log.saved.push(k) }, document: p.document,
+    buildMenu() {}, syncCartFromCloud: async () => {}, syncFavsFromCloud: async () => {}, localStorage: { setItem: (k) => log.saved.push(k) }, document: p.document,
     fetch: async () => ({ json: async () => server }), Promise, JSON, String, RegExp, Array
   });
   context.window = context;
@@ -80,13 +80,13 @@ test('sign-up that began from «execute order» goes on to the store order form,
   assert.equal(s.log.closed, 0);
 });
 
-test('sign-in is unchanged apart from the welcome: no sign-up message, the cart sheet opens', async () => {
+test('sign-in shows the welcome and closes its sheet: no sign-up message, and the cart does not open by itself', async () => {
   const s = shop({ access_token: 'a' });
   s.submit(s.form('login'));
   await settle();
   assert.deepEqual(s.log.toasts, ['أهلًا ومرحبًا بك ونتمنى لك رحلة تسويقية ممتعة'], 'the welcome of tests/login-logout-messages.test.js, not «registered»');
-  assert.deepEqual(s.log.sheets, ['cart']);
-  assert.equal(s.log.closed, 0);
+  assert.deepEqual(s.log.sheets, []);
+  assert.equal(s.log.closed, 1);
 });
 
 test('an address that is already registered is said so and the sheet stays as it was', async () => {
@@ -156,7 +156,7 @@ function confirmPage(hash, { user = { id: 'u1', email: 'buyer@example.invalid' }
     lang: 'ar', SB: { url: '', key: '' }, AUTH: null, CART_FIRST_SYNC_DONE: false,
     location: { hash, pathname: '/', search: '' }, history: { replaceState: (...a) => log.replaced.push(a) },
     document: p.document, localStorage: { setItem: (k, v) => { log.saved[k] = JSON.parse(v); } },
-    buildMenu: () => { log.menus++; }, syncCartFromCloud: async () => { log.synced++; },
+    buildMenu: () => { log.menus++; }, syncCartFromCloud: async () => { log.synced++; }, syncFavsFromCloud: async () => {},
     GuestIdentity: { claim: claim || (async (token) => { log.claimed.push(token); }) },
     fetch: async (url, init) => {
       log.fetched.push({ url: String(url), init });

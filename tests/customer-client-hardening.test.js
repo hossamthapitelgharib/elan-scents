@@ -32,11 +32,12 @@ test('the cart is saved with the atomic database function, not a delete followed
   assert.match(push, /if\(snapshot\.length&&!rows\.length&&!PERFUMES\.length\)return;/);
 });
 
-test('logging out clears only the local cart cache and never the order copies', () => {
+test('logging out clears only the local cart and favourites caches and never the order copies', () => {
   const logout = portal.slice(portal.indexOf('logout: async'), portal.indexOf('notifications: {'));
   assert.ok(logout.includes("localStorage.removeItem('elan_cart')"));
+  assert.ok(logout.includes("localStorage.removeItem('elan_favs')"));
   const removed = [...logout.matchAll(/removeItem\('([^']+)'\)/g)].map(m => m[1]).sort();
-  assert.deepEqual(removed, ['elan_auth_session', 'elan_cart']);
+  assert.deepEqual(removed, ['elan_auth_session', 'elan_cart', 'elan_cart_owner', 'elan_favs', 'elan_favs_owner']);
 });
 
 test('the storefront no longer carries the unreachable orders sheet that read a table clients cannot read', () => {
