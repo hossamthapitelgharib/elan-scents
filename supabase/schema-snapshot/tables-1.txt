@@ -116,16 +116,28 @@ TABLE checkout_sessions  rls=on  grants: anon=- authenticated=- service_role=raw
 TABLE commissions  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
   id uuid NOT NULL DEFAULT gen_random_uuid()
   store_id uuid NOT NULL
-  order_item_id uuid NOT NULL
+  order_item_id uuid
   rate numeric(5,2) NOT NULL
   amount numeric(12,2) NOT NULL
   status text NOT NULL DEFAULT 'pending'::text
   created_at timestamp with time zone NOT NULL DEFAULT now()
   updated_at timestamp with time zone NOT NULL DEFAULT now()
+  store_order_request_item_id uuid
+  return_window_days integer
+  return_deadline_at timestamp with time zone
+  paid_at timestamp with time zone
+  payment_reference text
+  paid_by uuid
   CONSTRAINT commissions_pkey PRIMARY KEY (id)
   CONSTRAINT commissions_order_item_id_fkey FOREIGN KEY (order_item_id) REFERENCES order_items(id) ON DELETE CASCADE
+  CONSTRAINT commissions_paid_by_fkey FOREIGN KEY (paid_by) REFERENCES profiles(id) ON DELETE SET NULL
   CONSTRAINT commissions_store_id_fkey FOREIGN KEY (store_id) REFERENCES stores(id) ON DELETE RESTRICT
+  CONSTRAINT commissions_store_order_request_item_id_fkey FOREIGN KEY (store_order_request_item_id) REFERENCES store_order_request_items(id) ON DELETE RESTRICT
+  CONSTRAINT commissions_payment_reference_check CHECK (((payment_reference IS NULL) OR (char_length(payment_reference) <= 160)))
+  CONSTRAINT commissions_return_window_days_check CHECK (((return_window_days IS NULL) OR ((return_window_days >= 1) AND (return_window_days <= 365))))
   CONSTRAINT commissions_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'payable'::text, 'paid'::text])))
+  CREATE INDEX commissions_due_idx ON commissions USING btree (return_deadline_at, id) WHERE ((status = 'pending'::text) AND (return_deadline_at IS NOT NULL))
+  CREATE UNIQUE INDEX commissions_store_order_request_item_uq ON commissions USING btree (store_order_request_item_id) WHERE (store_order_request_item_id IS NOT NULL)
   CREATE INDEX idx_commissions_order_item_id ON commissions USING btree (order_item_id)
   CREATE INDEX idx_commissions_store_id ON commissions USING btree (store_id)
   POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))

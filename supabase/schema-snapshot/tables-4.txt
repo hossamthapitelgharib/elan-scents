@@ -27,7 +27,7 @@ TABLE store_order_item_adjustments  rls=on  grants: anon=- authenticated=- servi
   CREATE INDEX store_order_item_adjustments_item_idx ON store_order_item_adjustments USING btree (request_item_id, status, adjustment_type)
   CREATE INDEX store_order_item_adjustments_item_request_idx ON store_order_item_adjustments USING btree (request_item_id, request_id)
   CREATE INDEX store_order_item_adjustments_request_idx ON store_order_item_adjustments USING btree (request_id, status)
-  CREATE TRIGGER store_order_commission_on_adjustment AFTER INSERT OR DELETE OR UPDATE ON store_order_item_adjustments FOR EACH ROW EXECUTE FUNCTION private.commission_on_adjustment()
+  CREATE TRIGGER commissions_on_request_adjustment AFTER INSERT OR DELETE OR UPDATE ON store_order_item_adjustments FOR EACH ROW EXECUTE FUNCTION private.recalculate_commissions_on_adjustment()
   CREATE TRIGGER validate_store_order_item_adjustment_trigger BEFORE INSERT OR UPDATE ON store_order_item_adjustments FOR EACH ROW EXECUTE FUNCTION validate_store_order_item_adjustment()
 
 TABLE store_order_notifications  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
@@ -68,6 +68,8 @@ TABLE store_order_request_items  rls=on  grants: anon=- authenticated=- service_
   created_at timestamp with time zone NOT NULL DEFAULT now()
   product_id uuid
   source_cart_item_id uuid
+  platform_order_number text
+  merchant_order_reference text
   CONSTRAINT store_order_request_items_pkey PRIMARY KEY (id)
   CONSTRAINT store_order_request_items_id_request_unique UNIQUE (id, request_id)
   CONSTRAINT store_order_request_items_request_id_product_size_id_key UNIQUE (request_id, product_size_id)
@@ -75,9 +77,12 @@ TABLE store_order_request_items  rls=on  grants: anon=- authenticated=- service_
   CONSTRAINT store_order_request_items_request_id_fkey FOREIGN KEY (request_id) REFERENCES store_order_requests(id) ON DELETE CASCADE
   CONSTRAINT store_order_request_items_store_product_id_fkey FOREIGN KEY (store_product_id) REFERENCES store_products(id)
   CONSTRAINT store_order_request_items_line_total_check CHECK ((line_total >= (0)::numeric))
+  CONSTRAINT store_order_request_items_merchant_reference_check CHECK (((merchant_order_reference IS NULL) OR (char_length(merchant_order_reference) <= 160)))
+  CONSTRAINT store_order_request_items_platform_order_number_check CHECK (((platform_order_number IS NULL) OR ((char_length(platform_order_number) >= 1) AND (char_length(platform_order_number) <= 80))))
   CONSTRAINT store_order_request_items_quantity_check CHECK ((quantity > 0))
   CONSTRAINT store_order_request_items_unit_price_check CHECK ((unit_price >= (0)::numeric))
   CREATE INDEX store_order_request_items_best_seller_join_idx ON store_order_request_items USING btree (request_id, product_id, size_label) INCLUDE (quantity, product_name, brand_name)
+  CREATE UNIQUE INDEX store_order_request_items_platform_order_number_uq ON store_order_request_items USING btree (platform_order_number)
   CREATE INDEX store_order_request_items_product_id_request_idx ON store_order_request_items USING btree (product_id, request_id)
   CREATE INDEX store_order_request_items_product_size_id_idx ON store_order_request_items USING btree (product_size_id)
   CREATE INDEX store_order_request_items_source_cart_idx ON store_order_request_items USING btree (source_cart_item_id)
@@ -85,6 +90,7 @@ TABLE store_order_request_items  rls=on  grants: anon=- authenticated=- service_
   POLICY store_order_request_items_admin_all PERMISSIVE FOR ALL TO authenticated USING (private.is_platform_admin()) WITH CHECK (private.is_platform_admin())
   POLICY store_order_request_items_owner_read PERMISSIVE FOR SELECT TO authenticated USING ((EXISTS ( SELECT 1 FROM store_order_requests r WHERE ((r.id = store_order_request_items.request_id) AND (r.user_id = ( SELECT auth.uid() AS uid))))))
   POLICY store_order_request_items_store_read PERMISSIVE FOR SELECT TO authenticated USING ((EXISTS ( SELECT 1 FROM store_order_requests r WHERE ((r.id = store_order_request_items.request_id) AND private.is_store_member(r.store_id)))))
+  CREATE TRIGGER assign_platform_order_number BEFORE INSERT ON store_order_request_items FOR EACH ROW EXECUTE FUNCTION private.assign_platform_order_number()
   CREATE TRIGGER protect_order_base_trigger BEFORE DELETE OR UPDATE ON store_order_request_items FOR EACH ROW EXECUTE FUNCTION private.protect_order_base()
 
 TABLE store_order_requests  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
@@ -114,12 +120,14 @@ TABLE store_order_requests  rls=on  grants: anon=- authenticated=- service_role=
   checkout_session_id uuid
   inventory_applied_at timestamp with time zone
   customer_confirmed_at timestamp with time zone
+  commission_rate numeric(5,2) NOT NULL DEFAULT 15.00
   CONSTRAINT store_order_requests_pkey PRIMARY KEY (id)
   CONSTRAINT store_order_requests_tracking_number_key UNIQUE (tracking_number)
   CONSTRAINT store_order_requests_checkout_session_id_fkey FOREIGN KEY (checkout_session_id) REFERENCES checkout_sessions(id)
   CONSTRAINT store_order_requests_store_id_fkey FOREIGN KEY (store_id) REFERENCES stores(id)
   CONSTRAINT store_order_requests_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
   CONSTRAINT store_order_requests_address_len CHECK (((char_length(customer_address) >= 1) AND (char_length(customer_address) <= 500)))
+  CONSTRAINT store_order_requests_commission_rate_check CHECK (((commission_rate >= (0)::numeric) AND (commission_rate <= (100)::numeric)))
   CONSTRAINT store_order_requests_email_len CHECK (((customer_email IS NULL) OR (char_length(customer_email) <= 254)))
   CONSTRAINT store_order_requests_name_len CHECK (((char_length(customer_name) >= 1) AND (char_length(customer_name) <= 120)))
   CONSTRAINT store_order_requests_notes_len CHECK (((customer_notes IS NULL) OR (char_length(customer_notes) <= 1000)))
@@ -140,7 +148,8 @@ TABLE store_order_requests  rls=on  grants: anon=- authenticated=- service_role=
   POLICY store_order_requests_owner_read PERMISSIVE FOR SELECT TO authenticated USING ((user_id = ( SELECT auth.uid() AS uid)))
   POLICY store_order_requests_store_read PERMISSIVE FOR SELECT TO authenticated USING (private.is_store_member(store_id))
   CREATE TRIGGER protect_order_base_trigger BEFORE UPDATE ON store_order_requests FOR EACH ROW EXECUTE FUNCTION private.protect_order_base()
-  CREATE TRIGGER store_order_commission_on_status AFTER UPDATE OF status ON store_order_requests FOR EACH ROW WHEN ((old.status IS DISTINCT FROM new.status)) EXECUTE FUNCTION private.commission_on_request_status()
+  CREATE TRIGGER protect_order_commission_rate BEFORE UPDATE ON store_order_requests FOR EACH ROW EXECUTE FUNCTION private.protect_order_commission_rate()
+  CREATE TRIGGER snapshot_store_commission_rate BEFORE INSERT ON store_order_requests FOR EACH ROW EXECUTE FUNCTION private.snapshot_store_commission_rate()
   CREATE TRIGGER store_order_notifications_realtime_trigger AFTER INSERT OR UPDATE ON store_order_requests FOR EACH ROW EXECUTE FUNCTION notifications_on_store_order_change()
   CREATE TRIGGER store_order_request_audit_trigger AFTER INSERT OR UPDATE ON store_order_requests FOR EACH ROW EXECUTE FUNCTION audit_store_order_request_change()
 
@@ -199,11 +208,17 @@ TABLE store_shipments  rls=on  grants: anon=- authenticated=- service_role=rawdD
   delivered_at timestamp with time zone
   created_at timestamp with time zone NOT NULL DEFAULT now()
   updated_at timestamp with time zone NOT NULL DEFAULT now()
+  delivery_verified_at timestamp with time zone
+  delivery_verification_source text
+  delivery_verification_reference text
   CONSTRAINT store_shipments_pkey PRIMARY KEY (id)
   CONSTRAINT store_shipments_request_id_key UNIQUE (request_id)
   CONSTRAINT store_shipments_request_id_fkey FOREIGN KEY (request_id) REFERENCES store_order_requests(id) ON DELETE CASCADE
   CONSTRAINT store_shipments_store_id_fkey FOREIGN KEY (store_id) REFERENCES stores(id)
   CONSTRAINT store_shipments_carrier_name_check CHECK ((length(COALESCE(carrier_name, ''::text)) <= 120))
+  CONSTRAINT store_shipments_delivery_verification_reference_check CHECK (((delivery_verification_reference IS NULL) OR (char_length(delivery_verification_reference) <= 200)))
+  CONSTRAINT store_shipments_delivery_verification_source_check CHECK (((delivery_verification_source IS NULL) OR (delivery_verification_source = ANY (ARRAY['carrier_api'::text, 'platform_manual'::text]))))
+  CONSTRAINT store_shipments_delivery_verified_fields_check CHECK ((((delivery_verified_at IS NULL) AND (delivery_verification_source IS NULL)) OR ((delivery_verified_at IS NOT NULL) AND (delivery_verification_source IS NOT NULL) AND (delivered_at IS NOT NULL) AND (shipping_status = 'delivered'::text))))
   CONSTRAINT store_shipments_shipping_status_check CHECK ((shipping_status = ANY (ARRAY['preparing'::text, 'handed_to_carrier'::text, 'in_transit'::text, 'out_for_delivery'::text, 'delivered'::text, 'delayed'::text, 'returned'::text, 'cancelled'::text])))
   CONSTRAINT store_shipments_status_note_check CHECK ((length(COALESCE(status_note, ''::text)) <= 500))
   CONSTRAINT store_shipments_tracking_code_check CHECK ((length(COALESCE(tracking_code, ''::text)) <= 160))
@@ -213,6 +228,7 @@ TABLE store_shipments  rls=on  grants: anon=- authenticated=- service_role=rawdD
   POLICY store_shipments_owner_read PERMISSIVE FOR SELECT TO authenticated USING ((EXISTS ( SELECT 1 FROM store_order_requests r WHERE ((r.id = store_shipments.request_id) AND (r.user_id = ( SELECT auth.uid() AS uid))))))
   POLICY store_shipments_store_read PERMISSIVE FOR SELECT TO authenticated USING (private.is_store_member(store_id))
   CREATE TRIGGER set_store_shipments_updated_at BEFORE UPDATE ON store_shipments FOR EACH ROW EXECUTE FUNCTION private.set_store_shipments_updated_at()
+  CREATE TRIGGER set_verified_delivery_commission_deadlines AFTER UPDATE OF delivery_verified_at ON store_shipments FOR EACH ROW EXECUTE FUNCTION private.set_verified_delivery_commission_deadlines()
   CREATE TRIGGER store_shipment_signals AFTER INSERT OR UPDATE OF shipping_status ON store_shipments FOR EACH ROW EXECUTE FUNCTION private.shipment_signals()
   CREATE TRIGGER validate_store_shipment_store BEFORE INSERT OR UPDATE ON store_shipments FOR EACH ROW EXECUTE FUNCTION private.validate_store_shipment_store()
 
@@ -225,14 +241,16 @@ TABLE stores  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
   short_description text
   website_url text
   status text NOT NULL DEFAULT 'active'::text
-  commission_rate numeric(5,2) NOT NULL DEFAULT 0
+  commission_rate numeric(5,2) NOT NULL DEFAULT 15.00
   priority_rank integer NOT NULL DEFAULT 100
   created_at timestamp with time zone NOT NULL DEFAULT now()
   updated_at timestamp with time zone NOT NULL DEFAULT now()
+  return_window_days integer
   CONSTRAINT stores_pkey PRIMARY KEY (id)
   CONSTRAINT stores_slug_key UNIQUE (slug)
   CONSTRAINT stores_commission_rate_check CHECK (((commission_rate >= (0)::numeric) AND (commission_rate <= (100)::numeric)))
   CONSTRAINT stores_links_are_http CHECK ((((website_url IS NULL) OR (website_url = ''::text) OR (website_url ~* '^https?://[^[:space:]]+$'::text)) AND ((logo_url IS NULL) OR (logo_url = ''::text) OR (logo_url ~* '^https?://[^[:space:]]+$'::text)) AND ((image_url IS NULL) OR (image_url = ''::text) OR (image_url ~* '^https?://[^[:space:]]+$'::text))))
+  CONSTRAINT stores_return_window_days_check CHECK (((return_window_days IS NULL) OR ((return_window_days >= 1) AND (return_window_days <= 365))))
   CONSTRAINT stores_status_check CHECK ((status = ANY (ARRAY['active'::text, 'inactive'::text])))
   CREATE INDEX idx_stores_commission_rate ON stores USING btree (commission_rate)
   COLUMN GRANTS anon=select,authenticated=select: id,name,slug,logo_url,image_url,short_description,status
