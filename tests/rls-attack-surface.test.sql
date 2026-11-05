@@ -79,7 +79,7 @@ begin
   insert into public.commissions (store_id, order_item_id, rate, amount, status)
     values (v_x, (select id from public.order_items where order_id = v_order), 10, 10, 'pending');
   insert into public.cart_items (user_id, store_product_id, quantity) values (u_b, sp_x.id, 2);
-  insert into public.favorites (user_id, product_id) values (u_b, v_prod);
+  insert into public.favorites (user_id, product_size_id) values (u_b, sp_x.product_size_id);
   insert into public.reviews (user_id, product_id, rating, comment, is_approved)
     values (u_b, v_prod, 5, 'victim review', false) returning id into v_review;
 
@@ -227,7 +227,7 @@ begin
   assert pg_temp.blocked(u_a, 'authenticated', format($q$select 1 from public.cart_items where user_id = %L$q$, u_b)), 'A cannot read B''s cart';
   assert pg_temp.blocked(u_a, 'authenticated', format($q$select 1 from public.favorites where user_id = %L$q$, u_b)), 'A cannot read B''s favourites';
   assert pg_temp.blocked(u_a, 'authenticated', format($q$delete from public.favorites where user_id = %L$q$, u_b)), 'A cannot delete B''s favourites';
-  assert pg_temp.blocked(u_a, 'authenticated', format($q$insert into public.favorites (user_id, product_id) values (%L, %L)$q$, u_b, (select id from public.products where id <> v_prod order by id limit 1))), 'A cannot add favourites for B';
+  assert pg_temp.blocked(u_a, 'authenticated', format($q$insert into public.favorites (user_id, product_size_id) values (%L, %L)$q$, u_b, (select id from public.product_sizes where product_id <> v_prod order by id limit 1))), 'A cannot add favourites for B';
   assert pg_temp.blocked(u_a, 'authenticated', format($q$update public.reviews set comment = 'pwned' where id = %L$q$, v_review)), 'A cannot edit B''s review';
   assert pg_temp.blocked(u_a, 'authenticated', format($q$delete from public.reviews where id = %L$q$, v_review)), 'A cannot delete B''s review';
   assert pg_temp.blocked(u_b, 'authenticated', format($q$update public.reviews set is_approved = true where id = %L$q$, v_review)), 'a customer cannot approve his own review';
