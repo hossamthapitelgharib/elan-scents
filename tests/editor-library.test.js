@@ -40,7 +40,16 @@ test('cloud library reads are authenticated and merges are revision-checked and 
     calls.push({ table, method });
     assert.equal(options.headers.apikey, 'test-service-role');
     if (!Object.hasOwn(tables, table)) return { ok: false, status: 404, json: async () => ({ message: 'unknown table' }) };
-    if (method === 'GET') return response(clone(tables[table]));
+    if (method === 'GET') {
+      const idFilter = parsed.searchParams.get('id') || '';
+      return response(clone(idFilter.startsWith('eq.') ? tables[table].filter((item) => item.id === idFilter.slice(3)) : tables[table]));
+    }
+    if (method === 'DELETE') {
+      const idFilter = parsed.searchParams.get('id') || '';
+      if (!idFilter.startsWith('eq.')) return { ok: false, status: 400, json: async () => ({ message: 'a delete must name one id' }) };
+      tables[table] = tables[table].filter((item) => item.id !== idFilter.slice(3));
+      return { ok: true, status: 204, json: async () => { throw new Error('no body'); } };
+    }
     if (method === 'POST') {
       const rows = JSON.parse(options.body);
       const inserted = rows.map((row) => ({ id: '00000000-0000-4000-8000-' + String(nextId++).padStart(12, '0'), created_at: '2026-10-15T00:00:00.000Z', ...row }));
@@ -125,6 +134,49 @@ test('cloud library reads are authenticated and merges are revision-checked and 
       assert.equal(result.body.error, 'library_revision_conflict');
       assert.equal(calls.filter((call) => call.method === 'POST' || call.method === 'PATCH').length, beforeWrites);
     });
+
+    await t.test('«حذف نهائي» removes exactly the one row asked for, in the right table, and nothing else', async () => {
+      const keep = '00000000-0000-4000-8000-0000000000aa', gone = '00000000-0000-4000-8000-0000000000bb';
+      tables.editor_saved_elements.push({ id: keep, name: 'Keep', kind: 'x', payload: {} }, { id: gone, name: 'Gone', kind: 'x', payload: {} });
+      tables.editor_archive.push({ id: gone, element_id: 'e1', kind: 'x', payload: {} });
+      tables.media_library.push({ id: gone, file_url: 'https://supabase.test/storage/v1/object/public/site-media/a.png', file_type: 'image' });
+      const savedBefore = tables.editor_saved_elements.length, archiveBefore = tables.editor_archive.length, mediaBefore = tables.media_library.length;
+
+      const saved = await invoke('POST', { body: { action: 'library.delete', kind: 'saved', id: gone } });
+      assert.equal(saved.statusCode, 200);
+      assert.equal(saved.body.ok, true);
+      assert.equal(tables.editor_saved_elements.length, savedBefore - 1);
+      assert.ok(tables.editor_saved_elements.some((item) => item.id === keep), 'the other saved element is still there');
+      assert.equal(tables.editor_archive.length, archiveBefore, 'a saved delete does not touch the archive');
+      assert.equal(tables.media_library.length, mediaBefore, 'a saved delete does not touch the media');
+      assert.match(saved.body.revision, /^[a-f0-9]{64}$/);
+
+      assert.equal((await invoke('POST', { body: { action: 'library.delete', kind: 'archive', id: gone } })).statusCode, 200);
+      assert.equal(tables.editor_archive.length, archiveBefore - 1);
+      assert.equal((await invoke('POST', { body: { action: 'library.delete', kind: 'media', id: gone } })).statusCode, 200);
+      assert.equal(tables.media_library.length, mediaBefore - 1);
+      const deletes = calls.filter((call) => call.method === 'DELETE');
+      assert.equal(deletes.length, 3, 'one DELETE per request, no storage or other table involved');
+      assert.deepEqual(deletes.map((call) => call.table), ['editor_saved_elements', 'editor_archive', 'media_library']);
+    });
+
+    await t.test('a delete is refused for a guest, a bad kind, a bad id, and an id that is not there, and deletes nothing', async () => {
+      const before = calls.filter((call) => call.method === 'DELETE').length;
+      const guest = await invoke('POST', { body: { action: 'library.delete', kind: 'saved', id: '00000000-0000-4000-8000-0000000000aa' }, admin: false });
+      assert.equal(guest.statusCode, 401);
+      const kind = await invoke('POST', { body: { action: 'library.delete', kind: 'products', id: '00000000-0000-4000-8000-0000000000aa' } });
+      assert.equal(kind.statusCode, 400); assert.equal(kind.body.error, 'invalid_library_kind');
+      const proto = await invoke('POST', { body: { action: 'library.delete', kind: 'constructor', id: '00000000-0000-4000-8000-0000000000aa' } });
+      assert.equal(proto.statusCode, 400);
+      const id = await invoke('POST', { body: { action: 'library.delete', kind: 'saved', id: '*' } });
+      assert.equal(id.statusCode, 400); assert.equal(id.body.error, 'invalid_library_id');
+      const many = await invoke('POST', { body: { action: 'library.delete', kind: 'saved', id: '00000000-0000-4000-8000-0000000000aa,00000000-0000-4000-8000-0000000000bb' } });
+      assert.equal(many.statusCode, 400);
+      const missing = await invoke('POST', { body: { action: 'library.delete', kind: 'saved', id: '00000000-0000-4000-8000-0000000000cc' } });
+      assert.equal(missing.statusCode, 404); assert.equal(missing.body.error, 'library_item_not_found');
+      assert.equal(calls.filter((call) => call.method === 'DELETE').length, before, 'none of these reached a DELETE');
+      assert.ok(tables.editor_saved_elements.some((item) => item.id === '00000000-0000-4000-8000-0000000000aa'), 'the kept row is untouched');
+    });
   } finally {
     global.fetch = previousFetch;
     if (previousUrl === undefined) delete process.env.SUPABASE_URL; else process.env.SUPABASE_URL = previousUrl;
@@ -147,6 +199,9 @@ test('live editor library connects to cloud data read-only and never saves or pu
   assert.match(ui, /element\.setMedia/);
   assert.match(ui, /provider\.uploadMedia/);
   assert.match(ui, /library\.insert/);
+  assert.match(ui, /حذف نهائي/);
+  assert.match(ui, /provider\.deleteItem\(entry\.cloud\.kind, entry\.cloud\.id\)/);
+  assert.match(read('editor/editor-data-bridge.js'), /call\('library\.delete'/);
   assert.doesNotMatch(ui, /saveLive\s*\(|publishLive\s*\(|document\.getElementById\(['"]save['"]\)\.click/);
   assert.match(editMode, /expectedRevision:\s*current\.library\.revision/);
   assert.match(editMode, /case 'library\.insert'/);

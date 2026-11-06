@@ -247,6 +247,26 @@ async function saveLibrary(ctx, input) {
   return { ok: true, revision: (await library(ctx)).revision };
 }
 
+const LIBRARY_TABLES = { archive: 'editor_archive', saved: 'editor_saved_elements', media: 'media_library' };
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/* «حذف نهائي» in the library window: removes exactly one library row, by its id, after confirming it exists, and confirms it is gone.
+   The file behind a media row stays in Storage: pages that already show it keep working. Nothing else is touched. */
+async function deleteLibraryItem(ctx, input) {
+  const kind = String(input && input.kind || '');
+  const table = Object.hasOwn(LIBRARY_TABLES, kind) ? LIBRARY_TABLES[kind] : '';
+  const id = String(input && input.id || '');
+  if (!table) throw Object.assign(new Error('invalid_library_kind'), { status: 400 });
+  if (!UUID_RE.test(id)) throw Object.assign(new Error('invalid_library_id'), { status: 400 });
+  const query = '?id=eq.' + encodeURIComponent(id);
+  const found = await sb(ctx, table, query + '&select=id');
+  if (!Array.isArray(found) || !found.length) throw Object.assign(new Error('library_item_not_found'), { status: 404 });
+  await sb(ctx, table, query, 'DELETE');
+  const left = await sb(ctx, table, query + '&select=id');
+  if (!Array.isArray(left) || left.length) throw Object.assign(new Error('library_delete_unconfirmed'), { status: 502 });
+  return { ok: true, kind, id, revision: (await library(ctx)).revision };
+}
+
 function normalizeSectionTimer(value) {
   if (value == null) return { timer_mode: 'none', starts_at: null, ends_at: null, duration_hours: null };
   if (typeof value !== 'object' || Array.isArray(value)) throw Object.assign(new Error('invalid_section_timer'), { status: 400 });
@@ -324,6 +344,7 @@ module.exports = async function editorData(req, res) {
     if (action === 'perfumes') return reply(res, 200, { ok: true, rows: await perfumes(ctx, input.filters || {}) });
     if (action === 'library' && req.method === 'GET') return reply(res, 200, { ok: true, library: await library(ctx) });
     if (action === 'library.save' && req.method === 'POST') return reply(res, 200, await saveLibrary(ctx, input));
+    if (action === 'library.delete' && req.method === 'POST') return reply(res, 200, await deleteLibraryItem(ctx, input));
     if (action === 'catalog.create' && req.method === 'POST') return reply(res, 200, await createCatalogRecord(ctx, input));
     if (action === 'section.create' && req.method === 'POST') return reply(res, 200, await createSection(ctx, input));
     return reply(res, 400, { ok: false, error: 'unknown_action' });

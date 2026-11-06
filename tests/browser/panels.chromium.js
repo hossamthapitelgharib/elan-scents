@@ -18,9 +18,10 @@ test.before(async () => { server = await H.startServer(); browser = await pw.chr
 test.after(async () => { if (browser) await browser.close(); if (server) await server.stop(); });
 
 /* The editor, with /api/editor-data answered from the same lists the original panels were given. */
-async function openEditor(size) {
+async function openEditor(size, cloud) {
   const { context, problems } = await H.openContext(browser, server, size || WINDOW);
-  const calls = [];
+  const calls = [], deleted = [];
+  const lib = cloud || { media: [], archive: [], savedElements: [] };
   await context.route('**/api/editor-data*', async (route) => {
     const request = route.request(); let body = {};
     try { body = JSON.parse(request.postData() || '{}'); } catch (_) { body = {}; }
@@ -29,7 +30,13 @@ async function openEditor(size) {
     const json = (o) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(o) });
     if (action === 'options') return json({ ok: true, options: F.OPTIONS });
     if (action === 'perfumes') return json({ ok: true, rows: F.PERFUMES });
-    if (action === 'library') return json({ ok: true, library: { media: [], archive: [], savedElements: [], revision: REVISION } });
+    if (action === 'library') return json({ ok: true, library: { media: lib.media, archive: lib.archive, savedElements: lib.savedElements, revision: REVISION } });
+    if (action === 'library.delete') {
+      deleted.push({ kind: body.kind, id: body.id });
+      const list = { archive: 'archive', saved: 'savedElements', media: 'media' }[body.kind];
+      lib[list] = lib[list].filter((x) => x.id !== body.id);
+      return json({ ok: true, kind: body.kind, id: body.id, revision: REVISION });
+    }
     return json({ ok: false, error: 'not_expected_in_this_test' });
   });
   await context.route('**/api/editor-media*', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, items: F.MEDIA.map((m) => ({ kind: m.kind, url: m.url, title: m.title })) }) }));
@@ -44,7 +51,7 @@ async function openEditor(size) {
   }
   assert.ok(frame, 'the platform loaded inside the editor');
   await page.waitForTimeout(1500);
-  return { context, page, frame, errors, problems, calls };
+  return { context, page, frame, errors, problems, calls, deleted, lib };
 }
 
 /* Right click inside a section of the platform and read the tools menu. */
@@ -167,6 +174,67 @@ test('library window: the same layout as the original, with the cloud library be
     same(await shape(page, '#libraryDialog'), 'library-saved-image', isAi);
     const words = await page.evaluate(() => document.getElementById('libraryDialog').innerText);
     assert.ok(!/الذكاء الاصطناعي|AI/.test(words), 'no AI picture or video in the library window: ' + words);
+    assert.deepEqual(errors, []);
+  } finally { await context.close(); }
+});
+
+/* The original window gives every row a red «حذف نهائي» beside its action. The cloud library deletes the row in Supabase after a confirm. */
+test('library window rows: each has a red «حذف نهائي» like the original, and it deletes just that cloud row after a confirm', async () => {
+  const IMG = 'https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/x.png';
+  const ids = { a1: '00000000-0000-4000-8000-000000000001', a2: '00000000-0000-4000-8000-000000000002', s1: '00000000-0000-4000-8000-000000000003', m1: '00000000-0000-4000-8000-000000000004' };
+  const cloud = {
+    archive: [{ id: ids.a1, element_id: 'el1', kind: 'banner', name: 'بانر العروض', payload: { type: 'banner', text: 'عروض' } }, { id: ids.a2, element_id: 'el2', kind: 'banner', name: 'بانر ثان', payload: { type: 'banner', text: 'ثان' } }],
+    savedElements: [{ id: ids.s1, name: 'عنوان محفوظ', kind: 'text', category: 'text', payload: { type: 'text', text: 'نص' } }],
+    media: [{ id: ids.m1, name: 'صورة 1.png', src: IMG, type: 'image', category: 'image' }]
+  };
+  const { context, page, deleted, errors } = await openEditor(undefined, cloud);
+  try {
+    await page.evaluate(() => { const live = window.elanLiveEditorBridge, real = live.request; live.request = (action, payload) => action === 'page.getState' ? Promise.resolve({ archive: [{ id: 'page-only', name: 'عنصر على الصفحة فقط' }], design: { blocks: [] }, selected: null }) : real.call(live, action, payload); });
+    await page.click('#library'); await page.waitForTimeout(900);
+    const rows = () => page.evaluate(() => Array.from(document.querySelectorAll('#libraryDialog [data-lib-list] > div')).map((r) => {
+      const b = Array.from(r.querySelectorAll('button')).map((x) => ({ text: x.textContent, disabled: x.disabled, color: getComputedStyle(x).color }));
+      return { name: r.querySelector('span').textContent, buttons: b };
+    }));
+    const del = (row) => row.buttons.find((b) => b.text === 'حذف نهائي');
+
+    await page.locator('#libraryDialog button', { hasText: /^بانر/ }).first().click(); await page.waitForTimeout(250);
+    let list = await rows();
+    assert.deepEqual(list.map((r) => r.name), ['بانر العروض', 'بانر ثان']);
+    list.forEach((r) => { assert.ok(del(r), r.name + ' has «حذف نهائي»'); assert.equal(del(r).color, 'rgb(160, 34, 34)', 'in the original red'); assert.equal(del(r).disabled, false); });
+    assert.deepEqual(list[0].buttons.map((b) => b.text), ['استرجاع', 'حذف نهائي'], 'the action first, then the delete, as in the original');
+
+    /* refusing the confirm deletes nothing */
+    page.once('dialog', (d) => d.dismiss());
+    await page.locator('#libraryDialog [data-lib-action="delete"]').first().click(); await page.waitForTimeout(400);
+    assert.deepEqual(deleted, [], 'a cancelled confirm sends nothing');
+
+    /* accepting deletes that one row, and the window shows the rest */
+    let asked = '';
+    page.once('dialog', (d) => { asked = d.message(); d.accept(); });
+    await page.locator('#libraryDialog [data-lib-action="delete"]').first().click(); await page.waitForTimeout(900);
+    assert.match(asked, /نهائيًا/); assert.match(asked, /لن تُحذف/);
+    assert.deepEqual(deleted, [{ kind: 'archive', id: ids.a1 }]);
+    list = await rows();
+    assert.deepEqual(list.map((r) => r.name), ['بانر ثان'], 'only the asked row went');
+    assert.match(await page.locator('#libraryDialog [data-cloud-message]').innerText(), /حُذف العنصر المؤرشف نهائيًا/);
+
+    /* saved elements and media rows carry it too */
+    await page.locator('#libraryDialog button', { hasText: 'الميديا والعناصر المحفوظة' }).first().click(); await page.waitForTimeout(250);
+    await page.locator('#libraryDialog button', { hasText: /^نص \(/ }).first().click(); await page.waitForTimeout(250);
+    list = await rows(); assert.equal(list.length, 1); assert.ok(del(list[0]));
+    await page.locator('#libraryDialog button', { hasText: /^صورة \(/ }).first().click(); await page.waitForTimeout(250);
+    page.once('dialog', (d) => d.accept());
+    await page.locator('#libraryDialog [data-lib-action="delete"]').first().click(); await page.waitForTimeout(900);
+    assert.deepEqual(deleted[1], { kind: 'media', id: ids.m1 });
+    assert.deepEqual(await rows(), []);
+
+    /* an element that is only archived on the page has no cloud row: the button is there, off */
+    await page.locator('#libraryDialog button', { hasText: 'العناصر المحذوفة' }).first().click(); await page.waitForTimeout(250);
+    assert.equal(await page.locator('#libraryDialog [data-lib-cat="other"]').count(), 1, 'the page-only element sits in the others folder');
+    await page.locator('#libraryDialog [data-lib-cat="other"]').click(); await page.waitForTimeout(250);
+    const pageOnly = (await rows()).find((r) => r.name === 'عنصر على الصفحة فقط');
+    assert.ok(pageOnly, 'the page-only archived element is listed');
+    assert.equal(del(pageOnly).disabled, true, 'a page-only archived element cannot be deleted from the cloud');
     assert.deepEqual(errors, []);
   } finally { await context.close(); }
 });

@@ -288,7 +288,7 @@
     return Promise.reject(new Error('upload_unavailable'));
   }
 
-  var REASONS = { too_large: 'أكبر من الحد المسموح', upload_failed: 'تعذر الرفع', upload_unavailable: 'الرفع غير متاح', library_revision_conflict: 'تغيّرت المكتبة أثناء الحفظ', data_url_invalid: 'الملف غير صالح' };
+  var REASONS = { too_large: 'أكبر من الحد المسموح', upload_failed: 'تعذر الرفع', upload_unavailable: 'الرفع غير متاح', library_revision_conflict: 'تغيّرت المكتبة أثناء الحفظ', library_item_not_found: 'العنصر اتحذف قبل كده', library_delete_unconfirmed: 'الحذف ما اتأكدش', invalid_library_id: 'العنصر ده ما لوش رقم في سابابيس', data_url_invalid: 'الملف غير صالح' };
 
   function summarizeSync(report) {
     if (report.nothingToDo) return 'لا توجد مكتبة محلية قديمة في هذا المتصفح، ولا تغييرات معلّقة. كل شيء متزامن.';
@@ -325,13 +325,13 @@
       if (pageIds.has(String(item.element_id))) return;
       var block = blockFromPayload(item.payload);
       var can = supportedBlock(item.payload) && block.id === item.element_id && !activeIds.has(String(item.element_id));
-      archive.push({ section: categoryOf(item), name: String(item.name || item.element_id || 'عنصر'), restore: { elementId: item.element_id, payload: item.payload }, can: can });
+      archive.push({ section: categoryOf(item), name: String(item.name || item.element_id || 'عنصر'), restore: { elementId: item.element_id, payload: item.payload }, can: can, cloud: { kind: 'archive', id: item.id } });
     });
     var saved = (cloud ? cloud.savedElements : []).map(function (item) {
-      return { section: categoryOf(item), name: String(item.name || 'عنصر'), payload: item.payload, can: supportedBlock(item.payload) };
+      return { section: categoryOf(item), name: String(item.name || 'عنصر'), payload: item.payload, can: supportedBlock(item.payload), cloud: { kind: 'saved', id: item.id } };
     });
     var media = (cloud ? cloud.media : []).filter(function (m) { return m && m.src; }).map(function (m) {
-      return { section: categoryOf(m), name: String(m.name || m.id || 'وسيط'), src: m.src, type: String(m.type || ''), can: safeMediaUrl(m.src) };
+      return { section: categoryOf(m), name: String(m.name || m.id || 'وسيط'), src: m.src, type: String(m.type || ''), can: safeMediaUrl(m.src), cloud: { kind: 'media', id: m.id } };
     });
     return { archive: archive, saved: saved, media: media };
   }
@@ -347,7 +347,28 @@
     var act = libButton(label, run);
     act.disabled = !entry.can;
     box.append(text, act);
+    /* «حذف نهائي» is on every row, as in the original window. A row that is not in the cloud library yet (an element archived on the page
+       and not saved) has nothing to delete there, so its button is there but off. */
+    var del = libButton('حذف نهائي', function () { return onDelete(entry); });
+    del.style.color = '#a02222'; del.dataset.libAction = 'delete';
+    if (!entry.cloud || !entry.cloud.id) { del.disabled = true; del.title = 'يُحذف نهائيًا بعد حفظ التصميم، وحين يظهر من مكتبة سابابيس'; }
+    box.append(del);
     list.append(box);
+  }
+
+  var DELETE_ASK = 'حذف هذا العنصر نهائيًا من مكتبة سابابيس؟ النسخ الموجودة في الصفحة لن تُحذف. لا يمكن التراجع عن هذا الحذف.';
+  var DELETE_DONE = { media: 'حُذف الوسيط نهائيًا من مكتبة سابابيس. الملف نفسه باقٍ كي لا تتأثر الصفحات التي تعرضه.', saved: 'حُذف العنصر المحفوظ نهائيًا من مكتبة سابابيس.', archive: 'حُذف العنصر المؤرشف نهائيًا من مكتبة سابابيس.' };
+  async function onDelete(entry) {
+    var provider = window.elanLibraryDataProvider;
+    if (!entry.cloud || !provider || typeof provider.deleteItem !== 'function') return;
+    if (!window.confirm(DELETE_ASK)) return;
+    try {
+      await provider.deleteItem(entry.cloud.kind, entry.cloud.id);
+      forcedNote = DELETE_DONE[entry.cloud.kind] || 'حُذف العنصر نهائيًا.';
+    } catch (error) {
+      forcedNote = 'تعذر الحذف: ' + (REASONS[error && error.message] || (error && error.message) || 'خطأ') + '. لم يُحذف شيء.';
+    }
+    await window.openLiveLibrary();
   }
 
   function setNote(dialog, text) {

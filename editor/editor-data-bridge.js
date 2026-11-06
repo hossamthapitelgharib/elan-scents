@@ -19,6 +19,8 @@
     saveLibrary: async function (library, expectedRevision) {
       return call('library.save', { library: library, expectedRevision: expectedRevision || null });
     },
+    /* «حذف نهائي»: kind is archive, saved or media; id is the cloud row's id. The server removes that one row only. */
+    deleteItem: async function (kind, id) { return call('library.delete', { kind: kind, id: id }); },
     uploadMedia: async function (file, meta) {
       if (!file || !file.type || !/^image\/(jpeg|png|webp|gif|avif)$/.test(file.type)) throw Error('unsupported_type');
       const r = await fetch('/api/editor-upload', {
