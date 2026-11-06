@@ -178,12 +178,14 @@ TABLE store_products  rls=on  grants: anon=- authenticated=awd service_role=rawd
   CONSTRAINT store_products_store_id_product_size_id_key UNIQUE (store_id, product_size_id)
   CONSTRAINT store_products_product_size_id_fkey FOREIGN KEY (product_size_id) REFERENCES product_sizes(id) ON DELETE CASCADE
   CONSTRAINT store_products_store_id_fkey FOREIGN KEY (store_id) REFERENCES stores(id) ON DELETE CASCADE
+  CONSTRAINT store_products_currency_egp_check CHECK ((currency = 'EGP'::text))
   CONSTRAINT store_products_discount_percentage_check CHECK (((discount_percentage >= (0)::numeric) AND (discount_percentage <= (100)::numeric)))
   CONSTRAINT store_products_link_is_http CHECK (((product_url IS NULL) OR (product_url = ''::text) OR (product_url ~* '^https?://[^[:space:]]+$'::text)))
   CONSTRAINT store_products_original_price_check CHECK ((original_price >= (0)::numeric))
   CONSTRAINT store_products_price_check CHECK ((price >= (0)::numeric))
   CONSTRAINT store_products_stock_quantity_check CHECK ((stock_quantity >= 0))
   CONSTRAINT store_products_sync_status_check CHECK ((sync_status = ANY (ARRAY['synced'::text, 'stale'::text, 'unavailable'::text])))
+  CREATE INDEX idx_store_products_catalog_eligible ON store_products USING btree (product_size_id, price, store_id, id) WHERE (is_available AND (sync_status = 'synced'::text) AND (currency = 'EGP'::text) AND ((stock_quantity IS NULL) OR (stock_quantity > 0)))
   CREATE INDEX idx_store_products_cheapest ON store_products USING btree (product_size_id, price) WHERE is_available
   CREATE INDEX idx_store_products_is_available ON store_products USING btree (is_available) WHERE is_available
   CREATE INDEX idx_store_products_price ON store_products USING btree (price)

@@ -63,10 +63,11 @@ const SETTLEMENT_COLUMNS = [
 function settlementStatusLabel(status) { return (SETTLEMENT_COLUMNS.find(column => column[0] === status) || ['', status, ''])[1]; }
 function settlementActionMarkup(record) {
   if (record.status === 'payable') return `<button class="primary settlement-action" type="button" data-settlement-action="request" data-commission-id="${escP(record.commissionId)}">إنشاء تسوية</button>`;
-  if (record.status === 'payment_requested') return `<form class="settlement-form" data-settlement-form="submit" data-settlement-id="${escP(record.id)}"><input name="paymentReference" maxlength="160" placeholder="مرجع التحويل" required><input name="evidenceReference" maxlength="200" placeholder="مرجع الإثبات" required><button class="primary" type="submit">تسجيل التحويل</button></form>`;
-  if (record.status === 'payment_submitted') return `<button class="primary settlement-action" type="button" data-settlement-action="verify" data-settlement-id="${escP(record.id)}">اعتماد الإثبات</button>`;
+  const evidenceLink = record.evidence ? `<button class="ghost settlement-action" type="button" data-settlement-action="sign_evidence" data-settlement-id="${escP(record.id)}" data-evidence-id="${escP(record.evidence.id)}">فتح الإثبات (10 دقائق)</button>` : '';
+  if (record.status === 'payment_requested') return `<form class="settlement-form" data-settlement-form="submit" data-settlement-id="${escP(record.id)}"><input name="paymentReference" maxlength="160" placeholder="مرجع التحويل" required><input name="evidenceReference" maxlength="200" placeholder="مرجع نصي اختياري"><label class="settlement-file"><span>ملف الإثبات (PDF/JPG/PNG، حتى 10MB)</span><input name="evidenceFile" type="file" accept="application/pdf,image/jpeg,image/png" required></label><button class="primary" type="submit">رفع وتسجيل التحويل</button></form>`;
+  if (record.status === 'payment_submitted') return `${evidenceLink}<button class="primary settlement-action" type="button" data-settlement-action="verify" data-settlement-id="${escP(record.id)}">اعتماد الإثبات</button>`;
   if (record.status === 'payment_verified') return `<form class="settlement-form" data-settlement-form="paid" data-settlement-id="${escP(record.id)}"><input name="paymentReference" maxlength="160" placeholder="مرجع التحويل النهائي"><button class="primary" type="submit">تأكيد الدفع</button></form>`;
-  return '';
+  return evidenceLink;
 }
 function settlementRowMarkup(record) {
   const name = record.storeName || 'متجر غير معروف';
@@ -212,6 +213,7 @@ async function mutateSettlement(action, data) {
     const response = await fetch('/api/platform-commission-settlement', { method: 'POST', headers: { ...Portal.auth(), 'Content-Type': 'application/json' }, body: JSON.stringify({ action, ...data }) });
     let result = null; try { result = await response.json(); } catch (_) { result = null; }
     if (!response.ok) { const error = new Error((result && result.error) || 'commission_settlement_failed'); error.status = response.status; throw error; }
+    if (action === 'sign_evidence' && result.url) { window.open(result.url, '_blank', 'noopener,noreferrer'); return; }
     await loadMoreSettlements(false);
   } catch (error) {
     if (error.status === 401 || error.status === 403) sessionProblem(error);
@@ -288,7 +290,7 @@ if (settlementBoard) settlementBoard.addEventListener('click', event => {
   const button = event.target.closest && event.target.closest('[data-settlement-action]');
   if (!button) return;
   const action = button.dataset.settlementAction;
-  mutateSettlement(action, action === 'request' ? { commissionId: button.dataset.commissionId } : { settlementId: button.dataset.settlementId });
+  mutateSettlement(action, action === 'request' ? { commissionId: button.dataset.commissionId } : action === 'sign_evidence' ? { settlementId: button.dataset.settlementId, evidenceId: button.dataset.evidenceId } : { settlementId: button.dataset.settlementId });
 });
 if (settlementBoard) settlementBoard.addEventListener('submit', event => {
   const form = event.target.closest && event.target.closest('[data-settlement-form]');
@@ -297,6 +299,14 @@ if (settlementBoard) settlementBoard.addEventListener('submit', event => {
   const values = new FormData(form);
   const data = { settlementId: form.dataset.settlementId, paymentReference: String(values.get('paymentReference') || '').trim() };
   if (form.dataset.settlementForm === 'submit') data.evidenceReference = String(values.get('evidenceReference') || '').trim();
+  const file = values.get('evidenceFile');
+  if (form.dataset.settlementForm === 'submit' && file && file.size) {
+    const reader = new FileReader();
+    reader.onload = () => { data.evidenceFile = { name: file.name, type: file.type, data: String(reader.result).split(',')[1] || '' }; mutateSettlement(form.dataset.settlementForm, data); };
+    reader.onerror = () => { const box = $('#platformSettlementError'); box.textContent = 'تعذر قراءة ملف الإثبات.'; box.hidden = false; };
+    reader.readAsDataURL(file);
+    return;
+  }
   mutateSettlement(form.dataset.settlementForm, data);
 });
 if (Portal.session()) loadPlatform().catch(reportError);

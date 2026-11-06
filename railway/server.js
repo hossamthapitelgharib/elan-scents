@@ -12,6 +12,7 @@ const ROOT = path.resolve(__dirname, '..');
 const PORT = Number(process.env.PORT) || 3000;
 const MAX_BODY = 1000000;
 const MAX_EDITOR_BODY = 300000;
+const MAX_EVIDENCE_BODY = 15 * 1024 * 1024;
 const CONFIG = (() => { try { return JSON.parse(fs.readFileSync(path.join(ROOT, 'vercel.json'), 'utf8')); } catch (e) { return {}; } })();
 
 const MIME = {
@@ -128,7 +129,7 @@ async function handleApi(req, res, url, pathname) {
   const handler = loadHandler(name);
   if (!handler) return sendJson(res, 404, { error: 'not_found' });
   let raw = Buffer.alloc(0);
-  const bodyLimit = pathname === '/api/editor' ? MAX_EDITOR_BODY : MAX_BODY;
+  const bodyLimit = pathname === '/api/editor' ? MAX_EDITOR_BODY : pathname === '/api/platform-commission-settlement' ? MAX_EVIDENCE_BODY : MAX_BODY;
   try { raw = await readBody(req, bodyLimit); } catch (e) { return sendJson(res, e.code === 413 ? 413 : 400, { error: e.code === 413 ? 'payload_too_large' : 'bad_request' }); }
   try { req.body = parseBody(raw, req.headers['content-type'] || ''); } catch (e) { return sendJson(res, 400, { error: 'invalid_json' }); }
   req.query = parseQuery(url.searchParams);

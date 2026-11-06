@@ -14,6 +14,7 @@ const CONFIG = require('../vercel.json');
 const REWRITES = new Map((CONFIG.rewrites || []).map((r) => [r.source, r.destination]));
 const MAX_BODY = 1000000;
 const MAX_EDITOR_BODY = 300000;
+const MAX_EVIDENCE_BODY = 15 * 1024 * 1024;
 
 // Same baseline as railway/server.js (HSTS is added only when the request came in over https).
 const BASELINE_HEADERS = {
@@ -276,7 +277,7 @@ async function handleApi(deps, env, req, res, url, pathname) {
     if (typeof handler.setDesignSource === 'function') handler.setDesignSource(() => designSource(env, url));
   }
   let raw = Buffer.alloc(0);
-  const bodyLimit = pathname === '/api/editor' ? MAX_EDITOR_BODY : MAX_BODY;
+  const bodyLimit = pathname === '/api/editor' ? MAX_EDITOR_BODY : pathname === '/api/platform-commission-settlement' ? MAX_EVIDENCE_BODY : MAX_BODY;
   try { raw = await readBody(req, bodyLimit); } catch (e) { return sendJson(res, e.code === 413 ? 413 : 400, { error: e.code === 413 ? 'payload_too_large' : 'bad_request' }); }
   try { req.body = parseBody(raw, req.headers['content-type'] || ''); } catch (e) { return sendJson(res, 400, { error: 'invalid_json' }); }
   req.query = parseQuery(url.searchParams);

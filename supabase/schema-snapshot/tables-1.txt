@@ -26,7 +26,9 @@ TABLE aromatic_notes  rls=on  grants: anon=r authenticated=r service_role=rawdDx
   image_url text
   created_at timestamp with time zone NOT NULL DEFAULT now()
   updated_at timestamp with time zone NOT NULL DEFAULT now()
+  key text NOT NULL
   CONSTRAINT aromatic_notes_pkey PRIMARY KEY (id)
+  CONSTRAINT aromatic_notes_key_unique UNIQUE (key)
   CONSTRAINT aromatic_notes_name_key UNIQUE (name)
   POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
   POLICY public_read PERMISSIVE FOR SELECT TO anon,authenticated USING (true)
@@ -77,7 +79,9 @@ TABLE categories  rls=on  grants: anon=r authenticated=r service_role=rawdDxt
   image_url text
   created_at timestamp with time zone NOT NULL DEFAULT now()
   updated_at timestamp with time zone NOT NULL DEFAULT now()
+  key text NOT NULL
   CONSTRAINT categories_pkey PRIMARY KEY (id)
+  CONSTRAINT categories_key_unique UNIQUE (key)
   CONSTRAINT categories_name_key UNIQUE (name)
   POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
   POLICY public_read PERMISSIVE FOR SELECT TO anon,authenticated USING (true)
@@ -113,7 +117,28 @@ TABLE checkout_sessions  rls=on  grants: anon=- authenticated=- service_role=raw
   POLICY checkout_sessions_admin_all PERMISSIVE FOR ALL TO authenticated USING (private.is_platform_admin()) WITH CHECK (private.is_platform_admin())
   POLICY checkout_sessions_owner_read PERMISSIVE FOR SELECT TO authenticated USING ((user_id = ( SELECT auth.uid() AS uid)))
 
-TABLE commission_settlements  rls=on  grants: anon=- authenticated=- service_role=r
+TABLE commission_settlement_evidence  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
+  id uuid NOT NULL DEFAULT gen_random_uuid()
+  settlement_id uuid NOT NULL
+  storage_path text NOT NULL
+  original_filename text NOT NULL
+  mime_type text NOT NULL
+  file_size integer NOT NULL
+  sha256 text NOT NULL
+  uploaded_by uuid
+  uploaded_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT commission_settlement_evidence_pkey PRIMARY KEY (id)
+  CONSTRAINT commission_settlement_evidence_storage_path_key UNIQUE (storage_path)
+  CONSTRAINT commission_settlement_evidence_settlement_id_fkey FOREIGN KEY (settlement_id) REFERENCES commission_settlements(id) ON DELETE RESTRICT
+  CONSTRAINT commission_settlement_evidence_uploaded_by_fkey FOREIGN KEY (uploaded_by) REFERENCES profiles(id) ON DELETE SET NULL
+  CONSTRAINT commission_settlement_evidence_file_size_check CHECK (((file_size >= 1) AND (file_size <= 10485760)))
+  CONSTRAINT commission_settlement_evidence_mime_type_check CHECK ((mime_type = ANY (ARRAY['application/pdf'::text, 'image/jpeg'::text, 'image/png'::text])))
+  CONSTRAINT commission_settlement_evidence_original_filename_check CHECK (((char_length(original_filename) >= 1) AND (char_length(original_filename) <= 255)))
+  CONSTRAINT commission_settlement_evidence_sha256_check CHECK ((sha256 ~ '^[0-9a-f]{64}$'::text))
+  CONSTRAINT commission_settlement_evidence_storage_path_check CHECK ((storage_path ~ '^[0-9a-f-]{36}/[0-9a-f-]{36}\.(pdf|jpg|png)$'::text))
+  CREATE INDEX commission_settlement_evidence_settlement_idx ON commission_settlement_evidence USING btree (settlement_id, uploaded_at DESC)
+
+TABLE commission_settlements  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
   id uuid NOT NULL DEFAULT gen_random_uuid()
   commission_id uuid NOT NULL
   store_id uuid NOT NULL
@@ -137,19 +162,20 @@ TABLE commission_settlements  rls=on  grants: anon=- authenticated=- service_rol
   CONSTRAINT commission_settlements_pkey PRIMARY KEY (id)
   CONSTRAINT commission_settlements_commission_id_key UNIQUE (commission_id)
   CONSTRAINT commission_settlements_commission_id_fkey FOREIGN KEY (commission_id) REFERENCES commissions(id) ON DELETE RESTRICT
-  CONSTRAINT commission_settlements_store_id_fkey FOREIGN KEY (store_id) REFERENCES stores(id) ON DELETE RESTRICT
-  CONSTRAINT commission_settlements_dates_check CHECK (((submitted_at IS NULL) OR (submitted_at >= requested_at)) AND ((verified_at IS NULL) OR ((submitted_at IS NOT NULL) AND (verified_at >= submitted_at))) AND ((paid_at IS NULL) OR ((verified_at IS NOT NULL) AND (paid_at >= verified_at))))
-  CONSTRAINT commission_settlements_status_fields_check CHECK (((status = 'payment_requested'::text) AND (submitted_at IS NULL) AND (verified_at IS NULL) AND (paid_at IS NULL)) OR ((status = 'payment_submitted'::text) AND (submitted_at IS NOT NULL) AND (verified_at IS NULL) AND (paid_at IS NULL)) OR ((status = 'payment_verified'::text) AND (submitted_at IS NOT NULL) AND (verified_at IS NOT NULL) AND (paid_at IS NULL)) OR ((status = 'paid'::text) AND (submitted_at IS NOT NULL) AND (verified_at IS NOT NULL) AND (paid_at IS NOT NULL) AND (payment_reference IS NOT NULL) AND (paid_by IS NOT NULL)) OR (status = ANY (ARRAY['rejected'::text, 'cancelled'::text])))
-  CONSTRAINT commission_settlements_amount_check CHECK ((amount >= 0::numeric))
-  CONSTRAINT commission_settlements_currency_check CHECK ((currency ~ '^[A-Z]{3}$'::text))
-  CONSTRAINT commission_settlements_payment_reference_check CHECK ((payment_reference IS NULL) OR (char_length(payment_reference) >= 1) AND (char_length(payment_reference) <= 160))
-  CONSTRAINT commission_settlements_evidence_reference_check CHECK ((evidence_reference IS NULL) OR (char_length(evidence_reference) >= 1) AND (char_length(evidence_reference) <= 200))
-  CONSTRAINT commission_settlements_failure_reason_check CHECK ((failure_reason IS NULL) OR (char_length(failure_reason) >= 1) AND (char_length(failure_reason) <= 400))
-  CONSTRAINT commission_settlements_notes_check CHECK ((notes IS NULL) OR (char_length(notes) <= 1000))
+  CONSTRAINT commission_settlements_paid_by_fkey FOREIGN KEY (paid_by) REFERENCES profiles(id) ON DELETE SET NULL
   CONSTRAINT commission_settlements_requested_by_fkey FOREIGN KEY (requested_by) REFERENCES profiles(id) ON DELETE SET NULL
+  CONSTRAINT commission_settlements_store_id_fkey FOREIGN KEY (store_id) REFERENCES stores(id) ON DELETE RESTRICT
   CONSTRAINT commission_settlements_submitted_by_fkey FOREIGN KEY (submitted_by) REFERENCES profiles(id) ON DELETE SET NULL
   CONSTRAINT commission_settlements_verified_by_fkey FOREIGN KEY (verified_by) REFERENCES profiles(id) ON DELETE SET NULL
-  CONSTRAINT commission_settlements_paid_by_fkey FOREIGN KEY (paid_by) REFERENCES profiles(id) ON DELETE SET NULL
+  CONSTRAINT commission_settlements_amount_check CHECK ((amount >= (0)::numeric))
+  CONSTRAINT commission_settlements_currency_check CHECK ((currency ~ '^[A-Z]{3}$'::text))
+  CONSTRAINT commission_settlements_dates_check CHECK ((((submitted_at IS NULL) OR (submitted_at >= requested_at)) AND ((verified_at IS NULL) OR ((submitted_at IS NOT NULL) AND (verified_at >= submitted_at))) AND ((paid_at IS NULL) OR ((verified_at IS NOT NULL) AND (paid_at >= verified_at)))))
+  CONSTRAINT commission_settlements_evidence_reference_check CHECK (((evidence_reference IS NULL) OR ((char_length(evidence_reference) >= 1) AND (char_length(evidence_reference) <= 200))))
+  CONSTRAINT commission_settlements_failure_reason_check CHECK (((failure_reason IS NULL) OR ((char_length(failure_reason) >= 1) AND (char_length(failure_reason) <= 400))))
+  CONSTRAINT commission_settlements_notes_check CHECK (((notes IS NULL) OR (char_length(notes) <= 1000)))
+  CONSTRAINT commission_settlements_payment_reference_check CHECK (((payment_reference IS NULL) OR ((char_length(payment_reference) >= 1) AND (char_length(payment_reference) <= 160))))
+  CONSTRAINT commission_settlements_status_check CHECK ((status = ANY (ARRAY['payment_requested'::text, 'payment_submitted'::text, 'payment_verified'::text, 'paid'::text, 'rejected'::text, 'cancelled'::text])))
+  CONSTRAINT commission_settlements_status_fields_check CHECK ((((status = 'payment_requested'::text) AND (submitted_at IS NULL) AND (verified_at IS NULL) AND (paid_at IS NULL)) OR ((status = 'payment_submitted'::text) AND (submitted_at IS NOT NULL) AND (verified_at IS NULL) AND (paid_at IS NULL)) OR ((status = 'payment_verified'::text) AND (submitted_at IS NOT NULL) AND (verified_at IS NOT NULL) AND (paid_at IS NULL)) OR ((status = 'paid'::text) AND (submitted_at IS NOT NULL) AND (verified_at IS NOT NULL) AND (paid_at IS NOT NULL) AND (payment_reference IS NOT NULL) AND (paid_by IS NOT NULL)) OR (status = ANY (ARRAY['rejected'::text, 'cancelled'::text]))))
   CREATE INDEX commission_settlements_status_due_idx ON commission_settlements USING btree (status, updated_at DESC) WHERE (status = ANY (ARRAY['payment_requested'::text, 'payment_submitted'::text, 'payment_verified'::text]))
   CREATE INDEX commission_settlements_store_status_idx ON commission_settlements USING btree (store_id, status, updated_at DESC)
   CREATE TRIGGER commission_settlements_updated_at BEFORE UPDATE ON commission_settlements FOR EACH ROW EXECUTE FUNCTION private.commission_settlement_touch_updated_at()
@@ -184,6 +210,7 @@ TABLE commissions  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
   CREATE INDEX idx_commissions_store_id ON commissions USING btree (store_id)
   POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
   POLICY member_read PERMISSIVE FOR SELECT TO authenticated USING (private.is_store_member(store_id))
+  CREATE TRIGGER guard_commission_paid_transition BEFORE UPDATE OF status ON commissions FOR EACH ROW EXECUTE FUNCTION private.guard_commission_paid_transition()
   CREATE TRIGGER set_updated_at BEFORE UPDATE ON commissions FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
 
 TABLE contact_messages  rls=on  grants: anon=- authenticated=ra service_role=rawdDxt
@@ -210,7 +237,7 @@ TABLE customer_mail_log  rls=on  grants: anon=- authenticated=- service_role=raw
   sent_at timestamp with time zone NOT NULL DEFAULT now()
   CONSTRAINT customer_mail_log_pkey PRIMARY KEY (user_id, kind)
   CONSTRAINT customer_mail_log_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
-  CONSTRAINT customer_mail_log_kind_check CHECK ((kind = ANY (ARRAY['login'::text, 'logout'::text, 'registered'::text])))
+  CONSTRAINT customer_mail_log_kind_check CHECK ((kind = ANY (ARRAY['login'::text, 'logout'::text, 'registered'::text, 'welcome'::text])))
 
 TABLE customer_product_events  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
   id uuid NOT NULL DEFAULT gen_random_uuid()

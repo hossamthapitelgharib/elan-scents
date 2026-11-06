@@ -42,6 +42,15 @@ DEFAULT PRIVILEGES
   supabase_auth_admin in auth on S: postgres=rwU/supabase_auth_admin dashboard_user=rwU/supabase_auth_admin
 
 VIEWS
+VIEW catalog_eligible_offers | owner-privileges | grants: anon=r authenticated=r service_role=rawd
+  cols: store_product_id uuid, product_size_id uuid, product_id uuid, brand_id uuid, store_id uuid, store_name text, price numeric, currency text, stock_quantity integer, price_includes_tax boolean, price_includes_shipping boolean, last_synced_at timestamp with time zone, is_available boolean, sync_status text, store_status text, is_new_arrival boolean, is_coming_soon boolean, is_catalog_bestseller boolean
+  def_md5=98d0bfbb29124f098820cace21a3dd74
+VIEW catalog_global_offers | owner-privileges | grants: anon=r authenticated=r service_role=rawd
+  cols: store_product_id uuid, product_size_id uuid, product_id uuid, brand_id uuid, store_id uuid, store_name text, price numeric, currency text, stock_quantity integer, price_includes_tax boolean, price_includes_shipping boolean, last_synced_at timestamp with time zone, is_available boolean, sync_status text, store_status text, is_new_arrival boolean, is_coming_soon boolean, is_catalog_bestseller boolean
+  def_md5=bce4d71f455103e2bc9fac395f785689
+VIEW catalog_platform_offers | owner-privileges | grants: anon=r authenticated=r service_role=rawd
+  cols: store_product_id uuid, product_size_id uuid, product_id uuid, brand_id uuid, store_id uuid, store_name text, price numeric, currency text, stock_quantity integer, price_includes_tax boolean, price_includes_shipping boolean, last_synced_at timestamp with time zone, is_available boolean, sync_status text, store_status text, is_new_arrival boolean, is_coming_soon boolean, is_catalog_bestseller boolean
+  def_md5=e5380d712e754d514ae4e96bc99e1775
 VIEW cheapest_offers | security_invoker | grants: anon=r authenticated=r service_role=rawd
   cols: product_size_id uuid, product_id uuid, brand_id uuid, store_id uuid, store_name text, price numeric, stock_quantity integer, currency text, price_includes_tax boolean, price_includes_shipping boolean, last_synced_at timestamp with time zone
   def_md5=c2de1d868a39bb85a8f9dbb2566289d7
@@ -68,7 +77,7 @@ VIEW public_brands | security_invoker | grants: anon=r authenticated=r service_r
   def_md5=8f549fb40f164c3dc59ab08b32a64639
 VIEW public_products | security_invoker | grants: anon=r authenticated=r service_role=rawd
   cols: id uuid, brand_id uuid, brand_name text, brand_slug text, name text, slug text, short_description text, official_description text, composition text, gender text, notes_source text, meta_title text, meta_description text, min_price numeric, available_sizes bigint, views_count integer, sales_count integer, search_count integer, request_count integer, average_rating numeric(3,2), reviews_count integer, distinctiveness_score numeric(5,2), catalog_bestseller boolean
-  def_md5=f851689ee3bcd8bd0986d82fb9855ec7
+  def_md5=f0fdfca0d3712de3f3ef1371fb8c6de7
 VIEW public_stores | security_invoker | grants: anon=r authenticated=r service_role=rawd
   cols: id uuid, name text, slug text, logo_url text, image_url text, short_description text, status text
   def_md5=44d3e340da1fe2c0685ecc9d0f0cd2b2
@@ -92,11 +101,15 @@ PG_CRON JOBS
     select private.release_due_commissions();
 
 STORAGE BUCKETS
+  bucket commission-payment-evidence | public=false | file_size_limit=10485760 | allowed_mime_types=application/pdf,image/jpeg,image/png
   bucket site-media | public=true | file_size_limit=52428800 | allowed_mime_types=image/jpeg,image/png,image/webp,image/gif,image/avif,video/mp4,video/webm
 
 POLICIES OUTSIDE public
   POLICY cron.job cron_job_policy PERMISSIVE FOR ALL TO public USING ((username = CURRENT_USER))
   POLICY cron.job_run_details cron_job_run_details_policy PERMISSIVE FOR ALL TO public USING ((username = CURRENT_USER))
+  POLICY storage.objects commission_evidence_service_role_delete PERMISSIVE FOR DELETE TO service_role USING ((bucket_id = 'commission-payment-evidence'::text))
+  POLICY storage.objects commission_evidence_service_role_insert PERMISSIVE FOR INSERT TO service_role WITH CHECK ((bucket_id = 'commission-payment-evidence'::text))
+  POLICY storage.objects commission_evidence_service_role_select PERMISSIVE FOR SELECT TO service_role USING ((bucket_id = 'commission-payment-evidence'::text))
   POLICY storage.objects site_media_admin_delete PERMISSIVE FOR DELETE TO authenticated USING (((bucket_id = 'site-media'::text) AND ( SELECT private.is_platform_admin() AS is_platform_admin)))
   POLICY storage.objects site_media_admin_insert PERMISSIVE FOR INSERT TO authenticated WITH CHECK (((bucket_id = 'site-media'::text) AND ( SELECT private.is_platform_admin() AS is_platform_admin)))
   POLICY storage.objects site_media_admin_select PERMISSIVE FOR SELECT TO authenticated USING (((bucket_id = 'site-media'::text) AND ( SELECT private.is_platform_admin() AS is_platform_admin)))

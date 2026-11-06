@@ -22,3 +22,21 @@ test('submit action requires bounded payment and evidence references', async()=>
 test('state conflict from database is surfaced as 409', async()=>{ const {res}=await run('platform_admin',{action:'verify',settlementId},{message:'Settlement is not submitted'},400); assert.equal(res.status,409); assert.equal(res.body.error,'settlement_state_conflict'); });
 test('GET returns settlement records and applies the requested status filter', async()=>{ const {res,requests}=await run('platform_admin',null,undefined,200,'GET'); assert.equal(res.status,200); assert.equal(res.body.settlements[0].status,'payment_submitted'); const query=requests.find(item=>item.url.pathname.endsWith('/commission_settlements')).url; assert.equal(query.searchParams.get('status'),'eq.payment_submitted'); });
 test('GET does not duplicate a commission that already has a settlement', async()=>{ const {res}=await run('platform_admin',null,undefined,200,'GET'); assert.equal(res.body.settlements.filter(row=>row.commissionId===commissionId).length,1); });
+test('submit uploads a signed evidence file, records metadata, then submits the settlement', async()=>{
+  process.env.SUPABASE_URL='https://test.supabase.co'; process.env.SUPABASE_SERVICE_ROLE_KEY='service-key';
+  const calls=[]; const png=Buffer.concat([Buffer.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a]), Buffer.alloc(20,1)]);
+  global.fetch=async (input, options={})=>{ const url=new URL(String(input)); calls.push({url,options});
+    if(url.pathname==='/auth/v1/user') return response({id:adminId});
+    if(url.pathname==='/rest/v1/profiles') return response([{id:adminId,role:'platform_admin'}]);
+    if(url.pathname.startsWith('/storage/v1/object/commission-payment-evidence/')) return response({Key:'stored'});
+    if(url.pathname==='/rest/v1/commission_settlement_evidence') return response([{id:'evidence-1',settlement_id:settlementId,storage_path:`${settlementId}/file-1.png`,original_filename:'receipt.png',mime_type:'image/png',file_size:png.length,sha256:'a'.repeat(64)}],201);
+    if(url.pathname.endsWith('/rpc/platform_submit_commission_settlement')) return response({id:settlementId,status:'payment_submitted'});
+    return response({});
+  };
+  const res=recorder(); await handler({method:'POST',url:'/api/platform-commission-settlement',body:{action:'submit',settlementId,paymentReference:'BANK-1',evidenceFile:{name:'receipt.png',type:'image/png',data:png.toString('base64')}},headers:{authorization:'Bearer token'}},res);
+  assert.equal(res.out.status,200); assert.equal(res.out.body.evidence.id,'evidence-1');
+  const record=calls.find(call=>call.url.pathname==='/rest/v1/commission_settlement_evidence');
+  assert.equal(JSON.parse(record.options.body).mime_type,'image/png');
+  const rpc=calls.find(call=>call.url.pathname.endsWith('/rpc/platform_submit_commission_settlement'));
+  assert.equal(JSON.parse(rpc.options.body).p_evidence_reference,'file:evidence-1');
+});
