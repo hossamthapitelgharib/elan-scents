@@ -72,7 +72,8 @@ function catalogFor(url, plain) {
       .map((key) => ({ key, value: PAYLOAD('site_settings.' + key) }));
   }
   const select = (u.searchParams.get('select') || 'id').split(',');
-  return [1, 2].map(() => Object.fromEntries(select.map((name) => [name, column(table, name, plain)])));
+  const count = table === 'catalog_platform_offers' ? 1 : 2;
+  return Array.from({ length: count }, () => Object.fromEntries(select.map((name) => [name, name === 'currency' && table === 'catalog_eligible_offers' && !(plain && plain['catalog_eligible_offers.currency'] !== undefined) ? column('catalog_platform_offers', name, plain) : column(table, name, plain)])));
 }
 
 async function openStorefront(plain) {

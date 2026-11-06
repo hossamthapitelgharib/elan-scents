@@ -59,6 +59,19 @@ test('the editor panels read real, filtered catalogue data and keep the purpose 
     const method = options.method || 'GET';
     calls.push({ table, method, query: parsed.search });
     assert.equal(options.headers.apikey, 'test-service-role');
+    if (table === 'catalog_filter_product_sizes' && parsed.pathname.includes('/rpc/')) {
+      const all = [
+        { product_id: id(101), product_size_id: id(201), name: 'Rose Oud', size_ml: 50, size_label: '50 ml', gender: 'men', category_ids: [CAT], category_keys: ['men'], occasion_ids: [], occasion_keys: [], note_ids: [], note_keys: [], store_product_id: id(301), store_id: STORE_1, price: 900, currency: 'EGP' },
+        { product_id: id(101), product_size_id: id(202), name: 'Rose Oud', size_ml: 100, size_label: '100 ml', gender: 'men', category_ids: [CAT], category_keys: ['men'], occasion_ids: [], occasion_keys: [], note_ids: [], note_keys: [], store_product_id: id(302), store_id: STORE_1, price: 1500, currency: 'EGP' },
+        { product_id: id(102), product_size_id: id(203), name: 'Amber Night', size_ml: 100, size_label: '100 ml', gender: 'women', category_ids: [], category_keys: [], occasion_ids: [], occasion_keys: [], note_ids: [], note_keys: [], store_product_id: id(303), store_id: STORE_2, price: 700, currency: 'EGP' }
+      ];
+      let rows = all.filter((row) => (!parsed.searchParams.has('p_category_id') || row.category_ids.includes(parsed.searchParams.get('p_category_id')))
+        && (!parsed.searchParams.has('p_store_id') || row.store_id === parsed.searchParams.get('p_store_id'))
+        && (!parsed.searchParams.has('p_price_min') || row.price >= Number(parsed.searchParams.get('p_price_min')))
+        && (!parsed.searchParams.has('p_price_max') || row.price <= Number(parsed.searchParams.get('p_price_max'))));
+      const offset = Number(parsed.searchParams.get('offset') || 0), limit = Number(parsed.searchParams.get('limit') || 1000);
+      return { ok: true, status: 200, json: async () => rows.slice(offset, offset + limit) };
+    }
     if (method === 'POST' && table === 'editor_sections') {
       const row = { id: id(900), ...JSON.parse(options.body)[0] };
       tables.editor_sections.push(row);
@@ -98,14 +111,14 @@ test('the editor panels read real, filtered catalogue data and keep the purpose 
     await t.test('category, store and price filters narrow the perfume list through the real tables', async () => {
       const byCategory = await call({ action: 'perfumes', filters: { category_id: CAT } });
       assert.deepEqual(byCategory.body.rows.map((r) => r.product_size_id), [id(201), id(202)]);
-      assert.ok(calls.some((c) => c.table === 'product_categories' && c.query.includes('category_id=eq.' + CAT)));
+      assert.ok(calls.some((c) => c.table === 'catalog_filter_product_sizes' && c.query.includes('p_category_id=' + CAT)));
 
       const byStore = await call({ action: 'perfumes', filters: { store_id: STORE_2 } });
       assert.deepEqual(byStore.body.rows.map((r) => r.product_size_id), [id(203)]);
 
       const byPrice = await call({ action: 'perfumes', filters: { store_id: STORE_1, price_min: 1000, price_max: 2000 } });
       assert.deepEqual(byPrice.body.rows.map((r) => r.product_size_id), [id(202)]);
-      assert.deepEqual(Object.keys(byPrice.body.rows[0]).sort(), ['name', 'product_id', 'product_size_id', 'size_label', 'store_id', 'store_product_id'], 'the panel gets the exact offer identifiers but never its price');
+      assert.deepEqual(Object.keys(byPrice.body.rows[0]).sort(), ['category_ids', 'category_keys', 'currency', 'gender', 'name', 'note_ids', 'note_keys', 'occasion_ids', 'occasion_keys', 'price', 'product_id', 'product_size_id', 'size_label', 'size_ml', 'store_id', 'store_product_id'], 'the panel carries stable filters and the selected offer price with its exact store identifiers');
     });
 
     await t.test('malformed filters answer 400 and read nothing from the catalogue', async () => {

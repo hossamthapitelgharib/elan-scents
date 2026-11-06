@@ -35,6 +35,8 @@ test('dynamic section creation only accepts safe filters and currently published
     assert.equal(options.headers.apikey, 'test-service-role');
     if (table === 'products' && method === 'GET') return { ok: true, status: 200, json: async () => [{ id: PRODUCT_ID, name: 'Rose', brand_id: 'brand-1', status: 'published', is_active: true }] };
     if (table === 'product_sizes' && method === 'GET') return { ok: true, status: 200, json: async () => [{ id: SIZE_ID, product_id: PRODUCT_ID, size_ml: 100, size_label: '100 ml' }] };
+    if (table === 'catalog_filter_product_sizes' && parsed.pathname.includes('/rpc/') && method === 'GET') return { ok: true, status: 200, json: async () => [{ product_id: PRODUCT_ID, product_size_id: SIZE_ID, name: 'Rose', size_ml: 100, size_label: '100 ml', gender: 'men', category_ids: [], category_keys: [], occasion_ids: [], occasion_keys: [], note_ids: [], note_keys: [], store_product_id: '50000000-0000-4000-8000-000000000005', store_id: '60000000-0000-4000-8000-000000000006', price: 100, currency: 'EGP' }] };
+    if (['categories', 'product_categories', 'occasions', 'product_occasions', 'aromatic_notes', 'product_notes'].includes(table) && method === 'GET') return { ok: true, status: 200, json: async () => [] };
     if (table === 'editor_sections' && method === 'POST') {
       const row = { id: SECTION_ID, ...JSON.parse(options.body)[0] };
       sections.push(row);
@@ -162,9 +164,11 @@ test('visual editor card tools match or create catalog records and entering a pa
   assert.match(editMode, /productSizeIds\.indexOf\(product\.product_size_id\) !== -1/);
   assert.match(editMode, /case 'library\.insert'/);
   assert.match(hostBridge, /'library\.insert'/);
-  assert.match(designLayer, /sameCatalogName\(o\.store, f\.store\)/);
+  assert.match(designLayer, /String\(offer\.storeId\) === String\(f\.store\)/);
+  assert.doesNotMatch(designLayer, /sameCatalogName\(offer\.store, f\.store\)/);
   assert.match(designLayer, /sameCatalogName\(p\.brand, f\.brand\)/);
-  assert.match(designLayer, /offers\.sort\(function \(a, b\) \{ return a\.price - b\.price; \}\)/);
+  assert.match(designLayer, /Object\.prototype\.hasOwnProperty\.call\(p, 'globalOffer'\) \? p\.globalOffer/);
+  assert.doesNotMatch(designLayer, /offers\.sort\(function \(a, b\) \{ return a\.price - b\.price; \}\)/);
   assert.doesNotMatch(editMode, /openEl|eo-open/);
   assert.match(editMode, /id: 'open', label: 'دخول لصفحة'/);
   assert.match(editMode, /function enterPage\(e\)/);

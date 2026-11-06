@@ -67,34 +67,26 @@
   }
   function genderKey(value) {
     var s = String(value == null ? '' : value).toLowerCase();
-    var aliases = { 'رجالي': 'men', 'men': 'men', 'نسائي': 'women', 'women': 'women', 'عطر يجمعنا': 'unisex', 'a scent that unites us': 'unisex' };
+    var aliases = { men: 'men', women: 'women', unisex: 'unisex' };
     return aliases[s] || s;
   }
   function taxonomyMatches(p, group, value) {
     if (!value) return true;
-    if (group === 'cats') {
-      var categoryKeyMap = window.CATALOG_TAXONOMY_KEY_BY_ID && window.CATALOG_TAXONOMY_KEY_BY_ID.cats;
-      var gender = genderKey(categoryKeyMap && categoryKeyMap[String(value)] || value);
-      if (['men', 'women', 'unisex'].indexOf(gender) > -1) return String(p.gender || '') === gender;
-    }
+    if (group === 'cats' && ['men', 'women', 'unisex'].indexOf(String(value)) > -1) return String(p.gender || '') === String(value);
     var keysField = { cats: 'categoryKeys', occ: 'occasionKeys', notes: 'noteKeys' }[group];
     var idsField = { cats: 'categoryIds', occ: 'occasionIds', notes: 'noteIds' }[group];
     var keys = (p[keysField] || p[group === 'occ' ? 'occs' : group] || []).map(String);
     var ids = (p[idsField] || []).map(String), wanted = String(value);
-    if (keys.indexOf(wanted) > -1 || ids.indexOf(wanted) > -1) return true;
-    return keys.some(function (key) { return sameCatalogName(nmOf(group, key), wanted); }) || ids.some(function (id) { return sameCatalogName(nmOf(group, id), wanted); });
+    return keys.indexOf(wanted) > -1 || ids.indexOf(wanted) > -1;
   }
   function autoList(f) {
     f = f || {};
     var l = [];
     try {
       l = PERFUMES.map(function (p) {
-        var offerSource = f.store ? (p.allOffers || []) : (p.offers || []);
-        var offers = offerSource.filter(function (o) {
-          return o && o.avail && (!f.store || sameCatalogName(o.store, f.store)) && (!f.flag || (o.flags || []).indexOf(f.flag) > -1);
-        });
-        offers.sort(function (a, b) { return a.price - b.price; });
-        return { p: p, b: offers[0] || null };
+        var offer = Object.prototype.hasOwnProperty.call(p, 'globalOffer') ? p.globalOffer : null;
+        var matches = offer && offer.avail && (!f.store || String(offer.storeId) === String(f.store)) && (!f.flag || (offer.flags || []).indexOf(f.flag) > -1);
+        return { p: p, b: matches ? offer : null };
       }).filter(function (x) { return x.b; });
     } catch (e) { return []; }
     l = l.filter(function (x) {
