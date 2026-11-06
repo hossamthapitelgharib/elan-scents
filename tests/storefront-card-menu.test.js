@@ -99,7 +99,7 @@ test('menu follows the sign-in state after login, expiry and sign-in from anothe
 test('menu: sign out revokes the session, clears the cart cache and reloads, like the account page', async () => {
   const h = harness({ auth: { access_token: 't' } });
   const signOut = [], order = []; h.context.window.ElanAuth = { signOut: () => { signOut.push(1); order.push('signOut'); return Promise.resolve(); } };
-  h.context.fetch = (url, init) => { order.push('mail:' + url + ':' + JSON.parse(init.body).event + ':' + init.headers.Authorization); return Promise.resolve({ ok: true }); };
+  h.context.fetch = (url, init) => { order.push('fetch:' + url); return Promise.resolve({ ok: true }); };
   h.context.ElanAuth = h.context.window.ElanAuth;
   h.context.window.GuestIdentity = { prepareLogout: () => Promise.resolve() };
   h.context.GuestIdentity = h.context.window.GuestIdentity;
@@ -107,13 +107,13 @@ test('menu: sign out revokes the session, clears the cart cache and reloads, lik
   h.run('logoutNow()');
   await new Promise((resolve) => setImmediate(resolve)); await new Promise((resolve) => setImmediate(resolve));
   assert.equal(signOut.length, 1);
-  assert.deepEqual(order, ['mail:/api/customer-mail:logout:Bearer t', 'signOut'], 'the goodbye mail is asked for first, while the token is still valid');
+  assert.deepEqual(order, ['signOut'], 'signing out ends the session and asks nothing else of the server: no goodbye mail');
   assert.equal(h.localStorage.getItem('elan_auth_session'), null);
   assert.equal(h.localStorage.getItem('elan_cart'), null);
   assert.equal(h.localStorage.getItem('elan_favs'), null, 'a shared device must not keep the previous person\'s favourites');
   assert.equal(h.localStorage.getItem('elan_orders'), '[1]', 'the orders copy is left alone');
   assert.deepEqual(h.calls, ['reload']);
-  assert.match(core, /var lo=e\.target\.closest\('\[data-logout\]'\);if\(lo\)\{e\.preventDefault\(\);logoutNow\(\);return\}/);
+  assert.match(core, /var ln=e\.target\.closest\('\[data-logout-now\]'\);if\(ln\)\{e\.preventDefault\(\);logoutNow\(\);return\}var lo=e\.target\.closest\('\[data-logout\]'\);if\(lo\)\{e\.preventDefault\(\);document\.getElementById\('menu'\)\.classList\.remove\('open'\);confirmLogout\(\);return\}/, 'the menu entry only asks; «OK» signs out');
 });
 
 test('card front shows only image, heart, name, brand, size, price and add to cart', () => {

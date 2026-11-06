@@ -257,15 +257,12 @@ test('a reset that fails says so in words, never a wrong-password or weak-passwo
 
 /* ---------- the service e-mails (api/customer-mail.js) ---------- */
 
-test('signing out asks for the goodbye mail with the customer token before the session is ended', async () => {
+test('signing out sends no e-mail request at all (no goodbye mail), while the token is still valid it only ends the session', async () => {
   const o = signOut({ AUTH: { access_token: 'user-token' } });
   o.run();
   await settle();
-  assert.deepEqual(o.log.order, ['mail', 'signOut'], 'the mail request goes first, while the token is still valid');
-  assert.equal(o.log.mail.url, '/api/customer-mail');
-  assert.equal(o.log.mail.init.method, 'POST');
-  assert.equal(o.log.mail.init.headers.Authorization, 'Bearer user-token');
-  assert.deepEqual(JSON.parse(o.log.mail.init.body), { event: 'logout' });
+  assert.deepEqual(o.log.order, ['signOut'], 'nothing is asked of the mail endpoint');
+  assert.equal(o.log.mail, undefined);
   assert.equal(o.log.reloaded, 1);
 });
 
@@ -275,21 +272,6 @@ test('nobody signed in, nothing to mail: signing out sends no request', async ()
   await settle();
   assert.deepEqual(o.log.order, ['signOut']);
   assert.equal(o.log.reloaded, 1);
-});
-
-test('a mail request that fails or hangs never keeps the customer from signing out', async () => {
-  const failing = signOut({ AUTH: { access_token: 't' }, fetch: async () => { throw new Error('offline'); } });
-  failing.run();
-  await settle();
-  assert.equal(failing.log.reloaded, 1, 'a failed request is ignored');
-  assert.ok(failing.log.local.includes('elan_auth_session'));
-
-  const hanging = signOut({ AUTH: { access_token: 't' }, fetch: () => new Promise(() => {}) });
-  const started = Date.now();
-  hanging.run();
-  await new Promise((resolve) => setTimeout(resolve, 1700));
-  assert.equal(hanging.log.reloaded, 1, 'a request that never answers is given up on after 1.5 seconds');
-  assert.ok(Date.now() - started < 3000);
 });
 
 test('mailEvent: no token or the editor preview sends nothing; the request never rejects; with a wait it gives up on time', async () => {

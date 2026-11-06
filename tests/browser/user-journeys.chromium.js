@@ -218,8 +218,13 @@ test('11. signing out empties the cart and the favourites on screen and on the d
     const before = await read();
     assert.equal(before.cartN, '2'); assert.equal(before.favN, '1');
     await page.locator('#mb').click();
-    await Promise.all([page.waitForEvent('load', { timeout: 10000 }), page.locator('#menu [data-logout]').click()]);
+    await page.locator('#menu [data-logout]').click();
+    assert.equal(await page.locator('#sheet [data-logout-now]').count(), 1, 'the menu entry only asks');
+    assert.ok(await page.evaluate(() => !!localStorage.getItem('elan_auth_session')), 'still signed in while the question is open');
+    await Promise.all([page.waitForEvent('load', { timeout: 10000 }), page.locator('#sheet [data-logout-now]').click()]);
     await page.waitForTimeout(800);
+    assert.equal(await page.locator('#toast').textContent(), 'تم تسجيل الخروج بنجاح', 'the goodbye is on screen after signing out');
+    assert.equal(await page.locator('#toast').getAttribute('class'), 'show');
     const after = await read();
     assert.deepEqual({ cart: after.cart, favs: after.favs, auth: after.auth, cartN: after.cartN, favN: after.favN }, { cart: null, favs: null, auth: null, cartN: '0', favN: '0' });
     assert.deepEqual(favWrites.filter((w) => w.method === 'DELETE'), [], 'signing out never deletes the customer\'s saved favourites in the account');
@@ -240,5 +245,47 @@ test('12. after signing in the favourites saved in the account are back, and a h
     assert.deepEqual(JSON.parse(await page.evaluate(() => localStorage.getItem('elan_favs'))), [FAV_SIZE]);
     assert.equal(await page.evaluate(() => localStorage.getItem('elan_favs_owner')), 'customer-1');
     assert.deepEqual(favWrites, [], 'what the account already had is not written again');
+  } finally { await c.context.close(); }
+});
+
+test('13. «Cancel» in the sign-out question keeps the customer signed in, with the cart and favourites untouched', async () => {
+  const c = await context();
+  try {
+    await c.context.addInitScript(([size, session]) => {
+      if (localStorage.getItem('__seeded')) return;
+      localStorage.setItem('__seeded', '1');
+      localStorage.setItem('elan_auth_session', JSON.stringify(session));
+      localStorage.setItem('elan_cart', JSON.stringify([{ sid: size, q: 2 }]));
+      localStorage.setItem('elan_favs', JSON.stringify([size]));
+    }, [FAV_SIZE, CUSTOMER_SESSION]);
+    const page = await openPage(c, '/');
+    let reloaded = false;
+    page.on('load', () => { reloaded = true; });
+    await page.locator('#mb').click();
+    await page.locator('#menu [data-logout]').click();
+    await page.locator('#sheet [data-close-sheet]').last().click();
+    await page.waitForFunction(() => document.getElementById('sheet').hidden);
+    await page.waitForTimeout(600);
+    assert.equal(reloaded, false, 'nothing reloaded');
+    const state = await page.evaluate(() => ({ auth: !!localStorage.getItem('elan_auth_session'), cart: localStorage.getItem('elan_cart'), favs: localStorage.getItem('elan_favs'),
+      cartN: document.querySelector('button[data-sheet="cart"]').getAttribute('data-n'), favN: document.querySelector('button[data-sheet="fav"]').getAttribute('data-n') }));
+    assert.equal(state.auth, true);
+    assert.equal(state.cartN, '2'); assert.equal(state.favN, '1');
+    assert.ok(state.cart && state.favs);
+  } finally { await c.context.close(); }
+});
+
+test('14. the welcome message is on screen right after signing in', async () => {
+  const c = await context();
+  try {
+    const page = await openPage(c, '/');
+    await page.locator('#mb').click();
+    await page.locator('#menu [data-sheet="login"]').click();
+    await page.locator('[data-auth-mode="login"] input[name="email"]').fill('customer@example.test');
+    await page.locator('[data-auth-mode="login"] input[name="password"]').fill('correct-password');
+    await page.locator('[data-auth-mode="login"] button[type="submit"]').click();
+    await page.waitForFunction(() => document.getElementById('toast').className === 'show' && document.getElementById('toast').textContent.length > 0, null, { timeout: 8000 });
+    assert.equal(await page.locator('#toast').textContent(), 'أهلًا ومرحبًا بك ونتمنى لك رحلة تسويقية ممتعة');
+    await page.waitForFunction(() => getComputedStyle(document.getElementById('toast')).opacity === '1', null, { timeout: 3000 });   // it fades in over 0.3 s
   } finally { await c.context.close(); }
 });

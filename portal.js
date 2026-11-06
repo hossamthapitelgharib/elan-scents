@@ -40,6 +40,7 @@ window.Portal = {
     } catch (_) {}
     try { if (window.ElanAuth) await window.ElanAuth.signOut(); } catch (_) {}
     localStorage.removeItem('elan_auth_session');
+    try { sessionStorage.setItem('elan_flash', 'logout'); } catch (_) {}   // the page that loads next says goodbye on screen
     // The cart is saved in the account, so the browser's copy of it is only a cache. A later sign-in on a shared device
     // would merge it into somebody else's cart, so it goes. The orders copy (elan_orders) is left as it is: the
     // order history lives in the database and logging out never touches it. The favourites are saved in the account too,
@@ -255,4 +256,11 @@ window.addEventListener('elan-auth-expired', () => {
   Portal.toast('انتهت جلسة الدخول، سجّل الدخول من جديد', 'warning');
   setTimeout(() => location.reload(), 2500);
 });
-document.addEventListener('DOMContentLoaded', () => Portal.startNotifications());
+/* The goodbye after signing out is shown by the page that loads next (the storefront does the same with the same key). */
+Portal.showFlash = () => {
+  let flash = '';
+  try { flash = sessionStorage.getItem('elan_flash') || ''; sessionStorage.removeItem('elan_flash'); } catch (_) {}
+  if (flash === 'logout') Portal.toast('تم تسجيل الخروج بنجاح');
+};
+Portal.welcomeText = 'أهلًا ومرحبًا بك ونتمنى لك رحلة تسويقية ممتعة';
+document.addEventListener('DOMContentLoaded', () => { Portal.showFlash(); Portal.startNotifications(); });
