@@ -26,9 +26,9 @@ function configure(extra = {}) {
 /* world: { user, profile, claims: { kind: boolean | (kind) => boolean }, sendFails } */
 async function call(event, world = {}, { token = 'user-token', body, method = 'POST', waitUntil = true, ip } = {}) {
   const log = { rpc: [], sent: [], released: [], fetches: [], waiting: [] };
-  const user = Object.assign({ id: USER, email: 'buyer@example.invalid', email_confirmed_at: '2026-10-01T00:00:00Z', created_at: '2026-01-01T00:00:00Z' }, world.user);
+  const user = Object.assign({ id: USER, email: 'buyer@example.invalid', email_confirmed_at: '2026-10-01T00:00:00Z', created_at: new Date(Date.now() - 60 * 60 * 1000).toISOString() }, world.user);
   const profile = Object.assign({ id: USER, role: 'customer', full_name: 'Test Buyer' }, world.profile);
-  const claims = Object.assign({ login: true, logout: true, registered: true }, world.claims);
+  const claims = Object.assign({ welcome: true, registered: true }, world.claims);
   global.fetch = async (url, options = {}) => {
     url = String(url);
     log.fetches.push(url);
@@ -70,15 +70,13 @@ test.beforeEach(() => configure());
 
 /* ---------- the wording ---------- */
 
-test('the three mails carry the owner\'s wording, in Arabic, as text and as right-to-left HTML', () => {
+test('the two mails carry the owner\'s wording, in Arabic, as text and as right-to-left HTML', () => {
   const welcome = templates.welcome();
   assert.match(welcome.text, /أهلًا ومرحبًا بك ونتمنى لك رحلة تسويقية ممتعة/);
   assert.match(welcome.html, /dir="rtl"/);
   assert.match(welcome.html, /أهلًا ومرحبًا بك ونتمنى لك رحلة تسويقية ممتعة/);
-  const goodbye = templates.goodbye();
-  assert.match(goodbye.text, /كنا سعداء بوجودك معنا، وفي انتظارك دائمًا/);
-  assert.match(goodbye.html, /كنا سعداء بوجودك معنا، وفي انتظارك دائمًا/);
-  assert.ok(welcome.subject && goodbye.subject);
+  assert.ok(welcome.subject);
+  assert.equal(templates.goodbye, undefined, 'there is no goodbye mail any more');
   const notice = templates.registeredNotice({ name: 'Test Buyer', email: 'buyer@example.invalid' });
   assert.match(notice.text, /Test Buyer/);
   assert.match(notice.text, /buyer@example\.invalid/);
@@ -102,9 +100,12 @@ test('times are shown in Cairo time, follow Egypt\'s summer time, and a missing 
 
 /* ---------- who can ask, and for what ---------- */
 
-test('only POST, only the three known events, and only with a signed-in customer', async () => {
+test('only POST, only the two known events (no goodbye event), and only with a signed-in customer', async () => {
   assert.equal((await call('login', {}, { method: 'GET' })).res.statusCode, 405);
   assert.equal((await call('promo')).res.statusCode, 400);
+  const goodbye = await call('logout');
+  assert.equal(goodbye.res.statusCode, 400, 'signing out asks for nothing');
+  assert.equal(goodbye.log.sent.length + goodbye.log.rpc.length, 0);
   assert.equal((await call('login', {}, { body: { event: ['login'] } })).res.statusCode, 400);
   assert.equal((await call('login', {}, { body: {} })).res.statusCode, 400);
   const anonymous = await call('login', {}, { token: '' });
@@ -127,11 +128,11 @@ test('without the mailbox settings the endpoint does nothing and touches nothing
 
 test('an app password pasted in Google\'s four groups works, and a blank one counts as not set', async () => {
   configure({ SMTP_PASSWORD: ' abcd efgh\tijkl mnop \n' });
-  const { log } = await call('login');
-  assert.equal(log.sent.length, 1);
-  assert.equal(log.sent[0].pass, 'abcdefghijklmnop', 'the spaces are not sent to the mail server');
+  const { log } = await call('registered');
+  assert.ok(log.sent.length >= 1);
+  assert.ok(log.sent.every((m) => m.pass === 'abcdefghijklmnop'), 'the spaces are not sent to the mail server');
   configure({ SMTP_PASSWORD: '   ' });
-  const blank = await call('login');
+  const blank = await call('registered');
   assert.equal(blank.res.body.reason, 'mail_not_configured');
   assert.equal(blank.log.sent.length, 0);
 });
@@ -149,43 +150,43 @@ test('staff and platform accounts, and unconfirmed addresses, get nothing', asyn
   assert.equal(noAddress.res.body.reason, 'no_email');
 });
 
-/* ---------- welcome and goodbye ---------- */
+/* ---------- the welcome ---------- */
 
-test('signing in sends the welcome to the account\'s own address, once per 30 minutes', async () => {
-  const { res, log } = await call('login');
+test('a new account is welcomed once, at the account\'s own address, from the shop mailbox', async () => {
+  const { res, log } = await call('registered');
   assert.equal(res.statusCode, 202);
   assert.deepEqual(res.body, { ok: true, sent: true, queued: true });
-  assert.equal(log.sent.length, 1);
-  const mail = log.sent[0];
-  assert.equal(mail.to, 'buyer@example.invalid');
-  assert.equal(mail.from.address, 'shop@example.invalid');
-  assert.equal(mail.from.name, 'Élan Scents');
-  assert.equal(mail.host, 'smtp.gmail.com');
-  assert.equal(mail.port, 465);
-  assert.match(mail.text, /رحلة تسويقية ممتعة/);
-  assert.deepEqual(log.rpc, [{ p_user_id: USER, p_kind: 'login', p_min_interval: '30 minutes' }]);
+  const welcome = log.sent.find((m) => m.to === 'buyer@example.invalid');
+  assert.ok(welcome, 'the customer gets the welcome');
+  assert.equal(welcome.from.address, 'shop@example.invalid');
+  assert.equal(welcome.from.name, 'Élan Scents');
+  assert.equal(welcome.host, 'smtp.gmail.com');
+  assert.equal(welcome.port, 465);
+  assert.match(welcome.text, /رحلة تسويقية ممتعة/);
+  assert.deepEqual(log.rpc.map((r) => r.p_kind).sort(), ['registered', 'welcome']);
+  assert.ok(log.rpc.every((r) => r.p_min_interval === '100 years'), 'both are once per account, for good');
 });
 
-test('signing out sends the goodbye', async () => {
-  const { log } = await call('logout');
-  assert.equal(log.sent.length, 1);
-  assert.equal(log.sent[0].to, 'buyer@example.invalid');
-  assert.match(log.sent[0].text, /كنا سعداء بوجودك معنا/);
-  assert.deepEqual(log.rpc, [{ p_user_id: USER, p_kind: 'logout', p_min_interval: '30 minutes' }]);
-});
-
-test('a second request inside the interval sends nothing', async () => {
-  const { res, log } = await call('login', { claims: { login: false } });
+test('the welcome is never repeated: a second report of the same account sends nothing', async () => {
+  const { res, log } = await call('registered', { claims: { welcome: false, registered: false } });
   assert.equal(res.statusCode, 200);
   assert.deepEqual(res.body, { ok: true, sent: false, reason: 'already_sent' });
   assert.equal(log.sent.length, 0);
 });
 
+test('signing in again later sends nothing: an older account asks for nothing and touches nothing', async () => {
+  const { res, log } = await call('login', { user: { created_at: '2025-01-01T00:00:00Z' } });
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(res.body, { ok: true, sent: false, reason: 'not_new_account' });
+  assert.equal(log.sent.length + log.rpc.length, 0, 'no mail and no slot');
+  const noDate = await call('login', { user: { created_at: '' } });
+  assert.equal(noDate.res.body.reason, 'not_new_account');
+});
+
 test('the recipient is the token\'s own account: addresses in the request are ignored', async () => {
-  const { log } = await call('login', {}, { body: { event: 'login', to: 'victim@example.invalid', email: 'victim@example.invalid', recipient: 'victim@example.invalid', user_id: 'e0000000-0000-4000-8000-000000000000' } });
-  assert.equal(log.sent.length, 1);
-  assert.equal(log.sent[0].to, 'buyer@example.invalid');
-  assert.equal(log.rpc[0].p_user_id, USER);
+  const { log } = await call('registered', {}, { body: { event: 'registered', to: 'victim@example.invalid', email: 'victim@example.invalid', recipient: 'victim@example.invalid', user_id: 'e0000000-0000-4000-8000-0000000000e1' } });
+  assert.deepEqual(log.sent.map((m) => m.to).sort(), ['buyer@example.invalid', 'platform@example.invalid']);
+  assert.ok(log.rpc.every((r) => r.p_user_id === USER));
 });
 
 /* ---------- the platform notice ---------- */
@@ -193,67 +194,59 @@ test('the recipient is the token\'s own account: addresses in the request are ig
 test('a confirmed new account tells the platform mailbox once, with when it registered and when it confirmed', async () => {
   const { res, log } = await call('registered', { user: { created_at: '2026-11-03T11:02:45.747505+00:00', email_confirmed_at: '2026-11-03T11:03:11.652864+00:00' } });
   assert.equal(res.statusCode, 202);
-  assert.equal(log.sent.length, 1);
-  assert.equal(log.sent[0].to, 'platform@example.invalid');
-  assert.match(log.sent[0].text, /Test Buyer/);
-  assert.match(log.sent[0].text, /buyer@example\.invalid/);
-  assert.match(log.sent[0].text, /تاريخ ووقت التسجيل: .*3 نوفمبر 2026 في 1:02 م \(توقيت القاهرة\)/, 'the registration time, in Cairo time');
-  assert.match(log.sent[0].text, /تاريخ ووقت تأكيد البريد: .*3 نوفمبر 2026 في 1:03 م \(توقيت القاهرة\)/, 'and the confirmation time');
-  assert.match(log.sent[0].html, /1:02 م/);
-  assert.deepEqual(log.rpc.map((r) => r.p_kind), ['registered'], 'only its own slot: the customer\'s next sign-in is still welcomed');
-  assert.equal(log.rpc[0].p_min_interval, '100 years');
+  const notice = log.sent.find((m) => m.to === 'platform@example.invalid');
+  assert.ok(notice, 'the platform mailbox is told');
+  assert.equal(log.sent.filter((m) => m.to === 'platform@example.invalid').length, 1, 'once');
+  assert.match(notice.text, /Test Buyer/);
+  assert.match(notice.text, /buyer@example\.invalid/);
+  assert.match(notice.text, /تاريخ ووقت التسجيل: .*3 نوفمبر 2026 في 1:02 م \(توقيت القاهرة\)/, 'the registration time, in Cairo time');
+  assert.match(notice.text, /تاريخ ووقت تأكيد البريد: .*3 نوفمبر 2026 في 1:03 م \(توقيت القاهرة\)/, 'and the confirmation time');
+  assert.match(notice.html, /1:02 م/);
+  assert.equal(log.rpc.find((r) => r.p_kind === 'registered').p_min_interval, '100 years');
 
-  const again = await call('registered', { claims: { registered: false } });
+  const again = await call('registered', { claims: { registered: false, welcome: false } });
   assert.equal(again.log.sent.length, 0, 'a second report of the same account sends nothing');
   assert.equal(again.res.body.reason, 'already_sent');
 });
 
-test('without a platform address the notice waits and nothing is claimed', async () => {
+test('without a platform address the customer is still welcomed and the notice\'s slot stays free', async () => {
   configure({ PLATFORM_NOTIFY_EMAIL: '' });
   const { res, log } = await call('registered');
-  assert.equal(res.body.reason, 'platform_email_not_set');
-  assert.equal(log.rpc.length + log.sent.length, 0, 'the slot stays free for when the address is set');
+  assert.equal(res.statusCode, 202);
+  assert.deepEqual(log.sent.map((m) => m.to), ['buyer@example.invalid']);
+  assert.deepEqual(log.rpc.map((r) => r.p_kind), ['welcome'], 'the notice is not claimed, so it can still go out once the address is set');
 });
 
-test('the first sign-in of a young account also reports it (the confirmation link may have been opened elsewhere), and still welcomes', async () => {
-  const young = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-  const { log } = await call('login', { user: { created_at: young } });
+test('the first sign-in of a young account does what the confirmation would have done (the link may have been opened elsewhere)', async () => {
+  const { log } = await call('login');
   assert.deepEqual(log.sent.map((m) => m.to).sort(), ['buyer@example.invalid', 'platform@example.invalid']);
-  assert.deepEqual(log.rpc.map((r) => r.p_kind), ['registered', 'login']);
+  assert.deepEqual(log.rpc.map((r) => r.p_kind).sort(), ['registered', 'welcome']);
 });
 
-test('a database hiccup on the welcome slot does not lose a platform notice that was already claimed', async () => {
-  const young = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-  const { res, log } = await call('login', { user: { created_at: young }, claimFailsFor: 'login' });
+test('what an account already received is not sent again, whichever way it is asked for', async () => {
+  const welcomedOnly = await call('login', { claims: { welcome: false } });
+  assert.deepEqual(welcomedOnly.log.sent.map((m) => m.to), ['platform@example.invalid']);
+  const reportedOnly = await call('login', { claims: { registered: false } });
+  assert.deepEqual(reportedOnly.log.sent.map((m) => m.to), ['buyer@example.invalid']);
+});
+
+test('a database hiccup on the second slot does not lose the mail whose slot was already taken', async () => {
+  const { res, log } = await call('registered', { claimFailsFor: 'welcome' });
   assert.equal(res.statusCode, 202);
   assert.deepEqual(log.sent.map((m) => m.to), ['platform@example.invalid']);
-});
-
-test('a young account that was already reported is welcomed like anyone else; an old one is never reported', async () => {
-  const young = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-  const reported = await call('login', { user: { created_at: young }, claims: { registered: false } });
-  assert.equal(reported.log.sent.length, 1);
-  assert.equal(reported.log.sent[0].to, 'buyer@example.invalid');
-  assert.deepEqual(reported.log.rpc.map((r) => r.p_kind), ['registered', 'login']);
-
-  const old = await call('login', { user: { created_at: '2025-01-01T00:00:00Z' } });
-  assert.deepEqual(old.log.rpc.map((r) => r.p_kind), ['login'], 'an old account never asks for the registered slot');
-  assert.equal(old.log.sent[0].to, 'buyer@example.invalid');
 });
 
 /* ---------- failures ---------- */
 
 test('a mail that could not be sent gives its slot back so the next attempt can try, and the answer never shows the reason', async () => {
-  const { res, log } = await call('login', { sendFails: true });
+  const { res, log } = await call('registered', { sendFails: true });
   assert.equal(res.statusCode, 202, 'the page is not told about a mail problem');
-  assert.deepEqual(log.released, ['login']);
+  assert.deepEqual(log.released.sort(), ['registered', 'welcome']);
   assert.ok(!JSON.stringify(res.body).includes('smtp'));
-  const notice = await call('registered', { sendFails: true });
-  assert.deepEqual(notice.log.released, ['registered']);
 });
 
 test('if the database memory is unavailable nothing is sent, and the answer is a plain error', async () => {
-  const { res, log } = await call('login', { claimFails: true });
+  const { res, log } = await call('registered', { claimFails: true });
   assert.equal(res.statusCode, 502);
   assert.deepEqual(res.body, { ok: false, error: 'customer_mail_failed' });
   assert.equal(log.sent.length, 0, 'no memory, no mail: it could repeat on every click');
@@ -261,18 +254,18 @@ test('if the database memory is unavailable nothing is sent, and the answer is a
 
 test('the send runs after the answer when the platform allows it (waitUntil), and inside the request otherwise', async () => {
   let started = false, finished = false;
-  global.fetch = async (url) => ({ ok: true, json: async () => (String(url).endsWith('/auth/v1/user') ? { id: USER, email: 'buyer@example.invalid', email_confirmed_at: 'x', created_at: '2025-01-01T00:00:00Z' } : String(url).includes('/profiles') ? [{ id: USER, role: 'customer' }] : true) });
+  global.fetch = async (url) => ({ ok: true, json: async () => (String(url).endsWith('/auth/v1/user') ? { id: USER, email: 'buyer@example.invalid', email_confirmed_at: 'x', created_at: new Date().toISOString() } : String(url).includes('/profiles') ? [{ id: USER, role: 'customer' }] : true) });
   smtp.sendMail = async () => { started = true; await new Promise((resolve) => setTimeout(resolve, 30)); finished = true; };
   const mk = () => ({ statusCode: 0, setHeader() { return this; }, status(code) { this.statusCode = code; return this; }, json() { return this; } });
   const headers = () => ({ authorization: 'Bearer t', 'x-real-ip': `203.0.113.${++ipCounter % 250}` });
   let kept;
-  await handler({ method: 'POST', headers: headers(), body: { event: 'login' }, waitUntil: (p) => { kept = p; } }, mk());
+  await handler({ method: 'POST', headers: headers(), body: { event: 'registered' }, waitUntil: (p) => { kept = p; } }, mk());
   assert.ok(kept, 'the work was handed to waitUntil');
   assert.equal(finished, false, 'the answer did not wait for the mail');
   await kept;
   assert.ok(started && finished);
   started = finished = false;
-  await handler({ method: 'POST', headers: headers(), body: { event: 'login' } }, mk());
+  await handler({ method: 'POST', headers: headers(), body: { event: 'registered' } }, mk());
   assert.ok(finished, 'without waitUntil (npm start) the request waits for the mail');
 });
 
