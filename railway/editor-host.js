@@ -193,7 +193,7 @@ async function handle(req, res, pathname) {
     const buf = await readRaw(req, uploadLimit());
     if (!buf) return json(res, 413, { ok: false, error: 'file_too_large' }), true;
     let name = ''; try { name = decodeURIComponent(String(req.headers['x-file-name'] || '')); } catch (_) { name = ''; }
-    const r = await media.upload(s, buf, type, name);
+    const r = await media.upload(s, buf, type, name, String(req.headers['x-media-category'] || ''));
     return (r.error ? json(res, r.status, { ok: false, error: r.error }) : json(res, 200, { ok: true, url: r.url })), true;
   }
   if (pathname === '/api/editor-upload-sign' || pathname === '/api/editor-upload-done') {
@@ -208,7 +208,7 @@ async function handle(req, res, pathname) {
       const r = await media.signVideoUpload(s, type, body.size);
       return (r.error ? json(res, r.status, { ok: false, error: r.error }) : json(res, 200, { ok: true, path: r.path, uploadUrl: r.uploadUrl, apikey: r.apikey })), true;
     }
-    const r = await media.finishVideoUpload(s, body.path, type, String(body.name || ''));
+    const r = await media.finishVideoUpload(s, body.path, type, String(body.name || ''), String(body.category || ''));
     return (r.error ? json(res, r.status, { ok: false, error: r.error }) : json(res, 200, { ok: true, url: r.url })), true;
   }
   if (pathname === '/api/editor-session') {

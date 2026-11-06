@@ -281,14 +281,27 @@
     return Array.prototype.map.call(new Uint8Array(digest), function (b) { return b.toString(16).padStart(2, '0'); }).join('');
   }
 
-  function uploadFile(file) {
-    if (typeof window.elanUploadMediaFile === 'function') return window.elanUploadMediaFile(file);
+  function uploadFile(file, folder) {
+    if (typeof window.elanUploadMediaFile === 'function') return window.elanUploadMediaFile(file, null, folder);
     var provider = window.elanLibraryDataProvider;
-    if (provider && typeof provider.uploadMedia === 'function' && /^image\//.test(file.type)) return provider.uploadMedia(file, { category: 'general' }).then(function (r) { return r.src; });
+    if (provider && typeof provider.uploadMedia === 'function' && /^image\//.test(file.type)) return provider.uploadMedia(file, { category: folder || 'general' }).then(function (r) { return r.src; });
     return Promise.reject(new Error('upload_unavailable'));
   }
 
-  var REASONS = { too_large: 'أكبر من الحد المسموح', upload_failed: 'تعذر الرفع', upload_unavailable: 'الرفع غير متاح', library_revision_conflict: 'تغيّرت المكتبة أثناء الحفظ', library_item_not_found: 'العنصر اتحذف قبل كده', library_delete_unconfirmed: 'الحذف ما اتأكدش', invalid_library_id: 'العنصر ده ما لوش رقم في سابابيس', data_url_invalid: 'الملف غير صالح' };
+  /* An element file (the JSON this editor exports) becomes a saved element of the cloud library, in the folder it was uploaded from. */
+  async function saveElementFile(file, folder, cloud) {
+    var provider = window.elanLibraryDataProvider;
+    if (!provider || typeof provider.saveLibrary !== 'function' || !cloud || !cloud.revision) throw new Error('upload_unavailable');
+    if (file.size > 400000) throw new Error('too_large');
+    var obj;
+    try { obj = JSON.parse(await file.text()); } catch (_) { throw new Error('not_an_element_file'); }
+    if (!obj || obj.format !== 'elan-element-v1' || !supportedBlock(obj)) throw new Error('not_an_element_file');
+    var block = blockFromPayload(obj);
+    var row = savedRow({ name: String(file.name || '').replace(/\.json$/i, '') || block.name || 'عنصر', kind: block.kind || block.type || 'element', category: folder, payload: obj });
+    await provider.saveLibrary({ archive: [], savedElements: [row] }, cloud.revision);
+  }
+
+  var REASONS = { too_large: 'أكبر من الحد المسموح', upload_failed: 'تعذر الرفع', upload_unavailable: 'الرفع غير متاح', library_revision_conflict: 'تغيّرت المكتبة أثناء الحفظ', not_an_element_file: 'الملف ده مش ملف عنصر صادر من المحرر أو نوعه مش مدعوم', library_item_not_found: 'العنصر اتحذف قبل كده', library_delete_unconfirmed: 'الحذف ما اتأكدش', storage_delete_failed: 'تعذر مسح الملف من التخزين', invalid_library_id: 'العنصر ده ما لوش رقم في سابابيس', data_url_invalid: 'الملف غير صالح' };
 
   function summarizeSync(report) {
     if (report.nothingToDo) return 'لا توجد مكتبة محلية قديمة في هذا المتصفح، ولا تغييرات معلّقة. كل شيء متزامن.';
@@ -330,8 +343,10 @@
     var saved = (cloud ? cloud.savedElements : []).map(function (item) {
       return { section: categoryOf(item), name: String(item.name || 'عنصر'), payload: item.payload, can: supportedBlock(item.payload), cloud: { kind: 'saved', id: item.id } };
     });
+    var designText = ''; try { designText = JSON.stringify(st && st.design || ''); } catch (_) { designText = ''; }
     var media = (cloud ? cloud.media : []).filter(function (m) { return m && m.src; }).map(function (m) {
-      return { section: categoryOf(m), name: String(m.name || m.id || 'وسيط'), src: m.src, type: String(m.type || ''), can: safeMediaUrl(m.src), cloud: { kind: 'media', id: m.id } };
+      var key = String(m.src).split('/site-media/')[1] || String(m.src);
+      return { section: categoryOf(m), name: String(m.name || m.id || 'وسيط'), src: m.src, type: String(m.type || ''), can: safeMediaUrl(m.src), cloud: { kind: 'media', id: m.id }, draftUses: designText.indexOf(key) >= 0 };
     });
     return { archive: archive, saved: saved, media: media };
   }
@@ -356,15 +371,27 @@
     list.append(box);
   }
 
-  var DELETE_ASK = 'حذف هذا العنصر نهائيًا من مكتبة سابابيس؟ النسخ الموجودة في الصفحة لن تُحذف. لا يمكن التراجع عن هذا الحذف.';
-  var DELETE_DONE = { media: 'حُذف الوسيط نهائيًا من مكتبة سابابيس. الملف نفسه باقٍ كي لا تتأثر الصفحات التي تعرضه.', saved: 'حُذف العنصر المحفوظ نهائيًا من مكتبة سابابيس.', archive: 'حُذف العنصر المؤرشف نهائيًا من مكتبة سابابيس.' };
+  /* What the owner is asked before a permanent delete, and told after it. A picture or video also goes from Storage when nothing uses it. */
+  function askFor(entry) {
+    return entry.cloud.kind === 'media'
+      ? 'حذف هذا الوسيط نهائيًا من مكتبة سابابيس ومن التخزين؟ لو كان مستخدمًا في الموقع فسيبقى الملف نفسه كي لا تتكسر الصفحة. لا يمكن التراجع عن هذا الحذف.'
+      : 'حذف هذا العنصر نهائيًا من مكتبة سابابيس؟ النسخ الموجودة في الصفحة لن تُحذف. لا يمكن التراجع عن هذا الحذف.';
+  }
+  function doneText(kind, result) {
+    if (kind === 'media') {
+      if (result && result.file === 'removed') return 'حُذف الوسيط نهائيًا من مكتبة سابابيس ومن التخزين.';
+      var why = result && Array.isArray(result.keptBecause) && result.keptBecause.length ? ' لأنه مستخدم أو لم نتأكد من عدم استخدامه: ' + result.keptBecause.join('، ') : '';
+      return 'حُذف الوسيط من المكتبة، لكن الملف نفسه باقٍ في التخزين' + why + '. شيلِه من مكانه ثم احذف الملف لو أردت مسحه نهائيًا.';
+    }
+    return kind === 'saved' ? 'حُذف العنصر المحفوظ نهائيًا من مكتبة سابابيس.' : 'حُذف العنصر المؤرشف نهائيًا من مكتبة سابابيس.';
+  }
   async function onDelete(entry) {
     var provider = window.elanLibraryDataProvider;
     if (!entry.cloud || !provider || typeof provider.deleteItem !== 'function') return;
-    if (!window.confirm(DELETE_ASK)) return;
+    if (!window.confirm(askFor(entry))) return;
     try {
-      await provider.deleteItem(entry.cloud.kind, entry.cloud.id);
-      forcedNote = DELETE_DONE[entry.cloud.kind] || 'حُذف العنصر نهائيًا.';
+      var result = await provider.deleteItem(entry.cloud.kind, entry.cloud.id, { draftUses: entry.draftUses === true });
+      forcedNote = doneText(entry.cloud.kind, result);
     } catch (error) {
       forcedNote = 'تعذر الحذف: ' + (REASONS[error && error.message] || (error && error.message) || 'خطأ') + '. لم يُحذف شيء.';
     }
@@ -441,28 +468,33 @@
           } catch (error) { failed(error, 'تعذر تطبيق الوسيط.'); }
         }, true);
       });
-      /* A file uploaded here is kept in the cloud library as a picture or a video, so only those two sections take an upload. */
-      if (libCategory === 'image' || libCategory === 'video') {
-        var picker = make('input'); picker.type = 'file'; picker.hidden = true;
-        picker.accept = libCategory === 'image' ? 'image/jpeg,image/png,image/webp,image/gif,image/avif' : 'video/mp4,video/webm';
-        var upload = libButton('رفع ملف وحفظه في ' + heading.textContent, function () { picker.click(); });
-        upload.dataset.libAction = 'upload';
-        picker.onchange = async function () {
-          var file = picker.files && picker.files[0]; picker.value = '';
-          if (!file) return;
-          upload.disabled = true; setNote(dialog, 'جارٍ رفع الملف…');
-          try {
-            await uploadFile(file);
-            forcedNote = 'تم رفع الملف وحفظه في مكتبة سابابيس. لم يُطبّق على الصفحة ولم يُحفظ أو يُنشر التصميم.';
-            await window.openLiveLibrary();
-          } catch (error) {
-            upload.disabled = false;
-            setNote(dialog, 'تعذر رفع الملف: ' + (REASONS[error && error.message] || (error && error.message) || 'خطأ') + '.');
+      /* Like the original window, every section takes an upload: a picture or a video (kept in the cloud library, in THIS section), or an
+         element file (JSON) exported by this editor (kept as a saved element in this section). Nothing is added to the page by uploading. */
+      var picker = make('input'); picker.type = 'file'; picker.hidden = true;
+      picker.accept = 'image/jpeg,image/png,image/webp,image/gif,image/avif,video/mp4,video/webm,.json,application/json';
+      var upload = libButton('رفع ملف وحفظه في ' + heading.textContent, function () { picker.click(); });
+      upload.dataset.libAction = 'upload';
+      picker.onchange = async function () {
+        var file = picker.files && picker.files[0]; picker.value = '';
+        if (!file) return;
+        var folder = libCategory;
+        upload.disabled = true; setNote(dialog, 'جارٍ رفع الملف…');
+        try {
+          if (/\.json$/i.test(file.name) || file.type === 'application/json') {
+            await saveElementFile(file, folder, ctx.cloud);
+            forcedNote = 'تم حفظ العنصر في مكتبة سابابيس داخل «' + labelOf(folder) + '». لم يُطبّق على الصفحة ولم يُحفظ أو يُنشر التصميم.';
+          } else {
+            await uploadFile(file, folder);
+            forcedNote = 'تم رفع الملف وحفظه في مكتبة سابابيس داخل «' + labelOf(folder) + '». لم يُطبّق على الصفحة ولم يُحفظ أو يُنشر التصميم.';
           }
-        };
-        dialog.append(upload, picker);
-        dialog.append(make('small', 'صور حتى 10 ميجا، وفيديو حتى 50 ميجا. تُحفظ الملفات في مكتبة سابابيس، ولا تُضاف للصفحة عند الرفع للمكتبة.'));
-      }
+          await window.openLiveLibrary();
+        } catch (error) {
+          upload.disabled = false;
+          setNote(dialog, 'تعذر رفع الملف: ' + (REASONS[error && error.message] || (error && error.message) || 'خطأ') + '.');
+        }
+      };
+      dialog.append(upload, picker);
+      dialog.append(make('small', 'صور حتى 10 ميجا، وفيديو حتى 50 ميجا، أو ملف عنصر JSON صادر من هذا المحرر. تُحفظ الملفات في مكتبة سابابيس داخل هذا القسم، ولا تُضاف للصفحة عند الرفع للمكتبة.'));
     }
     if (!list.children.length) list.append(make('p', 'لا توجد عناصر في هذا القسم بعد.'));
     dialog.append(libButton('إغلاق', function () { dialog.close(); }));

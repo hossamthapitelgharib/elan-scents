@@ -93,8 +93,11 @@ function safeFulfill(route, options) {
   });
 }
 
+/* The editor limits key logins to 10 per address per 15 minutes. A test file that opens the editor more than ten times would hit that limit
+   (it did, at the eleventh), so each login comes from its own made-up address, like ten different phones would. */
+let loginSeq = 0;
 async function loginAsOwner(context, server) {
-  const r = await fetch(server.local + '/editor?key=' + ACCESS_KEY, { redirect: 'manual', headers: FORWARDED });
+  const r = await fetch(server.local + '/editor?key=' + ACCESS_KEY, { redirect: 'manual', headers: Object.assign({ 'x-forwarded-for': '10.20.30.' + (++loginSeq % 250 + 1) }, FORWARDED) });
   const m = /elan_sess=([A-Za-z0-9._~-]+)/.exec(r.headers.get('set-cookie') || '');
   if (!m) throw new Error('the owner key did not open a session (status ' + r.status + ')');
   await context.addCookies([{ name: 'elan_sess', value: m[1], domain: 'elan.test', path: '/', secure: true, httpOnly: true, sameSite: 'Strict' }]);

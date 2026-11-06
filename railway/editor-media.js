@@ -16,6 +16,9 @@ const VIDEO_PATH = /^uploads\/\d{4}\/[0-9a-f]{20}\.(mp4|webm)$/;
 const IMAGE_TYPES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif', 'image/avif': 'avif' };
 const VIDEO_TYPES = { 'video/mp4': 'mp4', 'video/webm': 'webm' };
 const TYPES = Object.assign({}, IMAGE_TYPES, VIDEO_TYPES);
+/* The library window's twelve folders. A file uploaded from a folder is recorded in it (media_library.category); anything else, as before, is 'banners'. */
+const FOLDERS = ['section', 'brand', 'store', 'perfume', 'banner', 'text', 'hero', 'image', 'video', 'occasion', 'note', 'text_block'];
+const folderOf = (value) => (FOLDERS.indexOf(String(value || '')) !== -1 ? String(value) : 'banners');
 const kindOf = (type) => (VIDEO_TYPES[type] ? 'video' : IMAGE_TYPES[type] ? 'image' : null);
 const limitFor = (type) => (kindOf(type) === 'video' ? MAX_VIDEO_BYTES : MAX_BYTES);
 /* MP4 files whose first box declares one of these brands are plain video (not an AVIF/HEIC picture or audio-only file). */
@@ -58,19 +61,19 @@ const FOREVER = 'max-age=31536000';
 const publicUrl = (c, path) => c.url + '/storage/v1/object/public/' + BUCKET + '/' + path;
 
 /* Adds the stored file to the media library. Returns an error answer, or null when it was recorded. */
-async function record(session, c, url, path, type, size, fileName) {
+async function record(session, c, url, path, type, size, fileName, folder) {
   let row;
   try {
     row = await fetch(c.url + '/rest/v1/media_library', {
       method: 'POST', headers: headers(session, { 'Content-Type': 'application/json', Prefer: 'return=minimal' }),
-      body: JSON.stringify({ file_url: url, file_type: kindOf(type), source: 'device_upload', title: String(fileName || (kindOf(type) === 'video' ? 'فيديو' : 'صورة')).slice(0, 120), category: 'banners', storage_path: path, mime_type: type, size_bytes: size, is_approved: true })
+      body: JSON.stringify({ file_url: url, file_type: kindOf(type), source: 'device_upload', title: String(fileName || (kindOf(type) === 'video' ? 'فيديو' : 'صورة')).slice(0, 120), category: folderOf(folder), storage_path: path, mime_type: type, size_bytes: size, is_approved: true })
     });
   } catch (_) { return { status: 502, error: 'library_record_failed' }; }
   return row.ok ? null : { status: 502, error: 'library_record_failed' };
 }
 
 /* A picture, sent through the server. (A video is too big for that: see signVideoUpload.) */
-async function upload(session, buf, type, fileName) {
+async function upload(session, buf, type, fileName, folder) {
   const c = cfg();
   if (!c.url || !c.anon) return { status: 503, error: 'supabase_service_configuration_missing' };
   const ext = TYPES[type];
@@ -85,7 +88,7 @@ async function upload(session, buf, type, fileName) {
   catch (_) { return { status: 502, error: 'storage_unreachable' }; }
   if (!up.ok) return { status: up.status === 401 || up.status === 403 ? up.status : 502, error: 'upload_failed' };
   const url = publicUrl(c, path);
-  const failed = await record(session, c, url, path, type, buf.length, fileName);
+  const failed = await record(session, c, url, path, type, buf.length, fileName, folder);
   return failed || { status: 200, url };
 }
 
@@ -124,7 +127,7 @@ async function firstBytes(res, n) {
 
 /* Step 2: the browser says the upload is done. Check what is really stored (size and the file's first bytes, which the browser could lie
    about) before it goes into the library; a file that fails is removed from storage again. */
-async function finishVideoUpload(session, path, type, fileName) {
+async function finishVideoUpload(session, path, type, fileName, folder) {
   const c = cfg();
   if (!c.url || !c.anon) return { status: 503, error: 'supabase_service_configuration_missing' };
   if (kindOf(type) !== 'video') return { status: 415, error: 'unsupported_type' };
@@ -141,8 +144,8 @@ async function finishVideoUpload(session, path, type, fileName) {
   const discard = async () => { try { await fetch(c.url + '/storage/v1/object/' + BUCKET + '/' + path, { method: 'DELETE', headers: headers(session) }); } catch (_) { /* best effort */ } };
   if (size > MAX_VIDEO_BYTES) { await discard(); return { status: 413, error: 'file_too_large' }; }
   if (!looksLike(head, type)) { await discard(); return { status: 415, error: 'file_does_not_match_type' }; }
-  const failed = await record(session, c, url, path, type, size, fileName);
+  const failed = await record(session, c, url, path, type, size, fileName, folder);
   return failed || { status: 200, url };
 }
 
-module.exports = { list, upload, signVideoUpload, finishVideoUpload, looksLike, kindOf, limitFor, MAX_BYTES, MAX_VIDEO_BYTES, IMAGE_TYPES, VIDEO_TYPES, TYPES };
+module.exports = { FOLDERS, folderOf, list, upload, signVideoUpload, finishVideoUpload, looksLike, kindOf, limitFor, MAX_BYTES, MAX_VIDEO_BYTES, IMAGE_TYPES, VIDEO_TYPES, TYPES };

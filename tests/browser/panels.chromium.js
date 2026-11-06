@@ -20,7 +20,7 @@ test.after(async () => { if (browser) await browser.close(); if (server) await s
 /* The editor, with /api/editor-data answered from the same lists the original panels were given. */
 async function openEditor(size, cloud) {
   const { context, problems } = await H.openContext(browser, server, size || WINDOW);
-  const calls = [], deleted = [];
+  const calls = [], deleted = [], uploads = [], saves = [];
   const lib = cloud || { media: [], archive: [], savedElements: [] };
   await context.route('**/api/editor-data*', async (route) => {
     const request = route.request(); let body = {};
@@ -35,9 +35,19 @@ async function openEditor(size, cloud) {
       deleted.push({ kind: body.kind, id: body.id });
       const list = { archive: 'archive', saved: 'savedElements', media: 'media' }[body.kind];
       lib[list] = lib[list].filter((x) => x.id !== body.id);
-      return json({ ok: true, kind: body.kind, id: body.id, revision: REVISION });
+      return json({ ok: true, kind: body.kind, id: body.id, file: body.kind === 'media' ? 'removed' : 'none', keptBecause: [], revision: REVISION });
+    }
+    if (action === 'library.save') {
+      saves.push(body.library);
+      (body.library.savedElements || []).forEach((row) => lib.savedElements.push(Object.assign({ id: '00000000-0000-4000-8000-00000000ff0' + lib.savedElements.length }, row)));
+      return json({ ok: true, revision: REVISION });
     }
     return json({ ok: false, error: 'not_expected_in_this_test' });
+  });
+  await context.route('**/api/editor-upload', async (route) => {
+    const request = route.request();
+    uploads.push({ folder: request.headers()['x-media-category'] || null, type: request.headers()['content-type'] });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, url: 'https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/uploads/2026/aaaaaaaaaaaaaaaaaaaa.png' }) });
   });
   await context.route('**/api/editor-media*', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, items: F.MEDIA.map((m) => ({ kind: m.kind, url: m.url, title: m.title })) }) }));
   await H.loginAsOwner(context, server);
@@ -51,7 +61,7 @@ async function openEditor(size, cloud) {
   }
   assert.ok(frame, 'the platform loaded inside the editor');
   await page.waitForTimeout(1500);
-  return { context, page, frame, errors, problems, calls, deleted, lib };
+  return { context, page, frame, errors, problems, calls, deleted, uploads, saves, lib };
 }
 
 /* Right click inside a section of the platform and read the tools menu. */
@@ -226,6 +236,7 @@ test('library window rows: each has a red «حذف نهائي» like the origina
     page.once('dialog', (d) => d.accept());
     await page.locator('#libraryDialog [data-lib-action="delete"]').first().click(); await page.waitForTimeout(900);
     assert.deepEqual(deleted[1], { kind: 'media', id: ids.m1 });
+    assert.match(await page.locator('#libraryDialog [data-cloud-message]').innerText(), /ومن التخزين/, 'a media delete says the file went from storage too');
     assert.deepEqual(await rows(), []);
 
     /* an element that is only archived on the page has no cloud row: the button is there, off */
@@ -235,6 +246,45 @@ test('library window rows: each has a red «حذف نهائي» like the origina
     const pageOnly = (await rows()).find((r) => r.name === 'عنصر على الصفحة فقط');
     assert.ok(pageOnly, 'the page-only archived element is listed');
     assert.equal(del(pageOnly).disabled, true, 'a page-only archived element cannot be deleted from the cloud');
+    assert.deepEqual(errors, []);
+  } finally { await context.close(); }
+});
+
+/* The original window has «رفع ملف وحفظه في …» in every folder. Here a picture, a video or an element file uploaded from a folder is kept in that folder. */
+test('library upload is in every folder, and what is uploaded lands in the folder it came from', async () => {
+  const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
+  const { context, page, uploads, saves, lib, errors } = await openEditor(undefined, { media: [], archive: [], savedElements: [] });
+  try {
+    await page.evaluate(() => { const live = window.elanLiveEditorBridge, real = live.request; live.request = (action, payload) => action === 'page.getState' ? Promise.resolve({ archive: [], design: { blocks: [] }, selected: null }) : real.call(live, action, payload); });
+    await page.click('#library'); await page.waitForTimeout(900);
+    await page.locator('#libraryDialog button', { hasText: 'الميديا والعناصر المحفوظة' }).first().click(); await page.waitForTimeout(250);
+    for (const key of ['section', 'brand', 'store', 'perfume', 'banner', 'text', 'hero', 'image', 'video', 'occasion', 'note', 'text_block']) {
+      await page.locator('#libraryDialog [data-lib-cat="' + key + '"]').click(); await page.waitForTimeout(150);
+      assert.equal(await page.locator('#libraryDialog [data-lib-action="upload"]').count(), 1, 'the folder ' + key + ' has the upload button');
+      assert.match(await page.locator('#libraryDialog [data-lib-action="upload"]').innerText(), /^رفع ملف وحفظه في /);
+    }
+    /* a picture sent from «براند» */
+    await page.locator('#libraryDialog [data-lib-cat="brand"]').click(); await page.waitForTimeout(150);
+    await page.locator('#libraryDialog input[type="file"]').setInputFiles({ name: 'logo.png', mimeType: 'image/png', buffer: PNG });
+    await page.waitForTimeout(1200);
+    assert.deepEqual(uploads.map((u) => u.folder), ['brand'], 'the server is told the folder');
+    assert.match(await page.locator('#libraryDialog [data-cloud-message]').innerText(), /داخل «براند»/);
+    /* an element file from «بانر» is kept as a saved element of that folder */
+    await page.locator('#libraryDialog [data-lib-cat="banner"]').click(); await page.waitForTimeout(150);
+    const element = { format: 'elan-element-v1', element: { id: 'b1', type: 'banner', kind: 'banner', text: 'عرض' } };
+    await page.locator('#libraryDialog input[type="file"]').setInputFiles({ name: 'عرض.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(element)) });
+    await page.waitForTimeout(1200);
+    assert.equal(saves.length, 1);
+    assert.equal(saves[0].savedElements[0].category, 'banner');
+    assert.equal(saves[0].savedElements[0].name, 'عرض');
+    assert.deepEqual(saves[0].archive, []);
+    assert.equal(lib.savedElements.length, 1);
+    /* a file that is not an element file is refused and nothing is saved */
+    await page.locator('#libraryDialog [data-lib-cat="banner"]').click(); await page.waitForTimeout(150);
+    await page.locator('#libraryDialog input[type="file"]').setInputFiles({ name: 'x.json', mimeType: 'application/json', buffer: Buffer.from('{"hello":1}') });
+    await page.waitForTimeout(800);
+    assert.equal(saves.length, 1, 'nothing more was saved');
+    assert.match(await page.locator('#libraryDialog [data-cloud-message]').innerText(), /مش ملف عنصر/);
     assert.deepEqual(errors, []);
   } finally { await context.close(); }
 });

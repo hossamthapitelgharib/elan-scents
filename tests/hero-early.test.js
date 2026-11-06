@@ -412,7 +412,7 @@ test('the tagline is a heavier, clearer sans and the gold shimmer under the logo
 test('the editor slims a big PNG or JPEG into WebP before it goes up, and uploads the original when that does not help or fails', async () => {
   const src = read('editor/editor-media.js');
   const code = src.match(/var SLIM_OVER[\s\S]*?\n  async function slim\(file\) \{[\s\S]*?\n  \}\n/)[0];
-  assert.match(src, /async function uploadPicture\(file\) \{\s*file = await slim\(file\);/);
+  assert.match(src, /async function uploadPicture\(file, folder\) \{\s*file = await slim\(file\);/);
   function File(parts, name, opts) { this.parts = parts; this.name = name; this.type = opts.type; this.size = parts[0].size; }
   const canvas = { getContext: () => ({ drawImage: (b, x, y, w, h) => { canvas.drawn = [w, h]; } }), toBlob: (done) => done(canvas.blob) };
   const make = (extra) => vm.runInNewContext(code + ';slim', Object.assign({ File, document: { createElement: () => canvas }, createImageBitmap: async () => ({ width: 3000, height: 1500, close() {} }) }, extra));

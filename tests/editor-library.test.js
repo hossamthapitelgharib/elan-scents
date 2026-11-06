@@ -33,15 +33,27 @@ test('cloud library reads are authenticated and merges are revision-checked and 
   const tables = { media_library: [], editor_archive: [], editor_saved_elements: [] };
   const calls = [];
   let nextId = 1;
+  const storageDeletes = [], catalogueUse = new Set();           // storage paths removed; catalogue tables that "use" the file
+  let storageStatus = 200;
   global.fetch = async (url, options = {}) => {
     const parsed = new URL(url);
     const table = parsed.pathname.split('/').pop();
     const method = options.method || 'GET';
-    calls.push({ table, method });
     assert.equal(options.headers.apikey, 'test-service-role');
+    if (parsed.pathname.startsWith('/storage/v1/object/site-media/')) {
+      assert.equal(method, 'DELETE');
+      if (storageStatus === 200) storageDeletes.push(parsed.pathname.slice('/storage/v1/object/site-media/'.length));
+      return { ok: storageStatus === 200, status: storageStatus, json: async () => [] };
+    }
+    calls.push({ table, method });
+    if (['aromatic_notes', 'brands', 'categories', 'occasions', 'product_images', 'profiles', 'stores'].includes(table)) return response(catalogueUse.has(table) ? [{ id: 'x' }] : []);
     if (!Object.hasOwn(tables, table)) return { ok: false, status: 404, json: async () => ({ message: 'unknown table' }) };
     if (method === 'GET') {
       const idFilter = parsed.searchParams.get('id') || '';
+      if (idFilter.startsWith('neq.')) {               // «another row with the same file»
+        const orFilter = decodeURIComponent(parsed.searchParams.get('or') || '');
+        return response(clone(tables[table].filter((item) => item.id !== idFilter.slice(4) && orFilter.split(/[=,*)]/).some((part) => part && ((item.storage_path && item.storage_path === part) || (item.file_url && part.length > 12 && item.file_url.includes(part)))))));
+      }
       return response(clone(idFilter.startsWith('eq.') ? tables[table].filter((item) => item.id === idFilter.slice(3)) : tables[table]));
     }
     if (method === 'DELETE') {
@@ -177,6 +189,76 @@ test('cloud library reads are authenticated and merges are revision-checked and 
       assert.equal(calls.filter((call) => call.method === 'DELETE').length, before, 'none of these reached a DELETE');
       assert.ok(tables.editor_saved_elements.some((item) => item.id === '00000000-0000-4000-8000-0000000000aa'), 'the kept row is untouched');
     });
+
+    await t.test('deleting a media row also removes its file from Storage, but only when nothing uses it', async () => {
+      const editor = require('../railway/editor.js');
+      const realDesign = editor.internals.currentDesignText;
+      const mk = (n, extra = {}) => {
+        const path = 'uploads/2026/' + String(n).repeat(20).slice(0, 20) + '.png';
+        const row = { id: '00000000-0000-4000-8000-00000000f' + String(n).repeat(3), file_url: 'https://supabase.test/storage/v1/object/public/site-media/' + path, storage_path: path, file_type: 'image', ...extra };
+        tables.media_library.push(row);
+        return { path, id: row.id };
+      };
+      const del = (id, extra = {}) => invoke('POST', { body: { action: 'library.delete', kind: 'media', id, ...extra } });
+      try {
+        // 1. unused everywhere: row and file both go
+        editor.internals.currentDesignText = async () => '{"pages":{}}';
+        let a = mk(1);
+        let res = await del(a.id);
+        assert.equal(res.statusCode, 200);
+        assert.equal(res.body.file, 'removed');
+        assert.deepEqual(storageDeletes, [a.path]);
+        assert.ok(!tables.media_library.some((r) => r.id === a.id), 'the row is gone');
+
+        // 2. the published design uses it: the row goes, the file stays and the answer says why
+        a = mk(2); editor.internals.currentDesignText = async () => '{"hero":{"image":"https://x/' + a.path + '"}}';
+        res = await del(a.id);
+        assert.equal(res.body.file, 'kept'); assert.deepEqual(res.body.keptBecause, ['تصميم الموقع']);
+        assert.ok(!storageDeletes.includes(a.path));
+        assert.ok(!tables.media_library.some((r) => r.id === a.id));
+
+        // 3. the design cannot be read: unknown is never «unused»
+        a = mk(3); editor.internals.currentDesignText = async () => null;
+        res = await del(a.id);
+        assert.equal(res.body.file, 'kept'); assert.ok(!storageDeletes.includes(a.path));
+
+        // 4. the open, unsaved design uses it (the editor says so)
+        a = mk(4); editor.internals.currentDesignText = async () => '{}';
+        res = await del(a.id, { draftUses: true });
+        assert.equal(res.body.file, 'kept'); assert.match(res.body.keptBecause[0], /لم يُحفظ/); assert.ok(!storageDeletes.includes(a.path));
+
+        // 5. a catalogue picture column uses it
+        a = mk(5); catalogueUse.add('stores');
+        res = await del(a.id); catalogueUse.clear();
+        assert.equal(res.body.file, 'kept'); assert.deepEqual(res.body.keptBecause, ['جدول stores']); assert.ok(!storageDeletes.includes(a.path));
+
+        // 6. another library row points at the same file
+        a = mk(6); const twin = mk(7, { file_url: tables.media_library[tables.media_library.length - 1].file_url, storage_path: a.path });
+        res = await del(a.id);
+        assert.equal(res.body.file, 'kept'); assert.match(res.body.keptBecause.join(), /نسخة أخرى/); assert.ok(!storageDeletes.includes(a.path));
+        tables.media_library = tables.media_library.filter((r) => r.id !== twin.id);
+
+        // 7. a saved element of the library carries the file
+        a = mk(8); tables.editor_saved_elements.push({ id: '00000000-0000-4000-8000-0000000000e8', name: 'uses it', kind: 'image', payload: { type: 'image', src: 'https://x/' + a.path } });
+        res = await del(a.id);
+        assert.equal(res.body.file, 'kept'); assert.match(res.body.keptBecause.join(), /عنصر محفوظ/); assert.ok(!storageDeletes.includes(a.path));
+        tables.editor_saved_elements = tables.editor_saved_elements.filter((r) => r.name !== 'uses it');
+
+        // 8. a file the editor did not upload (not under uploads/ with a random name) is never removed from Storage
+        const foreign = { id: '00000000-0000-4000-8000-0000000000f9', file_url: 'https://supabase.test/storage/v1/object/public/site-media/brand/logo.png', storage_path: 'brand/logo.png', file_type: 'image' };
+        tables.media_library.push(foreign);
+        const before = storageDeletes.length;
+        res = await del(foreign.id);
+        assert.equal(res.body.file, 'kept'); assert.equal(storageDeletes.length, before);
+
+        // 9. Storage refuses: the row stays so the owner can try again, and the answer is an error
+        a = mk(9); storageStatus = 500;
+        res = await del(a.id); storageStatus = 200;
+        assert.equal(res.statusCode, 502); assert.equal(res.body.error, 'storage_delete_failed');
+        assert.ok(tables.media_library.some((r) => r.id === a.id), 'the row is still there');
+        assert.ok(!storageDeletes.includes(a.path));
+      } finally { editor.internals.currentDesignText = realDesign; }
+    });
   } finally {
     global.fetch = previousFetch;
     if (previousUrl === undefined) delete process.env.SUPABASE_URL; else process.env.SUPABASE_URL = previousUrl;
@@ -200,7 +282,7 @@ test('live editor library connects to cloud data read-only and never saves or pu
   assert.match(ui, /provider\.uploadMedia/);
   assert.match(ui, /library\.insert/);
   assert.match(ui, /حذف نهائي/);
-  assert.match(ui, /provider\.deleteItem\(entry\.cloud\.kind, entry\.cloud\.id\)/);
+  assert.match(ui, /provider\.deleteItem\(entry\.cloud\.kind, entry\.cloud\.id/);
   assert.match(read('editor/editor-data-bridge.js'), /call\('library\.delete'/);
   assert.doesNotMatch(ui, /saveLive\s*\(|publishLive\s*\(|document\.getElementById\(['"]save['"]\)\.click/);
   assert.match(editMode, /expectedRevision:\s*current\.library\.revision/);

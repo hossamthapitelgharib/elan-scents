@@ -271,8 +271,8 @@ test('every list is split by section: page archive by element id, the rest by sa
 
 test('each row has restore / insert / use and, since the owner asked for the original window (2026-11-06), a «حذف نهائي» that deletes one cloud row through the server', () => {
   for (const label of ["'استرجاع'", "'إضافة نسخة'", "'استخدام'", "'حذف نهائي'"]) assert.ok(source.includes(label), label);
-  assert.match(source, /provider\.deleteItem\(entry\.cloud\.kind, entry\.cloud\.id\)/, 'the delete goes to the server action for that one id');
+  assert.match(source, /provider\.deleteItem\(entry\.cloud\.kind, entry\.cloud\.id/, 'the delete goes to the server action for that one id');
   assert.doesNotMatch(source, /saveLibrary\([^)]*\)[^;]*delet|removeFrom|splice\(/, 'a snapshot save is never used to delete: absence from a snapshot does not delete');
-  assert.match(source, /window\.confirm\(DELETE_ASK\)/, 'the owner confirms first');
+  assert.match(source, /window\.confirm\(askFor\(entry\)\)/, 'the owner confirms first');
   assert.match(source, /لا يمكن التراجع/, 'and is told there is no undo, since the cloud has none');
 });

@@ -249,9 +249,54 @@ async function saveLibrary(ctx, input) {
 
 const LIBRARY_TABLES = { archive: 'editor_archive', saved: 'editor_saved_elements', media: 'media_library' };
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const MEDIA_BUCKET = 'site-media';
+/* Only files this editor uploaded (random name under uploads/) are ever removed from Storage. */
+const UPLOAD_PATH = /^uploads\/\d{4}\/[0-9a-f]{20}\.(?:jpg|png|webp|gif|avif|mp4|webm)$/;
+/* Every column of the site's own tables that can hold the address of an uploaded file (a product picture, a store logo, …). When a table
+   gets a new picture column, add it here, or a file that column uses could be removed from Storage. */
+const FILE_COLUMNS = [['aromatic_notes', ['image_url']], ['brands', ['official_logo_url']], ['categories', ['image_url']], ['occasions', ['image_url']],
+  ['product_images', ['image_url']], ['profiles', ['avatar_url']], ['stores', ['image_url', 'logo_url']]];
+
+function storagePathOf(row) {
+  const fromUrl = String(row.file_url || '').split('/storage/v1/object/public/' + MEDIA_BUCKET + '/')[1] || '';
+  const path = String(row.storage_path || fromUrl);
+  return UPLOAD_PATH.test(path) ? path : '';
+}
+
+/* Where an uploaded file is still used. `unknown` means a check could not run, which must keep the file, never delete it. */
+async function mediaFileUse(ctx, row, path, draftUses) {
+  const used = []; let unknown = false;
+  if (draftUses) used.push('تصميم مفتوح في المحرر ولم يُحفظ بعد');
+  try {
+    const text = await require('./editor.js').internals.currentDesignText();
+    if (typeof text !== 'string') unknown = true; else if (text.includes(path)) used.push('تصميم الموقع');
+  } catch (_) { unknown = true; }
+  try {
+    const twins = await sb(ctx, 'media_library', '?select=id&id=neq.' + encodeURIComponent(row.id) + '&or=(storage_path.eq.' + encodeURIComponent(path) + ',file_url.ilike.*' + encodeURIComponent(path) + ')&limit=1');
+    if (Array.isArray(twins) && twins.length) used.push('نسخة أخرى في مكتبة الوسائط');
+    const lib = await library(ctx);
+    if (JSON.stringify([lib.archive, lib.savedElements]).includes(path)) used.push('عنصر محفوظ أو مؤرشف في المكتبة');
+  } catch (_) { unknown = true; }
+  for (const [table, columns] of FILE_COLUMNS) {
+    try {
+      const hit = await sb(ctx, table, '?select=id&limit=1&or=(' + columns.map((c) => c + '.ilike.*' + encodeURIComponent(path) + '*').join(',') + ')');
+      if (Array.isArray(hit) && hit.length) used.push('جدول ' + table);
+    } catch (_) { unknown = true; }
+  }
+  return { used, unknown };
+}
+
+async function removeStorageFile(ctx, path) {
+  const r = await fetch(ctx.supabaseUrl + '/storage/v1/object/' + MEDIA_BUCKET + '/' + path, {
+    method: 'DELETE', headers: { apikey: ctx.serviceRoleKey, Authorization: 'Bearer ' + ctx.serviceRoleKey }
+  });
+  if (!r.ok && r.status !== 404) throw Object.assign(new Error('storage_delete_failed'), { status: 502 });
+}
 
 /* «حذف نهائي» in the library window: removes exactly one library row, by its id, after confirming it exists, and confirms it is gone.
-   The file behind a media row stays in Storage: pages that already show it keep working. Nothing else is touched. */
+   For a media row the uploaded file itself is also removed from Storage, so nothing is kept for ever, but ONLY when nothing still uses it:
+   the site design, another library row, a saved or archived element, or a picture column of the catalogue. If it is used, or a check could
+   not run, the row goes and the file stays (pages keep working) and the answer says why. */
 async function deleteLibraryItem(ctx, input) {
   const kind = String(input && input.kind || '');
   const table = Object.hasOwn(LIBRARY_TABLES, kind) ? LIBRARY_TABLES[kind] : '';
@@ -259,12 +304,22 @@ async function deleteLibraryItem(ctx, input) {
   if (!table) throw Object.assign(new Error('invalid_library_kind'), { status: 400 });
   if (!UUID_RE.test(id)) throw Object.assign(new Error('invalid_library_id'), { status: 400 });
   const query = '?id=eq.' + encodeURIComponent(id);
-  const found = await sb(ctx, table, query + '&select=id');
+  const found = await sb(ctx, table, query + (kind === 'media' ? '&select=id,file_url,storage_path' : '&select=id'));
   if (!Array.isArray(found) || !found.length) throw Object.assign(new Error('library_item_not_found'), { status: 404 });
+  let file = 'none', keptBecause = [];
+  if (kind === 'media') {
+    const path = storagePathOf(found[0]);
+    if (!path) { file = 'kept'; keptBecause = ['ملف لم يرفعه المحرر']; }
+    else {
+      const use = await mediaFileUse(ctx, found[0], path, input.draftUses === true);
+      if (use.used.length || use.unknown) { file = 'kept'; keptBecause = use.used.length ? use.used : ['تعذر التأكد أنه غير مستخدم']; }
+      else { await removeStorageFile(ctx, path); file = 'removed'; }
+    }
+  }
   await sb(ctx, table, query, 'DELETE');
   const left = await sb(ctx, table, query + '&select=id');
   if (!Array.isArray(left) || left.length) throw Object.assign(new Error('library_delete_unconfirmed'), { status: 502 });
-  return { ok: true, kind, id, revision: (await library(ctx)).revision };
+  return { ok: true, kind, id, file, keptBecause, revision: (await library(ctx)).revision };
 }
 
 function normalizeSectionTimer(value) {

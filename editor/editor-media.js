@@ -43,16 +43,18 @@
     } catch (e) { return file; }
   }
   /* A picture is small: it goes through the server. */
-  async function uploadPicture(file) {
+  async function uploadPicture(file, folder) {
     file = await slim(file);
-    var r = await fetch('/api/editor-upload', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': file.type, 'X-File-Name': encodeURIComponent(file.name) }, body: file });
+    var headers = { 'Content-Type': file.type, 'X-File-Name': encodeURIComponent(file.name) };
+    if (folder) headers['X-Media-Category'] = folder;   // the library folder it was uploaded from
+    var r = await fetch('/api/editor-upload', { method: 'POST', credentials: 'same-origin', headers: headers, body: file });
     var j = await r.json().catch(function () { return {}; });
     if (!r.ok || !j.ok) throw failure(j.error || (r.status === 401 ? 'unauthorized' : 'upload_failed'));
     return j.url;
   }
   /* A video goes straight to the storage bucket (the server only signs the upload and, afterwards, checks the stored file and records it),
      so its size is limited by the bucket, not by the Worker. Same upload the Supabase library sends: a form with the file. */
-  async function uploadVideo(file, onProgress) {
+  async function uploadVideo(file, onProgress, folder) {
     var s = await postJson('/api/editor-upload-sign', { type: file.type, size: file.size });
     await new Promise(function (resolve, reject) {
       var fd = new FormData(); fd.append('cacheControl', '31536000'); fd.append('', file);
@@ -63,7 +65,7 @@
       x.onerror = function () { reject(failure('storage_unreachable')); };
       x.send(fd);
     });
-    return (await postJson('/api/editor-upload-done', { path: s.path, type: file.type, name: file.name })).url;
+    return (await postJson('/api/editor-upload-done', { path: s.path, type: file.type, name: file.name, category: folder || '' })).url;
   }
 
   window.elanPickMedia = function (opts) {
@@ -137,7 +139,7 @@
 
   /* Uploads a file the way the picker does (a picture through the server, a video straight to storage) and gives back its address.
      Used by the library to move the old browser-only media into the cloud library. */
-  window.elanUploadMediaFile = function (file, onProgress) { return /^video\//.test(file.type) ? uploadVideo(file, onProgress || function () {}) : uploadPicture(file); };
+  window.elanUploadMediaFile = function (file, onProgress, folder) { return /^video\//.test(file.type) ? uploadVideo(file, onProgress || function () {}, folder) : uploadPicture(file, folder); };
   // Menu tool: put a picked image into the selected element.
   window.elanLiveMedia = async function (element, tool) {
     if (element && element.hasMedia) { busyNotice(element); return; }

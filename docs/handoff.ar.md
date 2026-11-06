@@ -11,6 +11,12 @@
 
 ## مفتوح
 
+### 2026-11-06: مكتبة المحرر — «حذف نهائي» والرفع في كل فولدر (مرفوعة، تنتظر تجربة المالك)
+- كل صف في نافذة المكتبة فيه «حذف نهائي» أحمر كالأصل (الخادم: الإجراء `library.delete` في `railway/editor-data.js`). حذف الوسيط يمسح الملف نفسه من التخزين أيضًا، **ولا يمسحه إلا بعد التأكد أنه غير مستخدم**: في `design/home.json` على GitHub، أو في عمود صورة من الكتالوج، أو عنصر محفوظ/مؤرشف، أو صف آخر بالملف نفسه، أو في التصميم المفتوح في المحرر ولم يُحفظ. أي فحص تعذّر يعني «غير معروف» فيبقى الملف. **من أضاف عمود صورة جديدًا لجدول في الكتالوج يضيفه إلى `FILE_COLUMNS` في `railway/editor-data.js`** وإلا قد يُمسح ملف يستعمله.
+- من 17 صورة في المكتبة اليوم 3 مستعملة في `design/home.json` فلن تُمسح.
+- زر «رفع ملف وحفظه في …» صار في كل الفولدرات الاثنى عشر: صورة أو فيديو يُسجَّل في `media_library.category` بالفولدر الذي رُفع منه (الصور القديمة كلها `banners` وتظهر في «صورة»)، وملف عنصر JSON (صادر من المحرر) يُحفظ عنصرًا محفوظًا بالفولدر.
+- `tests/browser/harness.js`: كل دخول بالمفتاح يأتي بعنوان مختلف لأن للدخول بالمفتاح حدًا 10 لكل عنوان.
+
 ### 2026-11-06: عاجل — الموقع الحي بلا عطور: الـviews الثلاثة `catalog_*_offers` ترجع 42501 للزائر (لم يُصلَح، متروك لنسخة فلاتر الكتالوج)
 - **العَرَض:** فحص الموقع الحي (`Live browser check`) يرى العدّاد «0 عطر» وكل صفحات القوائم فارغة (العروض، الأحدث، الفئات، Masterpieces…) ما عدا البراندات والمتاجر. بدأ هذا بعد نشر `e92dd55` (تعديل `app-core.js` ليقرأ `catalog_platform_offers` و`catalog_eligible_offers`).
 - **السبب (مقيس على القاعدة الحية بدور `anon` و`authenticated`):** الترحيل `20261105122843_catalog_data_foundation` يسحب `EXECUTE` على `private.fn_catalog_eligible_offers()` من `PUBLIC` و`anon` و`authenticated` (السطر `REVOKE ALL ON FUNCTION … FROM PUBLIC, anon, authenticated`)، أما الـviews `catalog_eligible_offers` و`catalog_global_offers` و`catalog_platform_offers` فليست `security_invoker` وتستدعي هذه الدالة. القاعدة في Postgres: الدالة المستدعاة داخل view تُنفَّذ بصلاحيات **مستخدم الـview لا مالكه**، فيرجع كل select من الزائر `ERROR 42501 permission denied for function fn_catalog_eligible_offers`، ويصير `d[3]` فارغًا في المتصفح فلا يُبنى أي عطر. (`public_products` و`cheapest_offers` سليمان: دالتاهما بصلاحية التنفيذ الافتراضية.)

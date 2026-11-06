@@ -20,12 +20,12 @@
       return call('library.save', { library: library, expectedRevision: expectedRevision || null });
     },
     /* «حذف نهائي»: kind is archive, saved or media; id is the cloud row's id. The server removes that one row only. */
-    deleteItem: async function (kind, id) { return call('library.delete', { kind: kind, id: id }); },
+    deleteItem: async function (kind, id, options) { return call('library.delete', { kind: kind, id: id, draftUses: !!(options && options.draftUses) }); },
     uploadMedia: async function (file, meta) {
       if (!file || !file.type || !/^image\/(jpeg|png|webp|gif|avif)$/.test(file.type)) throw Error('unsupported_type');
       const r = await fetch('/api/editor-upload', {
         method: 'POST', credentials: 'same-origin', cache: 'no-store',
-        headers: { 'Content-Type': file.type, 'X-File-Name': encodeURIComponent(file.name || (meta && meta.category) || 'صورة') },
+        headers: Object.assign({ 'Content-Type': file.type, 'X-File-Name': encodeURIComponent(file.name || (meta && meta.category) || 'صورة') }, meta && meta.category && meta.category !== 'general' ? { 'X-Media-Category': meta.category } : {}),
         body: file
       });
       const j = await r.json().catch(function () { return {}; });
