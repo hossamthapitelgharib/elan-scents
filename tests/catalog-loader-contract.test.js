@@ -45,16 +45,49 @@ test('gender, occasion, and note filters use stable values with AND across dimen
   const rankedEnd = core.indexOf('\n', rankedStart);
   const source = core.slice(rankedStart, rankedEnd) + '\n' + core.slice(start, end);
   const context = vm.createContext({
-    F: { q: '', cat: 'men', oc: 'work', nt: 'oud', br: '', st: '', min: '', max: '', ind: '', sec: '', sort: 0 },
+    F: { q: '', cat: 'men', oc: 'work', nt: 'oud', br: '', st: '', size: '', min: '', max: '', ind: '', sec: '', sort: 0 },
     PERFUMES: [
       { id: 'size-a', name: 'matching', brand: 'B', gender: 'men', occasionKeys: ['work'], noteKeys: ['oud'], globalOffer: { price: 12, avail: true, flags: [] }, allEligibleOffers: [] },
       { id: 'size-b', name: 'wrong occasion', brand: 'B', gender: 'men', occasionKeys: ['date'], noteKeys: ['oud'], globalOffer: { price: 12, avail: true, flags: [] }, allEligibleOffers: [] },
       { id: 'size-c', name: 'wrong gender', brand: 'B', gender: 'women', occasionKeys: ['work'], noteKeys: ['oud'], globalOffer: { price: 12, avail: true, flags: [] }, allEligibleOffers: [] }
     ],
-    IND_SORT: {}, best: (p) => p.globalOffer
+    IND_SORT: {}, globalOffer: (p) => p.globalOffer
   });
   vm.runInContext(source, context);
   assert.deepEqual(Array.from(vm.runInContext('list()', context), (row) => row.p.name), ['matching']);
+});
+
+
+test('size filter is available in the storefront and matches the exact unified product size', () => {
+  assert.match(core, /sel\('size',l\.sz,CATALOG_SIZE_OPTIONS\.map/);
+  assert.match(core, /Number\(p\.sizeMl\)===Number\(F\.size\)/);
+  const start = core.indexOf('function list()');
+  const end = core.indexOf('\n', start);
+  const rankedStart = core.indexOf('function ranked(');
+  const rankedEnd = core.indexOf('\n', rankedStart);
+  const context = vm.createContext({
+    F: { q: '', cat: '', br: '', st: '', oc: '', nt: '', size: '50', min: '', max: '', ind: '', sec: '', sort: 0 },
+    PERFUMES: [
+      { id: 'size-50', name: '50 ml', sizeMl: 50, globalOffer: { price: 100, avail: true, flags: [] } },
+      { id: 'size-100', name: '100 ml', sizeMl: 100, globalOffer: { price: 90, avail: true, flags: [] } }
+    ],
+    IND_SORT: {}, globalOffer: (p) => p.globalOffer
+  });
+  vm.runInContext(core.slice(rankedStart, rankedEnd) + '\n' + core.slice(start, end), context);
+  assert.deepEqual(Array.from(vm.runInContext('list()', context), (row) => row.p.id), ['size-50']);
+});
+
+test('store pages use the same selected global offer contract, not the removed p.offers alias', () => {
+  assert.doesNotMatch(core, /PERFUMES\.forEach\(function\(p\)\{p\.offers\.forEach/);
+  assert.match(core, /var offer=globalOffer\(p\);if\(offer&&su&&String\(offer\.storeId\)===String\(su\[2\]\)\)bs\[p\.brand\]=1/);
+  assert.match(core, /function counts\(\).*if\(globalOffer\(p\)\)/);
+});
+
+test('active promotion records are loaded separately from eligible store offers', () => {
+  assert.match(core, /offers\?select=product_size_id&order=product_size_id\.asc/);
+  assert.match(core, /var ofs=\{\},topB=\{\};d\[13\]\.forEach/);
+  assert.match(core, /is_new_arrival,is_catalog_bestseller,is_coming_soon/);
+  assert.match(core, /d\[14\]\.forEach\(function\(r\)\{if\(!r\.product_size_id\|\|!r\.store_id/);
 });
 
 test('globalOffer is the same eligible row for price, store, and cart/order IDs', () => {
@@ -67,9 +100,10 @@ test('globalOffer is the same eligible row for price, store, and cart/order IDs'
   assert.match(loader, /String\(x\.storeProductId\)===String\(o\.store_product_id\)&&String\(x\.storeId\)===String\(o\.store_id\)&&x\.price===\+o\.price/);
   assert.match(loader, /duplicate_catalog_platform_offer_size/);
   assert.match(loader, /catalog_platform_offer_mismatch/);
-  assert.match(core, /function best\(p\)\{if\(!p\|\|!Object\.prototype\.hasOwnProperty\.call\(p,'globalOffer'\)\)return null/);
-  const bestLine = core.split('\n').find((line) => line.startsWith('function best('));
-  assert.doesNotMatch(bestLine, /p\.offers\b/, 'the ambiguous legacy offers alias is not used to select or display a price');
+  assert.match(core, /function globalOffer\(p\)\{if\(!p\|\|!Object\.prototype\.hasOwnProperty\.call\(p,'globalOffer'\)\)return null/);
+  const offerLine = core.split('\n').find((line) => line.startsWith('function globalOffer('));
+  assert.match(core, /function best\(p\)\{return globalOffer\(p\)\}/, 'legacy callers only delegate to the explicit canonical helper');
+  assert.doesNotMatch(offerLine, /p\.offers\b/, 'the ambiguous legacy offers alias is not used to select or display a price');
   assert.doesNotMatch(fs.readFileSync(path.join(root, 'design-layer.js'), 'utf8'), /offersByStore/, 'store offer map is verification-only');
   assert.doesNotMatch(loader, /platformOffer:o|platformOffers:|allOffers:allOffers/);
   assert.doesNotMatch(loader, /sp\[o\.store_id\+'\|'\+o\.product_size_id\]/);

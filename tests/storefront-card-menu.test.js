@@ -41,7 +41,7 @@ function harness({ lang = 'ar', auth = null, perfumes = [] } = {}) {
   const code = [
     oneLine('var XBTN='), oneLine('var LOGO='), oneLine('var LB='), oneLine('en:{home:'),
     oneLine('var CARTSVG='), oneLine('var CARTADD='), oneLine('var PHB='), oneLine('function inCart'), oneLine('function cartMarks'), oneLine('function cartBadge'), oneLine('var SP_BY_ID='), oneLine('function ratingHTML'), oneLine('function byId'), oneLine('function nmOf'), oneLine('function sec('), oneLine('function T()'),
-    oneLine('function taxNote'), oneLine('function best('), oneLine('function closeSheet'),
+    oneLine('function taxNote'), oneLine('function globalOffer('), oneLine('function best('), oneLine('function closeSheet'),
     between('var FAVS=[]', '\nvar SP_BY_ID='), oneLine('function authUserId'), oneLine('function authHeaders'), between('/* Favourites follow the account', 'async function pushCartToCloud'), between('function prodView', '\nfunction strip('), oneLine('function strip('),
     between('var MENU_ORDER=', 'function logoutNow'), oneLine('function mailEvent'), oneLine('function logoutNow'),
     between('function sheet(k)', '\nfunction sendMsg')
@@ -448,9 +448,10 @@ test('the Coming soon section lists the perfumes a store flagged as coming soon,
 });
 
 test('the storefront reads is_coming_soon and marks those product sizes with the soon flag', () => {
-  assert.match(core, /ga\('store_products\?select=id,product_size_id&is_coming_soon=eq\.true&order=id\.asc'\)\]\);/);
-  assert.match(core, /d\[15\]\.forEach\(function\(r\)\{if\(r\.product_size_id\)soon\[r\.product_size_id\]=1\}\)/);
-  assert.match(core, /flags:\(nw\[r\.product_size_id\]\?\['new'\]:\[\]\)\.concat\(ofs\[r\.product_size_id\]\?\['offers'\]:\[\],r\.is_catalog_bestseller\|\|indOf\(pm\[r\.product_id\]\|\|\{\}\)\.length\?\['master'\]:\[\],soon\[r\.product_size_id\]\?\['soon'\]:\[\]\)/);
+  assert.match(core, /ga\('catalog_eligible_offers\?select=[^']*is_new_arrival,is_catalog_bestseller,is_coming_soon/);
+  assert.match(core, /offers\?select=product_size_id&order=product_size_id\.asc/);
+  assert.match(core, /d\[13\]\.forEach\(function\(r\)\{if\(r\.product_size_id\)ofs\[r\.product_size_id\]=1\}\)/);
+  assert.match(core, /flags:\(r\.is_new_arrival\?\['new'\]:\[\]\)\.concat\(ofs\[r\.product_size_id\]\?\['offers'\]:\[\],r\.is_catalog_bestseller\|\|indOf\(pm\[r\.product_id\]\|\|\{\}\)\.length\?\['master'\]:\[\],r\.is_coming_soon\?\['soon'\]:\[\]\)/);
   assert.match(core, /allEligibleOffers:allOffers\[k\]\|\|\[\],globalOffer:globalOffer,offersByStore:offersByStore/);
   assert.doesNotMatch(core, /offers:allOffers/);
   assert.match(core, /var record=platformOfferBySize\[k\],o=record\.row,globalOffer=record\.offer/);

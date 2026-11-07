@@ -106,7 +106,7 @@
     return l;
   }
   function manualList(ids) {
-    return ids.map(perfumeBy).filter(Boolean).map(function (p) { return { p: p, b: best(p) }; });
+    return ids.map(perfumeBy).filter(Boolean).map(function (p) { return { p: p, b: globalOffer(p) }; });
   }
   function paint(root, name, list) {
     root.textContent = '';

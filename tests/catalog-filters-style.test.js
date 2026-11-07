@@ -84,11 +84,19 @@ function ranking(filters, items) {
   const end = core.indexOf('\n', core.indexOf('function ranked('));
   const lstart = core.indexOf('function list()');
   const lend = core.indexOf('\n', lstart);
-  const context = vm.createContext({ F: Object.assign({ q: '', cat: '', br: '', st: '', oc: '', nt: '', min: '', max: '', sort: 0, sec: 'master' }, filters), PERFUMES: items, best: (p) => p.offers[0] });
+  const context = vm.createContext({ F: Object.assign({ q: '', cat: '', br: '', st: '', oc: '', nt: '', size: '', min: '', max: '', sort: 0, sec: 'master' }, filters), PERFUMES: items, globalOffer: (p) => p.globalOffer });
   vm.runInContext(core.slice(start, end) + '\n' + core.slice(lstart, lend), context);
   return vm.runInContext('list()', context).map((x) => x.p.name);
 }
-const mk = (name, brand, o) => Object.assign({ name, brand, rel: 0, ts: 0, cats: [], occs: [], notes: [], ind: [], offers: [{ price: 100, avail: true, flags: ['master'] }] }, o);
+const mk = (name, brand, o) => Object.assign({ name, brand, sizeMl: 50, rel: 0, ts: 0, cats: [], occs: [], notes: [], ind: [], globalOffer: { price: 100, avail: true, flags: ['master'] } }, o);
+
+test('the customer filter panel exposes the available product sizes', () => {
+  assert.match(core, /sel\('size',l\.sz,CATALOG_SIZE_OPTIONS\.map/);
+  assert.match(core, /CATALOG_SIZE_OPTIONS=Array\.from\(new Set\(PERFUMES\.map/);
+  assert.match(core, /F\.size===''\|\|Number\(p\.sizeMl\)===Number\(F\.size\)/);
+  assert.match(core, /sz:'الحجم'/);
+  assert.match(core, /sz:'Size'/);
+});
 
 test('on the Masterpieces page a chip ranks as well as filters: the highest figure comes first', () => {
   const items = [

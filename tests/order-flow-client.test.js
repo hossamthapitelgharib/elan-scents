@@ -11,20 +11,20 @@ const core = fs.readFileSync(path.join(__dirname, '..', 'app-core.js'), 'utf8');
 const lines = core.split('\n');
 const line = (prefix) => { const found = lines.filter((l) => l.startsWith(prefix)); assert.equal(found.length, 1, prefix); return found[0]; };
 const SOURCE = [line('function esc('), line('var ORDER_UI='), line('function readOrders('), line('function saveOrders('), line('var ORDER_ERRORS='),
-  line('function orderErrorKey('), line('async function sendStoreOrder(')].join('\n');
+  line('function orderErrorKey('), line('function cartHTML('), line('async function sendStoreOrder(')].join('\n');
 
 const SIZE = '3f2f7d1e-6a58-4a38-9d0c-0c1f7d3a9b11';
 const SP = '9d7b2c1a-4e55-4b3a-8c11-1f2e3d4c5b6a';
 const ANSWER = { id: 'req-1', trackingNumber: 'ELN-20261027-123456', checkoutSessionId: 'cs-1', currency: 'EGP', status: 'awaiting_store_confirmation' };
 
-function setup({ auth = { access_token: 'token', user: { id: 'user-1' } }, fetchImpl } = {}) {
+function setup({ auth = { access_token: 'token', user: { id: 'user-1' } }, fetchImpl, cartGroups } = {}) {
   const events = [], store = new Map();
   const context = {
     console, JSON, Date, Math, String, Number, Promise, Error, TypeError, Array, Object, encodeURIComponent,
-    lang: 'ar', AUTH: auth, SB: { url: 'https://project.example.invalid', key: 'anon' }, CFG: {},
+    lang: 'ar', AUTH: auth, SB: { url: 'https://project.example.invalid', key: 'anon' }, CFG: {}, LB: { ar: { total: 'الإجمالي', taxnote: 'بيان الضريبة' }, en: { total: 'Total', taxnote: 'Tax note' } }, T: () => ({ she: { cart: 'Cart is empty' } }), window: {},
     ST: [['Store A', 'x', 'store-uuid-1']],
     authHeaders: () => ({ apikey: 'anon', Authorization: 'Bearer token', 'Content-Type': 'application/json' }),
-    cartGroups: () => ({ 'Store A': [{ c: { q: 2 }, p: { id: SIZE, name: 'Perfume', brand: 'Brand', sz: '100 ml' }, b: { price: 150, cur: 'EGP', storeProductId: SP } }] }),
+    cartGroups: cartGroups || (() => ({ 'Store A': [{ c: { q: 2 }, p: { id: SIZE, name: 'Perfume', brand: 'Brand', sz: '100 ml' }, b: { price: 150, cur: 'EGP', storeProductId: SP } }] })),
     loadData: () => events.push('loadData'),
     removeCompletedStoreItems: (order) => events.push('removed:' + order.trackingNumber),
     localStorage: { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => { events.push('set:' + k); store.set(k, String(v)); }, removeItem: (k) => store.delete(k) },
@@ -77,6 +77,20 @@ test('"registered" is shown only after the server answered, with the server numb
   assert.equal(saved[0].trackingNumber, 'ELN-20261027-123456');
   assert.equal(saved[0].requestId, 'req-1');
   assert.equal(store.has('elan_order_outbox'), false, 'no second, write-only copy of the order is kept');
+});
+
+test('a stale cart line is visibly flagged and blocked before any order request', async () => {
+  const rows = [{ c: { sid: SIZE, q: 1 }, p: { id: SIZE, name: 'Perfume', brand: 'Brand', sz: '100 ml' }, b: { price: 150, cur: 'EGP', storeProductId: SP, review: true } }];
+  const groups = () => ({ 'Store A': rows });
+  const { context } = setup({ cartGroups: groups, fetchImpl: async () => { throw new Error('stale item must not reach the API'); } });
+  const html = vm.runInContext('cartHTML()', context);
+  assert.match(html, /class="cart-review" role="status"/);
+  assert.match(html, /data-order-store="Store A"[^>]*disabled/);
+  const form = formFor();
+  await vm.runInContext('sendStoreOrder', context)(form);
+  assert.equal(context.requests.length, 0);
+  assert.equal(form.box.textContent, vm.runInContext('ORDER_UI.ar.eReview', context));
+  assert.equal(form.box.hidden, false);
 });
 
 test('a refusal keeps the form, shows a clear message, saves nothing and leaves the cart alone', async () => {
@@ -149,7 +163,7 @@ test('the order form no longer invents a tracking number, and the old write-only
 
 test('every message of the order flow exists in Arabic and in English', () => {
   const { context } = setup({ fetchImpl: async () => ok(ANSWER) });
-  for (const key of ['sent', 'saved', 'sending', 'afterConfirm', 'myOrders', 'eNet', 'eAuth', 'ePrice', 'eStock', 'eData', 'eMany', 'eGen']) {
+  for (const key of ['sent', 'saved', 'sending', 'afterConfirm', 'myOrders', 'eNet', 'eAuth', 'ePrice', 'eStock', 'eData', 'eMany', 'eReview', 'eGen']) {
     for (const language of ['ar', 'en']) assert.ok(vm.runInContext(`ORDER_UI.${language}.${key}`, context), `${language}.${key}`);
   }
 });

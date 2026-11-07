@@ -26,7 +26,7 @@ function cartHarness(cart) {
   const context = vm.createContext({
     lang: 'ar', CART: cart, calls,
     byId: (id) => (id === 'p1' ? { id: 'p1', pid: 'q1', offers: [] } : null),
-    best: () => ({ storeProductId: 'sp1' }),
+    globalOffer: () => ({ storeProductId: 'sp1' }),
     trackGuestProduct: (...a) => calls.track.push(a),
     saveCart: () => { calls.saved++; },
     toast: (m) => calls.toasts.push(m)

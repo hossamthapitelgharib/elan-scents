@@ -13,7 +13,7 @@ function designHelpers(perfumes) {
   const end = renderer.indexOf('function manualList(', start);
   assert.ok(start >= 0 && end > start, 'design catalog helpers are present');
   const context = vm.createContext({
-    PERFUMES: perfumes,
+    PERFUMES: perfumes, globalOffer: (p) => p.globalOffer,
     window: {},
     esc: (value) => String(value == null ? '' : value),
     nmOf: (_group, key) => String(key)
@@ -23,15 +23,15 @@ function designHelpers(perfumes) {
 }
 
 function coreCatalog(perfumes, filters) {
-  const bestLine = storefront.split('\n').find((line) => line.startsWith('function best('));
+  const offerLine = storefront.split('\n').find((line) => line.startsWith('function globalOffer('));
   const listLine = storefront.split('\n').find((line) => line.startsWith('function list()'));
-  assert.ok(bestLine && listLine, 'storefront best and list functions are present');
+  assert.ok(offerLine && listLine, 'storefront globalOffer and list functions are present');
   const context = vm.createContext({
-    PERFUMES: perfumes,
-    F: { q: '', cat: '', br: '', st: '', oc: '', nt: '', min: '', max: '', ind: '', sec: '', sort: 0, ...filters },
-    ranked: (compare) => compare
+    PERFUMES: perfumes, globalOffer: (p) => p.globalOffer,
+    F: { q: '', cat: '', br: '', st: '', oc: '', nt: '', size: '', min: '', max: '', ind: '', sec: '', sort: 0, ...filters },
+    globalOffer: (p) => p.globalOffer, ranked: (compare) => compare
   });
-  vm.runInContext(bestLine + '\n' + listLine, context);
+  vm.runInContext(offerLine + '\n' + listLine, context);
   return context;
 }
 
