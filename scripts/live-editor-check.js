@@ -53,6 +53,14 @@ async function check({ context, base, login, shots }) {
   const shot = async (page, name) => { if (shots) { fs.mkdirSync(shots, { recursive: true }); await page.screenshot({ path: path.join(shots, name + '.png') }); } };
 
   const page = await context.newPage();
+  /* What the sign-in did, kept only as facts about the network (a status per address, never a body, a header or what was typed), so a run that
+     cannot sign in says why: the security check's script not arriving, its box waiting for a tick, or the answer the server gave. */
+  const seen = [], errors = [];
+  const hostOf = (u) => { try { const x = new URL(u); return x.host + x.pathname; } catch (_) { return ''; } };
+  page.on('response', (r) => { const u = hostOf(r.url()); if (/\/api\/(config|editor-login)$|challenges\.cloudflare\.com/.test(u)) seen.push(u.replace(/^[^/]*\/api\//, '/api/').slice(0, 60) + ' ' + r.status()); });
+  page.on('requestfailed', (r) => { const u = hostOf(r.url()); if (/challenges\.cloudflare\.com|\/api\//.test(u)) seen.push(u.slice(0, 60) + ' failed ' + String(r.failure() && r.failure().errorText || '').slice(0, 40)); });
+  page.on('pageerror', (e) => errors.push(String(e && e.message || e).slice(0, 120)));
+  page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') errors.push(String(m.text()).slice(0, 120)); });
   await page.goto(base + '/editor', { waitUntil: 'load' });
   if (await page.locator('#loginBtn').count()) { await login(page); await page.waitForURL((u) => !/login/.test(u.search) && u.pathname === '/editor', { timeout: 30000 }).catch(() => {}); await page.waitForTimeout(1000); }
   const frame = await findFrame(page);
@@ -60,6 +68,10 @@ async function check({ context, base, login, shots }) {
     // The login page's own status line (an Arabic sentence such as the security-check refusal; never the typed values) says why the sign-in did not go through.
     const said = ((await page.locator('#msg').first().innerText({ timeout: 1000 }).catch(() => '')) || '').trim().slice(0, 200);
     bad('the editor did not open the platform (login refused or the page failed to load)' + (said ? '; the login page says: \u00ab' + said + '\u00bb' : ''));
+    const box = await page.evaluate(() => ({ frames: Array.from(document.querySelectorAll('iframe')).map((f) => (f.src || '').replace(/\?.*$/, '').slice(0, 70)), holder: !!document.querySelector('.elan-turnstile'), url: location.pathname + location.search.replace(/key=[^&]*/, 'key=*') })).catch(() => null);
+    lines.push('     where it stopped: ' + JSON.stringify(box));
+    lines.push('     network: ' + (seen.slice(0, 12).join(' | ') || 'nothing about the sign-in was seen'));
+    if (errors.length) lines.push('     page messages: ' + errors.slice(0, 5).join(' | '));
     return { lines, problems };
   }
   await page.waitForTimeout(1500);
