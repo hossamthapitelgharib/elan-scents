@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const migration = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'migrations', '20261106130000_commission_settlement_evidence.sql'), 'utf8');
+const migration = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'migrations', '20261106104837_commission_settlement_evidence.sql'), 'utf8');
 const api = fs.readFileSync(path.join(__dirname, '..', 'api', 'platform-commission-settlement.js'), 'utf8');
 const ui = fs.readFileSync(path.join(__dirname, '..', 'platform-dashboard.js'), 'utf8');
 

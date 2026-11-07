@@ -356,6 +356,26 @@
       "migration": "20261102184350_customer_mail_log.sql",
       "reason": "The mail log is the durable deduplication and send-history record; dropping it could permit duplicate customer/platform emails and erase audit evidence. Recovery requires a verified backup.",
       "backupRequired": true
+    },
+    {
+      "migration": "20261104113824_server_side_customer_rpcs_second_run.sql",
+      "reason": "Second live run of server_side_customer_rpcs, recovered verbatim from the live ledger; it only replaces the server wrapper functions and their grants in place, so recovery relies on the first run (20261103130000) and a verified backup.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261106122029_commission_watch_on_unified_ledger.sql",
+      "reason": "Applied live before its source was tracked; recovered verbatim from the live ledger. It replaces a view and a function in place, so recovery relies on the earlier definitions in the commission migrations and a verified backup.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261106122349_commission_watch_shipped_unreported.sql",
+      "reason": "Applied live before its source was tracked; recovered verbatim from the live ledger. It replaces a view in place (adds the shipped_unreported flag), so recovery relies on 20261106122029 and a verified backup.",
+      "backupRequired": true
+    },
+    {
+      "migration": "20261107160412_phase1_purchase_core.sql",
+      "reason": "Applied live by the purchase-redesign work before its source was tracked; recovered verbatim from the live ledger. It freezes order snapshots, closes retired order paths and replaces order functions in place, so recovery relies on a verified backup and the previous function definitions.",
+      "backupRequired": true
     }
   ]
 }

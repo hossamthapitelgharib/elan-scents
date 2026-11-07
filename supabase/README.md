@@ -1,6 +1,19 @@
 # Supabase migrations
 
-`migrations/` contains **93** tracked SQL source files for the live Supabase project, one for every record of the live ledger (`supabase_migrations.schema_migrations`, 93 records, checked read-only on 2026-11-02). Migration files are kept in ascending version order, and `tests/migrations-consistency.test.js` checks local naming and ordering. The Supabase GitHub integration compares the versions of the ledger with the files here and refuses to run ("Remote migration versions not found in local migrations directory") when a ledger version has no file, so every version recorded live must have a file.
+`migrations/` contains **118** tracked SQL source files for the live Supabase project, one for every record of the live ledger (`supabase_migrations.schema_migrations`, 118 records, checked read-only on 2026-11-07). Migration files are kept in ascending version order, and `tests/migrations-consistency.test.js` checks local naming and ordering. The Supabase GitHub integration compares the versions of the ledger with the files here and refuses to run ("Remote migration versions not found in local migrations directory") when a ledger version has no file, so every version recorded live must have a file.
+
+## Records whose file did not exist or carried another version (fixed 2026-11-07)
+The integration's "Supabase Preview" check was red because the ledger held versions without a file here. A migration applied through the Supabase tool is stamped with the **time it was applied**, not with the number the author gave the file, so a file named in advance never matches its ledger record. The rule is: **after applying, the file takes the version the ledger recorded** (`list_migrations`), and a migration applied before its file exists is recovered verbatim from the ledger.
+
+Renamed to the ledger version (same content; the rollback file and the test that reads it were renamed with it):
+- `20261104134000_revoke_server_wrapper_client_grants` -> `20261104113855_revoke_server_wrapper_client_grants`
+- `20261106130000_commission_settlement_evidence` -> `20261106104837_commission_settlement_evidence`
+
+Recovered **verbatim from the live ledger** (read-only; the md5 of each file equals the md5 of the ledger statement and `tests/migrations-consistency.test.js` keeps it that way; already applied live, never to be run by hand):
+- `20261104113824_server_side_customer_rpcs_second_run` (3169 characters, md5 `a57e19a90693c2029e6d471e4a7a0172`): the second run of `server_side_customer_rpcs` (the first is `20261103130000`, whose file here keeps the final form).
+- `20261105090845_normalize_catalog_gender_filters` (md5 `065c56c077a63503185b9746dd44cbc7`) and `20261105091817_rollback_normalize_catalog_gender_filters` (md5 `ce68c479f7f582f3fd336a1f13986d4a`): applied, then rolled back; the code that used it was reverted in git, the ledger keeps both records.
+- `20261106122029_commission_watch_on_unified_ledger` (4571 characters, md5 `1e0177312f576822e1fd4861139f79fc`) and `20261106122349_commission_watch_shipped_unreported` (2690 characters, md5 `15fb5ff41b3b622d86397cff92da64cc`): the commission watch view and the store order health report.
+- `20261107160412_phase1_purchase_core` (33628 characters, md5 `d86d66d20b8c4e77556faac475f049b3`): applied by the purchase-redesign work before its file was committed. Its author may replace the file with the same statement text.
 
 ## Earlier runs recorded twice
 Two migrations were run twice on the live project, the first time under an earlier version. Their earlier records had no source file until 2026-10-24, which made the integration's "Supabase Preview" check fail. Each file below is the statement text recovered **verbatim from the live ledger** (read-only); its md5 equals the md5 of the ledger statement. Their names end in `_earlier_run` because a migration name must not appear twice under different versions (`tests/migrations-consistency.test.js`); the integration matches on the version only.

@@ -29,12 +29,18 @@ test('a migration name never appears twice under different versions', () => {
 });
 
 /* Files recovered verbatim from the live ledger keep the md5 of the ledger statement (recorded in supabase/README.md).
-   The Supabase GitHub integration needs a file for every version recorded live, so these two must exist and stay unedited. */
-test('the earlier runs recorded twice keep their ledger text', () => {
+   The Supabase GitHub integration needs a file for every version recorded live, so these must exist and stay unedited. */
+test('the files recovered verbatim from the live ledger keep their ledger text', () => {
   const crypto = require('node:crypto');
   const recovered = {
     '20261009230647_harden_order_user_binding_earlier_run.sql': '00be6300a1f9b9a3f308159a25309dc1',
-    '20261010001456_guest_browser_identity_analytics_earlier_run.sql': 'b25c1766865869c3fd07609cbccff46e'
+    '20261010001456_guest_browser_identity_analytics_earlier_run.sql': 'b25c1766865869c3fd07609cbccff46e',
+    '20261104113824_server_side_customer_rpcs_second_run.sql': 'a57e19a90693c2029e6d471e4a7a0172',
+    '20261105090845_normalize_catalog_gender_filters.sql': '065c56c077a63503185b9746dd44cbc7',
+    '20261105091817_rollback_normalize_catalog_gender_filters.sql': 'ce68c479f7f582f3fd336a1f13986d4a',
+    '20261106122029_commission_watch_on_unified_ledger.sql': '1e0177312f576822e1fd4861139f79fc',
+    '20261106122349_commission_watch_shipped_unreported.sql': '15fb5ff41b3b622d86397cff92da64cc',
+    '20261107160412_phase1_purchase_core.sql': 'd86d66d20b8c4e77556faac475f049b3'
   };
   for (const [file, md5] of Object.entries(recovered)) {
     assert.ok(migrations.includes(file), file + ' is missing');
