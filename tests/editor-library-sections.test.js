@@ -252,6 +252,7 @@ test('the library window has the tabs and the local box with a guarded delete, a
   assert.doesNotMatch(source, /'مزامنة التغييرات'/);
   assert.doesNotMatch(source, /dataset\.libAction = 'load'/);
   assert.doesNotMatch(source, /تم تحميل المكتبة من سابابيس/);
+  assert.doesNotMatch(source, /make\('small'/, 'no explanatory line under the upload button');
   assert.match(source, /if \(!ctx\.cloud\) \{[^}]*retry/s, 'a retry button exists only when the cloud library could not be read');
   assert.match(source, /if \(info\.pending > 0\) \{\s*var move = libButton\('نقلها إلى سابابيس'/, 'the move button exists only while the old browser library still has something to move');
   assert.match(source, /dataset\.libAction = 'sync'/);

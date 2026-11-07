@@ -95,7 +95,8 @@ const isAi = (e) => /الذكاء الاصطناعي/.test(e.text);
 const libraryFiller = (name) => {
   const rows = golden.panels[name], close = rows.findIndex((e) => e.tag === 'button' && e.text === 'إغلاق');
   assert.ok(close > 0, name + ': the original has a close button');
-  return (e) => rows.indexOf(e) > close ? 'tail' : isAi(e);
+  /* the hint under the upload button (limits, where files go) is gone too: a too-big file is refused with its own limit, and the line after an upload says where it went */
+  return (e) => rows.indexOf(e) > close ? 'tail' : e.tag === 'small' ? 'stack' : isAi(e);
 };
 const isAiStacked = (e) => isAi(e) ? 'stack' : false;      // in the source dialog the AI choice is one of a stack of buttons
 function same(live, name, drop, looseText) {
@@ -271,6 +272,10 @@ test('library window: nothing that is only filler; a retry button only when the 
     assert.equal(await dialog.locator('[data-lib-action="load"], [data-lib-action="sync"], [data-lib-action="retry"]').count(), 0, 'no button without work to do');
     assert.equal(await dialog.locator('[data-cloud-message]:not([hidden])').count(), 0, 'no status line while nothing happened');
     assert.equal(await dialog.locator('[data-lib-local]').count(), 0, 'no old-library box when this browser holds none');
+    await dialog.locator('button', { hasText: 'الميديا والعناصر المحفوظة' }).first().click(); await page.waitForTimeout(250);
+    assert.equal(await dialog.locator('[data-lib-action="upload"]').count(), 1, 'the upload button is there');
+    assert.equal(await dialog.locator('small').count(), 0, 'and no explanatory line under it');
+    assert.ok(!/ميجا|JSON|لا تُضاف للصفحة/.test(await dialog.innerText()), 'the limits and the explanation are not written under the upload button: a too-big file is refused with its own limit');
 
     /* the cloud cannot be read: the reason and one retry button; a retry loads it */
     cloud.fail = true;

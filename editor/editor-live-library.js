@@ -502,8 +502,7 @@
           setNote(dialog, 'تعذر رفع الملف: ' + (REASONS[error && error.message] || (error && error.message) || 'خطأ') + '.');
         }
       };
-      dialog.append(upload, picker);
-      dialog.append(make('small', 'صور حتى 10 ميجا، وفيديو حتى 50 ميجا، أو ملف عنصر JSON صادر من هذا المحرر. تُحفظ الملفات في مكتبة سابابيس داخل هذا القسم، ولا تُضاف للصفحة عند الرفع للمكتبة.'));
+      dialog.append(upload, picker, document.createElement('br'));   // the close button below it sits on its own line
     }
     if (!list.children.length) list.append(make('p', 'لا توجد عناصر في هذا القسم بعد.'));
     dialog.append(libButton('إغلاق', function () { dialog.close(); }));

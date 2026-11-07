@@ -62,7 +62,7 @@ function compare(live, golden, tolerance, drop, looseText) {
   /* 'tail' marks the original's closing rows (removed on purpose): the panel is shorter by what they took, margins included */
   if (tail && kept.length > 1) {
     const edge = (e) => e.y + e.h + (parseFloat(e.style.marginBottom) || 0), last = kept[kept.length - 1];
-    kept[0].h -= Math.max(0, edge(tail) - edge(last));
+    kept[0].h -= Math.max(0, edge(tail) - cut - edge(last));   // `cut`: what was taken out above has already moved the rows after it up
   }
   const orig = kept;
   const hint = (list) => list.findIndex((e) => e.tag === 'small');
