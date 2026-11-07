@@ -18,12 +18,13 @@ const ORDER = {
 
 const FAV_SIZE = '3f2f7d1e-6a58-4a38-9d0c-0c1f7d3a9b11';
 let favRows = [], favWrites = [];
+let acctRow = null, acctWrites = [];   // the customer_details row the mocked database holds, and what the page wrote to it
 let browser, server;
 test.before(async () => { server = await H.startServer(); browser = await pw.chromium.launch({ args: ['--no-sandbox'] }); });
 test.after(async () => { if (browser) await browser.close(); if (server) await server.stop(); });
 
 async function context({ session = null } = {}) {
-  favRows = []; favWrites = [];
+  favRows = []; favWrites = []; acctRow = null; acctWrites = [];
   const result = await H.openContext(browser, server, WINDOW);
   if (session) await result.context.addInitScript((value) => localStorage.setItem('elan_auth_session', JSON.stringify(value)), session);
   return result;
@@ -38,6 +39,9 @@ async function mockPage(page) {
     body: "window.turnstile={render:function(holder,opts){setTimeout(function(){opts.callback('test-turnstile-token');},0);return 'test-widget';},remove:function(){}};"
   }));
   await page.route('**/api/place-store-order', route => H.safeFulfill(route, { status: 200, contentType: 'application/json', body: JSON.stringify({ id: 'request-1', trackingNumber: 'ELN-TEST-0001', currency: 'EGP' }) }));
+  await page.route('https://nominatim.openstreetmap.org/reverse*', route => H.safeFulfill(route, { status: 200, contentType: 'application/json',
+    body: JSON.stringify({ display_name: 'x', address: { road: 'شارع التحرير', suburb: 'وسط البلد', city: 'القاهرة', state: 'محافظة القاهرة', country: 'مصر' } }) }));
+  await page.route('https://www.google.com/maps*', route => H.safeFulfill(route, { status: 200, contentType: 'text/html', body: '<!doctype html><title>map</title><p>map</p>' }));
   await page.route('**/api/customer-cart', route => H.safeFulfill(route, { status: 200, contentType: 'application/json', body: '{"ok":true,"items":[]}' }));
   await page.route('**/api/request-store-order-cancellation', route => H.safeFulfill(route, { status: 200, contentType: 'application/json', body: '{"requestId":"request-1","duplicate":false}' }));
   await page.route('**/sbgdtuqfrnfeggkwqtrw.supabase.co/**', async route => {
@@ -49,6 +53,14 @@ async function mockPage(page) {
       if (request.method() === 'GET') return H.safeFulfill(route, { status: 200, contentType: 'application/json', body: JSON.stringify(favRows) });
       favWrites.push({ method: request.method(), url: request.url(), body: request.postData() || '' });
       return H.safeFulfill(route, { status: request.method() === 'POST' ? 201 : 204, contentType: 'application/json', body: '' });
+    }
+    if (url.pathname.includes('/rest/v1/customer_details')) {
+      if (request.method() === 'GET') return H.safeFulfill(route, { status: 200, contentType: 'application/json', body: JSON.stringify(acctRow ? [acctRow] : []) });
+      const body = JSON.parse(request.postData() || '{}');
+      acctWrites.push({ method: request.method(), url: request.url(), prefer: request.headers().prefer || '', auth: request.headers().authorization || '', body });
+      // what the database trigger does: the delivery address is a copy of the home address while ship_same is true
+      acctRow = { ...body, ...(body.ship_same ? { ship_governorate: body.governorate, ship_address: body.address, ship_lat: body.address_lat, ship_lng: body.address_lng } : {}) };
+      return H.safeFulfill(route, { status: 201, contentType: 'application/json', body: JSON.stringify([acctRow]) });
     }
     if (url.pathname.includes('/auth/v1/logout')) return H.safeFulfill(route, { status: 204, contentType: 'application/json', body: '' });
     if (url.pathname.includes('/auth/v1/recover')) return H.safeFulfill(route, { status: 200, contentType: 'application/json', body: '{}' });
@@ -287,5 +299,83 @@ test('14. the welcome message is on screen right after signing in', async () => 
     await page.waitForFunction(() => document.getElementById('toast').className === 'show' && document.getElementById('toast').textContent.length > 0, null, { timeout: 8000 });
     assert.equal(await page.locator('#toast').textContent(), 'أهلًا ومرحبًا بك ونتمنى لك رحلة تسويقية ممتعة');
     await page.waitForFunction(() => getComputedStyle(document.getElementById('toast')).opacity === '1', null, { timeout: 3000 });   // it fades in over 0.3 s
+  } finally { await c.context.close(); }
+});
+
+test('15. «حسابي»: under sign out in the menu, written once, saved on the account, and offered again (with the changes) when the customer places an order', async () => {
+  const c = await context();
+  try {
+    await c.context.addInitScript((session) => { if (localStorage.getItem('__seeded')) return; localStorage.setItem('__seeded', '1'); localStorage.setItem('elan_auth_session', JSON.stringify(session)); }, CUSTOMER_SESSION);
+    await c.context.grantPermissions(['geolocation'], { origin: H.SITE });
+    await c.context.setGeolocation({ latitude: 30.0444, longitude: 31.2357 });
+    const page = await openPage(c, '/');
+    const csp = []; page.on('console', (m) => { if (/Content Security Policy|violates the following/i.test(m.text())) csp.push(m.text()); });
+    // 1. the menu item sits right under sign out
+    await page.locator('#mb').click();
+    const labels = await page.locator('#menu a').allInnerTexts();
+    assert.deepEqual(labels.slice(-2), ['تسجيل الخروج', 'حسابي']);
+    await page.locator('#menu [data-account]').click();
+    await page.waitForSelector('#sheet [data-acct-form]');
+    assert.equal(await page.locator('#sheet').getAttribute('data-kind'), 'account');
+    assert.equal(await page.locator('#acct-email').inputValue(), 'customer@example.test');
+    assert.equal(await page.locator('#acct-email').getAttribute('readonly'), '');
+    assert.equal(await page.locator('#sheet [data-back-cart]').count(), 0, 'opened from the menu: no way back to a cart');
+    assert.equal(await page.locator('.acct-ship').isVisible(), false, 'the delivery address starts as "same as mine"');
+    // 2. a three-part name is not accepted, and nothing is sent
+    await page.locator('#acct-full_name').fill('أحمد محمد علي');
+    await page.locator('#acct-phone').fill('٠١٠١٢٣٤٥٦٧٨');
+    await page.locator('#sheet [data-acct-form] button[type="submit"]').click();
+    assert.match(await page.locator('#sheet .acct-form .order-error').innerText(), /اكتب اسمك رباعيًا/);
+    assert.equal(acctWrites.length, 0);
+    // 3. "find my location": the page's own geolocation, the map frame, the address and the governorate
+    await page.locator('#sheet [data-acct-locate]').first().click();
+    await page.waitForFunction(() => document.getElementById('acct-address').value.length > 0, null, { timeout: 8000 });
+    assert.equal(await page.locator('#acct-address').inputValue(), 'شارع التحرير، وسط البلد، القاهرة');
+    assert.equal(await page.locator('#acct-governorate').inputValue(), 'القاهرة');
+    assert.equal(await page.locator('.acct-map iframe').first().getAttribute('src'), 'https://www.google.com/maps?q=30.0444,31.2357&z=17&output=embed');
+    assert.equal(await page.locator('.acct-map').first().isVisible(), true);
+    assert.match(await page.locator('.acct-loc-note').first().innerText(), /تم تحديد موقعك/);
+    // 4. the rest: four names, another delivery address and another recipient
+    await page.locator('#acct-full_name').fill('أحمد محمد علي حسن');
+    await page.locator('input[name="ship_same"]').uncheck();
+    await page.waitForSelector('.acct-ship', { state: 'visible' });
+    await page.locator('#acct-ship_governorate').selectOption('الجيزة');
+    await page.locator('#acct-ship_address').fill('5 شارع النيل، المعادي، بجوار الصيدلية');
+    await page.locator('#acct-recipient_name').fill('منى سيد');
+    await page.locator('#acct-recipient_phone').fill('+20 111 222 3334');
+    await page.locator('textarea[name="delivery_notes"]').fill('اتصل قبل الوصول');
+    await page.locator('#sheet [data-acct-form] button[type="submit"]').click();
+    await page.waitForFunction(() => document.getElementById('sheet').hidden);
+    assert.equal(await page.locator('#toast').textContent(), 'تم حفظ بياناتك');
+    assert.equal(acctWrites.length, 1, 'one save');
+    const w = acctWrites[0];
+    assert.match(w.url, /\/rest\/v1\/customer_details\?on_conflict=user_id$/);
+    assert.equal(w.prefer, 'resolution=merge-duplicates,return=representation');
+    assert.equal(w.auth, 'Bearer customer-test-token', 'written with the customer\'s own token');
+    assert.deepEqual(w.body, { user_id: 'customer-1', full_name: 'أحمد محمد علي حسن', phone: '01012345678', governorate: 'القاهرة', address: 'شارع التحرير، وسط البلد، القاهرة', address_lat: 30.0444, address_lng: 31.2357,
+      ship_same: false, ship_governorate: 'الجيزة', ship_address: '5 شارع النيل، المعادي، بجوار الصيدلية', ship_lat: null, ship_lng: null,
+      recipient_name: 'منى سيد', recipient_phone: '01112223334', delivery_notes: 'اتصل قبل الوصول' });
+    // 5. "place order": «حسابي» opens first, with what was saved; the customer changes one thing and presses OK
+    await page.evaluate(() => openAccount('Test Store'));   // what «place order» calls once the cart lines pass the review check (openStoreOrder itself is covered in tests/customer-account-page.test.js)
+    await page.waitForSelector('#sheet .acct-wrap [data-back-cart]', { state: 'attached' });
+    assert.equal(await page.locator('#acct-full_name').inputValue(), 'أحمد محمد علي حسن');
+    assert.equal(await page.locator('#acct-phone').inputValue(), '01012345678');
+    assert.equal(await page.locator('#acct-address').inputValue(), 'شارع التحرير، وسط البلد، القاهرة');
+    assert.equal(await page.locator('input[name="ship_same"]').isChecked(), false);
+    assert.equal(await page.locator('#acct-ship_address').inputValue(), '5 شارع النيل، المعادي، بجوار الصيدلية');
+    assert.equal(await page.locator('#acct-recipient_phone').inputValue(), '01112223334');
+    await page.locator('#acct-recipient_phone').fill('01099998888');
+    await page.locator('#sheet [data-acct-form] button[type="submit"]').click();
+    await page.waitForSelector('[data-store-order-form]');
+    assert.equal(acctWrites.length, 2, 'the change was saved');
+    assert.equal(acctWrites[1].body.recipient_phone, '01099998888');
+    // 6. the order form is filled from «حسابي»: the store delivers to the recipient, at the delivery address, and still sees who bought
+    const f = (n) => page.locator('[data-store-order-form] [name="' + n + '"]').inputValue();
+    assert.equal(await f('name'), 'منى سيد');
+    assert.equal(await f('phone'), '01099998888');
+    assert.equal(await f('email'), 'customer@example.test');
+    assert.equal(await f('address'), 'الجيزة، 5 شارع النيل، المعادي، بجوار الصيدلية');
+    assert.equal(await f('notes'), 'المشتري: أحمد محمد علي حسن - 01012345678\nاتصل قبل الوصول');
+    assert.deepEqual(csp, [], 'the policy let the map, the address lookup and the location request through');
   } finally { await c.context.close(); }
 });
