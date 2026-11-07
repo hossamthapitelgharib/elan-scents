@@ -30,6 +30,7 @@ async function openEditor(size, cloud) {
     const json = (o) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(o) });
     if (action === 'options') return json({ ok: true, options: F.OPTIONS });
     if (action === 'perfumes') return json({ ok: true, rows: F.PERFUMES });
+    if (action === 'library' && lib.fail) return json({ ok: false, error: 'سابابيس لا يردّ' });
     if (action === 'library') return json({ ok: true, library: { media: lib.media, archive: lib.archive, savedElements: lib.savedElements, revision: REVISION } });
     if (action === 'library.delete') {
       deleted.push({ kind: body.kind, id: body.id });
@@ -89,6 +90,13 @@ async function chooseTool(page, frame, re) {
 const closeDialogs = (page) => page.evaluate(() => document.querySelectorAll('dialog[open]').forEach((d) => d.close()));
 const shape = (page, selector) => page.evaluate(F.describePanel, { selector, props: F.PROPS });
 const isAi = (e) => /الذكاء الاصطناعي/.test(e.text);
+/* The original's row under the library window's «إغلاق» (load from the cloud, sync, the AI button and the connection line) was removed
+   on the owner's order: none of it did anything the window does not already do by itself. */
+const libraryFiller = (name) => {
+  const rows = golden.panels[name], close = rows.findIndex((e) => e.tag === 'button' && e.text === 'إغلاق');
+  assert.ok(close > 0, name + ': the original has a close button');
+  return (e) => rows.indexOf(e) > close ? 'tail' : isAi(e);
+};
 const isAiStacked = (e) => isAi(e) ? 'stack' : false;      // in the source dialog the AI choice is one of a stack of buttons
 function same(live, name, drop, looseText) {
   assert.ok(live, name + ' is open');
@@ -178,10 +186,10 @@ test('library window: the same layout as the original, with the cloud library be
     await page.evaluate(() => { const live = window.elanLiveEditorBridge, real = live.request; live.request = (action, payload) => action === 'page.getState' ? Promise.resolve({ archive: [], design: { blocks: [] }, selected: null }) : real.call(live, action, payload); });
     await page.click('#library'); await page.waitForTimeout(900);
     assert.ok(calls.includes('library'), 'the window reads the cloud library');
-    same(await shape(page, '#libraryDialog'), 'library-archive-section', isAi);
+    same(await shape(page, '#libraryDialog'), 'library-archive-section', libraryFiller('library-archive-section'));
     await page.locator('#libraryDialog button', { hasText: 'الميديا والعناصر المحفوظة' }).first().click(); await page.waitForTimeout(250);
     await page.locator('#libraryDialog button', { hasText: 'صورة' }).first().click(); await page.waitForTimeout(250);
-    same(await shape(page, '#libraryDialog'), 'library-saved-image', isAi);
+    same(await shape(page, '#libraryDialog'), 'library-saved-image', libraryFiller('library-saved-image'));
     const words = await page.evaluate(() => document.getElementById('libraryDialog').innerText);
     assert.ok(!/الذكاء الاصطناعي|AI/.test(words), 'no AI picture or video in the library window: ' + words);
     assert.deepEqual(errors, []);
@@ -246,6 +254,44 @@ test('library window rows: each has a red «حذف نهائي» like the origina
     const pageOnly = (await rows()).find((r) => r.name === 'عنصر على الصفحة فقط');
     assert.ok(pageOnly, 'the page-only archived element is listed');
     assert.equal(del(pageOnly).disabled, true, 'a page-only archived element cannot be deleted from the cloud');
+    assert.deepEqual(errors, []);
+  } finally { await context.close(); }
+});
+
+/* The owner: what is shown must be of use to him. The window reads the cloud when it opens and again after each action, so it has no
+   «load from the cloud» button, no always-on «sync» button and no sentence of counts. A button appears only when it has work to do. */
+test('library window: nothing that is only filler; a retry button only when the cloud could not be read; a move button only for an old browser library', async () => {
+  const cloud = { media: [], archive: [], savedElements: [] };
+  const { context, page, saves, errors } = await openEditor(undefined, cloud);
+  try {
+    await page.click('#library'); await page.waitForTimeout(900);
+    const dialog = page.locator('#libraryDialog');
+    const words = await dialog.innerText();
+    assert.ok(!/تحميل المكتبة من سابابيس|مزامنة التغييرات|تم تحميل المكتبة|وسائط: \d/.test(words), 'no load/sync buttons and no counts sentence: ' + words);
+    assert.equal(await dialog.locator('[data-lib-action="load"], [data-lib-action="sync"], [data-lib-action="retry"]').count(), 0, 'no button without work to do');
+    assert.equal(await dialog.locator('[data-cloud-message]:not([hidden])').count(), 0, 'no status line while nothing happened');
+    assert.equal(await dialog.locator('[data-lib-local]').count(), 0, 'no old-library box when this browser holds none');
+
+    /* the cloud cannot be read: the reason and one retry button; a retry loads it */
+    cloud.fail = true;
+    await page.evaluate(() => window.openLiveLibrary()); await page.waitForTimeout(700);
+    assert.match(await dialog.locator('[data-cloud-message]').innerText(), /تعذر تحميل المكتبة: سابابيس لا يردّ/);
+    assert.equal(await dialog.locator('[data-lib-action="retry"]').count(), 1, 'a retry button when the cloud could not be read');
+    cloud.fail = false;
+    await dialog.locator('[data-lib-action="retry"]').click(); await page.waitForTimeout(900);
+    assert.equal(await dialog.locator('[data-lib-action="retry"]').count(), 0, 'the retry button goes once the library is loaded');
+    assert.equal(await dialog.locator('[data-cloud-message]:not([hidden])').count(), 0, 'and so does the failure line');
+
+    /* an old browser-only library that still has something to move: the box offers the move, and moving it is a merge-only save */
+    await page.evaluate(() => localStorage.setItem('elan-fresh-editor-v1', JSON.stringify({ savedElements: [{ name: 'عنصر قديم', kind: 'text', type: 'text', text: 'نص قديم' }], archive: [], media: [] })));
+    await page.evaluate(() => window.openLiveLibrary()); await page.waitForTimeout(900);
+    assert.equal(await dialog.locator('[data-lib-local]').count(), 1, 'the old-library box shows while this browser holds one');
+    const move = dialog.locator('[data-lib-local] [data-lib-action="sync"]');
+    assert.equal(await move.count(), 1, 'the move button is in that box');
+    assert.equal((await move.innerText()).trim(), 'نقلها إلى سابابيس');
+    await move.click(); await page.waitForTimeout(1500);
+    assert.ok(saves.length >= 1 && saves.some((x) => (x.savedElements || []).length), 'the old element was sent to the cloud');
+    assert.match(await dialog.locator('[data-cloud-message]').innerText(), /نُقل \d+ عنصر إلى سابابيس/, 'and the outcome is told');
     assert.deepEqual(errors, []);
   } finally { await context.close(); }
 });

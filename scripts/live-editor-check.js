@@ -99,7 +99,9 @@ async function check({ context, base, login, shots }) {
     await page.click('#library'); await page.waitForTimeout(1800);
     const live = await page.evaluate(F.describePanel, { selector: '#libraryDialog', props: F.PROPS });
     await shot(page, 'library');
-    const missing = live ? F.missingLooks(live, golden.panels['library-archive-section'], isAi) : ['the library window did not open'];
+    /* the original's row under «إغلاق» (load, sync, the connection line) was removed on the owner's order: it did nothing the window does not do itself */
+    const rows = golden.panels['library-archive-section'], close = rows.findIndex((e) => e.tag === 'button' && e.text === 'إغلاق');
+    const missing = live ? F.missingLooks(live, rows, (e) => isAi(e) || (close > 0 && rows.indexOf(e) > close)) : ['the library window did not open'];
     if (missing.length) bad('library: differs from the original in ' + missing.length + ' looks: ' + missing.slice(0, 6).join(' ; ')); else say('ok   library: every colour, type size and border of the original is there');
     await page.evaluate(() => document.querySelectorAll('dialog[open]').forEach((d) => d.close()));
   } catch (e) { bad('library: ' + e.message); }

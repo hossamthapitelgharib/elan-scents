@@ -314,7 +314,7 @@
     }
     text += report.verified
       ? ' تأكدنا من النقل بقراءة المكتبة بعد الحفظ، ولم يُحذف شيء محليًا.'
-      : ' لم يكتمل التأكيد، لذلك بقيت النسخة المحلية كما هي ويمكن إعادة المزامنة.';
+      : ' لم يكتمل التأكيد، لذلك بقيت النسخة المحلية كما هي ويمكن إعادة النقل.';
     return text;
   }
 
@@ -398,9 +398,18 @@
     await window.openLiveLibrary();
   }
 
+  /* The line under the window shows only what just happened (an upload, a delete, a failure). It is not drawn while there is nothing to say. */
   function setNote(dialog, text) {
     var message = dialog.querySelector('[data-cloud-message]');
-    if (message) message.textContent = text;
+    if (!message) {
+      if (!text) return;
+      message = make('p', '', 'font-size:12px;line-height:1.8;color:#846631');
+      message.dataset.cloudMessage = 'true';
+      var local = dialog.querySelector('[data-lib-local]');
+      dialog.insertBefore(message, local || null);
+    }
+    message.textContent = text;
+    message.hidden = !text;
   }
 
   async function paint(dialog, ctx) {
@@ -499,29 +508,16 @@
     if (!list.children.length) list.append(make('p', 'لا توجد عناصر في هذا القسم بعد.'));
     dialog.append(libButton('إغلاق', function () { dialog.close(); }));
 
-    var controls = make('div', '', 'display:flex;gap:8px;flex-wrap:wrap;margin-top:12px');
-    var load = libButton('تحميل المكتبة من سابابيس'), sync = libButton('مزامنة التغييرات');
-    load.dataset.libAction = 'load'; sync.dataset.libAction = 'sync';
-    controls.append(load, sync);
-    dialog.append(controls);
-    var message = make('p', ctx.note, 'font-size:12px;line-height:1.8;color:#846631');
-    message.dataset.cloudMessage = 'true';
-    dialog.append(message);
-
-    load.onclick = async function () {
-      load.disabled = sync.disabled = true; setNote(dialog, 'جارٍ تحميل المكتبة من سابابيس…');
-      await window.openLiveLibrary();
-    };
-    sync.onclick = async function () {
-      load.disabled = sync.disabled = true;
-      try {
-        var report = await model.syncLocal({ provider: window.elanLibraryDataProvider, storage: window.localStorage, uploadFile: uploadFile, sha256: sha256Hex, onProgress: function (text) { setNote(dialog, text); } });
-        forcedNote = summarizeSync(report);
-      } catch (error) {
-        forcedNote = 'تعذرت المزامنة (' + (error && error.message || 'خطأ') + '). لم يُحذف شيء، ويمكن المحاولة مرة أخرى.';
-      }
-      await window.openLiveLibrary();
-    };
+    if (ctx.note) setNote(dialog, ctx.note);
+    if (!ctx.cloud) {
+      /* the only time a reload button is worth having: the cloud library could not be read */
+      var retry = libButton('إعادة المحاولة', async function () {
+        retry.disabled = true; setNote(dialog, 'جارٍ تحميل المكتبة…');
+        await window.openLiveLibrary();
+      });
+      retry.dataset.libAction = 'retry';
+      dialog.append(retry);
+    }
 
     if (ctx.cloud) await paintLocalBox(dialog, ctx.cloud);
   }
@@ -537,7 +533,7 @@
     box.append(make('strong', 'مكتبة قديمة محفوظة في هذا المتصفح'));
     box.append(make('span', info.saved + ' عنصر محفوظ · ' + info.archive + ' عنصر مؤرشف · ' + info.media + ' ملف وسائط', 'font-size:12px;color:#846631'));
     box.append(make('span', info.pending
-      ? 'لم يُنقل منها بعد: ' + info.pending + '. «مزامنة التغييرات» تنقلها إلى سابابيس بالدمج فقط، ولا تحذف أي شيء هنا أو هناك.'
+      ? 'لم يُنقل منها بعد: ' + info.pending + '. «نقلها إلى سابابيس» يضيفها للمكتبة بالدمج فقط، ولا يحذف أي شيء هنا أو هناك.'
       : 'كل ما فيها موجود الآن في سابابيس. يمكنك حذف النسخة المحلية بعد أخذ نسخة احتياطية.', 'font-size:12px;line-height:1.8'));
     var actions = make('div', '', 'display:flex;gap:8px;flex-wrap:wrap');
     var backup = libButton('تنزيل نسخة احتياطية (JSON)', function () { downloadLocalBackup(local); });
@@ -550,6 +546,20 @@
     });
     drop.dataset.libAction = 'clear-local'; drop.disabled = info.pending > 0;
     drop.title = info.pending > 0 ? 'يتاح بعد نقل كل شيء إلى سابابيس وتأكيده' : '';
+    if (info.pending > 0) {
+      var move = libButton('نقلها إلى سابابيس', async function () {
+        actions.querySelectorAll('button').forEach(function (b) { b.disabled = true; });
+        try {
+          var report = await model.syncLocal({ provider: window.elanLibraryDataProvider, storage: window.localStorage, uploadFile: uploadFile, sha256: sha256Hex, onProgress: function (text) { setNote(dialog, text); } });
+          forcedNote = summarizeSync(report);
+        } catch (error) {
+          forcedNote = 'تعذر النقل (' + (error && error.message || 'خطأ') + '). لم يُحذف شيء، ويمكن المحاولة مرة أخرى.';
+        }
+        await window.openLiveLibrary();
+      });
+      move.dataset.libAction = 'sync';
+      actions.append(move);
+    }
     actions.append(backup, drop);
     box.append(actions);
     dialog.append(box);
@@ -564,8 +574,7 @@
     var failure = '';
     try { ctx.cloud = await window.connectElanLibrary(window.elanLibraryDataProvider); }
     catch (error) { failure = error && error.message || 'خطأ'; }
-    var counts = ctx.cloud ? 'وسائط: ' + ctx.cloud.media.length + ' · عناصر محفوظة: ' + ctx.cloud.savedElements.length + ' · أرشيف: ' + ctx.cloud.archive.length : '';
-    ctx.note = forcedNote || (failure ? 'تعذر تحميل المكتبة من سابابيس: ' + failure + '. اضغط «تحميل المكتبة من سابابيس» للمحاولة مرة أخرى.' : 'تم تحميل المكتبة من سابابيس · ' + counts);
+    ctx.note = forcedNote || (failure ? 'تعذر تحميل المكتبة: ' + failure + '.' : '');
     forcedNote = '';
     await paint(dialog, ctx);
     if (!dialog.open) dialog.showModal();

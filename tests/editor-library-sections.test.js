@@ -245,10 +245,15 @@ test('the local copy is emptied only by clearLocalLibrary, and the rest of the o
 
 /* ---------- the window ---------- */
 
-test('the library window has the two explicit buttons, the tabs, and the local box with a guarded delete', () => {
-  assert.match(source, /'تحميل المكتبة من سابابيس'/);
-  assert.match(source, /'مزامنة التغييرات'/);
-  assert.match(source, /dataset\.libAction = 'load'/);
+test('the library window has the tabs and the local box with a guarded delete, and nothing that is only filler', () => {
+  /* the owner: what is shown must be of use. The window loads from the cloud on open and reloads after every action, so there is no
+     «load from the cloud» button and no always-on «sync» button, and no sentence of counts under the window. */
+  assert.doesNotMatch(source, /'تحميل المكتبة من سابابيس'/);
+  assert.doesNotMatch(source, /'مزامنة التغييرات'/);
+  assert.doesNotMatch(source, /dataset\.libAction = 'load'/);
+  assert.doesNotMatch(source, /تم تحميل المكتبة من سابابيس/);
+  assert.match(source, /if \(!ctx\.cloud\) \{[^}]*retry/s, 'a retry button exists only when the cloud library could not be read');
+  assert.match(source, /if \(info\.pending > 0\) \{\s*var move = libButton\('نقلها إلى سابابيس'/, 'the move button exists only while the old browser library still has something to move');
   assert.match(source, /dataset\.libAction = 'sync'/);
   assert.match(source, /\['archive', 'العناصر المحذوفة'\], \['saved', 'الميديا والعناصر المحفوظة'\]/, 'the original two tabs, in its order and wording');
   assert.match(source, /repeat\(3,1fr\)/, 'the sections sit in the original three-column grid');

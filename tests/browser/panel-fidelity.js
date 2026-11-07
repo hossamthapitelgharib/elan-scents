@@ -41,20 +41,29 @@ function describePanel(arg) {
 /* The letters' own width depends on the Arabic font a machine has (the original was captured here, CI runs on another image), so the left
    edge and width of elements that shrink to their text may differ by a few pixels between machines: x and w get 4px, y and h 2px.
    compare(live, golden, tolerance, drop, looseText): `drop(entry)` lists original elements that were deleted on purpose (the AI button);
-   `looseText` lists texts that depend on the element being edited (the sample line), which are compared by box only.
+   `drop` may also answer 'tail' for the original's closing rows (the panel then loses their height); `looseText` lists texts that depend on the element being edited (the sample line), which are compared by box only.
    Wording the live library says differently on purpose (its title and its connection line) is compared by box only, and a
    short hint under the upload button may take a different number of lines: whatever follows it is moved by the difference. */
 function compare(live, golden, tolerance, drop, looseText) {
   const tol = typeof tolerance === 'number' ? { x: tolerance, y: tolerance, w: tolerance, h: tolerance } : tolerance;
   const problems = [];
   /* drop(entry) may answer 'stack' for an element in a vertical stack: what follows it then moves up by the room it took */
-  const kept = []; let cut = 0;
+  const kept = []; let cut = 0, tail = null;
   for (let g = 0; g < golden.length; g++) {
     const e = golden[g], d = drop && drop(e);
-    if (d) { if (d === 'stack') { const next = golden.slice(g + 1).find((x) => !(drop && drop(x))); if (next && next.y > e.y) cut += next.y - e.y; } continue; }
+    if (d) {
+      if (d === 'stack') { const next = golden.slice(g + 1).find((x) => !(drop && drop(x))); if (next && next.y > e.y) cut += next.y - e.y; }
+      if (d === 'tail') tail = e;
+      continue;
+    }
     kept.push(Object.assign({}, e, { y: e.y - cut }));
   }
   if (cut && kept.length) kept[0].h -= cut;
+  /* 'tail' marks the original's closing rows (removed on purpose): the panel is shorter by what they took, margins included */
+  if (tail && kept.length > 1) {
+    const edge = (e) => e.y + e.h + (parseFloat(e.style.marginBottom) || 0), last = kept[kept.length - 1];
+    kept[0].h -= Math.max(0, edge(tail) - edge(last));
+  }
   const orig = kept;
   const hint = (list) => list.findIndex((e) => e.tag === 'small');
   const li = hint(live), gi = hint(orig);
