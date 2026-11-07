@@ -170,7 +170,7 @@ test('Masterpieces page: the chips are the filter (no filter panel under them), 
   const { context, page, errors } = await visit(H.WIDTHS[0]);
   try {
     await page.evaluate(() => {
-      const mk = (id, name, brand, sales, views, ind) => ({ id, pid: id, name, pn: name, brand, sz: '100 مل', img: '', cats: [0], occs: [0], notes: [0], rating: 0, sales, views, searches: 0, requests: 0, rel: sales, ts: 0, ind, sd: 's', desc: 'd', comp: 'c', offers: [{ store: 'S', storeId: 's1', storeProductId: 'sp' + id, price: 100, cur: 'EGP', avail: true, flags: ['master'], stock: 5, tax: true, ship: false }], allOffers: [] });
+      const mk = (id, name, brand, sales, views, ind) => { const offer = { store: 'S', storeId: 's1', storeProductId: 'sp' + id, price: 100, cur: 'EGP', avail: true, flags: ['master'], stock: 5, tax: true, ship: false }; return { id, pid: id, name, pn: name, brand, sz: '100 مل', img: '', cats: [0], occs: [0], notes: [0], rating: 0, sales, views, searches: 0, requests: 0, rel: sales, ts: 0, ind, sd: 's', desc: 'd', comp: 'c', globalOffer: offer, allEligibleOffers: [offer], offersByStore: { s1: offer } }; };
       PERFUMES = [mk('a', 'عطر منخفض', 'X', 10, 250, ['sales', 'views', 'topBrand']), mk('b', 'عطر الأعلى', 'Y', 100, 25, ['sales', 'views', 'topBrand']), mk('c', 'عطر وسط', 'Y', 50, 90, ['sales', 'views'])];
       go('sec|master');
     });
@@ -226,6 +226,8 @@ test('storefront filters use exact unified sizes and owners; a changed cart offe
       go('sec|all');
     });
     await page.waitForTimeout(300);
+    await page.locator('#view .filter-panel summary').click();
+    await page.waitForTimeout(100);
     const select = async (key, value) => {
       await page.locator('#view select[data-k="' + key + '"]').selectOption(value);
       await page.waitForTimeout(100);
