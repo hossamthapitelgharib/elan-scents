@@ -379,3 +379,68 @@ test('15. «حسابي»: under sign out in the menu, written once, saved on the
     assert.deepEqual(csp, [], 'the policy let the map, the address lookup and the location request through');
   } finally { await c.context.close(); }
 });
+
+// 16. the e-mail confirmation link. It used to sync the cart but never the favourites, and an older account's session left in the browser
+//     could put that account's lists on screen (and refresh its token over the new one) while the link was being opened.
+const CONFIRM_HASH = '#access_token=new-token&refresh_token=new-refresh&expires_in=3600&token_type=bearer&type=signup';
+async function openConfirmLink(c, { oldAccountFavs = [] } = {}) {
+  const page = await c.context.newPage();
+  await mockPage(page);
+  await page.route('**/auth/v1/user', async route => {
+    await new Promise((resolve) => setTimeout(resolve, 1500));   // the catalogue and the startup sync are done before the link's answer arrives, as on a phone
+    return H.safeFulfill(route, { status: 200, contentType: 'application/json',
+      body: JSON.stringify(/new-token/.test(route.request().headers().authorization || '') ? { id: 'new-1', email: 'new@example.test' } : CUSTOMER_SESSION.user) });
+  });
+  await page.route('**/rest/v1/favorites*', route => {
+    const request = route.request();
+    if (request.method() !== 'GET') return route.fallback();
+    return H.safeFulfill(route, { status: 200, contentType: 'application/json', body: JSON.stringify(request.url().includes('user_id=eq.old-1') ? oldAccountFavs : []) });
+  });
+  await page.goto(H.SITE + '/' + CONFIRM_HASH, { waitUntil: 'load' });
+  await page.waitForFunction(() => document.getElementById('sheet') && document.getElementById('sheet').dataset.kind === 'confirmed', null, { timeout: 10000 });
+  await page.waitForTimeout(800);
+  return page;
+}
+const badges = (page) => page.evaluate(() => ({
+  cartN: document.querySelector('button[data-sheet="cart"]').getAttribute('data-n'), favN: document.querySelector('button[data-sheet="fav"]').getAttribute('data-n'),
+  cartOwner: localStorage.getItem('elan_cart_owner'), favOwner: localStorage.getItem('elan_favs_owner'), auth: (JSON.parse(localStorage.getItem('elan_auth_session') || 'null') || {}).user }));
+
+test('16. the confirmation link keeps what the visitor put in the cart and the favourites, and saves both on the new account', async () => {
+  const c = await context();
+  try {
+    await c.context.addInitScript((size) => {
+      if (localStorage.getItem('__seeded')) return;
+      localStorage.setItem('__seeded', '1');
+      localStorage.setItem('elan_cart', JSON.stringify([{ sid: size, q: 2 }]));
+      localStorage.setItem('elan_favs', JSON.stringify([size]));
+    }, FAV_SIZE);
+    const page = await openConfirmLink(c);
+    const after = await badges(page);
+    assert.equal(after.auth && after.auth.id, 'new-1');
+    assert.equal(after.cartN, '2'); assert.equal(after.favN, '1');
+    assert.equal(after.favOwner, 'new-1', 'the favourites now belong to the new account');
+    const posted = favWrites.filter((w) => w.method === 'POST').flatMap((w) => JSON.parse(w.body));
+    assert.deepEqual(posted, [{ user_id: 'new-1', product_size_id: FAV_SIZE }], 'the heart the visitor pressed is saved on the account');
+  } finally { await c.context.close(); }
+});
+
+test('16b. an older account left signed in on the device never lends its cart or favourites to the account being confirmed', async () => {
+  const c = await context();
+  try {
+    await c.context.addInitScript(([size, session]) => {
+      if (localStorage.getItem('__seeded')) return;
+      localStorage.setItem('__seeded', '1');
+      localStorage.setItem('elan_auth_session', JSON.stringify(session));
+      localStorage.setItem('elan_cart', JSON.stringify([{ sid: size, q: 2 }]));
+      localStorage.setItem('elan_cart_owner', 'old-1');
+      localStorage.setItem('elan_favs', JSON.stringify([size]));
+      localStorage.setItem('elan_favs_owner', 'old-1');
+    }, [FAV_SIZE, { access_token: 'old-token', refresh_token: 'old-refresh', user: { id: 'old-1', email: 'old@example.test' } }]);
+    const page = await openConfirmLink(c, { oldAccountFavs: [{ product_size_id: FAV_SIZE }] });
+    const after = await badges(page);
+    assert.equal(after.auth && after.auth.id, 'new-1', 'the session is the new account\'s');
+    assert.equal(after.cartN, '0'); assert.equal(after.favN, '0');
+    assert.equal(after.cartOwner, 'new-1'); assert.equal(after.favOwner, 'new-1');
+    assert.deepEqual(favWrites.filter((w) => w.method !== 'GET'), [], 'nothing of the old account is written onto the new one');
+  } finally { await c.context.close(); }
+});

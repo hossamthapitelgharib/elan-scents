@@ -42,6 +42,8 @@
     var at = expiresAt(session);
     return !!(session && session.refresh_token && at && at - Date.now() < (margin === undefined ? MARGIN_MS : margin));
   }
+  /* A request keeps the identity of the token it was made with: a refreshed token replaces it only when it is the same person's. */
+  function sameUser(a, b) { var x = payload(a), y = payload(b); return !x || !y || !x.sub || !y.sub || x.sub === y.sub; }
   function isUserToken(token) { var claims = payload(token); return !!claims && claims.role === 'authenticated'; }
 
   function config() {
@@ -73,6 +75,8 @@
         }).then(function (response) {
           return response.json().catch(function () { return {}; }).then(function (body) {
             if (response.ok && body.access_token) {
+              var latest = read();                              // somebody else signed in while this refresh was on its way: never put the old account back
+              if (latest && latest.user && current.user && latest.user.id !== current.user.id) return latest;
               var next = Object.assign({}, current, body);
               write(next);
               fire('elan-auth-refreshed', next);
@@ -115,13 +119,13 @@
     var session = read();
     var ready = session && session.access_token && needsRefresh(session) ? refresh(false) : Promise.resolve(session);
     return ready.then(function (current) {
-      var token = current && current.access_token && isUserToken(current.access_token) ? current.access_token : sent;
+      var token = current && current.access_token && isUserToken(current.access_token) && sameUser(sent, current.access_token) ? current.access_token : sent;
       var first = token === sent ? init : withAuthorization(init, 'Bearer ' + token);
       return realFetch(input, first).then(function (response) {
         if (response.status !== 401 || Date.now() - lastForced < FORCE_EVERY_MS) return response;
         lastForced = Date.now();
         return refresh(true).then(function (next) {
-          if (!next || !next.access_token || next.access_token === token) return response;
+          if (!next || !next.access_token || next.access_token === token || !sameUser(sent, next.access_token)) return response;
           return realFetch(input, withAuthorization(init, 'Bearer ' + next.access_token));
         });
       });

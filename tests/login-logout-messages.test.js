@@ -25,7 +25,7 @@ function shop(server, { lang = 'ar', turnstile } = {}) {
     lang, SB: { url: 'https://project.example.invalid', key: 'anon-key' }, AUTH: null, PENDING_STORE: '', CART_FIRST_SYNC_DONE: true,
     location: { origin: 'https://shop.example.invalid' }, document: p.document,
     toast: (text, ms) => log.toasts.push({ text, ms }), closeSheet() { log.closed++; }, sheet: (k) => log.sheets.push(k), openStoreOrder() {},
-    buildMenu() {}, syncCartFromCloud: async () => {}, syncFavsFromCloud: async () => {}, localStorage: { setItem() {} },
+    buildMenu() {}, adoptAccountLists() {}, syncCartFromCloud: async () => {}, syncFavsFromCloud: async () => {}, localStorage: { setItem() {} },
     fetch: async (url, init) => { log.requests.push({ url: String(url), body: JSON.parse(init.body) }); return { json: async () => server }; },
     Promise, JSON, String, RegExp, Array, encodeURIComponent
   });

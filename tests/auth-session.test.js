@@ -6,7 +6,7 @@ const vm = require('node:vm');
 
 const source = fs.readFileSync(path.join(__dirname, '..', 'auth-session.js'), 'utf8');
 const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
-const jwt = (role, exp) => 'h.' + b64({ role, exp }) + '.s';
+const jwt = (role, exp, sub) => 'h.' + b64(sub ? { role, exp, sub } : { role, exp }) + '.s';
 const inSeconds = (s) => Math.floor(Date.now() / 1000) + s;
 const ANON = jwt('anon', inSeconds(99999));
 
@@ -117,4 +117,32 @@ test('signOut revokes the session on the server and clears it locally', async ()
   const out = t.calls.find((c) => c.url.includes('/auth/v1/logout?scope=local'));
   assert.ok(out, 'the server is told to revoke this session');
   assert.equal(bearer(out.init), session.access_token);
+});
+
+test('a request keeps the identity of its own token: another account\'s session in storage never replaces it', async () => {
+  const stored = { access_token: jwt('authenticated', inSeconds(3600), 'user-B'), refresh_token: 'rB', user: { id: 'user-B' } };
+  const t = load(stored, () => ({ status: 200, body: {} }));
+  const mine = jwt('authenticated', inSeconds(3600), 'user-A');
+  await t.window.fetch('/api/customer-cart', { method: 'POST', headers: { Authorization: 'Bearer ' + mine } });
+  assert.equal(bearer(t.calls.at(-1).init), mine, 'the cart of user A is not saved as user B');
+  const same = jwt('authenticated', inSeconds(3600), 'user-B');
+  await t.window.fetch('/api/customer-cart', { method: 'POST', headers: { Authorization: 'Bearer ' + same } });
+  assert.equal(bearer(t.calls.at(-1).init), stored.access_token, 'the same account still gets its freshest token');
+});
+
+test('a refresh that finishes after someone else signed in does not put the old account back', async () => {
+  const oldSession = { access_token: jwt('authenticated', inSeconds(-30), 'user-old'), refresh_token: 'r-old', user: { id: 'user-old' } };
+  const newSession = { access_token: jwt('authenticated', inSeconds(3600), 'user-new'), refresh_token: 'r-new', user: { id: 'user-new' } };
+  let t;
+  t = load(oldSession, (url) => {
+    if (url === '/api/config') return CONFIG;
+    if (url.includes('grant_type=refresh_token')) {
+      t.store.set('elan_auth_session', JSON.stringify(newSession));      // the confirmation link signs the new account in while the old one is refreshing
+      return { status: 200, body: { access_token: jwt('authenticated', inSeconds(3600), 'user-old'), refresh_token: 'r-old-2' } };
+    }
+    return { status: 200, body: {} };
+  });
+  await t.window.fetch('/api/customer-orders', { headers: { Authorization: 'Bearer ' + oldSession.access_token } });
+  assert.equal(t.stored().user.id, 'user-new', 'the session in the browser is still the new account\'s');
+  assert.equal(t.stored().refresh_token, 'r-new');
 });

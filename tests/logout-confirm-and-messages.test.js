@@ -72,7 +72,7 @@ test('signing in without waiting: the toast shows while the syncs are still pend
   const path = core.slice(core.indexOf("AUTH=d;try{localStorage.setItem('elan_auth_session'"), core.indexOf('}).catch(', core.indexOf("AUTH=d;try{localStorage.setItem('elan_auth_session'")));
   const context = vm.createContext({
     AUTH: null, mode: 'login', d: { access_token: 'tok' }, PENDING_STORE: '', CART_FIRST_SYNC_DONE: false, lang: 'ar', localStorage: { setItem() {} },
-    buildMenu() {}, mailEvent() {}, toast: (m) => toasts.push(m), closeSheet: () => closed.push(1), welcomeBackText: () => 'welcome', signupDoneText: () => 'signup',
+    buildMenu() {}, adoptAccountLists() {}, mailEvent() {}, toast: (m) => toasts.push(m), closeSheet: () => closed.push(1), welcomeBackText: () => 'welcome', signupDoneText: () => 'signup',
     window: { GuestIdentity: { claim: () => new Promise(() => {}) } }, GuestIdentity: { claim: () => new Promise(() => {}) },
     syncCartFromCloud: () => new Promise(() => {}), syncFavsFromCloud: () => new Promise(() => {}), openStoreOrder() { throw new Error('no store chosen'); }
   });

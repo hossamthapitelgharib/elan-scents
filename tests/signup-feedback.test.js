@@ -26,7 +26,7 @@ function shop(server, { lang = 'ar', pending = '' } = {}) {
   const context = vm.createContext({
     lang, SB: { url: 'https://project.example.invalid', key: 'anon-key' }, AUTH: null, PENDING_STORE: pending, CART_FIRST_SYNC_DONE: true,
     toast: (text) => log.toasts.push(text), closeSheet: () => { log.closed++; }, sheet: (k) => log.sheets.push(k), openStoreOrder: (s) => log.stores.push(s),
-    buildMenu() {}, syncCartFromCloud: async () => {}, syncFavsFromCloud: async () => {}, localStorage: { setItem: (k) => log.saved.push(k) }, document: p.document,
+    buildMenu() {}, adoptAccountLists() {}, syncCartFromCloud: async () => {}, syncFavsFromCloud: async () => {}, localStorage: { setItem: (k) => log.saved.push(k) }, document: p.document,
     fetch: async () => ({ json: async () => server }), Promise, JSON, String, RegExp, Array
   });
   context.window = context;
@@ -156,7 +156,7 @@ function confirmPage(hash, { user = { id: 'u1', email: 'buyer@example.invalid' }
     lang: 'ar', SB: { url: '', key: '' }, AUTH: null, CART_FIRST_SYNC_DONE: false,
     location: { hash, pathname: '/', search: '' }, history: { replaceState: (...a) => log.replaced.push(a) },
     document: p.document, localStorage: { setItem: (k, v) => { log.saved[k] = JSON.parse(v); } },
-    buildMenu: () => { log.menus++; }, syncCartFromCloud: async () => { log.synced++; }, syncFavsFromCloud: async () => {},
+    buildMenu: () => { log.menus++; }, adoptAccountLists() {}, syncCartFromCloud: async () => { log.synced++; }, syncFavsFromCloud: async () => {},
     GuestIdentity: { claim: claim || (async (token) => { log.claimed.push(token); }) },
     fetch: async (url, init) => {
       log.fetched.push({ url: String(url), init });
