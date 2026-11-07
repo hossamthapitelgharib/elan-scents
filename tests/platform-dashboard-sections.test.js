@@ -9,7 +9,7 @@ const portalSource = fs.readFileSync(path.join(root, 'portal.js'), 'utf8');
 const source = fs.readFileSync(path.join(root, 'platform-dashboard.js'), 'utf8');
 const html = fs.readFileSync(path.join(root, 'platform-dashboard.html'), 'utf8');
 
-const IDS = ['#loginForm', '#login', '#app', '#logout', '#refresh', '#message', '#stats', '#platformError', '#platformStoreError', '#platformStoreStats', '#platformAuditError', '#platformAuditList', '#platformAuditMore'];
+const IDS = ['#loginForm', '#login', '#app', '#logout', '#refresh', '#message', '#stats', '#platformError', '#platformStoreError', '#platformStoreStats', '#platformAuditError', '#platformAuditList', '#platformAuditMore', '#platformSettlementsRefresh', '#platformSettlementError', '#platformSettlementStats', '#platformSettlementBoard', '#platformSettlementMore'];
 function makeNode() {
   return { hidden: false, disabled: false, value: '', textContent: '', innerHTML: '', listeners: {}, addEventListener(type, callback) { this.listeners[type] = callback; } };
 }
@@ -66,6 +66,7 @@ function baseRoutes(extra = {}) {
       { status: 'inactive', summary: { linked_accounts: 0, available_product_count: 0, active_offer_count: 0 } }
     ] }),
     'GET /api/platform-audit-log': json(200, { ok: true, entries: [ENTRY], limit: 20, offset: 0, hasMore: false }),
+    'GET /api/platform-commission-settlement': json(200, { ok: true, settlements: [], hasMore: false }),
     ...extra
   };
 }
@@ -79,7 +80,7 @@ async function start(routes, options) {
 
 test('every section loads with the admin token, and the cards count the right things', async () => {
   const page = await start(baseRoutes());
-  assert.deepEqual(page.calls.map(call => call.key).sort(), ['GET /api/platform-audit-log', 'GET /api/platform-customer-summary', 'GET /api/platform-order-summary', 'GET /api/platform-stores']);
+  assert.deepEqual(page.calls.map(call => call.key).sort(), ['GET /api/platform-audit-log', 'GET /api/platform-commission-settlement', 'GET /api/platform-customer-summary', 'GET /api/platform-order-summary', 'GET /api/platform-stores']);
   assert.ok(page.calls.every(call => call.headers.Authorization === 'Bearer admin-token'));
   const stats = page.nodes.get('#stats').innerHTML;
   for (const text of ['طلبات المتاجر', 'مكتملة', 'مفتوحة', 'مرفوضة أو ملغاة', 'تحتاج مراجعة', 'عملاء مسجلون', 'الزوار']) assert.ok(stats.includes(text), text);
@@ -100,6 +101,22 @@ test('every section loads with the admin token, and the cards count the right th
 test('no store has a missing-account warning once every store has an account', async () => {
   const page = await start(baseRoutes({ 'GET /api/platform-stores': json(200, { ok: true, stores: [{ status: 'active', summary: { linked_accounts: 2 } }] }) }));
   assert.match(page.nodes.get('#platformStoreStats').innerHTML, new RegExp(`stat "><small>متاجر بلا حساب مربوط</small><b>${(0).toLocaleString('ar-EG')}</b>`));
+});
+
+test('commission settlements render in status columns and request action calls the new endpoint', async () => {
+  const page = await start(baseRoutes({ 'GET /api/platform-commission-settlement': json(200, { ok: true, settlements: [
+    { commissionId: 'c-payable', status: 'payable', storeName: 'متجر مستحق', amount: 150, currency: 'EGP', updatedAt: '2026-11-05T08:00:00Z' },
+    { id: 's-submitted', commissionId: 'c-submitted', status: 'payment_submitted', storeName: 'متجر بانتظار التحقق', amount: 90, currency: 'EGP', updatedAt: '2026-11-05T07:00:00Z' }
+  ], hasMore: false }) }));
+  const board = page.nodes.get('#platformSettlementBoard').innerHTML;
+  assert.match(board, /متجر مستحق/);
+  assert.match(board, /مستحقة/);
+  assert.match(board, /متجر بانتظار التحقق/);
+  assert.match(page.nodes.get('#platformSettlementStats').innerHTML, /مستحقة/);
+  const click = page.nodes.get('#platformSettlementBoard').listeners.click;
+  click({ target: { closest: () => ({ dataset: { settlementAction: 'request', commissionId: 'c-payable' } }) } });
+  await settle();
+  assert.ok(page.calls.some(call => call.key === 'POST /api/platform-commission-settlement'));
 });
 
 test('the audit log reads as sentences, newest first, with every database text escaped', async () => {
@@ -221,13 +238,13 @@ test('the refresh button reloads every section', async () => {
   const before = page.calls.length;
   await page.nodes.get('#refresh').listeners.click();
   await settle();
-  assert.equal(page.calls.length, before + 4);
+  assert.equal(page.calls.length, before + 5);
 });
 
 test('opening the page with a saved session loads it by itself; without one it only shows the sign-in card', async () => {
   const withSession = boot(baseRoutes());
   await settle();
-  assert.equal(withSession.calls.length, 4, 'loaded without a click');
+  assert.equal(withSession.calls.length, 5, 'loaded without a click');
   const without = boot(baseRoutes(), { session: false });
   await settle();
   assert.equal(without.calls.length, 0);
@@ -235,7 +252,7 @@ test('opening the page with a saved session loads it by itself; without one it o
 });
 
 test('the page has the sections, the buttons and no inline script or handler', () => {
-  for (const id of ['refresh', 'platformAuditList', 'platformAuditMore', 'platformAuditError', 'platformStoreStats', 'stats', 'logout']) assert.match(html, new RegExp(`id="${id}"`), id);
+  for (const id of ['refresh', 'platformAuditList', 'platformAuditMore', 'platformAuditError', 'platformStoreStats', 'platformSettlementBoard', 'platformSettlementStats', 'platformSettlementError', 'stats', 'logout']) assert.match(html, new RegExp(`id="${id}"`), id);
   assert.doesNotMatch(html, /<script(?![^>]*\bsrc=)/i, 'no inline script');
   assert.doesNotMatch(html, /\son[a-z]+=/i, 'no inline handler');
   for (const name of ['auditRowMarkup', 'statMarkup']) {

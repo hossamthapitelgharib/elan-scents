@@ -1,7 +1,8 @@
 const AUDIT_PAGE = 20;
+const SETTLEMENT_PAGE = 100;
 /* The registered-customers card follows new sign-ups without a page reload: it re-reads the (cheap) count this often while the tab is visible. */
 const LIVE_COUNT_MS = 20000;
-const state = { auditOffset: 0, auditHasMore: false, auditBusy: false, orders: null, liveTimer: null, countBusy: false };
+const state = { auditOffset: 0, auditHasMore: false, auditBusy: false, settlements: [], settlementOffset: 0, settlementHasMore: false, settlementBusy: false, settlementMutationBusy: false, orders: null, liveTimer: null, countBusy: false };
 
 /* The page may be opened with the API codes only; Portal.errorText turns each into a sentence (and keeps an unknown code in brackets). */
 function errorTextP(error, fallback) {
@@ -52,6 +53,51 @@ function sessionProblem(error) {
 
 function statMarkup(items) {
   return items.map(item => `<div class="stat ${escP(item[2] || '')}"><small>${escP(item[0])}</small><b>${escP(item[1])}</b></div>`).join('');
+}
+
+const SETTLEMENT_COLUMNS = [
+  ['payable', 'مستحقة', 'gold'], ['payment_requested', 'مطلوب تحويله', 'blue'],
+  ['payment_submitted', 'بانتظار التحقق', 'orange'], ['payment_verified', 'تم التحقق', 'green'],
+  ['paid', 'مدفوعة', 'green'], ['rejected', 'مرفوضة', 'orange'], ['cancelled', 'ملغاة', '']
+];
+function settlementStatusLabel(status) { return (SETTLEMENT_COLUMNS.find(column => column[0] === status) || ['', status, ''])[1]; }
+function settlementActionMarkup(record) {
+  if (record.status === 'payable') return `<button class="primary settlement-action" type="button" data-settlement-action="request" data-commission-id="${escP(record.commissionId)}">إنشاء تسوية</button>`;
+  const evidenceLink = record.evidence ? `<button class="ghost settlement-action" type="button" data-settlement-action="sign_evidence" data-settlement-id="${escP(record.id)}" data-evidence-id="${escP(record.evidence.id)}">فتح الإثبات (10 دقائق)</button>` : '';
+  if (record.status === 'payment_requested') return `<form class="settlement-form" data-settlement-form="submit" data-settlement-id="${escP(record.id)}"><input name="paymentReference" maxlength="160" placeholder="مرجع التحويل" required><input name="evidenceReference" maxlength="200" placeholder="مرجع نصي اختياري"><label class="settlement-file"><span>ملف الإثبات (PDF/JPG/PNG، حتى 10MB)</span><input name="evidenceFile" type="file" accept="application/pdf,image/jpeg,image/png" required></label><button class="primary" type="submit">رفع وتسجيل التحويل</button></form>`;
+  if (record.status === 'payment_submitted') return `${evidenceLink}<button class="primary settlement-action" type="button" data-settlement-action="verify" data-settlement-id="${escP(record.id)}">اعتماد الإثبات</button>`;
+  if (record.status === 'payment_verified') return `<form class="settlement-form" data-settlement-form="paid" data-settlement-id="${escP(record.id)}"><input name="paymentReference" maxlength="160" placeholder="مرجع التحويل النهائي"><button class="primary" type="submit">تأكيد الدفع</button></form>`;
+  return evidenceLink;
+}
+function settlementRowMarkup(record) {
+  const name = record.storeName || 'متجر غير معروف';
+  const id = record.commissionId || record.id || '—';
+  return `<article class="platform-settlement-row"><div class="platform-settlement-main"><b>${escP(name)}</b><small>العمولة: <code>${escP(id)}</code></small><small>آخر تحديث: ${escP(dateP(record.updatedAt || record.createdAt))}</small></div><div class="platform-settlement-amount"><strong>${escP(numberP(record.amount))} ${escP(record.currency || 'EGP')}</strong><span>${escP(settlementStatusLabel(record.status))}</span></div><div class="platform-settlement-actions">${settlementActionMarkup(record)}</div></article>`;
+}
+function renderSettlements(result, append = false) {
+  const error = $('#platformSettlementError');
+  const board = $('#platformSettlementBoard');
+  const more = $('#platformSettlementMore');
+  const stats = $('#platformSettlementStats');
+  if (!error || !board || !more || !stats) return;
+  if (result.status !== 'fulfilled') {
+    error.textContent = errorTextP(result.reason, 'تعذر تحميل تسويات العمولات.');
+    error.hidden = false;
+    if (!append) board.innerHTML = '';
+    return;
+  }
+  const rows = Array.isArray(result.value.settlements) ? result.value.settlements : [];
+  state.settlements = append ? state.settlements.concat(rows) : rows;
+  state.settlementOffset = state.settlements.length;
+  state.settlementHasMore = Boolean(result.value.hasMore);
+  const counts = Object.fromEntries(SETTLEMENT_COLUMNS.map(column => [column[0], state.settlements.filter(row => row.status === column[0]).length]));
+  stats.innerHTML = statMarkup(SETTLEMENT_COLUMNS.map(column => [column[1], numberP(counts[column[0]]), column[2]]));
+  board.innerHTML = SETTLEMENT_COLUMNS.map(column => {
+    const columnRows = state.settlements.filter(row => row.status === column[0]);
+    return `<section class="platform-settlement-column"><header><h3>${escP(column[1])}</h3><b>${escP(numberP(columnRows.length))}</b></header><div>${columnRows.length ? columnRows.map(settlementRowMarkup).join('') : '<p class="platform-settlement-empty">لا توجد سجلات</p>'}</div></section>`;
+  }).join('');
+  more.hidden = !state.settlementHasMore;
+  error.hidden = true;
 }
 
 function renderStats(orders, customers) {
@@ -145,6 +191,38 @@ async function loadMoreAudit() {
   }
 }
 
+async function loadMoreSettlements(append = false) {
+  if (state.settlementBusy) return;
+  state.settlementBusy = true;
+  const more = $('#platformSettlementMore');
+  more.disabled = true;
+  try {
+    const result = await Promise.allSettled([request(`/api/platform-commission-settlement?limit=${SETTLEMENT_PAGE}&offset=${append ? state.settlementOffset : 0}`)]);
+    if (result[0].status === 'rejected' && (result[0].reason.status === 401 || result[0].reason.status === 403)) return sessionProblem(result[0].reason);
+    renderSettlements(result[0], append);
+  } finally {
+    more.disabled = false;
+    state.settlementBusy = false;
+  }
+}
+
+async function mutateSettlement(action, data) {
+  if (state.settlementMutationBusy) return;
+  state.settlementMutationBusy = true;
+  try {
+    const response = await fetch('/api/platform-commission-settlement', { method: 'POST', headers: { ...Portal.auth(), 'Content-Type': 'application/json' }, body: JSON.stringify({ action, ...data }) });
+    let result = null; try { result = await response.json(); } catch (_) { result = null; }
+    if (!response.ok) { const error = new Error((result && result.error) || 'commission_settlement_failed'); error.status = response.status; throw error; }
+    if (action === 'sign_evidence' && result.url) { window.open(result.url, '_blank', 'noopener,noreferrer'); return; }
+    await loadMoreSettlements(false);
+  } catch (error) {
+    if (error.status === 401 || error.status === 403) sessionProblem(error);
+    else { const box = $('#platformSettlementError'); box.textContent = errorTextP(error, 'تعذر تحديث التسوية.'); box.hidden = false; }
+  } finally {
+    state.settlementMutationBusy = false;
+  }
+}
+
 async function loadPlatform() {
   if (!Portal.session()) return;
   $('#login').hidden = true;
@@ -158,7 +236,8 @@ async function loadPlatform() {
     request('/api/platform-order-summary'),
     request('/api/platform-customer-summary'),
     request('/api/platform-stores'),
-    request(`/api/platform-audit-log?limit=${AUDIT_PAGE}&offset=0`)
+    request(`/api/platform-audit-log?limit=${AUDIT_PAGE}&offset=0`),
+    request(`/api/platform-commission-settlement?limit=${SETTLEMENT_PAGE}&offset=0`)
   ]);
   $('#refresh').disabled = false;
   const refused = settled.find(result => result.status === 'rejected' && (result.reason.status === 401 || result.reason.status === 403));
@@ -167,6 +246,7 @@ async function loadPlatform() {
   renderStats(settled[0], settled[1]);
   renderStores(settled[2]);
   renderAudit(settled[3], false);
+  renderSettlements(settled[4], false);
   startLiveCount();
 }
 
@@ -201,4 +281,32 @@ $('#loginForm').addEventListener('submit', async event => {
 });
 $('#refresh').addEventListener('click', () => loadPlatform().catch(reportError));
 $('#platformAuditMore').addEventListener('click', () => loadMoreAudit().catch(reportError));
+const settlementRefreshButton = $('#platformSettlementsRefresh');
+if (settlementRefreshButton) settlementRefreshButton.addEventListener('click', () => loadMoreSettlements(false).catch(reportError));
+const settlementMoreButton = $('#platformSettlementMore');
+if (settlementMoreButton) settlementMoreButton.addEventListener('click', () => loadMoreSettlements(true).catch(reportError));
+const settlementBoard = $('#platformSettlementBoard');
+if (settlementBoard) settlementBoard.addEventListener('click', event => {
+  const button = event.target.closest && event.target.closest('[data-settlement-action]');
+  if (!button) return;
+  const action = button.dataset.settlementAction;
+  mutateSettlement(action, action === 'request' ? { commissionId: button.dataset.commissionId } : action === 'sign_evidence' ? { settlementId: button.dataset.settlementId, evidenceId: button.dataset.evidenceId } : { settlementId: button.dataset.settlementId });
+});
+if (settlementBoard) settlementBoard.addEventListener('submit', event => {
+  const form = event.target.closest && event.target.closest('[data-settlement-form]');
+  if (!form) return;
+  event.preventDefault();
+  const values = new FormData(form);
+  const data = { settlementId: form.dataset.settlementId, paymentReference: String(values.get('paymentReference') || '').trim() };
+  if (form.dataset.settlementForm === 'submit') data.evidenceReference = String(values.get('evidenceReference') || '').trim();
+  const file = values.get('evidenceFile');
+  if (form.dataset.settlementForm === 'submit' && file && file.size) {
+    const reader = new FileReader();
+    reader.onload = () => { data.evidenceFile = { name: file.name, type: file.type, data: String(reader.result).split(',')[1] || '' }; mutateSettlement(form.dataset.settlementForm, data); };
+    reader.onerror = () => { const box = $('#platformSettlementError'); box.textContent = 'تعذر قراءة ملف الإثبات.'; box.hidden = false; };
+    reader.readAsDataURL(file);
+    return;
+  }
+  mutateSettlement(form.dataset.settlementForm, data);
+});
 if (Portal.session()) loadPlatform().catch(reportError);

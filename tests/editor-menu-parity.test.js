@@ -55,6 +55,19 @@ test('the menu keeps the original editor tools in the original order, new ones a
   assert.equal(open({ dynamic: true }).enabled, true, 'a card, brand or store opens its page');
 });
 
+test('the mouse menu has no back / home entries even on an inner page: the header button replaced them, and still runs go_back', async () => {
+  const b = await liveEditor(); stack(b);
+  b.document.body.classList.add('inner');
+  const labels = (el) => plain(b.tools.menu(el).map((t) => t.label));
+  [null, { dynamic: true }, { dynamic: false }].forEach((el) => {
+    const ids = plain(b.tools.menu(el).map((t) => t.id));
+    assert.ok(!ids.includes('go_back') && !ids.includes('go_home'), 'no back / home id in the menu for ' + JSON.stringify(el));
+    assert.ok(!labels(el).some((l) => /رجوع للصفحة/.test(l)), 'no back / home label in the menu for ' + JSON.stringify(el));
+  });
+  const registered = plain(b.tools.list().map((t) => t.id));
+  assert.ok(registered.includes('go_back') && registered.includes('go_home'), 'the tools stay registered: the header button runs go_back through tool.run');
+});
+
 test('on a card, a title and the empty page the tools are enabled exactly as in the original editor', async () => {
   const b = await liveEditor(); const els = stack(b);
   const card = els.find((e) => e.kind === 'card'), title = els.find((e) => e.id === 'sec:brands:title');

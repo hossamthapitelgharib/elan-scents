@@ -881,8 +881,10 @@
   registerTool({ id: 'library_download', label: 'تنزيل العنصر للمكتبة كملف', when: has, run: downloadFromLibrary });
   registerTool({ id: 'create_image', label: 'إنشاء صورة أو فيديو', ui: 'media_new', run: function (c) { if (!c.src) throw new Error('اختاري صورة أو فيديو الأول.'); return createBlock('image', { at: c.at, src: c.src }); } });
   registerTool({ id: 'open', label: 'دخول لصفحة', when: function (i) { return !!(i && i.dynamic); }, run: function (c) { enterPage(entryById(c.id)); return null; } });
-  registerTool({ id: 'go_back', show: inner, label: 'رجوع للصفحة السابقة', when: inner, run: function () { goBack(); return null; } });
-  registerTool({ id: 'go_home', show: inner, label: 'رجوع للصفحة الرئيسية', when: inner, run: function () { goHome(); return null; } });
+  /* Back / home are not in the mouse menu any more: the editor header has the «صفحة سابقة» button for them. The tools stay registered
+     (the button runs go_back through tool.run) but show:false keeps them out of the menu. */
+  registerTool({ id: 'go_back', show: function () { return false; }, label: 'رجوع للصفحة السابقة', when: inner, run: function () { goBack(); return null; } });
+  registerTool({ id: 'go_home', show: function () { return false; }, label: 'رجوع للصفحة الرئيسية', when: inner, run: function () { goHome(); return null; } });
   /* the scope tools come after the original editor's, and only show on a page that has a default page */
   registerTool({ id: 'scope_toggle', show: function () { return !!defaultKey(); }, label: function () { return editingDefault() ? 'النطاق الحالي: ' + kindName() + ' — اضغط للرجوع لهذه الصفحة فقط' : 'النطاق الحالي: هذه الصفحة فقط — اضغط لتعديل ' + kindName(); }, run: function () { return setScope(editingDefault() ? 'page' : 'default'); } });
   registerTool({ id: 'scope_reset', show: function () { return !!defaultKey(); }, label: 'إرجاع هذه الصفحة للتصميم الافتراضي', when: ownEdits, run: resetPageToDefault });

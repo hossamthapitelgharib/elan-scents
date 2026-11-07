@@ -16,7 +16,7 @@ function fakeSupabase(log, opts) {
   global.fetch = async (u, o) => {
     u = String(u);
     if (u.startsWith('http://127.0.0.1')) return real(u, o);
-    log.push({ url: u, method: (o && o.method) || 'GET', auth: o && o.headers && o.headers.Authorization, cache: o && o.headers && o.headers['cache-control'] });
+    log.push({ url: u, method: (o && o.method) || 'GET', auth: o && o.headers && o.headers.Authorization, cache: o && o.headers && o.headers['cache-control'], body: o && typeof o.body === 'string' ? o.body : undefined });
     let r = { s: 200, j: {} };
     if (u.startsWith(SB + '/auth/v1/token')) r = { s: 200, j: { access_token: 'admin-token', refresh_token: 'ref', expires_in: 3600 } };
     else if (u.startsWith(SB + '/auth/v1/user')) r = { s: 200, j: { id: 'u1', email: 'owner@example.test' } };
@@ -72,6 +72,30 @@ test('uploads are checked: only real images, size-limited, same-origin, and a fa
     restore(); restore = fakeSupabase(log, { recordFails: true });
     const half = await send('image/png', PNG);
     assert.equal(half.status, 502); assert.equal((await half.json()).error, 'library_record_failed');
+  } finally { restore(); s.close(); }
+});
+
+test('a file uploaded from a library folder is recorded in that folder; anything else stays in the old default', async () => {
+  env(); const log = []; const restore = fakeSupabase(log); const s = await start();
+  try {
+    const cookie = await login(s);
+    const media = require('../railway/editor-media.js');
+    assert.deepEqual(media.FOLDERS, ['section', 'brand', 'store', 'perfume', 'banner', 'text', 'hero', 'image', 'video', 'occasion', 'note', 'text_block'], 'the library window\'s twelve folders');
+    const recorded = async (folder) => {
+      log.length = 0;
+      const headers = Object.assign({ cookie, 'Content-Type': 'image/png' }, folder === undefined ? {} : { 'X-Media-Category': folder });
+      assert.equal((await fetch(url(s, '/api/editor-upload'), { method: 'POST', headers, body: PNG })).status, 200);
+      const post = log.find((l) => l.method === 'POST' && l.url === SB + '/rest/v1/media_library');
+      return JSON.parse(post.body).category;
+    };
+    assert.equal(await recorded('brand'), 'brand');
+    assert.equal(await recorded('text_block'), 'text_block');
+    assert.equal(await recorded('image'), 'image');
+    assert.equal(await recorded(undefined), 'banners', 'the picker\'s own uploads keep the default');
+    assert.equal(await recorded('../../etc'), 'banners', 'a value that is not one of the twelve folders is ignored');
+    assert.equal(await recorded('brand,hero'), 'banners');
+    assert.equal(media.folderOf('video'), 'video');
+    assert.equal(media.folderOf(undefined), 'banners');
   } finally { restore(); s.close(); }
 });
 

@@ -244,7 +244,7 @@ function readRecoveryLink() {
   }
 }
 
-document.querySelector('#loginForm').addEventListener('submit', async event => { event.preventDefault(); try { await Portal.login(event.target); await loadAccount(); } catch (error) { showMessage(error); } });
+document.querySelector('#loginForm').addEventListener('submit', async event => { event.preventDefault(); try { await Portal.login(event.target); Portal.toast(Portal.welcomeText); await loadAccount(); } catch (error) { showMessage(error); } });
 document.querySelector('#archiveForm').addEventListener('submit', event => loadArchive(event).catch(showMessage));
 document.querySelector('#loadMoreOrders').addEventListener('click', () => loadAccount(true).catch(showMessage));
 document.querySelector('#loadMoreArchive').addEventListener('click', () => loadArchive(null, true).catch(showMessage));

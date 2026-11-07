@@ -32,6 +32,16 @@
       </nav>
       <div id="stats" class="stats"></div>
       <p id="platformError" class="platform-error" role="alert" hidden></p>
+      <section class="panel platform-settlements" aria-labelledby="platformSettlementsTitle">
+        <div class="platform-settlements-head">
+          <div><small>Commission settlements</small><h2 id="platformSettlementsTitle">تسويات العمولات</h2><p>تابع العمولات المستحقة وافصل بين تقديم إثبات التحويل واعتماد الدفع النهائي.</p></div>
+          <button id="platformSettlementsRefresh" class="ghost" type="button">تحديث التسويات</button>
+        </div>
+        <p id="platformSettlementError" class="platform-error" role="alert" hidden></p>
+        <div id="platformSettlementStats" class="stats platform-settlement-stats"></div>
+        <div id="platformSettlementBoard" class="platform-settlement-board"></div>
+        <button id="platformSettlementMore" class="ghost" type="button" hidden>عرض المزيد</button>
+      </section>
       <section class="panel customer-overview" aria-labelledby="customerOverviewTitle">
         <div><small>Customer overview</small><h2 id="customerOverviewTitle">ملخص العملاء</h2><p>تعرض هذه الصفحة أعدادًا إجمالية فقط. تفاصيل الزوار والعملاء المسجلين وسلالهم وأنشطتهم متاحة في لوحة العملاء الإدارية.</p></div>
         <a class="primary" href="/customers-dashboard.html">فتح لوحة العملاء</a>

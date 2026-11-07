@@ -65,25 +65,37 @@
     if (actual === wanted) return true;
     try { return typeof esc === 'function' && actual === esc(wanted); } catch (e) { return false; }
   }
+  function genderKey(value) {
+    var s = String(value == null ? '' : value).toLowerCase();
+    var aliases = { men: 'men', women: 'women', unisex: 'unisex' };
+    return aliases[s] || s;
+  }
+  function taxonomyMatches(p, group, value) {
+    if (!value) return true;
+    if (group === 'cats' && ['men', 'women', 'unisex'].indexOf(String(value)) > -1) return String(p.gender || '') === String(value);
+    var keysField = { cats: 'categoryKeys', occ: 'occasionKeys', notes: 'noteKeys' }[group];
+    var idsField = { cats: 'categoryIds', occ: 'occasionIds', notes: 'noteIds' }[group];
+    var keys = (p[keysField] || p[group === 'occ' ? 'occs' : group] || []).map(String);
+    var ids = (p[idsField] || []).map(String), wanted = String(value);
+    return keys.indexOf(wanted) > -1 || ids.indexOf(wanted) > -1;
+  }
   function autoList(f) {
     f = f || {};
     var l = [];
     try {
       l = PERFUMES.map(function (p) {
-        var offer = typeof globalOffer === 'function' ? globalOffer(p) : (typeof best === 'function' ? best(p) : null);
-        var storeId = f.store_id || f.storeId || '';
-        var storeMatch = typeof storeOwnsGlobalOffer === 'function' ? storeOwnsGlobalOffer(p, storeId) : (!storeId || (offer && sameCatalogName(offer.store, f.store)));
-        var flagMatch = !f.flag || (offer && (offer.flags || []).indexOf(f.flag) > -1);
-        return { p: p, b: offer && storeMatch && flagMatch ? offer : null };
+        var offer = Object.prototype.hasOwnProperty.call(p, 'globalOffer') ? p.globalOffer : null;
+        var matches = offer && offer.avail && (!f.store || String(offer.storeId) === String(f.store)) && (!f.flag || (offer.flags || []).indexOf(f.flag) > -1);
+        return { p: p, b: matches ? offer : null };
       }).filter(function (x) { return x.b; });
     } catch (e) { return []; }
     l = l.filter(function (x) {
       var p = x.p;
       if (f.brand && !sameCatalogName(p.brand, f.brand)) return false;
       if (f.size_ml != null && f.size_ml !== '' && Number(p.sizeMl) !== Number(f.size_ml)) return false;
-      if (f.cat && !(p.cats || []).some(function (i) { return sameCatalogName(nmOf('cats', i), f.cat) || String(i) === String(f.cat); })) return false;
-      if (f.occ && !(p.occs || []).some(function (i) { return sameCatalogName(nmOf('occ', i), f.occ) || String(i) === String(f.occ); })) return false;
-      if (f.note && !(p.notes || []).some(function (i) { return sameCatalogName(nmOf('notes', i), f.note) || String(i) === String(f.note); })) return false;
+      if (f.cat && !taxonomyMatches(p, 'cats', f.cat)) return false;
+      if (f.occ && !taxonomyMatches(p, 'occ', f.occ)) return false;
+      if (f.note && !taxonomyMatches(p, 'notes', f.note)) return false;
       if (f.min !== undefined && f.min !== '' && x.b.price < +f.min) return false;
       if (f.max !== undefined && f.max !== '' && x.b.price > +f.max) return false;
       return true;
@@ -93,13 +105,8 @@
     else l.sort(function (a, b) { return (b.p.rel || 0) - (a.p.rel || 0); });
     return l;
   }
-  function manualList(ids, filters) {
-    filters = filters || {};
-    return ids.map(perfumeBy).filter(Boolean).map(function (p) {
-      var b = typeof globalOffer === 'function' ? globalOffer(p) : best(p);
-      var owns = typeof storeOwnsGlobalOffer === 'function' ? storeOwnsGlobalOffer(p, filters.store_id || filters.storeId || '') : true;
-      return { p: p, b: owns ? b : null };
-    }).filter(function (x) { return x.b; });
+  function manualList(ids) {
+    return ids.map(perfumeBy).filter(Boolean).map(function (p) { return { p: p, b: best(p) }; });
   }
   function paint(root, name, list) {
     root.textContent = '';
@@ -110,7 +117,7 @@
   }
   function fillSmart(root, ref) {
     var pend = window.ElanPendingSections[ref];
-    if (pend) { paint(root, pend.name, pend.mode === 'auto' ? autoList(pend.filters) : manualList(pend.items || [], pend.filters)); return; }
+    if (pend) { paint(root, pend.name, pend.mode === 'auto' ? autoList(pend.filters) : manualList(pend.items || [])); return; }
     if (typeof SB === 'undefined' || !SB || !SB.url) { root.remove(); return; }
     var hit = smartCache[ref];
     if (hit && Date.now() - hit.t < 60000) { if (hit.def) paint(root, hit.def.name, hit.list()); else root.remove(); return; }
@@ -123,7 +130,7 @@
         if (def.selection_mode === 'auto') { smartCache[ref] = { t: Date.now(), def: def, list: function () { return autoList(def.filters); } }; paint(root, def.name, autoList(def.filters)); return null; }
         return fetch(SB.url + '/rest/v1/editor_section_items?section_id=eq.' + def.id + '&select=product_size_id&order=sort_order', { headers: H })
           .then(function (r) { return r.ok ? r.json() : []; })
-        .then(function (items) { var ids = items.map(function (i) { return i.product_size_id; }); smartCache[ref] = { t: Date.now(), def: def, list: function () { return manualList(ids, def.filters); } }; paint(root, def.name, manualList(ids, def.filters)); });
+          .then(function (items) { var ids = items.map(function (i) { return i.product_size_id; }); smartCache[ref] = { t: Date.now(), def: def, list: function () { return manualList(ids); } }; paint(root, def.name, manualList(ids)); });
       })
       .catch(function () { root.remove(); });
   }

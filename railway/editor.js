@@ -250,6 +250,17 @@ module.exports = async function editor(req, res) {
   }
 };
 
-module.exports.internals = { config, gitBlobSha, DESIGN_PATH };
+/* The newest committed design text, read from GitHub: for checks like «is this file still used by a page?». Returns null when it cannot
+   be read (editor not configured, no token, GitHub down). Callers must then treat the answer as UNKNOWN, never as «not used». */
+async function currentDesignText() {
+  try {
+    const cfg = config();
+    if (cfg.error) return null;
+    const file = await readDesignFile(cfg);
+    return file.exists ? file.text : '';
+  } catch (_) { return null; }
+}
+
+module.exports.internals = { config, gitBlobSha, DESIGN_PATH, currentDesignText };
 module.exports.setDesignSource = setDesignSource;
 module.exports.setSelfFetch = setSelfFetch;

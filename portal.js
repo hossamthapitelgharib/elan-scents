@@ -40,6 +40,7 @@ window.Portal = {
     } catch (_) {}
     try { if (window.ElanAuth) await window.ElanAuth.signOut(); } catch (_) {}
     localStorage.removeItem('elan_auth_session');
+    try { sessionStorage.setItem('elan_flash', 'logout'); } catch (_) {}   // the page that loads next says goodbye on screen
     // The cart is saved in the account, so the browser's copy of it is only a cache. A later sign-in on a shared device
     // would merge it into somebody else's cart, so it goes. The orders copy (elan_orders) is left as it is: the
     // order history lives in the database and logging out never touches it. The favourites are saved in the account too,
@@ -131,6 +132,24 @@ Portal.errorMessages = {
   commission_not_found: 'سجل العمولة غير موجود.',
   commission_not_payable: 'لا يمكن تسجيل التسوية قبل أن تصبح العمولة مستحقة.',
   commission_payment_record_failed: 'تعذر تسجيل تسوية العمولة.',
+  settlement_data_unavailable: 'تعذر تحميل تسويات العمولات الآن، حاول بعد قليل.',
+  invalid_settlement_status: 'حالة التسوية المطلوبة غير صحيحة.',
+  invalid_settlement_action: 'إجراء التسوية المطلوب غير صحيح.',
+  invalid_settlementId: 'رقم التسوية غير صحيح.',
+  evidence_reference_required: 'أدخل مرجع إثبات التحويل.',
+  evidence_file_required: 'اختر ملف إثبات الدفع.',
+  evidence_file_too_large: 'حجم ملف الإثبات يتجاوز 10 ميجابايت.',
+  unsupported_evidence_type: 'يسمح فقط بملفات PDF أو JPG أو PNG.',
+  invalid_evidence_file: 'ملف الإثبات غير صالح أو لا يطابق نوعه المعلن.',
+  evidence_upload_failed: 'تعذر رفع ملف إثبات الدفع.',
+  evidence_record_failed: 'تعذر تسجيل ملف إثبات الدفع.',
+  evidence_not_found: 'ملف الإثبات غير موجود.',
+  evidence_sign_failed: 'تعذر إنشاء رابط مؤقت لملف الإثبات.',
+  invalid_evidence_identifier: 'معرّف ملف الإثبات غير صالح.',
+  invalid_evidence_reference: 'مرجع إثبات التحويل غير صحيح.',
+  settlement_or_commission_not_found: 'التسوية أو العمولة غير موجودة.',
+  settlement_state_conflict: 'لا يمكن تنفيذ الإجراء من حالة التسوية الحالية.',
+  commission_settlement_failed: 'تعذر تحديث تسوية العمولة.',
   invalid_delivery_evidence: 'أدخل وقت التسليم المثبت ومرجع تحقق صالحًا.',
   delivery_already_verified: 'تم توثيق تسليم هذا الطلب من قبل.',
   delivery_verification_conflict: 'تعذر تأكيد التسليم؛ راجع حالة الشحن وتاريخ التسليم.',
@@ -255,4 +274,11 @@ window.addEventListener('elan-auth-expired', () => {
   Portal.toast('انتهت جلسة الدخول، سجّل الدخول من جديد', 'warning');
   setTimeout(() => location.reload(), 2500);
 });
-document.addEventListener('DOMContentLoaded', () => Portal.startNotifications());
+/* The goodbye after signing out is shown by the page that loads next (the storefront does the same with the same key). */
+Portal.showFlash = () => {
+  let flash = '';
+  try { flash = sessionStorage.getItem('elan_flash') || ''; sessionStorage.removeItem('elan_flash'); } catch (_) {}
+  if (flash === 'logout') Portal.toast('تم تسجيل الخروج بنجاح');
+};
+Portal.welcomeText = 'أهلًا ومرحبًا بك ونتمنى لك رحلة تسويقية ممتعة';
+document.addEventListener('DOMContentLoaded', () => { Portal.showFlash(); Portal.startNotifications(); });

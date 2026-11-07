@@ -12,14 +12,15 @@ const ROOT = path.resolve(__dirname, '..');
 const PORT = Number(process.env.PORT) || 3000;
 const MAX_BODY = 1000000;
 const MAX_EDITOR_BODY = 300000;
+const MAX_EVIDENCE_BODY = 15 * 1024 * 1024;
 const CONFIG = (() => { try { return JSON.parse(fs.readFileSync(path.join(ROOT, 'vercel.json'), 'utf8')); } catch (e) { return {}; } })();
 
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
   '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif', '.ico': 'image/x-icon', '.mp4': 'video/mp4',
-  '.webm': 'video/webm', '.woff2': 'font/woff2', '.woff': 'font/woff', '.ttf': 'font/ttf', '.pdf': 'application/pdf', '.zip': 'application/zip', '.txt': 'text/plain; charset=utf-8',
-  '.md': 'text/markdown; charset=utf-8'
+  '.webm': 'video/webm', '.woff2': 'font/woff2', '.woff': 'font/woff', '.ttf': 'font/ttf', '.txt': 'text/plain; charset=utf-8',
+  '.md': 'text/markdown; charset=utf-8', '.pdf': 'application/pdf', '.zip': 'application/zip'
 };
 
 // Never serve server-side or repo-internal files.
@@ -128,7 +129,7 @@ async function handleApi(req, res, url, pathname) {
   const handler = loadHandler(name);
   if (!handler) return sendJson(res, 404, { error: 'not_found' });
   let raw = Buffer.alloc(0);
-  const bodyLimit = pathname === '/api/editor' ? MAX_EDITOR_BODY : MAX_BODY;
+  const bodyLimit = pathname === '/api/editor' ? MAX_EDITOR_BODY : pathname === '/api/platform-commission-settlement' ? MAX_EVIDENCE_BODY : MAX_BODY;
   try { raw = await readBody(req, bodyLimit); } catch (e) { return sendJson(res, e.code === 413 ? 413 : 400, { error: e.code === 413 ? 'payload_too_large' : 'bad_request' }); }
   try { req.body = parseBody(raw, req.headers['content-type'] || ''); } catch (e) { return sendJson(res, 400, { error: 'invalid_json' }); }
   req.query = parseQuery(url.searchParams);

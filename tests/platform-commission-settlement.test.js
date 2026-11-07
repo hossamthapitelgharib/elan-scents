@@ -10,13 +10,33 @@ const savedEnv = Object.fromEntries(['SUPABASE_URL','SUPABASE_SERVICE_ROLE_KEY']
 test.after(() => { global.fetch = savedFetch; for (const [k,v] of Object.entries(savedEnv)) v === undefined ? delete process.env[k] : process.env[k] = v; });
 function response(data, status=200) { return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } }); }
 function recorder() { const out={headers:{}}; return { out, status(v){out.status=v;return this;}, setHeader(k,v){out.headers[k]=v;return this;}, json(b){out.body=b;return this;} }; }
-async function run(role, body, rpcBody={ id: settlementId, status: 'payment_requested' }, rpcStatus=200) {
+async function run(role, body, rpcBody={ id: settlementId, status: 'payment_requested' }, rpcStatus=200, method='POST') {
   process.env.SUPABASE_URL='https://test.supabase.co'; process.env.SUPABASE_SERVICE_ROLE_KEY='service-key'; const requests=[];
-  global.fetch=async (input, options={}) => { const url=new URL(String(input)); requests.push({url,options}); if(url.pathname==='/auth/v1/user') return response({id:adminId}); if(url.pathname==='/rest/v1/profiles') return response([{id:adminId,role}]); return response(rpcBody,rpcStatus); };
-  const res=recorder(); await handler({method:'POST',body,headers:{authorization:'Bearer token'}},res); return {res:res.out,requests};
+  global.fetch=async (input, options={}) => { const url=new URL(String(input)); requests.push({url,options}); if(url.pathname==='/auth/v1/user') return response({id:adminId}); if(url.pathname==='/rest/v1/profiles') return response([{id:adminId,role}]); if(method==='GET' && url.pathname.endsWith('/commission_settlements')) return response([{ id: settlementId, commission_id: commissionId, store_id: 's1', amount: 90, status: 'payment_submitted', stores: { name: 'Store A' } }]); if(method==='GET' && url.pathname.endsWith('/commissions')) return response([{ id: commissionId, store_id: 's1', amount: 100, status: 'payable', stores: { name: 'Store A' } }]); return response(rpcBody,rpcStatus); };
+  const res=recorder(); await handler({method,body,url:'/api/platform-commission-settlement?status=payment_submitted',headers:{authorization:'Bearer token'}},res); return {res:res.out,requests};
 }
 test('settlement API requires platform administrator', async()=>{ const {res,requests}=await run('store_admin',{action:'request',commissionId}); assert.equal(res.status,403); assert.equal(requests.length,2); });
 test('settlement API validates action and identifiers before RPC', async()=>{ for(const body of [{action:'unknown',commissionId},{action:'request',commissionId:'bad'},{action:'submit',settlementId,paymentReference:'x'}]) { const {res,requests}=await run('platform_admin',body); assert.equal(res.status,400); assert.equal(requests.filter(r=>r.url.pathname.includes('/rpc/')).length,0); } });
 test('request action calls the request RPC with authenticated actor', async()=>{ const {res,requests}=await run('platform_admin',{action:'request',commissionId}); assert.equal(res.status,200); const rpc=requests.find(r=>r.url.pathname.endsWith('/rpc/platform_request_commission_settlement')); assert.deepEqual(JSON.parse(rpc.options.body),{p_commission_id:commissionId,p_actor:adminId}); });
 test('submit action requires bounded payment and evidence references', async()=>{ const {res,requests}=await run('platform_admin',{action:'submit',settlementId,paymentReference:'BANK-1',evidenceReference:'receipt-1'}); assert.equal(res.status,200); const rpc=requests.find(r=>r.url.pathname.endsWith('/rpc/platform_submit_commission_settlement')); assert.deepEqual(JSON.parse(rpc.options.body),{p_settlement_id:settlementId,p_payment_reference:'BANK-1',p_evidence_reference:'receipt-1',p_actor:adminId}); });
 test('state conflict from database is surfaced as 409', async()=>{ const {res}=await run('platform_admin',{action:'verify',settlementId},{message:'Settlement is not submitted'},400); assert.equal(res.status,409); assert.equal(res.body.error,'settlement_state_conflict'); });
+test('GET returns settlement records and applies the requested status filter', async()=>{ const {res,requests}=await run('platform_admin',null,undefined,200,'GET'); assert.equal(res.status,200); assert.equal(res.body.settlements[0].status,'payment_submitted'); const query=requests.find(item=>item.url.pathname.endsWith('/commission_settlements')).url; assert.equal(query.searchParams.get('status'),'eq.payment_submitted'); });
+test('GET does not duplicate a commission that already has a settlement', async()=>{ const {res}=await run('platform_admin',null,undefined,200,'GET'); assert.equal(res.body.settlements.filter(row=>row.commissionId===commissionId).length,1); });
+test('submit uploads a signed evidence file, records metadata, then submits the settlement', async()=>{
+  process.env.SUPABASE_URL='https://test.supabase.co'; process.env.SUPABASE_SERVICE_ROLE_KEY='service-key';
+  const calls=[]; const png=Buffer.concat([Buffer.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a]), Buffer.alloc(20,1)]);
+  global.fetch=async (input, options={})=>{ const url=new URL(String(input)); calls.push({url,options});
+    if(url.pathname==='/auth/v1/user') return response({id:adminId});
+    if(url.pathname==='/rest/v1/profiles') return response([{id:adminId,role:'platform_admin'}]);
+    if(url.pathname.startsWith('/storage/v1/object/commission-payment-evidence/')) return response({Key:'stored'});
+    if(url.pathname==='/rest/v1/commission_settlement_evidence') return response([{id:'evidence-1',settlement_id:settlementId,storage_path:`${settlementId}/file-1.png`,original_filename:'receipt.png',mime_type:'image/png',file_size:png.length,sha256:'a'.repeat(64)}],201);
+    if(url.pathname.endsWith('/rpc/platform_submit_commission_settlement')) return response({id:settlementId,status:'payment_submitted'});
+    return response({});
+  };
+  const res=recorder(); await handler({method:'POST',url:'/api/platform-commission-settlement',body:{action:'submit',settlementId,paymentReference:'BANK-1',evidenceFile:{name:'receipt.png',type:'image/png',data:png.toString('base64')}},headers:{authorization:'Bearer token'}},res);
+  assert.equal(res.out.status,200); assert.equal(res.out.body.evidence.id,'evidence-1');
+  const record=calls.find(call=>call.url.pathname==='/rest/v1/commission_settlement_evidence');
+  assert.equal(JSON.parse(record.options.body).mime_type,'image/png');
+  const rpc=calls.find(call=>call.url.pathname.endsWith('/rpc/platform_submit_commission_settlement'));
+  assert.equal(JSON.parse(rpc.options.body).p_evidence_reference,'file:evidence-1');
+});

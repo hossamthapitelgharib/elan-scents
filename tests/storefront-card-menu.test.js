@@ -50,9 +50,12 @@ function harness({ lang = 'ar', auth = null, perfumes = [] } = {}) {
   return { context, menu, favButtons, cartButtons, badge, sheetBody, sheetEl, localStorage, calls, fetches, run: (src) => vm.runInContext(src, context) };
 }
 
-const sample = (extra = {}) => ({ id: 'p1', pid: 'q1', name: 'Club de Nuit Iconic', pn: 'Club de Nuit Iconic', brand: 'Armaf', sz: '105 مل', img: '/a.png', cats: [0], occs: [0, 1], notes: [0],
-  rating: 4.3, sd: 'وصف قصير للعطر', desc: 'وصف كامل للعطر', comp: 'برغموت وعود', ind: [],
-  offers: [{ store: 'Afnan Egypt', storeId: 's1', storeProductId: 'sp1', price: 1380, cur: 'EGP', avail: true, flags: [], stock: 12, tax: true, ship: false }], ...extra });
+const sample = (extra = {}) => {
+  const offer = { store: 'Afnan Egypt', storeId: 's1', storeProductId: 'sp1', price: 1380, cur: 'EGP', avail: true, flags: [], stock: 12, tax: true, ship: false };
+  return { id: 'p1', pid: 'q1', name: 'Club de Nuit Iconic', pn: 'Club de Nuit Iconic', brand: 'Armaf', sz: '105 مل', sizeMl: 105, img: '/a.png', cats: [0], occs: [0, 1], notes: [0],
+    rating: 4.3, sd: 'وصف قصير للعطر', desc: 'وصف كامل للعطر', comp: 'برغموت وعود', ind: [],
+    allEligibleOffers: [offer], globalOffer: offer, offersByStore: { s1: offer }, ...extra };
+};
 
 const labels = (html) => [...html.matchAll(/<a [^>]*>([^<]*)<\/a>/g)].map((m) => m[1]);
 
@@ -99,7 +102,7 @@ test('menu follows the sign-in state after login, expiry and sign-in from anothe
 test('menu: sign out revokes the session, clears the cart cache and reloads, like the account page', async () => {
   const h = harness({ auth: { access_token: 't' } });
   const signOut = [], order = []; h.context.window.ElanAuth = { signOut: () => { signOut.push(1); order.push('signOut'); return Promise.resolve(); } };
-  h.context.fetch = (url, init) => { order.push('mail:' + url + ':' + JSON.parse(init.body).event + ':' + init.headers.Authorization); return Promise.resolve({ ok: true }); };
+  h.context.fetch = (url, init) => { order.push('fetch:' + url); return Promise.resolve({ ok: true }); };
   h.context.ElanAuth = h.context.window.ElanAuth;
   h.context.window.GuestIdentity = { prepareLogout: () => Promise.resolve() };
   h.context.GuestIdentity = h.context.window.GuestIdentity;
@@ -107,13 +110,13 @@ test('menu: sign out revokes the session, clears the cart cache and reloads, lik
   h.run('logoutNow()');
   await new Promise((resolve) => setImmediate(resolve)); await new Promise((resolve) => setImmediate(resolve));
   assert.equal(signOut.length, 1);
-  assert.deepEqual(order, ['mail:/api/customer-mail:logout:Bearer t', 'signOut'], 'the goodbye mail is asked for first, while the token is still valid');
+  assert.deepEqual(order, ['signOut'], 'signing out ends the session and asks nothing else of the server: no goodbye mail');
   assert.equal(h.localStorage.getItem('elan_auth_session'), null);
   assert.equal(h.localStorage.getItem('elan_cart'), null);
   assert.equal(h.localStorage.getItem('elan_favs'), null, 'a shared device must not keep the previous person\'s favourites');
   assert.equal(h.localStorage.getItem('elan_orders'), '[1]', 'the orders copy is left alone');
   assert.deepEqual(h.calls, ['reload']);
-  assert.match(core, /var lo=e\.target\.closest\('\[data-logout\]'\);if\(lo\)\{e\.preventDefault\(\);logoutNow\(\);return\}/);
+  assert.match(core, /var ln=e\.target\.closest\('\[data-logout-now\]'\);if\(ln\)\{e\.preventDefault\(\);logoutNow\(\);return\}var lo=e\.target\.closest\('\[data-logout\]'\);if\(lo\)\{e\.preventDefault\(\);document\.getElementById\('menu'\)\.classList\.remove\('open'\);confirmLogout\(\);return\}/, 'the menu entry only asks; «OK» signs out');
 });
 
 test('card front shows only image, heart, name, brand, size, price and add to cart', () => {
@@ -131,7 +134,7 @@ test('card front shows only image, heart, name, brand, size, price and add to ca
 });
 
 test('card for a product with no offer shows the soon label and no cart button', () => {
-  const h = harness({ perfumes: [sample({ offers: [] })] });
+  const h = harness({ perfumes: [sample({ globalOffer: null, allEligibleOffers: [], offersByStore: {} })] });
   const html = h.run('pc({p:PERFUMES[0],b:null})');
   assert.match(html, /class="st"/);
   assert.doesNotMatch(html, /cartb|class="price"/);
@@ -149,7 +152,7 @@ test('product page carries what the card dropped, plus buying controls and the h
 });
 
 test('product page without a store row does not draw an empty details box', () => {
-  const h = harness({ perfumes: [sample({ cats: [], occs: [], offers: [] })] });
+  const h = harness({ perfumes: [sample({ cats: [], occs: [], globalOffer: null, allEligibleOffers: [], offersByStore: {} })] });
   assert.doesNotMatch(h.run("prodView({sid:'p1'},LB[lang],T())"), /<dl/);
 });
 
@@ -433,20 +436,24 @@ test('the card footer is set apart by one hairline and the picture box is the re
 
 test('the Coming soon section lists the perfumes a store flagged as coming soon, and only those', () => {
   const soonOffer = (flags) => [{ store: 'Afnan Egypt', storeId: 's1', storeProductId: 'sp', price: 1000, cur: 'EGP', avail: true, flags, stock: 3, tax: true, ship: false }];
-  const h = harness({ perfumes: [sample({ id: 'a', name: 'Soon One', pn: 'Soon One', offers: soonOffer(['soon']) }), sample({ id: 'b', name: 'Plain One', pn: 'Plain One', offers: soonOffer([]) }), sample({ id: 'c', name: 'New One', pn: 'New One', offers: soonOffer(['new']) })] });
+  const flagged = (id, name, flags) => { const offer = soonOffer(flags)[0]; return sample({ id, pid: id, name, pn: name, globalOffer: offer, allEligibleOffers: [offer], offersByStore: { s1: offer } }); };
+  const h = harness({ perfumes: [flagged('a', 'Soon One', ['soon']), flagged('b', 'Plain One', []), flagged('c', 'New One', ['new'])] });
   const html = h.run('strip("soon")');
   assert.match(html, /Soon One/);
   assert.doesNotMatch(html, /Plain One|New One/);
   assert.match(html, /class="card pf"/, 'the same perfume card as every other section');
   assert.doesNotMatch(html, /class="empty"/);
-  const none = harness({ perfumes: [sample({ offers: soonOffer([]) })] }).run('strip("soon")');
+  const none = harness({ perfumes: [flagged('a', 'Plain One', [])] }).run('strip("soon")');
   assert.match(none, /class="empty"/, 'with nothing flagged the section keeps its waiting note');
 });
 
 test('the storefront reads is_coming_soon and marks those product sizes with the soon flag', () => {
-  assert.match(core, /ga\('store_products\?select=id,product_size_id&is_coming_soon=eq\.true&order=id\.asc'\)\]\);/, 'fetched last so no other result index moves');
-  assert.match(core, /d\[17\]\.forEach\(function\(r\)\{if\(r\.product_size_id\)soon\[r\.product_size_id\]=1\}\)/);
-  assert.strictEqual((core.match(/soon\[(?:r|o)\.product_size_id\]\?\['soon'\]:\[\]/g) || []).length, 2, 'the best offer and every store offer carry the flag');
+  assert.match(core, /ga\('store_products\?select=id,product_size_id&is_coming_soon=eq\.true&order=id\.asc'\)\]\);/);
+  assert.match(core, /d\[15\]\.forEach\(function\(r\)\{if\(r\.product_size_id\)soon\[r\.product_size_id\]=1\}\)/);
+  assert.match(core, /flags:\(nw\[r\.product_size_id\]\?\['new'\]:\[\]\)\.concat\(ofs\[r\.product_size_id\]\?\['offers'\]:\[\],r\.is_catalog_bestseller\|\|indOf\(pm\[r\.product_id\]\|\|\{\}\)\.length\?\['master'\]:\[\],soon\[r\.product_size_id\]\?\['soon'\]:\[\]\)/);
+  assert.match(core, /allEligibleOffers:allOffers\[k\]\|\|\[\],globalOffer:globalOffer,offersByStore:offersByStore/);
+  assert.doesNotMatch(core, /offers:allOffers/);
+  assert.match(core, /var record=platformOfferBySize\[k\],o=record\.row,globalOffer=record\.offer/);
 });
 
 test('the database lets visitors read only that one extra column, with its rollback and the real-database check', () => {
@@ -461,4 +468,3 @@ test('the database lets visitors read only that one extra column, with its rollb
   /* generate.sql lists the granted columns in table order, so the flag sits right after is_new_arrival */
   assert.match(read('supabase/schema-snapshot/tables-4.txt'), /COLUMN GRANTS anon=select,authenticated=select: [^\n]*is_new_arrival,is_coming_soon,price_includes_tax/);
 });
-
