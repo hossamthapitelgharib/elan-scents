@@ -334,7 +334,7 @@ test('15. «حسابي»: under sign out in the menu, written once, saved on the
     assert.equal(await page.locator('#acct-governorate').inputValue(), 'القاهرة');
     assert.equal(await page.locator('.acct-map iframe').first().getAttribute('src'), 'https://www.google.com/maps?q=30.0444,31.2357&z=17&output=embed');
     assert.equal(await page.locator('.acct-map').first().isVisible(), true);
-    assert.match(await page.locator('.acct-loc-note').first().innerText(), /تم تحديد موقعك/);
+    assert.match(await page.locator('.acct-loc-note').first().innerText(), /أضف رقم المبنى والدور والشقة/);
     // 4. the rest: four names, another delivery address and another recipient
     await page.locator('#acct-full_name').fill('أحمد محمد علي حسن');
     await page.locator('input[name="ship_same"]').uncheck();

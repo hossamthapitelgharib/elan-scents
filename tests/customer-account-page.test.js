@@ -266,13 +266,13 @@ test('the page policy lets the map frame and the address lookup through, and geo
   }
 });
 
-test('«find my location» tries the GPS, then the quicker network position, and never asks again after «denied»', async () => {
+test('«find my location» asks for the quick network position first (no GPS window), falls back to the GPS, and never asks again after «denied»', async () => {
   const h = harness(), calls = [];
   const geo = (script) => ({ getCurrentPosition: (ok, no, opts) => { calls.push(opts); const step = script[calls.length - 1]; if (step.ok) ok({ coords: { latitude: 30.04, longitude: 31.23 } }); else no({ code: step.code }); } });
   h.context.navigator = { geolocation: geo([{ code: 3 }, { ok: true }]) };
   const pos = await h.run('acctPosition()');
   assert.equal(pos.coords.latitude, 30.04);
-  assert.deepEqual(calls.map((o) => [o.enableHighAccuracy, o.timeout]), [[true, 10000], [false, 20000]], 'a slow GPS (or a device window the customer is still answering) falls back to the network position, with time to answer');
+  assert.deepEqual(calls.map((o) => [o.enableHighAccuracy, o.timeout]), [[false, 12000], [true, 15000]], 'the first try is the network position (the device\'s own location window is not forced); only if it fails does the GPS get a turn');
   calls.length = 0;
   h.context.navigator = { geolocation: geo([{ code: 1 }, { ok: true }]) };
   await assert.rejects(() => h.run('acctPosition()'), (e) => e.code === 1);
@@ -290,4 +290,16 @@ test('the address from the lookup keeps the village or city and the district (ma
   assert.equal(run('acctPickAddress(D2).gov'), 'الدقهلية');
   assert.match(run('ACCT_UI.ar.locOk'), /أضف رقم المبنى والدور والشقة/);
   assert.match(run('ACCT_UI.en.locOk'), /building number, floor and flat/);
+});
+
+test('the location messages are a few plain words the customer understands, with no instructions about device windows', () => {
+  const { run } = harness();
+  for (const l of ['ar', 'en']) {
+    for (const k of ['locating', 'locOk', 'locKept', 'locNoAddr', 'locDenied', 'locFail', 'locNone']) {
+      const m = run('ACCT_UI.' + l + '.' + k);
+      assert.ok(m.length <= 60, l + '.' + k + ' is short: ' + m);
+      assert.doesNotMatch(m, /نافذة|إعدادات|خدمة الموقع|window|settings/i, l + '.' + k + ' does not explain the device to the customer');
+    }
+  }
+  assert.equal(run('ACCT_UI.ar.locKept'), '', 'nothing is said when the typed address is kept');
 });
