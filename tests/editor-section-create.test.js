@@ -162,9 +162,10 @@ test('visual editor card tools match or create catalog records and entering a pa
   assert.match(editMode, /productSizeIds\.indexOf\(product\.product_size_id\) !== -1/);
   assert.match(editMode, /case 'library\.insert'/);
   assert.match(hostBridge, /'library\.insert'/);
-  assert.match(designLayer, /sameCatalogName\(o\.store, f\.store\)/);
+  assert.match(designLayer, /globalOffer\(p\)/);
+  assert.match(designLayer, /storeOwnsGlobalOffer\(p, storeId\)/);
   assert.match(designLayer, /sameCatalogName\(p\.brand, f\.brand\)/);
-  assert.match(designLayer, /offers\.sort\(function \(a, b\) \{ return a\.price - b\.price; \}\)/);
+  assert.doesNotMatch(designLayer, /var offerSource = f\.store \? \(p\.allOffers \|\| \[\]\)/);
   assert.doesNotMatch(editMode, /openEl|eo-open/);
   assert.match(editMode, /id: 'open', label: 'دخول لصفحة'/);
   assert.match(editMode, /function enterPage\(e\)/);

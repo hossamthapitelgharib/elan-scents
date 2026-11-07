@@ -17,9 +17,11 @@ test('automatic sections apply size filters and do not truncate matching product
   assert.match(storefront, /sizeMl:z\?Number\(z\.size_ml\):null/);
 });
 
-test('store-filtered sections use an available offer from that store, not only the global cheapest offer', () => {
-  assert.match(renderer, /var offerSource = f\.store \? \(p\.allOffers \|\| \[\]\) : \(p\.offers \|\| \[\]\)/);
-  assert.match(storefront, /store_products\?select=id,store_id,product_size_id,price,currency,stock_quantity,is_available,is_new_arrival,price_includes_tax,price_includes_shipping,sync_status,is_catalog_bestseller&order=id\.asc/);
+test('store-filtered sections keep only the global offer when that store owns it', () => {
+  assert.match(renderer, /globalOffer\(p\)/);
+  assert.match(renderer, /storeOwnsGlobalOffer\(p, storeId\)/);
+  assert.doesNotMatch(renderer, /var offerSource = f\.store \? \(p\.allOffers \|\| \[\]\)/);
+  assert.match(storefront, /stores!inner\(status\).*is_available=eq\.true.*stock_quantity=gt\.0.*sync_status=eq\.synced/);
   assert.match(storefront, /allOffers:allOffers\[o\.product_size_id\]\|\|\[\]/);
 });
 
