@@ -147,14 +147,16 @@ const look = () => {
     const mp = await page.evaluate(() => ({ chips: [...document.querySelectorAll('#view .chip')].map((c) => c.dataset.ind), panel: document.querySelectorAll('#view .filter-panel, #view select').length, cards: document.querySelectorAll('#res .card').length }));
     say('masterpieces page: ' + JSON.stringify(mp));
     expect(mp.panel === 0, 'the Masterpieces page has no filter panel under the chips');
-    expect(mp.chips.length > 0 && mp.cards > 0, 'the Masterpieces page shows chips («' + mp.chips.join(', ') + '») and perfumes (' + mp.cards + ')');
-    const figure = { sales: 'sales', views: 'views', searches: 'searches', demand: 'requests', rating: 'rating', topBrand: 'sales' };
-    for (const k of mp.chips) {
+    expect(JSON.stringify(mp.chips) === JSON.stringify(['topBrand', 'sales', 'views', 'searches']), 'the Masterpieces page always shows its four buttons («' + mp.chips.join(', ') + '»), whatever the data');
+    const figure = { sales: 'sales', views: 'views', searches: 'searches', topBrand: 'sales' };
+    for (const k of ['topBrand', 'sales', 'views', 'searches']) {
       await page.evaluate((c) => document.querySelector('#view .chip[data-ind="' + c + '"]').click(), k);
       await page.waitForTimeout(500);
-      const rk = await page.evaluate((a) => { const by = {}; PERFUMES.forEach((p) => { by[p.id] = p; }); const v = [...document.querySelectorAll('#res .card')].map((c) => { const p = by[(c.getAttribute('data-go') || '').split('|')[1]]; return p ? +p[a] || 0 : null; }); return { values: v, on: document.querySelectorAll('#view .chip.on').length }; }, figure[k]);
+      const rk = await page.evaluate((a) => { const by = {}; PERFUMES.forEach((p) => { by[p.id] = p; }); const v = [...document.querySelectorAll('#res .card')].map((c) => { const p = by[(c.getAttribute('data-go') || '').split('|')[1]]; return p ? +p[a] || 0 : null; }); const e = document.querySelector('#res .empty'); return { values: v, on: document.querySelectorAll('#view .chip.on').length, chips: document.querySelectorAll('#view .chip').length, empty: e ? e.textContent : '' }; }, figure[k]);
       say('chip «' + k + '»: ' + JSON.stringify(rk));
-      expect(rk.on === 1 && rk.values.length > 0 && rk.values.every((x, i) => i === 0 || x === null || rk.values[i - 1] === null || rk.values[i - 1] >= x), 'chip «' + k + '»: one chip selected and the perfumes run from the highest ' + figure[k] + ' to the lowest');
+      expect(rk.on === 1 && rk.chips === 4, 'chip «' + k + '»: one button selected and all four still on the page');
+      if (rk.values.length) expect(rk.values.every((x, i) => i === 0 || x === null || rk.values[i - 1] === null || rk.values[i - 1] >= x), 'chip «' + k + '»: the perfumes run from the highest ' + figure[k] + ' to the lowest');
+      else expect(rk.empty.length > 0, 'chip «' + k + '»: no perfumes yet, and the page says so («' + rk.empty + '»)');
     }
     await page.waitForTimeout(400);
     const gold = await page.evaluate(() => { const on = document.querySelector('#view .chip.on'), send = document.querySelector('#contact .btn'); return { on: getComputedStyle(on).backgroundImage, send: getComputedStyle(send).backgroundImage, onColor: getComputedStyle(on).color, sendColor: getComputedStyle(send).color }; });

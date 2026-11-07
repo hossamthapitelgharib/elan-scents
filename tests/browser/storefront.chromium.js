@@ -177,7 +177,7 @@ test('Masterpieces page: the chips are the filter (no filter panel under them), 
     await page.waitForTimeout(600);
     const names = () => page.evaluate(() => [...document.querySelectorAll('#res .card h4')].map((h) => h.textContent));
     const state = await page.evaluate(() => ({ chips: [...document.querySelectorAll('#view .chip')].map((c) => c.dataset.ind), panel: document.querySelectorAll('#view .filter-panel, #view .filter-head, #view select').length, h3: document.querySelectorAll('#view h3').length }));
-    assert.deepEqual(state.chips, ['sales', 'views', 'topBrand'], 'the three chips of the page');
+    assert.deepEqual(state.chips, ['topBrand', 'sales', 'views', 'searches'], 'the four buttons of the page, always');
     assert.equal(state.panel, 0, 'no filter panel, no dropdowns: the chips are the filter');
     assert.equal(state.h3, 0);
     assert.deepEqual(await names(), ['عطر الأعلى', 'عطر وسط', 'عطر منخفض'], 'with no chip: the usual order (by popularity)');
@@ -187,6 +187,11 @@ test('Masterpieces page: the chips are the filter (no filter panel under them), 
     assert.deepEqual(await names(), ['عطر الأعلى', 'عطر وسط', 'عطر منخفض'], 'best sellers: the best selling first');
     await page.click('#view .chip[data-ind="topBrand"]');
     assert.deepEqual(await names(), ['عطر الأعلى', 'عطر منخفض'], 'each brand\'s best seller only');
+    await page.click('#view .chip[data-ind="searches"]');
+    assert.deepEqual(await names(), [], 'nobody searched yet: no perfumes...');
+    assert.equal(await page.evaluate(() => document.querySelector('#res .empty').textContent), 'لا توجد عطور في هذا التصنيف حاليًا', '...and the page says so');
+    assert.equal(await page.evaluate(() => document.querySelectorAll('#view .chip').length), 4, 'while all four buttons stay on the page');
+    await page.click('#view .chip[data-ind="topBrand"]');
     await page.waitForTimeout(400); /* the chip fades to its selected colours over .2s */
     const paint = await page.evaluate(() => {
       const cs = (e) => { const s = getComputedStyle(e); return { bg: s.backgroundImage, color: s.color }; };

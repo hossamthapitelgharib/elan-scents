@@ -18,19 +18,19 @@ const rule = (selector) => {
 function renderChips(ind, lang = 'ar', selected) {
   const start = core.indexOf('var CHIPICON=');
   const end = core.indexOf('\n', core.indexOf('function chips()'));
-  const context = vm.createContext({ lang, F: selected ? { ind: selected } : {}, PERFUMES: [{ ind }], T: () => ({ indNone: 'none' }),
-    IND: { ar: { featured: 'الأكثر تميزًا', rating: 'الأعلى تقييمًا', sales: 'الأكثر مبيعًا', views: 'الأكثر مشاهدة', searches: 'الأكثر بحثًا', demand: 'الأكثر طلبًا', topBrand: 'أشهر عطور كل براند' }, en: {} } });
-  vm.runInContext(core.slice(start, end), context);
+  const indSource = core.match(/var IND=\{ar:\{[^\n]*\}\};/)[0]; // the real labels, both languages
+  const context = vm.createContext({ lang, F: selected ? { ind: selected } : {}, PERFUMES: [{ ind }], T: () => ({ indNone: 'none' }) });
+  vm.runInContext(indSource + '\n' + core.slice(start, end), context);
   return vm.runInContext('chips()', context);
 }
 
 test('filter chips are small outlined pills with a line icon, not big gold buttons', () => {
   const html = renderChips(['featured', 'rating', 'sales', 'views', 'searches', 'demand', 'topBrand']);
-  assert.equal((html.match(/<button/g) || []).length, 7);
-  assert.equal((html.match(/<svg/g) || []).length, 7, 'every chip has its own icon');
+  assert.equal((html.match(/<button/g) || []).length, 4);
+  assert.equal((html.match(/<svg/g) || []).length, 4, 'every chip has its own icon');
   assert.match(html, /class="chip"/);
   assert.doesNotMatch(html, /class="btn"|style=/, 'no inline sizing and no gold gradient button class');
-  assert.match(html, /data-ind="rating"[^>]*aria-pressed="false"/);
+  assert.match(html, /data-ind="sales"[^>]*aria-pressed="false"/);
   const chip = rule('.chip');
   assert.doesNotMatch(chip, /gradient|box-shadow/);
   assert.match(chip, /border:1px solid/);
@@ -39,13 +39,24 @@ test('filter chips are small outlined pills with a line icon, not big gold butto
 });
 
 test('the selected chip is marked for the eye and for assistive technology', () => {
-  assert.match(renderChips(['rating', 'sales'], 'ar', 'rating'), /class="chip on" data-ind="rating" aria-pressed="true"/);
+  assert.match(renderChips(['rating', 'sales'], 'ar', 'sales'), /class="chip on" data-ind="sales" aria-pressed="true"/);
   assert.match(rule('.chip.on'), /background:var\(--btn-gold\)/, 'the selected chip is the gold of the contact form\'s send button');
   assert.match(core, /classList\.toggle\('on',on\);b\.setAttribute\('aria-pressed'/);
 });
 
-test('with no ranking data the chips row says so instead of showing empty pills', () => {
-  assert.match(renderChips([]), /class="empty">none</);
+test('the four ranking buttons are always there, in the agreed order, whatever the data says', () => {
+  const keys = (html) => [...html.matchAll(/data-ind="([^"]+)"/g)].map((m) => m[1]);
+  assert.deepEqual(keys(renderChips([])), ['topBrand', 'sales', 'views', 'searches'], 'no data at all: the same four buttons');
+  assert.deepEqual(keys(renderChips(['sales'])), ['topBrand', 'sales', 'views', 'searches'], 'some data: still the same four');
+  assert.doesNotMatch(renderChips(['featured', 'rating', 'demand']), /data-ind="(featured|rating|demand)"/, 'no other button');
+  assert.doesNotMatch(renderChips([]), /class="empty"/, 'no «indicators appear when available» message instead of the buttons');
+  assert.match(renderChips([], 'en'), /Top of each brand[\s\S]*Best sellers[\s\S]*Most viewed[\s\S]*Most searched/);
+});
+
+test('a ranking with no perfumes says so; it never hides its button', () => {
+  assert.match(core, /\(F\.ind\?l\.noneInd:l\.none\)/, 'results() uses the ranking message when a button is selected');
+  assert.match(core, /noneInd:'لا توجد عطور في هذا التصنيف حاليًا'/);
+  assert.match(core, /noneInd:'No perfumes in this ranking yet'/);
 });
 
 test('the filter panel has its own quiet styling: compact header, line icons, styled fields', () => {
