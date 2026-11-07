@@ -235,8 +235,9 @@ test('11. signing out empties the cart and the favourites on screen and on the d
     assert.ok(await page.evaluate(() => !!localStorage.getItem('elan_auth_session')), 'still signed in while the question is open');
     await Promise.all([page.waitForEvent('load', { timeout: 10000 }), page.locator('#sheet [data-logout-now]').click()]);
     await page.waitForTimeout(800);
-    assert.equal(await page.locator('#toast').textContent(), 'تم تسجيل الخروج بنجاح', 'the goodbye is on screen after signing out');
-    assert.equal(await page.locator('#toast').getAttribute('class'), 'show');
+    assert.equal(await page.locator('#toast b').textContent(), 'تم تسجيل الخروج بنجاح', 'the goodbye is on screen after signing out');
+    assert.equal(await page.locator('#toast span').textContent(), 'كنا سعداء بوجودك معنا، وفي انتظارك دائمًا.', 'with the farewell line');
+    assert.equal(await page.locator('#toast').getAttribute('class'), 'show rich');
     const after = await read();
     assert.deepEqual({ cart: after.cart, favs: after.favs, auth: after.auth, cartN: after.cartN, favN: after.favN }, { cart: null, favs: null, auth: null, cartN: '0', favN: '0' });
     assert.deepEqual(favWrites.filter((w) => w.method === 'DELETE'), [], 'signing out never deletes the customer\'s saved favourites in the account');
@@ -275,6 +276,9 @@ test('13. «Cancel» in the sign-out question keeps the customer signed in, with
     page.on('load', () => { reloaded = true; });
     await page.locator('#mb').click();
     await page.locator('#menu [data-logout]').click();
+    const yes = await page.locator('#sheet [data-logout-now]').boundingBox(), no = await page.locator('#sheet .auth-actions [data-close-sheet]').boundingBox();
+    const [left, right] = yes.x < no.x ? [yes, no] : [no, yes];
+    assert.ok(right.x - (left.x + left.width) >= 8, 'OK and Cancel are two separate buttons with room between them, not one on top of the other');
     await page.locator('#sheet [data-close-sheet]').last().click();
     await page.waitForFunction(() => document.getElementById('sheet').hidden);
     await page.waitForTimeout(600);
@@ -296,8 +300,9 @@ test('14. the welcome message is on screen right after signing in', async () => 
     await page.locator('[data-auth-mode="login"] input[name="email"]').fill('customer@example.test');
     await page.locator('[data-auth-mode="login"] input[name="password"]').fill('correct-password');
     await page.locator('[data-auth-mode="login"] button[type="submit"]').click();
-    await page.waitForFunction(() => document.getElementById('toast').className === 'show' && document.getElementById('toast').textContent.length > 0, null, { timeout: 8000 });
-    assert.equal(await page.locator('#toast').textContent(), 'أهلًا ومرحبًا بك ونتمنى لك رحلة تسويقية ممتعة');
+    await page.waitForFunction(() => /^show/.test(document.getElementById('toast').className) && document.getElementById('toast').textContent.length > 0, null, { timeout: 8000 });
+    assert.equal(await page.locator('#toast b').textContent(), 'أهلًا ومرحبًا بك');
+    assert.equal(await page.locator('#toast span').textContent(), 'ونتمنى لك رحلة تسويقية ممتعة');
     await page.waitForFunction(() => getComputedStyle(document.getElementById('toast')).opacity === '1', null, { timeout: 3000 });   // it fades in over 0.3 s
   } finally { await c.context.close(); }
 });

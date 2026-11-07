@@ -44,7 +44,7 @@ test('after signing in the customer is welcomed on screen, for a few seconds', a
   const s = shop({ access_token: 'a', user: { id: 'u1' } });
   s.submit(s.form('login', withPassword));
   await settle();
-  assert.deepEqual(s.log.toasts, [{ text: 'أهلًا ومرحبًا بك ونتمنى لك رحلة تسويقية ممتعة', ms: 4500 }]);
+  assert.deepEqual(s.log.toasts, [{ text: 'أهلًا ومرحبًا بك\nونتمنى لك رحلة تسويقية ممتعة', ms: 4500 }], 'the owner\'s wording, as a title and one warm line');
   assert.deepEqual(s.log.sheets, [], 'the cart does not open by itself after signing in');
   assert.equal(s.log.closed, 1, 'the sign-in sheet closes');
 });
@@ -141,7 +141,7 @@ function flash(value, lang = 'ar') {
 
 test('the page that loads after signing out says so once', () => {
   const f = flash('logout');
-  assert.deepEqual(f.toasts, [{ text: 'تم تسجيل الخروج بنجاح', ms: 4500 }]);
+  assert.deepEqual(f.toasts, [{ text: 'تم تسجيل الخروج بنجاح\nكنا سعداء بوجودك معنا، وفي انتظارك دائمًا.', ms: 5000 }], 'the goodbye carries the farewell line');
   assert.equal(f.store.has('elan_flash'), false, 'the note is used up');
   f.again();
   assert.equal(f.toasts.length, 1, 'a second load says nothing');
@@ -150,7 +150,7 @@ test('the page that loads after signing out says so once', () => {
 test('no note, no message; English page, English message', () => {
   assert.deepEqual(flash('').toasts, []);
   assert.deepEqual(flash('something-else').toasts, []);
-  assert.equal(flash('logout', 'en').toasts[0].text, 'Signed out successfully');
+  assert.match(flash('logout', 'en').toasts[0].text, /^Signed out successfully\n/);
 });
 
 test('the page calls showFlash when it starts, and toast takes an optional duration', () => {

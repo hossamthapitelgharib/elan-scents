@@ -446,3 +446,18 @@ header .ic button[data-sheet="cart"] svg{width:20px!important;height:20px!import
 .acct-check input[type=checkbox]:checked{background:#c8962a}
 .acct-check input[type=checkbox]:checked::after{content:"";width:10px;height:5px;border:2px solid #fff;border-top:0;border-right:0;transform:rotate(-45deg) translate(1px,-1px)}
 .acct-form .btn[disabled]{opacity:.6;cursor:progress}
+
+/* Answer cards in the sheet (the sign-out question, «registered», «confirmed»): one centred card; the two answers sit side by side with a gap, never glued together */
+.auth-done{display:grid;gap:14px;justify-items:center;text-align:center;padding:10px 6px 8px}
+.auth-done h3{margin:0}
+.auth-done .empty{border:0;background:none;padding:0;color:#5b5648;font-size:14px;line-height:1.9;max-width:300px}
+.auth-done>.btn{min-width:180px}
+.auth-actions{display:grid;grid-template-columns:1fr 1fr;gap:12px;width:100%;max-width:340px;margin-top:4px}
+.auth-actions .btn{width:100%;padding:13px 10px;font-size:14px}
+.btn.ghost{background:#fff;color:#8a5e0c;border:1.5px solid #d9bf7c;box-shadow:none}
+/* Welcome and goodbye: a card with a gold tick, a title and one warm line (the plain pill stays for short notices and errors) */
+#toast.rich{display:flex;align-items:center;gap:12px;min-width:270px;max-width:min(92vw,380px);padding:14px 18px;border-radius:18px;text-align:right;border:1px solid rgba(200,150,42,.55);box-shadow:0 14px 34px rgba(0,0,0,.3);background:linear-gradient(180deg,#241d13,#16120c)}
+#toast .t-ic{flex:none;display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:#c8962a;color:#1a1610;font-style:normal;font-weight:800;font-size:17px}
+#toast .t-ic::before{content:"\2713"}
+#toast.rich b{display:block;font-size:15px;font-weight:700;color:#f6efe0;line-height:1.5}
+#toast.rich span{display:block;font-size:12.5px;color:#d9c08a;line-height:1.7;text-wrap:balance}

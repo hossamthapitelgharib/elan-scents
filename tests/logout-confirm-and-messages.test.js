@@ -46,7 +46,7 @@ test('confirmLogout builds the sheet with OK and Cancel, and does nothing while 
   assert.equal(sheet.dataset.kind, 'logout');
   assert.ok(classes.has('sheet-open'));
   assert.match(html.value, /<button class="btn" type="button" data-logout-now>موافق<\/button>/);
-  assert.match(html.value, /<button class="back-cart" type="button" data-close-sheet>إلغاء<\/button>/);
+  assert.match(html.value, /<div class="auth-actions"><button class="btn" type="button" data-logout-now>موافق<\/button><button class="btn ghost" type="button" data-close-sheet>إلغاء<\/button><\/div>/, 'the two answers sit in one row with a gap between them');
   assert.match(html.value, /هل تريد تسجيل الخروج من حسابك؟/);
   // while a sign-out is already running, or in the editor preview, the question is not asked
   sheet.hidden = true; html.value = '';
