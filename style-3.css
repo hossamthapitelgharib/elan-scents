@@ -424,7 +424,6 @@ header .ic button[data-sheet="cart"] svg{width:20px!important;height:20px!import
 .store-order-btn:disabled{opacity:.5;cursor:not-allowed;box-shadow:none;pointer-events:none}
 /* «حسابي»: the customer's contact and delivery details (sheet opened from the menu and from "place order"). Gold #c8962a, RTL, IBM Plex Sans Arabic. */
 .acct-wrap{display:grid;gap:14px}.acct-wrap h3{font-size:22px}
-.acct-lead{margin:0;color:var(--gray);font-size:13px;line-height:1.8}
 .acct-form{display:grid;gap:14px;max-width:none}
 .acct-sec{display:grid;gap:12px;min-width:0;padding:14px;border:1px solid #ead9b1;border-radius:16px;background:#fff}
 .acct-sec h4{margin:0;font-size:14px;font-weight:700;color:#8a5e0c;letter-spacing:.2px}
@@ -440,8 +439,7 @@ header .ic button[data-sheet="cart"] svg{width:20px!important;height:20px!import
 .acct-locate[disabled]{opacity:.6;cursor:progress}
 .acct-loc-note{margin:0;font-size:12px;line-height:1.7;color:#5b5246}.acct-loc-note[hidden]{display:none}
 .acct-map{display:grid;gap:6px}.acct-map[hidden]{display:none}
-.acct-map iframe{width:100%;height:200px;border:1px solid #ead9b1;border-radius:14px;background:#f4eedd}
-.acct-map a{justify-self:start;font-size:12px;color:#8a5e0c}
+.acct-map iframe{display:block;width:100%;height:200px;border:1px solid #ead9b1;border-radius:14px;background:#f4eedd;pointer-events:none}   /* the map is only shown: a tap on it must never hand the customer over to the Google Maps app */
 .acct-ship{display:grid;gap:12px}.acct-ship[hidden]{display:none}
 .acct-check{display:flex;align-items:center;gap:10px;font-size:13px;cursor:pointer}
 .acct-check input[type=checkbox]{-webkit-appearance:none;appearance:none;flex:none;display:grid;place-content:center;width:20px;height:20px;margin:0;padding:0;border:1.5px solid #c8962a;border-radius:6px;background:#fff;cursor:pointer}

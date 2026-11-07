@@ -10,6 +10,7 @@ const vm = require('node:vm');
 const root = path.join(__dirname, '..');
 const read = (...p) => fs.readFileSync(path.join(root, ...p), 'utf8');
 const core = read('app-core.js');
+const css = read('style-3.css');
 const oneLine = (start) => { const i = core.indexOf(start); assert.ok(i >= 0, start); return core.slice(i, core.indexOf('\n', i)); };
 const START = '/* ===== «حسابي»', END = '/* ===== end of «حسابي» ===== */';
 const block = core.slice(core.indexOf(START), core.indexOf(END) + END.length);
@@ -111,7 +112,12 @@ test('the page shows the saved values escaped, the e-mail read-only, and a map o
   assert.match(html, /name="ship_same" checked/);
   assert.match(html, /class="acct-ship" hidden/, 'the delivery block is closed while the address is the same');
   assert.match(html, /src="https:\/\/www\.google\.com\/maps\?q=30\.0381,31\.2101&amp;z=17&amp;output=embed"/, 'the saved point is shown on Google Maps');
-  assert.match(html, /href="https:\/\/www\.google\.com\/maps\?q=30\.0381,31\.2101" target="_blank" rel="noopener noreferrer"/);
+  // The map is only shown. A tap on the embedded map used to hand the customer to the Google Maps app, and he could not get back to the page.
+  assert.match(html, /<iframe title="[^"]*" loading="lazy" tabindex="-1" sandbox="allow-scripts allow-same-origin" src=/, 'sandboxed: no popup, no navigation of the page');
+  assert.doesNotMatch(html.slice(html.indexOf('data-map')), /<a [^>]*href=[^>]*maps/, 'no link out to Google Maps from the page');
+  assert.match(css, /\.acct-map iframe\{[^}]*pointer-events:none/, 'nothing in the frame can be tapped');
+  assert.doesNotMatch(html, /اكتب بياناتك مرة واحدة/, 'no explanatory sentence on the card (owner, 7 Nov)');
+  assert.doesNotMatch(css, /acct-lead/);
   assert.equal((html.match(/data-acct-locate/g) || []).length, 2, 'one "find my location" button for the address and one for the delivery address');
   assert.equal((html.match(/<div class="acct-map" data-map hidden>/g) || []).length, 1, 'the delivery map stays hidden until a point exists');
   assert.doesNotMatch(html, /data-back-cart/, 'opened from the menu there is no way back to a cart');
@@ -258,4 +264,30 @@ test('the page policy lets the map frame and the address lookup through, and geo
   for (const file of ['railway/server.js', 'scripts/build-cloudflare.js', 'cloudflare/worker-core.js']) {
     assert.match(read(file), /geolocation=\(self\)/, file); assert.doesNotMatch(read(file), /geolocation=\(\)/, file);
   }
+});
+
+test('«find my location» tries the GPS, then the quicker network position, and never asks again after «denied»', async () => {
+  const h = harness(), calls = [];
+  const geo = (script) => ({ getCurrentPosition: (ok, no, opts) => { calls.push(opts); const step = script[calls.length - 1]; if (step.ok) ok({ coords: { latitude: 30.04, longitude: 31.23 } }); else no({ code: step.code }); } });
+  h.context.navigator = { geolocation: geo([{ code: 3 }, { ok: true }]) };
+  const pos = await h.run('acctPosition()');
+  assert.equal(pos.coords.latitude, 30.04);
+  assert.deepEqual(calls.map((o) => [o.enableHighAccuracy, o.timeout]), [[true, 8000], [false, 15000]], 'a slow GPS falls back to the network position');
+  calls.length = 0;
+  h.context.navigator = { geolocation: geo([{ code: 1 }, { ok: true }]) };
+  await assert.rejects(() => h.run('acctPosition()'), (e) => e.code === 1);
+  assert.equal(calls.length, 1, 'denied is final: the customer is not asked twice');
+  calls.length = 0;
+  h.context.navigator = { geolocation: geo([{ code: 2 }, { code: 3 }]) };
+  await assert.rejects(() => h.run('acctPosition()'), (e) => e.code === 3);
+  assert.equal(calls.length, 2);
+});
+
+test('the address from the lookup keeps the village or city and the district (markaz) too, and the hint asks for the building, floor and flat', () => {
+  const { run } = harness();
+  run('var D2=' + JSON.stringify({ address: { road: 'شارع الجمهورية', neighbourhood: 'حي الشرق', village: 'ميت غمر', county: 'مركز ميت غمر', state: 'محافظة الدقهلية' } }));
+  assert.equal(run('acctPickAddress(D2).text'), 'شارع الجمهورية، حي الشرق، ميت غمر، مركز ميت غمر');
+  assert.equal(run('acctPickAddress(D2).gov'), 'الدقهلية');
+  assert.match(run('ACCT_UI.ar.locOk'), /أضف رقم المبنى والدور والشقة/);
+  assert.match(run('ACCT_UI.en.locOk'), /building number, floor and flat/);
 });
