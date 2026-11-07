@@ -6,6 +6,9 @@ name: Live editor check
 #   EDITOR_LIVE_EMAIL and EDITOR_LIVE_PASSWORD
 # The values are never written to a file, a log or the screenshots (the login page is not photographed). Without the secrets the run only
 # says what to add. Run it by hand from the Actions tab (Run workflow); it also runs when the script itself changes.
+# Known limit (found 2026-11-07 from the run's own diagnostics): the sign-in waits for Cloudflare's security check (Turnstile), and a headless
+# CI browser is not given a token, so with the secrets set the run ends with a NOT CHECKED warning, not a pass. A real run needs a sign-in
+# path that does not depend on that check, which is a security decision for the owner (see docs/handoff.ar.md).
 # The screenshots are kept for one day as the "live-editor-shots" artifact (they show the public site and the catalogue lists, no customer data).
 
 on:

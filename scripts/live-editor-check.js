@@ -47,7 +47,7 @@ async function openMenu(page, frame) {
 }
 
 /* check({ context, base, login, shots }) -> { lines, problems }. `login(page)` signs in when the editor shows its login page. */
-async function check({ context, base, login, shots }) {
+async function check({ context, base, login, shots, loginWaitMs }) {
   const lines = [], problems = [];
   const say = (t) => lines.push(t), bad = (t) => { problems.push(t); lines.push('FAIL ' + t); };
   const shot = async (page, name) => { if (shots) { fs.mkdirSync(shots, { recursive: true }); await page.screenshot({ path: path.join(shots, name + '.png') }); } };
@@ -62,17 +62,25 @@ async function check({ context, base, login, shots }) {
   page.on('pageerror', (e) => errors.push(String(e && e.message || e).slice(0, 120)));
   page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') errors.push(String(m.text()).slice(0, 120)); });
   await page.goto(base + '/editor', { waitUntil: 'load' });
-  if (await page.locator('#loginBtn').count()) { await login(page); await page.waitForURL((u) => !/login/.test(u.search) && u.pathname === '/editor', { timeout: 30000 }).catch(() => {}); await page.waitForTimeout(1000); }
+  if (await page.locator('#loginBtn').count()) { await login(page); await page.waitForURL((u) => !/login/.test(u.search) && u.pathname === '/editor', { timeout: loginWaitMs || 30000 }).catch(() => {}); await page.waitForTimeout(1000); }
   const frame = await findFrame(page);
   if (!frame) {
     // The login page's own status line (an Arabic sentence such as the security-check refusal; never the typed values) says why the sign-in did not go through.
     const said = ((await page.locator('#msg').first().innerText({ timeout: 1000 }).catch(() => '')) || '').trim().slice(0, 200);
-    bad('the editor did not open the platform (login refused or the page failed to load)' + (said ? '; the login page says: \u00ab' + said + '\u00bb' : ''));
+    /* Still on «جاري الدخول...» and the server was never asked: Cloudflare's security check (the Turnstile box the sign-in waits for) did not
+       hand a token to this automated browser. That is the check doing its job, not a fault of the site, and nothing after the sign-in was
+       looked at, so it is reported as NOT CHECKED (a warning), never as a pass; a refused sign-in or a page that failed is still a failure. */
+    const waitedForCheck = /\u062c\u0627\u0631\u064a \u0627\u0644\u062f\u062e\u0648\u0644/.test(said) && !seen.some((x) => x.indexOf('/api/editor-login') >= 0);
+    if (waitedForCheck) {
+      lines.push('NOT CHECKED: the sign-in waits for Cloudflare\u2019s security check, which an automated browser does not pass, so the editor was not opened and no panel was compared.');
+    } else {
+      bad('the editor did not open the platform (login refused or the page failed to load)' + (said ? '; the login page says: \u00ab' + said + '\u00bb' : ''));
+    }
     const box = await page.evaluate(() => ({ frames: Array.from(document.querySelectorAll('iframe')).map((f) => (f.src || '').replace(/\?.*$/, '').slice(0, 70)), holder: !!document.querySelector('.elan-turnstile'), url: location.pathname + location.search.replace(/key=[^&]*/, 'key=*') })).catch(() => null);
     lines.push('     where it stopped: ' + JSON.stringify(box));
     lines.push('     network: ' + (seen.slice(0, 12).join(' | ') || 'nothing about the sign-in was seen'));
     if (errors.length) lines.push('     page messages: ' + errors.slice(0, 5).join(' | '));
-    return { lines, problems };
+    return { lines, problems, notChecked: waitedForCheck };
   }
   await page.waitForTimeout(1500);
   say('editor open at ' + base + '/editor');
@@ -144,6 +152,7 @@ if (require.main === module) {
     const out = await check({ context, base, login, shots: process.argv[3] || 'live-editor-shots' });
     await browser.close();
     console.log(out.lines.join('\n'));
+    if (out.notChecked) console.log('::warning title=Live editor check::NOT CHECKED - the sign-in waits for Cloudflare\u2019s security check, which this automated browser does not pass. Nothing about the editor was compared.');
     process.exitCode = out.problems.length ? 1 : 0;
   })().catch((e) => { console.error('the check could not run:', e.message); process.exit(1); });
 }
