@@ -126,8 +126,10 @@
     '.eo-dlg button{font:inherit;padding:6px 12px;border:1px solid #c2a66a;border-radius:7px;background:#fff;cursor:pointer;margin-inline-end:6px}' +
     '.eo-tag{position:absolute;top:-24px;right:-2px;background:#c8962a;color:#fff;font-size:11px;padding:2px 8px;border-radius:5px 5px 0 0;white-space:nowrap;pointer-events:none}' +
     '.eo-drop{position:fixed;display:none;background:#b48b38;border-radius:3px;box-shadow:0 0 0 3px rgba(180,139,56,.28);pointer-events:none}' +
+    '.eo-place{position:fixed;top:10px;left:50%;transform:translateX(-50%);background:#29251c;color:#fff;border:1px solid #c8962a;padding:9px 16px;border-radius:9px;font-size:13px;display:none;max-width:92vw;text-align:center;pointer-events:none}' +
+    'html.eo-placing,html.eo-placing *{cursor:crosshair !important}' +
     '[contenteditable]{outline:2px dashed #c8962a;outline-offset:2px}' +
-    '</style><div class="eo-drop"></div><div class="eo-box"><span class="eo-tag"></span><i class="eo-h" data-h="se"></i></div><div class="eo-msg"></div>' +
+    '</style><div class="eo-drop"></div><div class="eo-place"></div><div class="eo-box"><span class="eo-tag"></span><i class="eo-h" data-h="se"></i></div><div class="eo-msg"></div>' +
     '<div class="eo-dlg"><div><b class="eo-dt"></b><input type="text" class="eo-di" dir="ltr"><p class="eo-dh" style="margin:0 0 8px;color:#7a6a52"></p><button class="eo-ok">تأكيد</button><button class="eo-no">إلغاء</button></div></div>';
   document.body.appendChild(root);
 
@@ -360,6 +362,41 @@
     setTimeout(function () { reselect(); say('دخلتي صفحة جديدة' + (pageName() ? ': ' + pageName() : '') + '. كليك يمين فيها للأدوات، ومن زرار «صفحة سابقة» فوق ترجعي.'); }, 60);
     return true;
   }
+
+  /* ---------- choosing where a library item goes ----------
+     After an item is picked in the library the page waits for ONE left click: the click point decides the place (the section it
+     falls in, before or after it; a free text sits exactly there; an empty picture slot takes the picture). Esc, a right click or
+     the host's «cancel» ends the wait. Nothing else on the page reacts while it waits, and nothing is applied until the click. */
+  var placing = null, placeEl = root.querySelector('.eo-place');
+  function endPlacing() {
+    if (!placing) return false;
+    placing = null; document.documentElement.classList.remove('eo-placing'); placeEl.style.display = 'none';
+    return true;
+  }
+  function beginPlacing(label, run) {
+    if (editing) commitText();
+    closeMenu(); endPlacing();
+    placing = { run: run, pointerId: null };
+    document.documentElement.classList.add('eo-placing');
+    placeEl.textContent = label + ' · Esc للإلغاء'; placeEl.style.display = 'block';
+    try { window.focus(); } catch (_) { /* Esc must reach this frame */ }
+    return { placing: true };
+  }
+  window.addEventListener('pointerdown', function (ev) {
+    if (!placing || inUi(ev.target)) return;
+    ev.preventDefault(); ev.stopImmediatePropagation();
+    if (ev.button !== undefined && ev.button !== 0) { endPlacing(); say('اتلغى تحديد المكان.'); return; }
+    placing.pointerId = ev.pointerId;
+  }, true);
+  window.addEventListener('pointerup', function (ev) {
+    if (!placing || placing.pointerId === null || placing.pointerId !== ev.pointerId) return;
+    ev.preventDefault(); ev.stopImmediatePropagation();
+    var job = placing, at = { x: ev.clientX, y: ev.clientY };
+    endPlacing();
+    try { job.run(at); } catch (error) { say(error && error.message || 'تعذر إدراج العنصر هنا.'); }
+  }, true);
+  window.addEventListener('pointercancel', function () { if (placing) placing.pointerId = null; }, true);   // a scroll started: keep waiting
+  window.addEventListener('keydown', function (ev) { if (placing && ev.key === 'Escape') { ev.preventDefault(); endPlacing(); say('اتلغى تحديد المكان.'); } }, true);
 
   window.addEventListener('pointerdown', function (ev) {
     if (inUi(ev.target) && !ev.target.classList.contains('eo-h')) return;
@@ -774,7 +811,8 @@
     setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
     return { downloaded: true };
   }
-  function insertLibraryPayload(payload, restoreId) {
+  /* Checks a library payload and returns the block it describes, ready to go in; nothing is changed yet. */
+  function libraryBlock(payload, restoreId) {
     var candidate = payload && payload.format === 'elan-element-v1' ? payload.element : payload;
     if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate) || ['text', 'banner', 'image', 'smart'].indexOf(candidate.type) === -1) throw new Error('العنصر المحفوظ ليس بلوكًا قابلًا للإدراج.');
     var normalized = ED.normalize({ version: ED.VERSION, blocks: [candidate] }, { strict: true });
@@ -785,10 +823,22 @@
     if (work.blocks.some(function (existing) { return existing.id === id; })) throw new Error('العنصر موجود بالفعل في الصفحة.');
     block.id = id;
     if (!validBlock(block)) throw new Error('العنصر المحفوظ لا يجتاز مخطط التصميم.');
-    var order = insertAfterSelected(id);
+    return block;
+  }
+  /* Puts that block in: next to the section under `at` (a click point) or after the selected one; a free text sits exactly at the click. */
+  function putLibraryBlock(block, at) {
+    if (work.blocks.some(function (existing) { return existing.id === block.id; })) throw new Error('العنصر موجود بالفعل في الصفحة.');
+    var order = insertAfterSelected(block.id, at, !!(at && block.float));
     mutate(function (design) { design.blocks.push(block); design.order = order; });
-    select(id);
-    return { elementId: id };
+    select(block.id);
+    if (at && block.float) placeAt(block.id, at);
+    return { elementId: block.id };
+  }
+  function insertLibraryPayload(payload, restoreId, at) { return putLibraryBlock(libraryBlock(payload, restoreId), at); }
+  /* Can the element under a click take a picture or a video into its own slot? (the same rule as «رفع صورة أو فيديو») */
+  function takesMedia(e) {
+    var blk = work.blocks.filter(function (b) { return b.id === e.id; })[0];
+    return blk ? blk.type !== 'text' : ['hero', 'card', 'section', 'image-el'].indexOf(e.kind) !== -1;
   }
   /* Copy of an element that is not an extra block: a card becomes a banner with the same title, text and picture, a text becomes a
      text block, a picture becomes an image block. The copy goes right after the section it came from and can be edited freely. */
@@ -946,11 +996,30 @@
         var archiveId = String(p.elementId || ''), archiveScope = pageScope(archiveId, false) || work, edits = archiveScope.edits || {}, archiveKey = scopeId(archiveId);
         if (!archiveId) throw new Error('معرّف العنصر المؤرشف مطلوب.');
         var archivedHere = Object.keys(edits).some(function (dev) { return edits[dev] && edits[dev][archiveKey] && edits[dev][archiveKey].archived; });
-        if (archivedHere) mutate(function () { var scope = pageScope(archiveId, true); Object.keys(scope.edits || {}).forEach(function (dev) { if (scope.edits[dev][archiveKey]) delete scope.edits[dev][archiveKey].archived; }); });
-        else insertLibraryPayload(p.payload, archiveId);
+        if (archivedHere) { mutate(function () { var scope = pageScope(archiveId, true); Object.keys(scope.edits || {}).forEach(function (dev) { if (scope.edits[dev][archiveKey]) delete scope.edits[dev][archiveKey].archived; }); }); if (p.place) say('أُعيد العنصر إلى مكانه في المعاينة فقط. اضغطي «حفظ» لنشره.'); }
+        else {
+          var restored = libraryBlock(p.payload, archiveId);   // checked now, applied at the click when the owner is choosing the place
+          if (p.place) return beginPlacing('اضغط بزر الماوس الأيسر على المكان الذي يرجع إليه العنصر', function (at) { putLibraryBlock(restored, at); select(archiveId); say('أُعيد العنصر إلى المعاينة فقط. اضغطي «حفظ» لنشره.'); });
+          putLibraryBlock(restored, null);
+        }
         select(archiveId); return snapshot();
       }
-      case 'library.insert': return insertLibraryPayload(p.payload, null);
+      case 'library.insert': {
+        var made = libraryBlock(p.payload, null);
+        if (p.place) return beginPlacing('اضغط بزر الماوس الأيسر على المكان الذي يُضاف عنده العنصر', function (at) { putLibraryBlock(made, at); say('أُدرج العنصر في المعاينة فقط. اضغطي «حفظ» لنشره إلى المتجر.'); });
+        return putLibraryBlock(made, null);
+      }
+      case 'media.place': {
+        var mediaSrc = String(p.src || '');
+        if (!validBlock({ id: 'x-probe', type: 'image', src: mediaSrc, alt: {}, style: { align: 'center', size: 'md' } })) throw new Error('رابط الصورة أو الفيديو مش مسموح.');
+        return beginPlacing('اضغط بزر الماوس الأيسر على المكان المطلوب للصورة', function (at) {
+          var target = pick(at.x, at.y);
+          if (target && takesMedia(target) && !mediaOf(target).has) { setMedia(target.id, mediaSrc); select(target.id); }
+          else createBlock('image', { src: mediaSrc, at: at });
+          say('تم تطبيق الوسيط على المعاينة فقط؛ اضغطي «حفظ» لنشره.');
+        });
+      }
+      case 'placement.cancel': return { cancelled: endPlacing() };
       case 'history.undo': return { ok: undo() };
       case 'history.redo': return { ok: redo() };
       case 'ui.openFormatPanel': if (p.elementId) select(need(p.elementId).id); if (!selectedId) throw new Error('اضغطي على عنصر في الصفحة الأول.'); return null;

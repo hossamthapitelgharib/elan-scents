@@ -1,9 +1,9 @@
 {
-  "version": "20261107-11",
+  "version": "20261107-12",
   "files": {
     "account.js": "aa923e1fc1b5f11d",
     "app-core.js": "8294b8462ea364c8",
-    "app.js": "52ec1f3f45ff89cb",
+    "app.js": "7e7c9dc2b5435352",
     "auth-session.js": "c12caeae26af1c2c",
     "consent.css": "79e25a99fc582a15",
     "consent.js": "c383591883071ab4",
@@ -13,8 +13,8 @@
     "design-layer.js": "1c024c96b3effc02",
     "design-schema.js": "1f63678d22517407",
     "edit-boot.js": "788a669b9e7e9b3d",
-    "edit-mode.js": "4939138ebfb8cf4f",
-    "elan-host-bridge.js": "a29c3c88ac974e71",
+    "edit-mode.js": "d5742d17a54ab3eb",
+    "elan-host-bridge.js": "f07cdc9c14ce72a2",
     "fonts.css": "bbef903c0156968c",
     "footer-9x16.css": "48470d338a8906e0",
     "guest-identity.js": "7ff1daa0f0d89ad5",

@@ -278,7 +278,9 @@ test('live editor library connects to cloud data read-only and never saves or pu
   assert.match(ui, /cloud\.savedElements/);
   assert.match(ui, /cloud\.archive/);
   assert.match(ui, /page\.getState/);
-  assert.match(ui, /element\.setMedia/);
+  assert.match(ui, /media\.place/, 'using a picture waits for a click that says where it goes');
+  assert.match(ui, /place: true/, 'so do adding a saved element and restoring an archived one');
+  assert.doesNotMatch(ui, /element\.setMedia|create_image/, 'no more silent use on the selected element or on no particular place');
   assert.match(ui, /provider\.uploadMedia/);
   assert.match(ui, /library\.insert/);
   assert.match(ui, /حذف نهائي/);
@@ -287,4 +289,7 @@ test('live editor library connects to cloud data read-only and never saves or pu
   assert.doesNotMatch(ui, /saveLive\s*\(|publishLive\s*\(|document\.getElementById\(['"]save['"]\)\.click/);
   assert.match(editMode, /expectedRevision:\s*current\.library\.revision/);
   assert.match(editMode, /case 'library\.insert'/);
+  assert.match(editMode, /case 'media\.place'/);
+  assert.match(editMode, /case 'placement\.cancel'/);
+  assert.match(read('elan-host-bridge.js'), /'media\.place','placement\.cancel'/);
 });

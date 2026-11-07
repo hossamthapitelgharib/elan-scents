@@ -1,8 +1,9 @@
 /* Élan Editor — the library window of the live editor.
    Same window as the original editor's library: title, the two tabs, the twelve section buttons in a 3-column grid, the section heading,
-   one row per item, the upload button with its note, "إغلاق", the load/sync buttons and the message line. What is shown comes from the
-   platform page (its archive) and from the cloud library (media, saved elements, archive). Nothing here saves or publishes the page:
-   inserting, restoring or using a picture changes the preview only, until the owner presses "حفظ". */
+   one row per item, the upload button, "إغلاق". What is shown comes from the platform page (its archive) and from the cloud library
+   (media, saved elements, archive). Nothing here saves or publishes the page: using a picture, adding a saved element or restoring an
+   archived one closes the window and waits for ONE left click on the page that says where it goes (edit-mode.js, placement mode); it
+   changes the preview only, until the owner presses "حفظ". */
 (function () {
   'use strict';
 
@@ -415,7 +416,6 @@
   async function paint(dialog, ctx) {
     var bridge = window.elanLiveEditorBridge;
     var data = collect(ctx.st, ctx.cloud);
-    var selectedId = ctx.st && ctx.st.selected && ctx.st.selected.id || null;
     dialog.replaceChildren();
     dialog.style.width = '720px';
     dialog.append(make('h3', 'مكتبة إيلان'));
@@ -452,29 +452,41 @@
     dialog.append(list);
 
     function applied(text) { dialog.close(); say(text); }
+    /* Using an item from the library: the window closes and the page waits for ONE left click that says where it goes (Esc cancels).
+       Nothing is changed until that click; the page tells what it did. A problem with the item itself is told here, in the window. */
+    function placeThere(action, payload) {
+      return bridge.request(action, Object.assign({}, payload, { place: true })).then(function () { window.__elanPlacing = true; dialog.close(); });
+    }
+    if (!window.__elanPlacementEsc) {
+      window.__elanPlacementEsc = true;
+      /* Esc pressed in the editor window (not inside the page) also ends the wait for the click */
+      document.addEventListener('keydown', function (ev) {
+        if (ev.key !== 'Escape' || !window.__elanPlacing) return;
+        window.__elanPlacing = false;
+        var live = window.elanLiveEditorBridge;
+        if (live) Promise.resolve(live.request('placement.cancel', {})).catch(function () { /* nothing was waiting */ });
+      }, true);
+    }
     function failed(error, fallback) { setNote(dialog, error && error.message || fallback); }
 
     if (libTab === 'archive') {
       data.archive.filter(function (x) { return x.section === libCategory; }).forEach(function (entry) {
         row(list, entry, 'استرجاع', async function () {
-          try { await bridge.request('archive.restore', entry.restore); applied('أُعيد العنصر إلى المعاينة فقط. اضغطي «حفظ» لنشره.'); }
+          try { await placeThere('archive.restore', entry.restore); }
           catch (error) { failed(error, 'تعذر استرجاع العنصر.'); }
         });
       });
     } else {
       data.saved.filter(function (x) { return x.section === libCategory; }).forEach(function (entry) {
         row(list, entry, 'إضافة نسخة', async function () {
-          try { await bridge.request('library.insert', { payload: entry.payload }); applied('أُدرج العنصر في المعاينة فقط. اضغطي «حفظ» لنشره إلى المتجر.'); }
+          try { await placeThere('library.insert', { payload: entry.payload }); }
           catch (error) { failed(error, 'تعذر إدراج العنصر المحفوظ.'); }
         });
       });
       data.media.filter(function (x) { return x.section === libCategory; }).forEach(function (entry) {
         row(list, entry, 'استخدام', async function () {
-          try {
-            if (selectedId) await bridge.request('element.setMedia', { elementId: selectedId, src: entry.src });
-            else await bridge.request('tool.run', { id: 'create_image', src: entry.src, at: null });
-            applied('تم تطبيق الوسيط على المعاينة فقط؛ اضغطي «حفظ» لنشره.');
-          } catch (error) { failed(error, 'تعذر تطبيق الوسيط.'); }
+          try { await placeThere('media.place', { src: entry.src }); }
+          catch (error) { failed(error, 'تعذر تطبيق الوسيط.'); }
         }, true);
       });
       /* Like the original window, every section takes an upload: a picture or a video (kept in the cloud library, in THIS section), or an

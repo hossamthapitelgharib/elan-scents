@@ -301,6 +301,91 @@ test('library window: nothing that is only filler; a retry button only when the 
   } finally { await context.close(); }
 });
 
+/* The owner (2026-11-07): choosing an item from the library to use it somewhere must let him decide the place with a left mouse click.
+   The window closes, the page waits for ONE left click (hint on the page), nothing changes before it, Esc cancels, and the click point
+   decides where it goes. */
+test('library: using an item waits for a left click that says where it goes; Esc cancels; nothing changes before the click', async () => {
+  const IMG = 'https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/x.png';
+  const cloud = {
+    archive: [],
+    savedElements: [{ id: '00000000-0000-4000-8000-000000000011', name: 'نص محفوظ', kind: 'text', category: 'text', payload: { format: 'elan-element-v1', element: { id: 'x-saved1', type: 'text', text: { ar: 'نص من المكتبة' }, style: { align: 'center', size: 'md' } } } }],
+    media: [{ id: '00000000-0000-4000-8000-000000000012', name: 'صورة 1.png', src: IMG, type: 'image', category: 'image' }]
+  };
+  const { context, page, errors } = await openEditor(undefined, cloud);
+  try {
+    const frame = page.frames().find((f) => f.url().includes('elan_editor=1'));
+    const blocks = () => frame.evaluate(() => window.ElanEditMode._debug().blocks.map((b) => ({ id: b.id, type: b.type })));
+    const hint = () => frame.evaluate(() => { const h = document.querySelector('.eo-place'); return { shown: getComputedStyle(h).display !== 'none', text: h.textContent, placing: document.documentElement.classList.contains('eo-placing') }; });
+    const openLibrary = async (folder, action) => {
+      await page.click('#library'); await page.waitForTimeout(700);
+      await page.locator('#libraryDialog [data-lib-tab="saved"]').click(); await page.waitForTimeout(200);
+      await page.locator('#libraryDialog [data-lib-cat="' + folder + '"]').click(); await page.waitForTimeout(250);
+      await page.locator('#libraryDialog [data-lib-list] button', { hasText: action }).first().click(); await page.waitForTimeout(500);
+    };
+    const clickPage = async (where) => {
+      const at = await frame.evaluate((w) => {
+        const sections = window.ElanDesignLayer.elements().filter((x) => x.kind === 'section' && /^sec:/.test(x.id) && x.el.getBoundingClientRect().height > 120);
+        const e = sections[0]; document.documentElement.style.scrollBehavior = 'auto';
+        window.scrollTo({ top: Math.max(0, scrollY + e.el.getBoundingClientRect().top - 150), behavior: 'instant' });
+        const r = e.el.getBoundingClientRect(); return { id: e.id.replace(/^sec:/, ''), x: r.left + Math.min(40, r.width / 3), y: w === 'top' ? r.top + 20 : r.bottom - 20, width: innerWidth };
+      }, where);
+      await page.waitForTimeout(300);
+      const box = await page.locator('iframe').first().boundingBox(), k = box.width / at.width;
+      await page.mouse.click(box.x + at.x * k, box.y + at.y * k);
+      await page.waitForTimeout(500);
+      return at.id;
+    };
+
+    /* a saved element: «إضافة نسخة» only closes the window and starts the wait; nothing is added yet */
+    const before = (await blocks()).length;
+    await openLibrary('text', 'إضافة نسخة');
+    assert.equal(await page.evaluate(() => document.getElementById('libraryDialog').open), false, 'the window closes: ' + await page.evaluate(() => (document.querySelector('#libraryDialog [data-cloud-message]') || {}).textContent));
+    let h = await hint();
+    assert.ok(h.shown && h.placing && /بزر الماوس الأيسر/.test(h.text) && /Esc/.test(h.text), 'the page tells what to do: ' + JSON.stringify(h));
+    assert.equal((await blocks()).length, before, 'nothing is added before the click');
+
+    /* the click decides: the top half of a section puts it just before that section */
+    const sectionId = await clickPage('top');
+    const afterClick = await blocks();
+    assert.equal(afterClick.length, before + 1, 'one block was added by the click');
+    const order = await frame.evaluate(() => window.ElanEditMode._debug().order);
+    const added = afterClick[afterClick.length - 1].id;
+    assert.equal(order.indexOf(added) + 1, order.indexOf(sectionId), 'it sits right before the section that was clicked (' + sectionId + '): ' + JSON.stringify(order));
+    h = await hint(); assert.ok(!h.shown && !h.placing, 'and the wait is over');
+
+    /* the bottom half puts the next one right after the section */
+    await openLibrary('text', 'إضافة نسخة');
+    const sectionId2 = await clickPage('bottom');
+    const afterSecond = await blocks();
+    assert.equal(afterSecond.length, before + 2);
+    const order2 = await frame.evaluate(() => window.ElanEditMode._debug().order), second = afterSecond[afterSecond.length - 1].id;
+    assert.equal(order2.indexOf(second), order2.indexOf(sectionId2) + 1, 'the bottom half puts it right after the section');
+
+    /* Esc, pressed in the editor window, cancels: nothing is added and the page is back to normal */
+    await openLibrary('text', 'إضافة نسخة');
+    assert.ok((await hint()).placing);
+    await page.keyboard.press('Escape'); await page.waitForTimeout(500);
+    h = await hint(); assert.ok(!h.shown && !h.placing, 'Esc ends the wait');
+    assert.equal((await blocks()).length, before + 2, 'and adds nothing');
+
+    /* a picture: a click on a section that has no picture of its own puts it in that section's slot (no new block)… */
+    await openLibrary('image', 'استخدام');
+    assert.ok((await hint()).placing && /للصورة/.test((await hint()).text));
+    const blocksBefore = (await blocks()).length;
+    await clickPage('bottom');
+    const usedSlot = await frame.evaluate((src) => JSON.stringify(window.ElanEditMode._debug().edits || {}).includes(src), IMG);
+    assert.ok(usedSlot, 'the picture went into the slot of the section that was clicked');
+    assert.equal((await blocks()).length, blocksBefore, 'without a new block');
+    /* …and where the slot already shows a picture, the next one becomes a new picture block at the click instead of replacing it */
+    await openLibrary('image', 'استخدام');
+    await clickPage('bottom');
+    const afterThird = await blocks();
+    assert.equal(afterThird.length, blocksBefore + 1, 'a new block this time');
+    assert.equal(await frame.evaluate((src) => window.ElanEditMode._debug().blocks.filter((b) => b.type === 'image' && b.src === src).length, IMG), 1, 'a picture block with that picture');
+    assert.deepEqual(errors, []);
+  } finally { await context.close(); }
+});
+
 /* The original window has «رفع ملف وحفظه في …» in every folder. Here a picture, a video or an element file uploaded from a folder is kept in that folder. */
 test('library upload is in every folder, and what is uploaded lands in the folder it came from', async () => {
   const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
