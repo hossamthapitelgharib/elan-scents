@@ -80,6 +80,7 @@ begin
     values (v_x, (select id from public.order_items where order_id = v_order), 10, 10, 'pending');
   insert into public.cart_items (user_id, store_product_id, quantity) values (u_b, sp_x.id, 2);
   insert into public.favorites (user_id, product_size_id) values (u_b, sp_x.product_size_id);
+  insert into public.customer_details (user_id, full_name, phone, address) values (u_b, 'victim full name here', '01011112222', 'victim secret address');
   insert into public.reviews (user_id, product_id, rating, comment, is_approved)
     values (u_b, v_prod, 5, 'victim review', false) returning id into v_review;
 
@@ -96,10 +97,10 @@ begin
   select string_agg(c.relname, ', ' order by c.relname) into v_bad
   from pg_class c join pg_namespace n on n.oid = c.relnamespace
   where n.nspname = 'public' and c.relkind in ('r', 'p', 'v', 'm', 'f')
-    and c.relname not in ('analytics_events', 'cart_items', 'contact_messages', 'favorites', 'media_library', 'offers', 'profiles', 'reviews', 'store_products')
+    and c.relname not in ('analytics_events', 'cart_items', 'contact_messages', 'customer_details', 'favorites', 'media_library', 'offers', 'profiles', 'reviews', 'store_products')
     and (has_table_privilege('authenticated', c.oid, 'insert') or has_table_privilege('authenticated', c.oid, 'update') or has_table_privilege('authenticated', c.oid, 'delete')
          or has_table_privilege('authenticated', c.oid, 'truncate') or has_any_column_privilege('authenticated', c.oid, 'insert') or has_any_column_privilege('authenticated', c.oid, 'update'));
-  assert v_bad is null, 'a signed-in client may write only the nine browser-written tables, found: ' || coalesce(v_bad, '');
+  assert v_bad is null, 'a signed-in client may write only the ten browser-written tables, found: ' || coalesce(v_bad, '');
   select string_agg(c.relname || ' (' || r.rolname || ')', ', ' order by c.relname) into v_bad
   from pg_class c join pg_namespace n on n.oid = c.relnamespace, pg_roles r
   where n.nspname = 'public' and c.relkind in ('r', 'p', 'm') and r.rolname in ('anon', 'authenticated')
@@ -227,6 +228,11 @@ begin
   assert pg_temp.blocked(u_a, 'authenticated', format($q$select 1 from public.cart_items where user_id = %L$q$, u_b)), 'A cannot read B''s cart';
   assert pg_temp.blocked(u_a, 'authenticated', format($q$select 1 from public.favorites where user_id = %L$q$, u_b)), 'A cannot read B''s favourites';
   assert pg_temp.blocked(u_a, 'authenticated', format($q$delete from public.favorites where user_id = %L$q$, u_b)), 'A cannot delete B''s favourites';
+  assert pg_temp.blocked(u_a, 'authenticated', format($q$select 1 from public.customer_details where user_id = %L$q$, u_b)), 'A cannot read B''s saved delivery details';
+  assert pg_temp.blocked(u_a, 'authenticated', format($q$update public.customer_details set address = 'hijacked address' where user_id = %L$q$, u_b)), 'A cannot change B''s saved delivery details';
+  assert pg_temp.blocked(u_a, 'authenticated', format($q$delete from public.customer_details where user_id = %L$q$, u_b)), 'A cannot delete B''s saved delivery details';
+  assert pg_temp.blocked(u_a, 'authenticated', format($q$insert into public.customer_details (user_id, full_name, phone, address) values (%L, 'forged name', '01000000000', 'forged address')$q$, u_b)), 'A cannot write delivery details for B';
+  assert pg_temp.blocked(null, 'anon', 'select 1 from public.customer_details'), 'a visitor cannot read delivery details';
   assert pg_temp.blocked(u_a, 'authenticated', format($q$insert into public.favorites (user_id, product_size_id) values (%L, %L)$q$, u_b, (select id from public.product_sizes where product_id <> v_prod order by id limit 1))), 'A cannot add favourites for B';
   assert pg_temp.blocked(u_a, 'authenticated', format($q$update public.reviews set comment = 'pwned' where id = %L$q$, v_review)), 'A cannot edit B''s review';
   assert pg_temp.blocked(u_a, 'authenticated', format($q$delete from public.reviews where id = %L$q$, v_review)), 'A cannot delete B''s review';
@@ -245,6 +251,7 @@ begin
   assert pg_temp.blocked(null, 'anon', $q$select 1 from public.customer_product_events$q$), 'a visitor cannot read customer activity';
   assert (select quantity from public.cart_items where user_id = u_b) = 2, 'B''s cart is untouched';
   assert exists (select 1 from public.favorites where user_id = u_b), 'B''s favourites are untouched';
+  assert (select address from public.customer_details where user_id = u_b) = 'victim secret address', 'B''s saved delivery details are untouched';
   assert (select comment from public.reviews where id = v_review) = 'victim review' and not (select is_approved from public.reviews where id = v_review), 'B''s review is untouched';
 
   ---------------------------------------------------------------------------------------------------------------------
