@@ -84,7 +84,7 @@ test('sign-in shows the welcome and closes its sheet: no sign-up message, and th
   const s = shop({ access_token: 'a' });
   s.submit(s.form('login'));
   await settle();
-  assert.deepEqual(s.log.toasts, ['أهلًا ومرحبًا بك ونتمنى لك رحلة تسويقية ممتعة'], 'the welcome of tests/login-logout-messages.test.js, not «registered»');
+  assert.deepEqual(s.log.toasts, ['أهلًا ومرحبًا بك\nونتمنى لك رحلة تسويقية ممتعة'], 'the welcome of tests/login-logout-messages.test.js, not «registered»');
   assert.deepEqual(s.log.sheets, []);
   assert.equal(s.log.closed, 1);
 });
