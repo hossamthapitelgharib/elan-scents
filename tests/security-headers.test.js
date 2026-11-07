@@ -16,7 +16,8 @@ test('pages, scripts, API answers, errors and health all carry the baseline secu
       assert.equal(response.headers.get('x-content-type-options'), 'nosniff', p);
       assert.equal(response.headers.get('referrer-policy'), 'strict-origin-when-cross-origin', p);
       assert.match(response.headers.get('permissions-policy'), /camera=\(\)/, p);
-      assert.match(response.headers.get('permissions-policy'), /geolocation=\(\)/, p);
+      // geolocation=(self): only this site's own pages may ask for the location (the «حسابي» page's "find my location" button); the Maps frame and anything else may not.
+      assert.match(response.headers.get('permissions-policy'), /geolocation=\(self\)/, p);
     }
   });
 });

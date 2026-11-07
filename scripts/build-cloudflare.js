@@ -27,7 +27,7 @@ const PRIVATE_EDITOR_FILES = ['elan-editor.html', 'login.html', 'editor-login.js
 const BASELINE_HEADERS = [
   ['X-Content-Type-Options', 'nosniff'],
   ['Referrer-Policy', 'strict-origin-when-cross-origin'],
-  ['Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=()'],
+  ['Permissions-Policy', 'camera=(), microphone=(), geolocation=(self), payment=(), usb=()'],
   ['Strict-Transport-Security', 'max-age=15552000']
 ];
 // Cloudflare chooses these from the file itself; sending them again could only conflict.

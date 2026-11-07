@@ -47,7 +47,8 @@ test('the page policy forbids inline scripts, eval, plugins and foreign framing,
   assert.deepEqual(p.get('default-src'), ["'self'"]);
   // The one outside script is Cloudflare's Turnstile widget (the "are you a person" check in front of the account forms), and it needs its frame too.
   assert.deepEqual(p.get('script-src'), ["'self'", 'https://challenges.cloudflare.com'], 'scripts come from this site and the Turnstile check only (no unsafe-inline, unsafe-eval or https:)');
-  assert.deepEqual(p.get('frame-src'), ['https://challenges.cloudflare.com'], 'the only frame a page may open is the Turnstile widget');
+  // The second frame is the Google Maps embed of the «حسابي» page (it shows the customer's own location; no script of ours runs there).
+  assert.deepEqual(p.get('frame-src'), ['https://challenges.cloudflare.com', 'https://www.google.com'], 'a page may open the Turnstile widget and the Google Maps embed, nothing else');
   assert.deepEqual(p.get('script-src-attr'), ["'none'"], 'inline event handler attributes are blocked');
   assert.deepEqual(p.get('object-src'), ["'none'"]);
   assert.deepEqual(p.get('base-uri'), ["'self'"]);
@@ -64,7 +65,8 @@ test('connect-src names this site and the Supabase project the Worker is configu
   const wrangler = read('wrangler.jsonc');
   const supabase = new URL(wrangler.match(/"SUPABASE_URL"\s*:\s*"([^"]+)"/)[1]).origin;
   const p = policyOf(pageRuleValue('/index.html')[0]);
-  assert.deepEqual(p.get('connect-src'), ["'self'", supabase],
+  // The second host turns a location the customer chose to share on the «حسابي» page into a street address (OpenStreetMap's Nominatim, no key).
+  assert.deepEqual(p.get('connect-src'), ["'self'", supabase, 'https://nominatim.openstreetmap.org'],
     'when the Supabase project changes, change the origin in the vercel.json policy too, or every page loses its catalog');
   // the only other hosts: the web-font service the editor can switch a design to (design-layer.js loadFont)
   assert.deepEqual(p.get('style-src'), ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com']);

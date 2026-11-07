@@ -46,7 +46,7 @@ const REWRITES = new Map((CONFIG.rewrites || []).map((r) => [r.source, r.destina
 const BASELINE_HEADERS = {
   'X-Content-Type-Options': 'nosniff',
   'Referrer-Policy': 'strict-origin-when-cross-origin',
-  'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=()'
+  'Permissions-Policy': 'camera=(), microphone=(), geolocation=(self), payment=(), usb=()'
 };
 function applyBaselineHeaders(req, res) {
   for (const key of Object.keys(BASELINE_HEADERS)) res.setHeader(key, BASELINE_HEADERS[key]);

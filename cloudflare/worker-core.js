@@ -20,7 +20,7 @@ const MAX_EVIDENCE_BODY = 15 * 1024 * 1024;
 const BASELINE_HEADERS = {
   'X-Content-Type-Options': 'nosniff',
   'Referrer-Policy': 'strict-origin-when-cross-origin',
-  'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=()'
+  'Permissions-Policy': 'camera=(), microphone=(), geolocation=(self), payment=(), usb=()'
 };
 const HSTS = 'max-age=15552000';
 // The owner editor and its storefront frame are one origin on Cloudflare. When these are not configured, the origin the
