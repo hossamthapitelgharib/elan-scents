@@ -83,9 +83,11 @@ begin
     raise exception 'anonymous product reads must be limited to storefront-required fields';
   end if;
   if not has_column_privilege('anon', 'public.offers', 'product_size_id', 'SELECT')
+     or not has_column_privilege('anon', 'public.offers', 'store_id', 'SELECT')
+     or not has_column_privilege('authenticated', 'public.offers', 'store_id', 'SELECT')
      or has_column_privilege('anon', 'public.offers', 'discount_value', 'SELECT')
      or has_column_privilege('anon', 'public.offers', 'description', 'SELECT') then
-    raise exception 'anonymous offer reads must be limited to product-size identifiers';
+    raise exception 'anonymous offer reads must be limited to public store and product-size identifiers';
   end if;
   if not has_table_privilege('service_role', 'public.store_order_requests', 'SELECT')
      or not has_table_privilege('service_role', 'public.store_products', 'SELECT')

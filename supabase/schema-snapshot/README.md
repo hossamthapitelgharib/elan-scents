@@ -15,7 +15,7 @@ The md5 is the md5 of the file **without its final newline**, which is exactly w
 | File | md5 | Content |
 | --- | --- | --- |
 | `tables-1.txt` | `94b1781495f629e04d3dd9beae991fff` | Tables `analytics_events` to `editor_sections` (17) |
-| `tables-2.txt` | `d0b731c1f2422092aacc89ec331861b8` | Tables `favorites` to `order_operation_events` (14) |
+| `tables-2.txt` | `a7e274551e4bba1427ed3d413e419371` | Tables `favorites` to `order_operation_events` (14) |
 | `tables-3.txt` | `6cda6656bc8360c20e7a196706686226` | Tables `order_reconciliation_checks` to `store_order_commissions` (18) |
 | `tables-4.txt` | `f927e11698aaa3d449b99fe377c42e66` | Tables `store_order_item_adjustments` to `sync_logs` (9) |
 | `functions.txt` | `5aa0759bb49476f06fec97ac5eb5e1a4` | Functions in `public` and `private` (79) |

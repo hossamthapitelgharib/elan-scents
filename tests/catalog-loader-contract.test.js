@@ -8,6 +8,8 @@ const root = path.join(__dirname, '..');
 const core = fs.readFileSync(path.join(root, 'app-core.js'), 'utf8');
 const migration = fs.readFileSync(path.join(root, 'supabase/migrations/20261105122843_catalog_data_foundation.sql'), 'utf8');
 const filterMigration = fs.readFileSync(path.join(root, 'supabase/migrations/20261106215242_catalog_offer_single_source_and_filter_rpc.sql'), 'utf8');
+const promotionScopeMigration = fs.readFileSync(path.join(root, 'supabase/migrations/20261107022440_catalog_promotion_owner_scope.sql'), 'utf8');
+const promotionScopeRollback = fs.readFileSync(path.join(root, 'supabase/rollback/20261107022440_catalog_promotion_owner_scope.sql'), 'utf8');
 const editorCatalog = fs.readFileSync(path.join(root, 'railway/editor-catalog.js'), 'utf8');
 
 test('loader requests global and eligible offer views, gender, and stable taxonomy keys', () => {
@@ -83,11 +85,15 @@ test('store pages use the same selected global offer contract, not the removed p
   assert.match(core, /function counts\(\).*if\(globalOffer\(p\)\)/);
 });
 
-test('active promotion records are loaded separately from eligible store offers', () => {
-  assert.match(core, /offers\?select=product_size_id&order=product_size_id\.asc/);
-  assert.match(core, /var ofs=\{\},topB=\{\};d\[13\]\.forEach/);
+test('active promotions are scoped to the same store as the canonical offer, with least-privilege SQL', () => {
+  assert.match(core, /offers\?select=product_size_id,store_id&order=product_size_id\.asc,store_id\.asc/);
+  assert.match(core, /var promoOwner=\{\},topB=\{\};d\[13\]\.forEach/);
+  assert.match(core, /promoOwner\[String\(r\.product_size_id\)\+'\|'\+String\(r\.store_id\)\]\?\['offers'\]:\[\]/);
   assert.match(core, /is_new_arrival,is_catalog_bestseller,is_coming_soon/);
   assert.match(core, /d\[14\]\.forEach\(function\(r\)\{if\(!r\.product_size_id\|\|!r\.store_id/);
+  assert.match(promotionScopeMigration, /GRANT SELECT \(store_id\) ON TABLE public\.offers TO anon, authenticated;/);
+  assert.match(promotionScopeRollback, /REVOKE SELECT \(store_id\) ON TABLE public\.offers FROM anon, authenticated;/);
+  assert.doesNotMatch(core, /offers\?select=[^'\n]*(discount_value|description|title)/);
 });
 
 test('globalOffer is the same eligible row for price, store, and cart/order IDs', () => {

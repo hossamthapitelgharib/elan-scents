@@ -209,3 +209,48 @@ test('Masterpieces page: the chips are the filter (no filter panel under them), 
     assert.deepEqual(errors, [], 'no page error');
   } finally { await context.close(); }
 });
+
+test('storefront filters use exact unified sizes and owners; a changed cart offer is blocked', async () => {
+  const { context, page, errors } = await visit(H.WIDTHS[0]);
+  try {
+    await page.evaluate(() => {
+      const offer = (store, storeId, storeProductId, price) => ({ store, storeId, storeProductId, price, cur: 'EGP', avail: true, flags: [], stock: 10, tax: true, ship: false });
+      const mk = (id, name, sizeMl, o) => ({ id, pid: 'catalog-product', name, pn: name, brand: 'Brand', sizeMl, sz: sizeMl + ' مل', img: '', gender: 'unisex', cats: [], categoryIds: [], categoryKeys: ['unisex'], occs: [], occasionKeys: [], notes: [], noteKeys: [], rating: 0, sales: 0, views: 0, searches: 0, requests: 0, rel: 0, ts: 0, ind: [], sd: 'desc', desc: 'description', comp: 'composition', globalOffer: o, allEligibleOffers: [o], offersByStore: { [o.storeId]: o } });
+      ST = [['Store A', '', 'store-a'], ['Store B', '', 'store-b']];
+      BR = ['Brand'];
+      CATALOG_SIZE_OPTIONS = [50, 100];
+      PERFUMES = [
+        mk('size-a', 'Perfume 50', 50, offer('Store A', 'store-a', 'sp-a-new', 100)),
+        mk('size-b', 'Perfume 100', 100, offer('Store B', 'store-b', 'sp-b', 90))
+      ];
+      go('sec|all');
+    });
+    await page.waitForTimeout(300);
+    const select = async (key, value) => {
+      await page.locator('#view select[data-k="' + key + '"]').selectOption(value);
+      await page.waitForTimeout(100);
+    };
+    const names = () => page.evaluate(() => [...document.querySelectorAll('#res .card h4')].map((h) => h.textContent.trim()));
+    assert.deepEqual(await names(), ['Perfume 50', 'Perfume 100']);
+    await select('size', '50');
+    assert.deepEqual(await names(), ['Perfume 50'], 'the size filter matches only the selected unified product size');
+    await select('size', '');
+    await select('st', 'store-b');
+    assert.deepEqual(await names(), ['Perfume 100'], 'the store filter matches the owner of the global offer, not an alternate seller');
+
+    await page.evaluate(() => {
+      go('store|Store A');
+      CART = [{ sid: 'size-a', storeProductId: 'sp-a-old', storeId: 'store-a', storeName: 'Store A', observedPrice: 95, currency: 'EGP', q: 1 }];
+      document.getElementById('sheetB').innerHTML = cartHTML();
+    });
+    const stale = await page.evaluate(() => ({
+      storeProducts: [...document.querySelectorAll('#res .card h4')].map((h) => h.textContent.trim()),
+      notice: document.querySelector('#sheetB .cart-review')?.textContent.trim() || '',
+      disabled: document.querySelector('#sheetB [data-order-store]')?.disabled
+    }));
+    assert.deepEqual(stale.storeProducts, ['Perfume 50'], 'the populated store page renders without relying on a legacy offers array');
+    assert.match(stale.notice, /تغيّر السعر|التوفر/);
+    assert.equal(stale.disabled, true, 'a stale line cannot be checked out before review');
+    assert.deepEqual(errors, [], 'no browser error across filter, store and cart routes');
+  } finally { await context.close(); }
+});

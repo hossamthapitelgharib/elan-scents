@@ -449,12 +449,23 @@ test('the Coming soon section lists the perfumes a store flagged as coming soon,
 
 test('the storefront reads is_coming_soon and marks those product sizes with the soon flag', () => {
   assert.match(core, /ga\('catalog_eligible_offers\?select=[^']*is_new_arrival,is_catalog_bestseller,is_coming_soon/);
-  assert.match(core, /offers\?select=product_size_id&order=product_size_id\.asc/);
-  assert.match(core, /d\[13\]\.forEach\(function\(r\)\{if\(r\.product_size_id\)ofs\[r\.product_size_id\]=1\}\)/);
-  assert.match(core, /flags:\(r\.is_new_arrival\?\['new'\]:\[\]\)\.concat\(ofs\[r\.product_size_id\]\?\['offers'\]:\[\],r\.is_catalog_bestseller\|\|indOf\(pm\[r\.product_id\]\|\|\{\}\)\.length\?\['master'\]:\[\],r\.is_coming_soon\?\['soon'\]:\[\]\)/);
+  assert.match(core, /offers\?select=product_size_id,store_id&order=product_size_id\.asc,store_id\.asc/);
+  assert.match(core, /d\[13\]\.forEach\(function\(r\)\{if\(r\.product_size_id&&r\.store_id\)promoOwner\[String\(r\.product_size_id\)\+'\|'\+String\(r\.store_id\)\]=1\}\)/);
+  assert.match(core, /flags:\(r\.is_new_arrival\?\['new'\]:\[\]\)\.concat\(promoOwner\[String\(r\.product_size_id\)\+'\|'\+String\(r\.store_id\)\]\?\['offers'\]:\[\],r\.is_catalog_bestseller\|\|indOf\(pm\[r\.product_id\]\|\|\{\}\)\.length\?\['master'\]:\[\],r\.is_coming_soon\?\['soon'\]:\[\]\)/);
   assert.match(core, /allEligibleOffers:allOffers\[k\]\|\|\[\],globalOffer:globalOffer,offersByStore:offersByStore/);
   assert.doesNotMatch(core, /offers:allOffers/);
   assert.match(core, /var record=platformOfferBySize\[k\],o=record\.row,globalOffer=record\.offer/);
+});
+
+test('promotion owner scope exposes only store_id and remains reversible', () => {
+  const file = '20261107022440_catalog_promotion_owner_scope.sql';
+  const migration = read('supabase/migrations/' + file).replace(/--.*$/gm, '').trim();
+  const rollback = read('supabase/rollback/' + file);
+  assert.equal(migration, 'GRANT SELECT (store_id) ON TABLE public.offers TO anon, authenticated;');
+  assert.match(rollback, /REVOKE SELECT \(store_id\) ON TABLE public\.offers FROM anon, authenticated;/);
+  const security = read('tests/customer_store_security.test.sql');
+  assert.match(security, /has_column_privilege\('anon', 'public\.offers', 'store_id', 'SELECT'\)/);
+  assert.match(security, /has_column_privilege\('anon', 'public\.offers', 'discount_value', 'SELECT'\)/);
 });
 
 test('the database lets visitors read only that one extra column, with its rollback and the real-database check', () => {
