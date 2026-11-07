@@ -272,7 +272,7 @@ test('«find my location» tries the GPS, then the quicker network position, and
   h.context.navigator = { geolocation: geo([{ code: 3 }, { ok: true }]) };
   const pos = await h.run('acctPosition()');
   assert.equal(pos.coords.latitude, 30.04);
-  assert.deepEqual(calls.map((o) => [o.enableHighAccuracy, o.timeout]), [[true, 8000], [false, 15000]], 'a slow GPS falls back to the network position');
+  assert.deepEqual(calls.map((o) => [o.enableHighAccuracy, o.timeout]), [[true, 10000], [false, 20000]], 'a slow GPS (or a device window the customer is still answering) falls back to the network position, with time to answer');
   calls.length = 0;
   h.context.navigator = { geolocation: geo([{ code: 1 }, { ok: true }]) };
   await assert.rejects(() => h.run('acctPosition()'), (e) => e.code === 1);
