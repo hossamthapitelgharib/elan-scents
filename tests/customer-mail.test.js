@@ -209,6 +209,14 @@ test('a confirmed new account tells the platform mailbox once, with when it regi
   assert.equal(again.res.body.reason, 'already_sent');
 });
 
+test('the registration time is the last confirmation request: a customer who tried several times is not shown the time of his first attempt', async () => {
+  const { log } = await call('registered', { user: { created_at: '2026-11-07T10:24:13.170558+00:00', confirmation_sent_at: '2026-11-07T15:10:12.166453+00:00', email_confirmed_at: '2026-11-07T15:10:43.377287+00:00' } });
+  const notice = log.sent.find((m) => m.to === 'platform@example.invalid');
+  assert.match(notice.text, /تاريخ ووقت التسجيل: .*7 نوفمبر 2026 في 5:10 م/, 'the attempt whose link he opened');
+  assert.match(notice.text, /تاريخ ووقت تأكيد البريد: .*7 نوفمبر 2026 في 5:10 م/);
+  assert.doesNotMatch(notice.text, /12:24/);
+});
+
 test('without a platform address the customer is still welcomed and the notice\'s slot stays free', async () => {
   configure({ PLATFORM_NOTIFY_EMAIL: '' });
   const { res, log } = await call('registered');

@@ -77,7 +77,7 @@ module.exports = async function customerMail(req, res) {
     }
     const jobs = [];   // { kind, to, mail }
     if (smtp.validAddress(config.platformEmail)) {
-      await addJob(jobs, context, 'registered', config.platformEmail, templates.registeredNotice({ name: context.profile.full_name, email, createdAt: context.user.created_at, confirmedAt: context.user.email_confirmed_at || context.user.confirmed_at }));
+      await addJob(jobs, context, 'registered', config.platformEmail, templates.registeredNotice({ name: context.profile.full_name, email, createdAt: context.user.confirmation_sent_at || context.user.created_at, confirmedAt: context.user.email_confirmed_at || context.user.confirmed_at }));
     }
     await addJob(jobs, context, 'welcome', email, templates.welcome());
     if (!jobs.length) return reply(res, 200, { ok: true, sent: false, reason: 'already_sent' });
