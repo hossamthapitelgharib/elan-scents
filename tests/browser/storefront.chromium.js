@@ -170,28 +170,29 @@ test('Masterpieces page: the chips are the filter (no filter panel under them), 
   const { context, page, errors } = await visit(H.WIDTHS[0]);
   try {
     await page.evaluate(() => {
-      const mk = (id, name, brand, sales, views, ind) => { const offer = { store: 'S', storeId: 's1', storeProductId: 'sp' + id, price: 100, cur: 'EGP', avail: true, flags: ['master'], stock: 5, tax: true, ship: false }; return { id, pid: id, name, pn: name, brand, sz: '100 مل', img: '', cats: [0], occs: [0], notes: [0], rating: 0, sales, views, searches: 0, requests: 0, rel: sales, ts: 0, ind, sd: 's', desc: 'd', comp: 'c', globalOffer: offer, allEligibleOffers: [offer], offersByStore: { s1: offer } }; };
-      PERFUMES = [mk('a', 'عطر منخفض', 'X', 10, 250, ['sales', 'views', 'topBrand']), mk('b', 'عطر الأعلى', 'Y', 100, 25, ['sales', 'views', 'topBrand']), mk('c', 'عطر وسط', 'Y', 50, 90, ['sales', 'views'])];
+      const mk = (id, name, brand, rel, rk, ind) => { const offer = { store: 'S', storeId: 's1', storeProductId: 'sp' + id, price: 100, cur: 'EGP', avail: true, flags: ['master'], stock: 5, tax: true, ship: false }; return { id, pid: id, name, pn: name, brand, sz: '100 مل', img: '', cats: [0], occs: [0], notes: [0], rating: 0, sales: 0, views: 0, searches: 0, requests: 0, rel, rk, ts: 0, ind, sd: 's', desc: 'd', comp: 'c', globalOffer: offer, allEligibleOffers: [offer], offersByStore: { s1: offer } }; };
+      /* rk = the rank the database gives each perfume per button (1 = first) */
+      PERFUMES = [mk('a', 'عطر منخفض', 'X', 10, { sales: 3, views: 1, rated: 2 }, ['sales', 'views', 'rated']), mk('b', 'عطر الأعلى', 'Y', 100, { sales: 1, views: 3, rated: 1 }, ['sales', 'views', 'rated']), mk('c', 'عطر وسط', 'Y', 50, { sales: 2, views: 2 }, ['sales', 'views'])];
       go('sec|master');
     });
     await page.waitForTimeout(600);
     const names = () => page.evaluate(() => [...document.querySelectorAll('#res .card h4')].map((h) => h.textContent));
     const state = await page.evaluate(() => ({ chips: [...document.querySelectorAll('#view .chip')].map((c) => c.dataset.ind), panel: document.querySelectorAll('#view .filter-panel, #view .filter-head, #view select').length, h3: document.querySelectorAll('#view h3').length }));
-    assert.deepEqual(state.chips, ['topBrand', 'sales', 'views', 'searches'], 'the four buttons of the page, always');
+    assert.deepEqual(state.chips, ['rated', 'sales', 'views', 'searches'], 'the four buttons of the page, always');
     assert.equal(state.panel, 0, 'no filter panel, no dropdowns: the chips are the filter');
     assert.equal(state.h3, 0);
-    assert.deepEqual(await names(), ['عطر الأعلى', 'عطر وسط', 'عطر منخفض'], 'with no chip: the usual order (by popularity)');
+    assert.deepEqual(await names(), ['عطر الأعلى', 'عطر وسط', 'عطر منخفض'], 'with no chip: the usual order (by relevance)');
     await page.click('#view .chip[data-ind="views"]');
-    assert.deepEqual(await names(), ['عطر منخفض', 'عطر وسط', 'عطر الأعلى'], 'most viewed: the most viewed first');
+    assert.deepEqual(await names(), ['عطر منخفض', 'عطر وسط', 'عطر الأعلى'], 'most viewed: rank 1 first');
     await page.click('#view .chip[data-ind="sales"]');
-    assert.deepEqual(await names(), ['عطر الأعلى', 'عطر وسط', 'عطر منخفض'], 'best sellers: the best selling first');
-    await page.click('#view .chip[data-ind="topBrand"]');
-    assert.deepEqual(await names(), ['عطر الأعلى', 'عطر منخفض'], 'each brand\'s best seller only');
+    assert.deepEqual(await names(), ['عطر الأعلى', 'عطر وسط', 'عطر منخفض'], 'best sellers: rank 1 first');
+    await page.click('#view .chip[data-ind="rated"]');
+    assert.deepEqual(await names(), ['عطر الأعلى', 'عطر منخفض'], 'most rated: only the perfumes that have a rating rank, the best first');
     await page.click('#view .chip[data-ind="searches"]');
-    assert.deepEqual(await names(), [], 'nobody searched yet: no perfumes...');
+    assert.deepEqual(await names(), [], 'nobody has a search rank yet: no perfumes...');
     assert.equal(await page.evaluate(() => document.querySelector('#res .empty').textContent), 'لا توجد عطور في هذا التصنيف حاليًا', '...and the page says so');
     assert.equal(await page.evaluate(() => document.querySelectorAll('#view .chip').length), 4, 'while all four buttons stay on the page');
-    await page.click('#view .chip[data-ind="topBrand"]');
+    await page.click('#view .chip[data-ind="rated"]');
     await page.waitForTimeout(400); /* the chip fades to its selected colours over .2s */
     const paint = await page.evaluate(() => {
       const cs = (e) => { const s = getComputedStyle(e); return { bg: s.backgroundImage, color: s.color }; };
@@ -205,7 +206,7 @@ test('Masterpieces page: the chips are the filter (no filter panel under them), 
     assert.equal(paint.on.color, paint.send.color, 'with the same white text');
     assert.equal(paint.onIcon, paint.send.color, 'and a white icon');
     assert.ok(!/gradient/.test(paint.off.bg), 'the other chips stay plain');
-    await page.click('#view .chip[data-ind="topBrand"]');
+    await page.click('#view .chip[data-ind="rated"]');
     assert.equal(await page.evaluate(() => document.querySelectorAll('#view .chip.on').length), 0, 'pressing the chosen chip again clears it');
     assert.equal((await names()).length, 3, 'and all the masterpieces are back');
     await page.evaluate(() => go('sec|offers'));

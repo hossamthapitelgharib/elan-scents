@@ -53,7 +53,7 @@ test('gender, occasion, and note filters use stable values with AND across dimen
       { id: 'size-b', name: 'wrong occasion', brand: 'B', gender: 'men', occasionKeys: ['date'], noteKeys: ['oud'], globalOffer: { price: 12, avail: true, flags: [] }, allEligibleOffers: [] },
       { id: 'size-c', name: 'wrong gender', brand: 'B', gender: 'women', occasionKeys: ['work'], noteKeys: ['oud'], globalOffer: { price: 12, avail: true, flags: [] }, allEligibleOffers: [] }
     ],
-    IND_SORT: {}, globalOffer: (p) => p.globalOffer
+    MASTER_CHIPS: [], globalOffer: (p) => p.globalOffer
   });
   vm.runInContext(source, context);
   assert.deepEqual(Array.from(vm.runInContext('list()', context), (row) => row.p.name), ['matching']);
@@ -73,7 +73,7 @@ test('size filter is available in the storefront and matches the exact unified p
       { id: 'size-50', name: '50 ml', sizeMl: 50, globalOffer: { price: 100, avail: true, flags: [] } },
       { id: 'size-100', name: '100 ml', sizeMl: 100, globalOffer: { price: 90, avail: true, flags: [] } }
     ],
-    IND_SORT: {}, globalOffer: (p) => p.globalOffer
+    MASTER_CHIPS: [], globalOffer: (p) => p.globalOffer
   });
   vm.runInContext(core.slice(rankedStart, rankedEnd) + '\n' + core.slice(start, end), context);
   assert.deepEqual(Array.from(vm.runInContext('list()', context), (row) => row.p.id), ['size-50']);
@@ -87,7 +87,7 @@ test('store pages use the same selected global offer contract, not the removed p
 
 test('active promotions are scoped to the same store as the canonical offer, with least-privilege SQL', () => {
   assert.match(core, /offers\?select=product_size_id,store_id&order=product_size_id\.asc,store_id\.asc/);
-  assert.match(core, /var promoOwner=\{\},topB=\{\};d\[13\]\.forEach/);
+  assert.match(core, /var promoOwner=\{\},rk=\{\};d\[13\]\.forEach/);
   assert.match(core, /promoOwner\[String\(r\.product_size_id\)\+'\|'\+String\(r\.store_id\)\]\?\['offers'\]:\[\]/);
   assert.match(core, /is_new_arrival,is_catalog_bestseller,is_coming_soon/);
   assert.match(core, /d\[14\]\.forEach\(function\(r\)\{if\(!r\.product_size_id\|\|!r\.store_id/);

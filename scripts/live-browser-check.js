@@ -138,7 +138,7 @@ const look = () => {
       expect(r.inner && !r.open && r.crumb.length > 0, 'the menu entry «' + go + '» opens its own page («' + r.crumb + '»)');
       expect(r.titles === 0 && (!r.word || r.crumb === r.word), '«' + go + '»: no title of its own, and the breadcrumb says the menu word («' + r.crumb + '»)');
     }
-    // The Masterpieces page: the chips are the filter (no filter panel), each chip ranks the perfumes by its own figure, and the selected chip is drawn
+    // The Masterpieces page: the chips are the filter (no filter panel), each chip ranks the perfumes by its own database rank, and the selected chip is drawn
     // with the same gold as the contact form's send button.
     await page.goto(site, { waitUntil: 'load' });
     await page.waitForTimeout(1500);
@@ -147,15 +147,15 @@ const look = () => {
     const mp = await page.evaluate(() => ({ chips: [...document.querySelectorAll('#view .chip')].map((c) => c.dataset.ind), panel: document.querySelectorAll('#view .filter-panel, #view select').length, cards: document.querySelectorAll('#res .card').length }));
     say('masterpieces page: ' + JSON.stringify(mp));
     expect(mp.panel === 0, 'the Masterpieces page has no filter panel under the chips');
-    expect(JSON.stringify(mp.chips) === JSON.stringify(['topBrand', 'sales', 'views', 'searches']), 'the Masterpieces page always shows its four buttons («' + mp.chips.join(', ') + '»), whatever the data');
-    const figure = { sales: 'sales', views: 'views', searches: 'searches', topBrand: 'sales' };
-    for (const k of ['topBrand', 'sales', 'views', 'searches']) {
+    expect(JSON.stringify(mp.chips) === JSON.stringify(['rated', 'sales', 'views', 'searches']), 'the Masterpieces page always shows its four buttons («' + mp.chips.join(', ') + '»), whatever the data');
+    const figure = { sales: 'sales', views: 'views', searches: 'searches', rated: 'rated' }; // the rank the database gives each perfume per button (1 = first)
+    for (const k of ['rated', 'sales', 'views', 'searches']) {
       await page.evaluate((c) => document.querySelector('#view .chip[data-ind="' + c + '"]').click(), k);
       await page.waitForTimeout(500);
-      const rk = await page.evaluate((a) => { const by = {}; PERFUMES.forEach((p) => { by[p.id] = p; }); const v = [...document.querySelectorAll('#res .card')].map((c) => { const p = by[(c.getAttribute('data-go') || '').split('|')[1]]; return p ? +p[a] || 0 : null; }); const e = document.querySelector('#res .empty'); return { values: v, on: document.querySelectorAll('#view .chip.on').length, chips: document.querySelectorAll('#view .chip').length, empty: e ? e.textContent : '' }; }, figure[k]);
+      const rk = await page.evaluate((a) => { const by = {}; PERFUMES.forEach((p) => { by[p.id] = p; }); const v = [...document.querySelectorAll('#res .card')].map((c) => { const p = by[(c.getAttribute('data-go') || '').split('|')[1]]; return p && p.rk && p.rk[a] != null ? +p.rk[a] : null; }); const e = document.querySelector('#res .empty'); return { values: v, on: document.querySelectorAll('#view .chip.on').length, chips: document.querySelectorAll('#view .chip').length, empty: e ? e.textContent : '' }; }, figure[k]);
       say('chip «' + k + '»: ' + JSON.stringify(rk));
       expect(rk.on === 1 && rk.chips === 4, 'chip «' + k + '»: one button selected and all four still on the page');
-      if (rk.values.length) expect(rk.values.every((x, i) => i === 0 || x === null || rk.values[i - 1] === null || rk.values[i - 1] >= x), 'chip «' + k + '»: the perfumes run from the highest ' + figure[k] + ' to the lowest');
+      if (rk.values.length) expect(rk.values.every((x, i) => x !== null && (i === 0 || rk.values[i - 1] <= x)), 'chip «' + k + '»: only perfumes that have a «' + figure[k] + '» rank, running from rank 1 downwards');
       else expect(rk.empty.length > 0, 'chip «' + k + '»: no perfumes yet, and the page says so («' + rk.empty + '»)');
     }
     await page.waitForTimeout(400);
