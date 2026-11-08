@@ -66,6 +66,11 @@ async function probe(base, fetchImpl) {
   const hook = await call('/api/store-order-status', { method: 'POST', headers: { 'content-type': 'application/json', 'x-store-webhook-secret': 'not-the-secret' }, body: '{}' });
   add('STORE_ORDER_WEBHOOK_SECRET', INFO, hook.status === 401 || hook.status === 503, hook.status === 503 ? 'not set (webhooks are refused with 503, safe)' : hook.status === 401 ? 'set (a wrong secret is refused)' : 'unexpected ' + hook.status);
 
+  // The stores' figures door (rankings): registered on the Worker, and it refuses a caller that has no store of its own - 401 with the one
+  // answer every failure gets (a 404 here would mean the handler is not deployed).
+  const figures = await call('/api/store-catalog-figures', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"figures":[]}' });
+  add('the store figures endpoint is deployed and refuses a caller without a store secret', REQUIRED, figures.status === 401 && jsonOf(figures.text).error === 'invalid_webhook_secret', figures.status);
+
   const editor = await call('/editor');
   add('the owner editor login page is served', REQUIRED, editor.status === 200 && editor.headers.get('x-frame-options') === 'DENY', editor.status);
   const state = await call('/api/editor?action=state');

@@ -114,6 +114,9 @@ async function main() {
     const denied = await post('/api/store-order-completed', {}, { 'x-store-webhook-secret': 'wrong' });
     const deniedBody = await denied.json().catch(() => ({}));
     check('the legacy webhook endpoint remains disabled', denied.status === 410 && deniedBody.error === 'legacy_webhook_disabled', denied.status + ' ' + JSON.stringify(deniedBody).slice(0, 100));
+    const noStore = await post('/api/store-catalog-figures', { figures: [] }, {});
+    const noStoreBody = await noStore.json().catch(() => ({}));
+    check('the store figures endpoint is registered and refuses a caller without a store secret', noStore.status === 401 && noStoreBody.error === 'invalid_webhook_secret', noStore.status + ' ' + JSON.stringify(noStoreBody).slice(0, 100));
     const gone = await get('/api/not-a-route');
     check('unknown /api route is 404 JSON', gone.status === 404 && (await gone.json()).error === 'not_found');
 
