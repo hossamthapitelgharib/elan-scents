@@ -169,8 +169,13 @@ async function actionSave(cfg, body) {
     return { status: 409, body: { ok: false, error: 'conflict', currentRevision: current.exists ? current.sha : null } };
   }
 
+  return commitDesign(cfg, current, text, desiredSha, 'design: update home page (editor)\n\nEditor-Request: ' + body.requestId);
+}
+
+/* Writes the design text as one commit on the target branch and reports what GitHub did. Never overwrites: a changed file is a conflict. */
+async function commitDesign(cfg, current, text, desiredSha, message) {
   const writeFile = () => github(cfg, 'PUT', '/contents/' + DESIGN_PATH, {
-    message: 'design: update home page (editor)\n\nEditor-Request: ' + body.requestId,
+    message,
     content: Buffer.from(text, 'utf8').toString('base64'),
     branch: cfg.branch,
     sha: current.exists ? current.sha : undefined
@@ -201,6 +206,69 @@ async function actionSave(cfg, body) {
   }
   if (put.status === 401 || put.status === 403) return { status: 502, body: { ok: false, error: 'github_auth_failed', detail: githubError('x', put, null, cfg).detail } };
   return { status: 502, body: { ok: false, error: 'github_write_failed', detail: githubError('x', put).detail } };
+}
+
+
+/* ---- Restore the previous version of the design ----
+   Every save is one commit of design/home.json. «Previous» is the newest earlier commit whose file differs from the one now on the branch.
+   Restoring writes that older file as a NEW commit (nothing is rewritten or deleted), so pressing it again goes back to what was replaced. */
+async function listDesignCommits(cfg, perPage) {
+  const r = await github(cfg, 'GET', '/commits?path=' + encodeURIComponent(DESIGN_PATH) + '&sha=' + encodeURIComponent(cfg.branch) + '&per_page=' + perPage);
+  if (r.status === 401 || r.status === 403) throw githubError('github_auth_failed', r, null, cfg);
+  if (r.status !== 200 || !Array.isArray(r.json)) throw githubError('github_read_failed', r);
+  return r.json.filter(function (c) { return c && typeof c.sha === 'string' && SHA_RE.test(c.sha); }).map(function (c) {
+    const meta = c.commit || {};
+    return { sha: c.sha, date: (meta.committer && meta.committer.date) || (meta.author && meta.author.date) || null, message: String(meta.message || '').split('\n')[0].slice(0, 120) };
+  });
+}
+
+async function readDesignAt(cfg, ref) {
+  const r = await github(cfg, 'GET', '/contents/' + DESIGN_PATH + '?ref=' + encodeURIComponent(ref));
+  if (r.status === 404) return { exists: false };
+  if (r.status === 401 || r.status === 403) throw githubError('github_auth_failed', r, null, cfg);
+  if (r.status !== 200 || !r.json || typeof r.json.content !== 'string') throw githubError('github_read_failed', r);
+  return { exists: true, sha: r.json.sha, text: Buffer.from(r.json.content, 'base64').toString('utf8') };
+}
+
+async function findPreviousVersion(cfg, current) {
+  const commits = await listDesignCommits(cfg, 12);
+  for (let i = 0; i < commits.length; i++) {
+    const at = await readDesignAt(cfg, commits[i].sha);
+    if (at.exists && at.sha !== current.sha) return Object.assign({ blob: at.sha, text: at.text }, commits[i]);
+  }
+  return null;
+}
+
+async function actionPrevious(cfg) {
+  const current = await readDesignFile(cfg);
+  if (!current.exists) return { status: 404, body: { ok: false, error: 'no_previous_version' } };
+  const prev = await findPreviousVersion(cfg, current);
+  if (!prev) return { status: 404, body: { ok: false, error: 'no_previous_version' } };
+  return { status: 200, body: { ok: true, current: { revision: current.sha }, previous: { commit: prev.sha, date: prev.date, message: prev.message }, branch: cfg.branch } };
+}
+
+async function actionRestore(cfg, body) {
+  if (typeof body.expectedRevision !== 'string' || !SHA_RE.test(body.expectedRevision)) return { status: 400, body: { ok: false, error: 'expected_revision_required' } };
+  if (typeof body.requestId !== 'string' || !REQUEST_ID_RE.test(body.requestId)) return { status: 400, body: { ok: false, error: 'request_id_required' } };
+  if (typeof body.restoreFrom !== 'string' || !SHA_RE.test(body.restoreFrom)) return { status: 400, body: { ok: false, error: 'restore_from_required' } };
+  const current = await readDesignFile(cfg);
+  if (!current.exists) return { status: 404, body: { ok: false, error: 'no_previous_version' } };
+  if (current.sha !== body.expectedRevision) return { status: 409, body: { ok: false, error: 'conflict', currentRevision: current.sha } };
+  // Only a commit that really changed the design file can be restored (never an arbitrary commit of the repository).
+  const known = (await listDesignCommits(cfg, 30)).filter(function (c) { return c.sha === body.restoreFrom; })[0];
+  if (!known) return { status: 400, body: { ok: false, error: 'unknown_version' } };
+  const at = await readDesignAt(cfg, known.sha);
+  if (!at.exists) return { status: 400, body: { ok: false, error: 'unknown_version' } };
+  let text;
+  try {
+    // The old file goes through today's rules like any save, so a version from before a rule changed cannot bring in what is no longer allowed.
+    text = ED.serialize(ED.normalize(JSON.parse(at.text), { strict: false }).design);
+  } catch (e) { return { status: 400, body: { ok: false, error: 'invalid_design', message: String(e.message || e).slice(0, 300) } }; }
+  const desiredSha = gitBlobSha(text);
+  if (desiredSha === current.sha) return { status: 200, body: { ok: true, committed: false, unchanged: true, revision: current.sha, branch: cfg.branch } };
+  const done = await commitDesign(cfg, current, text, desiredSha, 'design: restore previous version (editor)\n\nEditor-Request: ' + body.requestId + '\nRestored-From: ' + known.sha);
+  if (done.body && done.body.ok) done.body.restoredFrom = { commit: known.sha, date: known.date, message: known.message };
+  return done;
 }
 
 /* Published = the live site is serving exactly the committed bytes. */
@@ -241,6 +309,8 @@ module.exports = async function editor(req, res) {
     if (action === 'state') result = await actionState(cfg);
     else if (action === 'save' && req.method === 'POST') result = await actionSave(cfg, body);
     else if (action === 'status' && req.method === 'POST') result = await actionStatus(cfg, body);
+    else if (action === 'previous' && req.method === 'POST') result = await actionPrevious(cfg);
+    else if (action === 'restore' && req.method === 'POST') result = await actionRestore(cfg, body);
     else return reply(res, 400, { ok: false, error: 'unknown_action' });
     reply(res, result.status, result.body);
   } catch (e) {

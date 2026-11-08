@@ -18,9 +18,13 @@ function envFor(extra) {
 }
 
 function fakeGithub(initialText) {
-  const st = { file: initialText === null ? null : initialText, puts: [], calls: [], nextPut: null };
+  const st = { file: initialText === null ? null : initialText, puts: [], calls: [], nextPut: null, history: [] };
   st.handle = (url, opts) => {
     st.calls.push({ url, method: (opts && opts.method) || 'GET' });
+    // history: newest first, {sha, date, message, text}; read by commit list and by «contents at a commit»
+    if (/\/commits\?/.test(url)) return { status: 200, json: st.history.map((h) => ({ sha: h.sha, commit: { message: h.message, committer: { date: h.date } } })) };
+    const at = /\/contents\/design\/home\.json\?ref=([0-9a-f]{40})/.exec(url), hv = at && st.history.filter((h) => h.sha === at[1])[0];
+    if (at) return hv ? { status: 200, json: { sha: gitBlobSha(hv.text), content: Buffer.from(hv.text).toString('base64') } } : { status: 404, json: {} };
     if (/\/contents\/design\/home\.json/.test(url) && (!opts || !opts.method || opts.method === 'GET')) {
       if (st.file === null) return { status: 404, json: {} };
       return { status: 200, json: { sha: gitBlobSha(st.file), content: Buffer.from(st.file).toString('base64') } };
@@ -32,6 +36,7 @@ function fakeGithub(initialText) {
       const currentSha = st.file === null ? undefined : gitBlobSha(st.file);
       if (body.sha !== currentSha) return { status: 409, json: {} };
       st.file = Buffer.from(body.content, 'base64').toString('utf8');
+      st.history.unshift({ sha: sha40('c'), date: '2026-11-08T12:00:00Z', message: body.message.split('\n')[0], text: st.file });
       return { status: 200, json: { content: { sha: gitBlobSha(st.file) }, commit: { sha: sha40('c') } } };
     }
     return { status: 500, json: {} };
@@ -318,4 +323,70 @@ test('a token pasted with spaces around it still works, one with a bad character
   const bad = await run({ method: 'GET', query: { action: 'state' }, github: fakeGithub(EMPTY), env: { GITHUB_TOKEN: 'ghp test' } });
   assert.equal(bad.res.statusCode, 503);
   assert.match(bad.res.body.missing.join(' '), /GITHUB_TOKEN/);
+});
+
+/* ---------- restore the previous version ---------- */
+const B_TEXT = ED.serialize(goodDesign());
+const restoreBody = (over) => Object.assign({ action: 'restore', expectedRevision: gitBlobSha(B_TEXT), restoreFrom: sha40('a'), requestId: 'req-restore-1' }, over || {});
+const twoVersions = () => {
+  const gh = fakeGithub(B_TEXT);
+  gh.history = [
+    { sha: sha40('b'), date: '2026-11-08T10:00:00Z', message: 'design: update home page (editor)', text: B_TEXT },
+    { sha: sha40('a'), date: '2026-11-07T09:00:00Z', message: 'design: update home page (editor)', text: EMPTY }
+  ];
+  return gh;
+};
+
+test('previous: names the newest earlier version that differs from the current file, and skips copies of the current one', async () => {
+  const gh = twoVersions();
+  gh.history.splice(1, 0, { sha: sha40('d'), date: '2026-11-08T09:30:00Z', message: 'design: restore previous version (editor)', text: B_TEXT });
+  const r = await run({ body: { action: 'previous' }, github: gh });
+  assert.equal(r.res.statusCode, 200);
+  assert.equal(r.res.body.previous.commit, sha40('a'), 'a commit with the same file as now is not a previous version');
+  assert.equal(r.res.body.previous.date, '2026-11-07T09:00:00Z');
+  assert.equal(r.res.body.current.revision, gitBlobSha(B_TEXT));
+  assert.equal(gh.puts.length, 0, 'asking never writes');
+});
+
+test('previous: says so when there is nothing earlier', async () => {
+  const gh = fakeGithub(B_TEXT);
+  gh.history = [{ sha: sha40('b'), date: '2026-11-08T10:00:00Z', message: 'design: update home page (editor)', text: B_TEXT }];
+  const r = await run({ body: { action: 'previous' }, github: gh });
+  assert.equal(r.res.statusCode, 404);
+  assert.equal(r.res.body.error, 'no_previous_version');
+});
+
+test('restore: writes the older file as a NEW commit that says where it came from, and a second restore goes back', async () => {
+  const gh = twoVersions();
+  const r = await run({ body: restoreBody(), github: gh });
+  assert.equal(r.res.statusCode, 200, JSON.stringify(r.res.body));
+  assert.equal(r.res.body.committed, true);
+  assert.equal(r.res.body.restoredFrom.commit, sha40('a'));
+  assert.equal(gh.puts.length, 1);
+  assert.match(gh.puts[0].body.message, /restore previous version/);
+  assert.match(gh.puts[0].body.message, new RegExp('Restored-From: ' + sha40('a')));
+  assert.equal(gh.puts[0].body.branch, 'editor-v1');
+  assert.equal(gh.file, EMPTY, 'the file is the older version again');
+  const again = await run({ body: { action: 'previous' }, github: gh });
+  assert.equal(again.res.body.previous.commit, sha40('b'), 'the version that was replaced is now the previous one');
+  const back = await run({ body: restoreBody({ expectedRevision: gitBlobSha(EMPTY), restoreFrom: sha40('b'), requestId: 'req-restore-2' }), github: gh });
+  assert.equal(back.res.statusCode, 200);
+  assert.equal(gh.file, B_TEXT);
+});
+
+test('restore: refuses when the file changed since it was looked at, an unknown commit, bad input, and non-admins', async () => {
+  let gh = twoVersions();
+  const stale = await run({ body: restoreBody({ expectedRevision: gitBlobSha(EMPTY) }), github: gh });
+  assert.equal(stale.res.statusCode, 409); assert.equal(stale.res.body.error, 'conflict');
+  const unknown = await run({ body: restoreBody({ restoreFrom: sha40('f') }), github: gh });
+  assert.equal(unknown.res.statusCode, 400); assert.equal(unknown.res.body.error, 'unknown_version');
+  for (const over of [{ restoreFrom: undefined }, { restoreFrom: 'main' }, { expectedRevision: null }, { requestId: 'x' }]) {
+    assert.equal((await run({ body: restoreBody(over), github: gh })).res.statusCode, 400, JSON.stringify(over));
+  }
+  assert.equal(gh.puts.length, 0, 'nothing was written by any refused request');
+  gh = twoVersions();
+  assert.equal((await run({ body: restoreBody(), role: 'customer', github: gh })).res.statusCode, 403);
+  assert.equal((await run({ body: { action: 'previous' }, token: '', github: gh })).res.statusCode, 401);
+  assert.equal(gh.calls.length, 0, 'GitHub is not touched for them');
+  assert.equal((await run({ method: 'GET', query: { action: 'restore' }, github: gh })).res.statusCode, 400, 'restore is POST only');
 });

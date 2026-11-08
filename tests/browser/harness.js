@@ -64,6 +64,7 @@ async function openContext(browser, server, size) {
         if (typeof route.isHandled === 'function' && route.isHandled()) return;
         try { return await route.abort(); } catch (abortError) {
           if (!/already handled/i.test(String(abortError && abortError.message))) throw abortError;
+          return;   // already handled: falling through would fulfill the same route a second time
         }
       }
     }
