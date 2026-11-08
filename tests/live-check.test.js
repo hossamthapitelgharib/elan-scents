@@ -17,6 +17,7 @@ function fakeSite({ serviceKey, webhookSecret, csp = "default-src 'self'; script
     if (/^\/(index|account|dashboard|store-dashboard|platform-dashboard)\.html$/.test(req.url)) return send(200, '<html></html>', Object.assign({ 'Content-Type': 'text/html' }, csp ? { 'Content-Security-Policy': csp } : {}));
     if (req.url === '/hero-video.js') return send(200, "document.getElementById('heroVideo')", { 'Content-Type': 'text/javascript' });
     if (req.url === '/api/customer-orders') return serviceKey ? send(401, '{"error":"unauthorized"}') : send(503, '{"error":"supabase_service_configuration_missing"}');
+    if (req.url === '/api/store-catalog-figures') return send(401, '{"ok":false,"error":"invalid_webhook_secret"}');
     if (req.url === '/api/store-order-status') return webhookSecret ? send(401, '{"error":"unauthorized"}') : send(503, '{"error":"webhook_secret_not_configured"}');
     if (req.url === '/editor') return send(200, '<html></html>', { 'Content-Type': 'text/html', 'X-Frame-Options': 'DENY' });
     if (req.url.startsWith('/api/editor')) return send(401, '{"error":"unauthorized"}');
