@@ -262,3 +262,25 @@ test('storefront filters use exact unified sizes and owners; a changed cart offe
     assert.deepEqual(errors, [], 'no browser error across filter, store and cart routes');
   } finally { await context.close(); }
 });
+
+test('legacy cart lines are upgraded to the current global offer without changing stores', async () => {
+  const { context, page, errors } = await visit(H.WIDTHS[0]);
+  try {
+    const result = await page.evaluate(() => {
+      const offer = { store: 'Store A', storeId: 'store-a', storeProductId: 'sp-a', price: 100, cur: 'EGP', avail: true, flags: [], stock: 10 };
+      PERFUMES = [{ id: 'legacy-size', pid: 'product-a', name: 'Legacy Perfume', brand: 'Brand', sz: '50 ml', globalOffer: offer, allEligibleOffers: [offer], offersByStore: { 'store-a': offer } }];
+      CART = [{ sid: 'legacy-size', q: 2 }];
+      localStorage.setItem('elan_cart', JSON.stringify(CART));
+      const changed = upgradeLegacyCart();
+      const saved = JSON.parse(localStorage.getItem('elan_cart'));
+      const groups = cartGroups();
+      return { changed, saved: saved[0], groups: Object.keys(groups), price: groups['store-a']?.[0]?.b.price, storeProductId: groups['store-a']?.[0]?.c.storeProductId };
+    });
+    assert.equal(result.changed, true);
+    assert.deepEqual(result.saved, { sid: 'legacy-size', storeProductId: 'sp-a', storeId: 'store-a', storeName: 'Store A', observedPrice: 100, currency: 'EGP', q: 2 });
+    assert.deepEqual(result.groups, ['store-a']);
+    assert.equal(result.price, 100);
+    assert.equal(result.storeProductId, 'sp-a');
+    assert.deepEqual(errors, []);
+  } finally { await context.close(); }
+});
