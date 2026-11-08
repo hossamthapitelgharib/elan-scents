@@ -25,6 +25,8 @@
     '.elan-image img,.elan-image video{max-width:100%;height:auto;display:block;margin:0 auto;border-radius:12px}',
     '.elan-block a{color:inherit;text-decoration:none;display:block}',
     '.elan-smart{max-width:1200px}.elan-smart h3{margin:0 0 12px;text-align:start}',
+    /* The top bar was hidden in the editor: the header, which sits just under it, goes up to the top. */
+    'html body.elan-no-bar header{top:0!important}',
     /* A free text: a zero-height slot in the flow (nothing moves for it) and the text itself laid over the page from that slot. */
     '.elan-float{position:relative;height:0;max-width:none;margin:0;padding:0;overflow:visible;z-index:100}',
     '.elan-float p{position:absolute;top:0;inset-inline-start:16px;width:320px;min-height:90px;max-width:calc(100% - 32px);margin:0;padding:8px;box-sizing:border-box}'
@@ -193,6 +195,8 @@
   function elements() {
     var out = [], seen = {}, seenDefault = {};
     function add(id, el, kind, name, did) { if (!el || seen[id]) return; seen[id] = 1; out.push({ id: id, el: el, kind: kind, name: name, did: did }); }
+    /* The scrolling bar at the very top of every page (its text is the site's own «bar» text). The header under it is not an editable element. */
+    add('top:bar', document.getElementById('bar'), 'top-bar', 'الشريط العلوي');
     var hero = document.getElementById('hero');
     if (hero) {
       add('hero', hero, 'hero', 'الواجهة الرئيسية');
@@ -261,6 +265,7 @@
   function textTarget(e) {
     if (e.kind === 'title' || e.kind === 'text-area') return e.el;
     if (e.kind === 'hero-text') return e.el.querySelector('h2');
+    if (e.kind === 'top-bar') return e.el.querySelector('#barT');
     if (e.kind === 'card') return e.el.querySelector('h4');
     if (e.kind === 'block') return e.el.matches && e.el.matches('p, h3') ? e.el : e.el.querySelector('p, h3');
     return null;
@@ -276,7 +281,24 @@
       var t = el.__elanText; t.node.textContent = t.children && t.children.length ? '' : t.value;
       (t.children || []).forEach(function (child) { t.node.appendChild(child); }); delete el.__elanText;
     }
+    if (el.__elanInner) { var inn = el.__elanInner; if (inn.base === null) inn.node.removeAttribute('style'); else inn.node.setAttribute('style', inn.base); delete el.__elanInner; }
+    if (el.__elanBar) { document.body.classList.remove('elan-no-bar'); delete el.__elanBar; }
     delete el.__elanOff; delete el.__elanApplied;
+  }
+
+  /* The bar's text runs as a marquee: the site draws its text four times in a row so the line never has a gap. A text chosen in the editor is drawn the same way. */
+  function barText(t) { return (String(t) + '  •  ').repeat(4); }
+  /* The page's own sheet sets the bar's height and size with !important on phones, so a size chosen here is drawn with !important too; the bar's words are
+     a gold-gradient text of their own, so a colour chosen here has to reach them. */
+  function paintBar(el, ed, st) {
+    if (st.fontSize) el.style.setProperty('font-size', st.fontSize + 'px', 'important');
+    if (ed.h) el.style.setProperty('height', ed.h + 'px', 'important');
+    var inner = el.querySelector('#barT'), c = st.color || (st.effect === 'gold' ? '#ae852e' : '');
+    if (inner && (c || el.style.textShadow)) {
+      el.__elanInner = { node: inner, base: inner.getAttribute('style') };
+      if (c) { inner.style.background = 'none'; inner.style.color = c; inner.style.setProperty('-webkit-text-fill-color', c); }
+      if (el.style.textShadow) inner.style.textShadow = el.style.textShadow;
+    }
   }
 
   /* A card moved inside a card strip stays inside it. A strip scrolls sideways only while it clips, so it is never opened up (overflow:visible, which is what
@@ -399,7 +421,9 @@
     el.setAttribute('data-elan-edited', '1');
     if (ed.hidden || ed.archived) {
       if (entry.kind === 'hero') return;   // the hero is the page's white base: deleting it only removes what sat on top of it
-      el.style.setProperty('display', 'none', 'important'); return;
+      el.style.setProperty('display', 'none', 'important');
+      if (entry.kind === 'top-bar') { document.body.classList.add('elan-no-bar'); el.__elanBar = true; }
+      return;
     }
     if (ed.dx || ed.dy) {
       el.style.transform = 'translate(' + (ed.dx || 0) + 'px,' + (ed.dy || 0) + 'px)';
@@ -421,6 +445,7 @@
     if (st.effect === 'gold') { el.style.color = st.color || '#ae852e'; el.style.textShadow = '0 1px 0 #fceab1,0 2px 0 #77541e,0 4px 6px rgba(80,52,0,.3)'; el.style.boxShadow = '0 2px 0 #d6bc79,0 9px 22px rgba(101,72,18,.22)'; }
     if (st.effect === 'deep') { el.style.textShadow = '1px 1px 0 rgba(255,255,255,.6),2px 3px 3px rgba(0,0,0,.3)'; el.style.boxShadow = '0 4px 0 rgba(0,0,0,.13),0 14px 26px rgba(0,0,0,.2)'; }
     if (st.opacity !== undefined) el.style.opacity = String(st.opacity);
+    if (entry.kind === 'top-bar') paintBar(el, ed, st);
     if (ed.media && ed.media.src) paintMedia(entry, ed.media);
     if (ed.noMedia && entry.kind === 'card' && !st.media && !(ed.media && ed.media.src)) {
       /* the card's own picture was deleted in the editor: the card is its white base until a picture or a video is added */
@@ -430,7 +455,7 @@
     }
     if (ed.text) {
       var node = textTarget(entry), t = ed.text[lang()] || ed.text.ar || ed.text.en;
-      if (node && t) { el.__elanText = { node: node, value: node.textContent, children: Array.prototype.slice.call(node.childNodes) }; node.textContent = t; }
+      if (node && t) { el.__elanText = { node: node, value: node.textContent, children: Array.prototype.slice.call(node.childNodes) }; node.textContent = entry.kind === 'top-bar' ? barText(t) : t; }
     }
   }
 

@@ -177,7 +177,7 @@
     return out;
   }
   /* What the editor needs to know about an element: the original editor's type names plus its current look. */
-  var TYPE_OF = { section: 'section', title: 'text', 'hero-text': 'text', hero: 'section', 'hero-counters': 'text', card: 'card', block: 'block', 'text-area': 'text', group: 'section', 'image-el': 'image' };
+  var TYPE_OF = { section: 'section', title: 'text', 'top-bar': 'text', 'hero-text': 'text', hero: 'section', 'hero-counters': 'text', card: 'card', block: 'block', 'text-area': 'text', group: 'section', 'image-el': 'image' };
   function info(e) {
     if (!e) return null;
     var node = layer.textTarget(e) || e.el, cs = getComputedStyle(node), current = cur(e.id), st = current.style || {};
@@ -521,6 +521,13 @@
     if (!node) { say('العنصر ده مفيهوش نص يتعدّل مباشرة.'); return; }
     commitText();
     editing = { id: id, node: node, before: node.textContent };
+    if (e.kind === 'top-bar') {
+      /* The bar runs as a marquee of four copies of its text: it is edited as one copy, standing still, and drawn again as a marquee after. */
+      var saved = (cur(id).text || {})[lang()], site = typeof D === 'object' && D && D[lang()] && D[lang()].bar;
+      editing.shown = node.textContent; editing.style = node.getAttribute('style');
+      editing.before = String(saved || site || '').replace(/[\s•]+$/, '');
+      node.style.animation = 'none'; node.style.paddingInlineStart = '0'; node.style.display = 'block'; node.textContent = editing.before;
+    }
     node.setAttribute('contenteditable', 'plaintext-only');
     if (node.contentEditable !== 'plaintext-only') node.setAttribute('contenteditable', 'true');
     node.focus();
@@ -531,7 +538,8 @@
     var ed = editing; editing = null;
     ed.node.removeAttribute('contenteditable');
     var text = ed.node.textContent.replace(/\r\n?/g, '\n').trim();
-    if (!text || text === ed.before) { ed.node.textContent = ed.before; return; }
+    if (ed.shown !== undefined) { if (ed.style === null) ed.node.removeAttribute('style'); else ed.node.setAttribute('style', ed.style); }
+    if (!text || text === ed.before) { ed.node.textContent = ed.shown !== undefined ? ed.shown : ed.before; return; }
     mutate(function () {
       var e = edit('all', ed.id); e.text = e.text || {};
       e.text[lang()] = text.slice(0, 600);
@@ -546,7 +554,7 @@
     if (ev.key === 'Escape') closeMenu();
     if (editing) {
       if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); commitText(); }
-      else if (ev.key === 'Escape') { ev.preventDefault(); editing.node.textContent = editing.before; editing.node.removeAttribute('contenteditable'); editing = null; }
+      else if (ev.key === 'Escape') { ev.preventDefault(); var ec = editing; ec.node.textContent = ec.shown !== undefined ? ec.shown : ec.before; ec.node.removeAttribute('contenteditable'); if (ec.shown !== undefined) { if (ec.style === null) ec.node.removeAttribute('style'); else ec.node.setAttribute('style', ec.style); } editing = null; }
       return;
     }
     if (gesture && gesture.moved && ev.key === 'Escape') { ev.preventDefault(); endGesture(gesture); gesture = null; repaint(); return; }
@@ -937,8 +945,10 @@
   registerTool({ id: 'edit_text', label: 'تعديل النص بالكيبورد', when: function (i) { return !!(i && i.textId && i.type !== 'image' && i.type !== 'video'); }, run: function (c) { var id = (c.info && c.info.textId) || c.id; select(id); startText(id); return null; } });
   registerTool({ id: 'copy', label: 'نسخ العنصر', when: function (i) { return !!(i && (i.isBlock || i.copyKind)); }, run: function (c) { return execute('element.duplicate', { elementId: c.id }, {}); } });
   registerTool({ id: 'archive', label: 'حذف العنصر إلى الأرشيف', when: has, run: function (c) { archive(c.id); return null; } });
-  registerTool({ id: 'library_save', label: 'حفظ العنصر في المكتبة', when: has, run: saveToLibrary });
-  registerTool({ id: 'library_download', label: 'تنزيل العنصر للمكتبة كملف', when: has, run: downloadFromLibrary });
+  /* The top bar belongs to the whole site, not to a page: it is not saved to the library or downloaded from it. */
+  function notBar(i) { return has(i) && i.kind !== 'top-bar'; }
+  registerTool({ id: 'library_save', label: 'حفظ العنصر في المكتبة', when: notBar, run: saveToLibrary });
+  registerTool({ id: 'library_download', label: 'تنزيل العنصر للمكتبة كملف', when: notBar, run: downloadFromLibrary });
   registerTool({ id: 'create_image', label: 'إنشاء صورة أو فيديو', ui: 'media_new', run: function (c) { if (!c.src) throw new Error('اختاري صورة أو فيديو الأول.'); return createBlock('image', { at: c.at, src: c.src }); } });
   registerTool({ id: 'open', label: 'دخول لصفحة', when: function (i) { return !!(i && i.dynamic); }, run: function (c) { enterPage(entryById(c.id)); return null; } });
   /* Back / home are not in the mouse menu any more: the editor header has the «صفحة سابقة» button for them. The tools stay registered
