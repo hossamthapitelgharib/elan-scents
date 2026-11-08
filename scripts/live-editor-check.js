@@ -47,7 +47,7 @@ async function openMenu(page, frame) {
 }
 
 /* check({ context, base, login, shots }) -> { lines, problems }. `login(page)` signs in when the editor shows its login page. */
-async function check({ context, base, login, shots, loginWaitMs }) {
+async function check({ context, base, login, accessKey, shots, loginWaitMs }) {
   const lines = [], problems = [];
   const say = (t) => lines.push(t), bad = (t) => { problems.push(t); lines.push('FAIL ' + t); };
   const shot = async (page, name) => { if (shots) { fs.mkdirSync(shots, { recursive: true }); await page.screenshot({ path: path.join(shots, name + '.png') }); } };
@@ -61,8 +61,10 @@ async function check({ context, base, login, shots, loginWaitMs }) {
   page.on('requestfailed', (r) => { const u = hostOf(r.url()); if (/challenges\.cloudflare\.com|\/api\//.test(u)) seen.push(u.slice(0, 60) + ' failed ' + String(r.failure() && r.failure().errorText || '').slice(0, 40)); });
   page.on('pageerror', (e) => errors.push(String(e && e.message || e).slice(0, 120)));
   page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') errors.push(String(m.text()).slice(0, 120)); });
-  await page.goto(base + '/editor', { waitUntil: 'load' });
-  if (await page.locator('#loginBtn').count()) { await login(page); await page.waitForURL((u) => !/login/.test(u.search) && u.pathname === '/editor', { timeout: loginWaitMs || 30000 }).catch(() => {}); await page.waitForTimeout(1000); }
+  const editorUrl = new URL('/editor', base);
+  if (accessKey) editorUrl.searchParams.set('key', accessKey);
+  await page.goto(editorUrl.toString(), { waitUntil: 'load' });
+  if (!accessKey && await page.locator('#loginBtn').count()) { await login(page); await page.waitForURL((u) => !/login/.test(u.search) && u.pathname === '/editor', { timeout: loginWaitMs || 30000 }).catch(() => {}); await page.waitForTimeout(1000); }
   const frame = await findFrame(page);
   if (!frame) {
     // The login page's own status line (an Arabic sentence such as the security-check refusal; never the typed values) says why the sign-in did not go through.
@@ -139,17 +141,16 @@ module.exports = { check, PANELS };
 if (require.main === module) {
   (async () => {
     const base = (process.argv[2] || process.env.SITE_URL || 'https://elan-scents.hossamthapitelgharib.workers.dev').replace(/\/$/, '');
-    const email = process.env.EDITOR_LIVE_EMAIL || '', password = process.env.EDITOR_LIVE_PASSWORD || '';
-    if (!email || !password) {
-      console.log('The repository secrets EDITOR_LIVE_EMAIL and EDITOR_LIVE_PASSWORD are not set, so the editor cannot be opened from here.');
-      console.log('Add them under Settings > Secrets and variables > Actions, then run this workflow again. Nothing was checked.');
+    const email = process.env.EDITOR_LIVE_EMAIL || '', password = process.env.EDITOR_LIVE_PASSWORD || '', accessKey = process.env.EDITOR_LIVE_ACCESS_KEY || '';
+    if ((!email || !password) && !accessKey) {
+      console.log('Set EDITOR_LIVE_EMAIL and EDITOR_LIVE_PASSWORD, or the short-lived EDITOR_LIVE_ACCESS_KEY repository secret, then run this workflow again. Nothing was checked.');
       return;
     }
     const { chromium } = require('playwright');
     const browser = await chromium.launch({ args: ['--no-sandbox'] });
     const context = await browser.newContext({ viewport: { width: 1366, height: 860 }, locale: 'ar-EG' });
     const login = async (page) => { await page.fill('#email', email); await page.fill('#pass', password); await page.click('#loginBtn'); };
-    const out = await check({ context, base, login, shots: process.argv[3] || 'live-editor-shots' });
+    const out = await check({ context, base, login, accessKey, shots: process.argv[3] || 'live-editor-shots' });
     await browser.close();
     console.log(out.lines.join('\n'));
     if (out.notChecked) console.log('::warning title=Live editor check::NOT CHECKED - the sign-in waits for Cloudflare\u2019s security check, which this automated browser does not pass. Nothing about the editor was compared.');
