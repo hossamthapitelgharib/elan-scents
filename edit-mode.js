@@ -424,7 +424,7 @@
     }
     if (!e) return;
     var r = e.el.getBoundingClientRect(), b = base(e.id);
-    gesture = { id: e.id, el: e.el, mode: mode, handle: handle, sx: ev.clientX, sy: ev.clientY, r: r, b: b, moved: false, dx: b.dx, dy: b.dy, w: null, h: null, startOffset: e.el.style.transform, flow: mode === 'move' ? flowOf(e) : null, slot: null, strip: null };
+    gesture = { id: e.id, el: e.el, mode: mode, handle: handle, sx: ev.clientX, sy: ev.clientY, r: r, b: b, moved: false, dx: b.dx, dy: b.dy, w: null, h: null, startOffset: e.el.style.transform, flow: mode === 'move' ? flowOf(e) : null, slot: null, strip: null, touch: ev.pointerType === 'touch', styleAttr: e.el.getAttribute('style') };
     try { (handle ? ev.target : document.documentElement).setPointerCapture && ev.target.setPointerCapture(ev.pointerId); } catch (_) { /* optional */ }
   }, true);
 
@@ -441,7 +441,8 @@
       var next = Geometry.move(g.r, g.b, { x: ddx, y: ddy });
       g.dx = next.dx; g.dy = next.dy;
       g.el.style.transform = 'translate(' + g.dx + 'px,' + g.dy + 'px)';
-      if (g.flow && g.flow.type === 'card' && !g.strip) { var strip = stripOf(entryById(g.id)); if (strip) { g.strip = { node: strip, base: strip.getAttribute('style') || '' }; strip.style.overflow = 'visible'; } }
+      // A finger swiping along a strip must scroll it: with overflow:visible the strip has nothing to pan, so only mouse/pen drags free the card.
+      if (g.flow && g.flow.type === 'card' && !g.strip && !g.touch) { var strip = stripOf(entryById(g.id)); if (strip) { g.strip = { node: strip, base: strip.getAttribute('style') || '' }; strip.style.overflow = 'visible'; } }
       if (g.flow && g.flow.siblings.length && !ev.altKey) { g.slot = slotAt(g.flow, ev.clientX, ev.clientY); showDrop(g.flow, g.slot); }
       else { g.slot = null; hideDrop(); }
     } else {
@@ -485,7 +486,11 @@
 
   window.addEventListener('pointercancel', function (ev) {
     if (touchPress && touchPress.pointerId === ev.pointerId) { clearTimeout(touchPress.timer); touchPress = null; }
-    if (gesture) { endGesture(gesture); if (gesture.moved) repaint(); }
+    if (gesture) {
+      var cg = gesture; endGesture(cg);
+      // The browser took the finger for a scroll. Put the element back as it was; a full repaint would re-render the page and throw the scrolled strip back to its start.
+      if (cg.moved) { if (cg.touch && cg.el.isConnected) { if (cg.styleAttr === null) cg.el.removeAttribute('style'); else cg.el.setAttribute('style', cg.styleAttr); placeBox(); } else repaint(); }
+    }
     gesture = null;
   }, true);
 

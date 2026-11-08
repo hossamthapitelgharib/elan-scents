@@ -13,6 +13,19 @@
   ].join('\n');
   document.head.appendChild(css);
 
+  /* A name such as «10964.webp» or «عطر 9424.png» must read as written in this right-to-left list: every word made only of Latin letters and digits stays left to right
+     (<bdi>), the text itself is unchanged. */
+  function nameInto(node, name) {
+    var plain = '';                          // Arabic words and spaces stay in one text node; only a Latin/digit word gets its own <bdi>
+    String(name == null ? '' : name).split(/(\s+)/).forEach(function (part) {
+      if (part && /[A-Za-z0-9]/.test(part) && !/[\u0590-\u08FF]/.test(part)) {
+        if (plain) { node.appendChild(document.createTextNode(plain)); plain = ''; }
+        var w = document.createElement('bdi'); w.dir = 'ltr'; w.textContent = part; node.appendChild(w);
+      } else plain += part;
+    });
+    if (plain) node.appendChild(document.createTextNode(plain));
+    return node;
+  }
   function el(tag, text, props) { var x = document.createElement(tag); if (text) x.textContent = text; Object.keys(props || {}).forEach(function (k) { x[k] = props[k]; }); return x; }
 
   function failure(code) { var e = new Error(code); e.code = code; return e; }
@@ -99,8 +112,9 @@
             offset += j.items.length; note.textContent = '';
             if (!offset) list.appendChild(el('p', 'لا توجد صور أو فيديوهات محفوظة في المكتبة المركزية.'));
             j.items.forEach(function (it) {
-              var b = el('button', it.title || (it.kind === 'video' ? 'فيديو' : 'صورة')); b.type = 'button'; b.dataset.kind = it.kind || '';
-              b.style.cssText = 'display:block;width:100%;margin:6px 0'; b.onclick = function () { finish(it.url); }; list.appendChild(b);
+              var b = el('button'); nameInto(b, it.title || (it.kind === 'video' ? 'فيديو' : 'صورة')); b.type = 'button'; b.dataset.kind = it.kind || '';
+              /* unicode-bidi: «10964.webp» must not read «webp.10964» in the right-to-left list */
+              b.style.cssText = 'display:block;width:100%;margin:6px 0;unicode-bidi:plaintext'; b.onclick = function () { finish(it.url); }; list.appendChild(b);
             });
             list.appendChild(more); more.style.display = j.items.length < 24 ? 'none' : 'block';
           } catch (e) { note.textContent = e.message; more.style.display = 'none'; }

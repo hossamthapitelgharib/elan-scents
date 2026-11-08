@@ -301,6 +301,41 @@ test('library window: nothing that is only filler; a retry button only when the 
   } finally { await context.close(); }
 });
 
+/* A file name like «10964.webp» was drawn «webp.10964» in the right-to-left window (the owner's phone screenshot): the full stop between digits and
+   Latin letters took the page's direction. Each name now takes the direction of its own first strong letter (CSS unicode-bidi: plaintext, the text itself is untouched), so a file name reads as written and an Arabic name still reads as Arabic. */
+test('library: a file name reads as it is written (10964.webp, not webp.10964)', async () => {
+  const IMG = 'https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/x.png';
+  const cloud = { archive: [], savedElements: [], media: [
+    { id: '00000000-0000-4000-8000-000000000021', name: '10964.webp', src: IMG, type: 'image', category: 'image' },
+    { id: '00000000-0000-4000-8000-000000000022', name: 'عطر 9424.png', src: IMG, type: 'image', category: 'image' }] };
+  const { context, page } = await openEditor(undefined, cloud);
+  try {
+    await page.click('#library'); await page.waitForTimeout(700);
+    await page.locator('#libraryDialog [data-lib-tab="saved"]').click(); await page.waitForTimeout(200);
+    await page.locator('#libraryDialog [data-lib-cat="image"]').click(); await page.waitForTimeout(300);
+    /* where each character of the name is drawn, left to right */
+    const order = await page.evaluate(() => {
+      const spans = Array.from(document.querySelectorAll('#libraryDialog [data-lib-list] span')).filter((x) => /webp|png/.test(x.textContent));
+      return spans.map((span) => {
+        const s = span.textContent, find = (ch) => s.indexOf(ch);
+        const at = (i) => {                       // the box of the i-th character, whichever text node (word) holds it
+          const walker = document.createTreeWalker(span, NodeFilter.SHOW_TEXT); let seen = 0, node;
+          while ((node = walker.nextNode())) {
+            if (i < seen + node.data.length) { const r = document.createRange(); r.setStart(node, i - seen); r.setEnd(node, i - seen + 1); return r.getBoundingClientRect().left; }
+            seen += node.data.length;
+          }
+          return NaN;
+        };
+        return { shown: s, digitX: at(find('9')), letterX: at(Math.max(find('w'), find('p'))) };
+      });
+    });
+    const webp = order.find((o) => o.shown === '10964.webp'), arabic = order.find((o) => /عطر/.test(o.shown));
+    assert.ok(webp && arabic, 'both names are listed: ' + JSON.stringify(order));
+    assert.ok(webp.digitX < webp.letterX, '«10964.webp» reads left to right as written: ' + JSON.stringify(webp));
+    assert.ok(arabic.digitX < arabic.letterX, 'a Latin word inside an Arabic name reads as written too («9424.png»): ' + JSON.stringify(arabic));
+  } finally { await context.close(); }
+});
+
 /* The owner (2026-11-07): choosing an item from the library to use it somewhere must let him decide the place with a left mouse click.
    The window closes, the page waits for ONE left click (hint on the page), nothing changes before it, Esc cancels, and the click point
    decides where it goes. */

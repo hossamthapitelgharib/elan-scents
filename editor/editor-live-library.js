@@ -273,6 +273,21 @@
     if (css) node.style.cssText = css;
     return node;
   }
+  /* A file name such as «10964.webp» is shown right to left in this page and read «webp.10964». `unicode-bidi: plaintext` gives each name the direction of
+     its own first strong letter, and every word made only of Latin letters and digits («9424.png» inside an Arabic name) is kept left to right in a <bdi>,
+     so the name reads as written. The text itself (textContent) is not changed. */
+  var OWN_DIRECTION = 'unicode-bidi:plaintext';
+  function nameInto(node, name) {
+    var plain = '';                          // Arabic words and spaces stay in one text node; only a Latin/digit word gets its own <bdi>
+    String(name == null ? '' : name).split(/(\s+)/).forEach(function (part) {
+      if (part && /[A-Za-z0-9]/.test(part) && !/[\u0590-\u08FF]/.test(part)) {
+        if (plain) { node.appendChild(document.createTextNode(plain)); plain = ''; }
+        var w = document.createElement('bdi'); w.dir = 'ltr'; w.textContent = part; node.appendChild(w);
+      } else plain += part;
+    });
+    if (plain) node.appendChild(document.createTextNode(plain));
+    return node;
+  }
   function libButton(text, fn) { var b = make('button', text); b.type = 'button'; b.onclick = fn; return b; }
   function labelOf(key) { var hit = CATEGORIES.filter(function (c) { return c[0] === key; })[0]; return hit ? hit[1] : key === 'other' ? 'أخرى' : ''; }
   function say(text) { if (typeof window.markBridge === 'function') window.markBridge(text); }
@@ -311,7 +326,7 @@
     if (report.alreadyThere || report.reusedMedia) parts.push('وكان ' + (report.alreadyThere + report.reusedMedia) + ' موجودًا مسبقًا');
     var text = parts.join('، ') + '.';
     if (report.failed.length) {
-      text += ' تعذّر نقل ' + report.failed.length + ': ' + report.failed.slice(0, 3).map(function (f) { return f.name + ' (' + (REASONS[f.reason] || f.reason) + ')'; }).join('، ') + '.';
+      text += ' تعذّر نقل ' + report.failed.length + ': ' + report.failed.slice(0, 3).map(function (f) { return '\u2068' + f.name + '\u2069 (' + (REASONS[f.reason] || f.reason) + ')'; }).join('، ') + '.';
     }
     text += report.verified
       ? ' تأكدنا من النقل بقراءة المكتبة بعد الحفظ، ولم يُحذف شيء محليًا.'
@@ -359,7 +374,7 @@
       img.src = entry.src; img.alt = entry.name; img.loading = 'lazy'; img.referrerPolicy = 'no-referrer';
       box.append(img);
     }
-    var text = make('span', entry.name, 'flex:1');
+    var text = nameInto(make('span', '', 'flex:1;' + OWN_DIRECTION), entry.name);
     var act = libButton(label, run);
     act.disabled = !entry.can;
     box.append(text, act);
