@@ -122,8 +122,10 @@ test('4. login request receives a mocked session and updates the signed-in menu'
     await page.locator('[data-auth-mode="login"] input[name="password"]').fill('correct-password');
     await page.locator('[data-auth-mode="login"] button[type="submit"]').click();
     await page.waitForFunction(() => !!JSON.parse(localStorage.getItem('elan_auth_session') || 'null'));
-    await page.waitForFunction(() => document.getElementById('sheet').hidden);
-    assert.equal(await page.locator('#sheet').isHidden(), true, 'the login panel closes and the cart does not open by itself');
+    await page.waitForSelector('#sheet[data-kind="welcome"] .auth-done', { timeout: 8000 });
+    assert.equal(await page.locator('#sheet [data-auth-mode="login"]').count(), 0, 'the login form is replaced by the welcome card, and the cart does not open by itself');
+    await page.locator('#sheet [data-close-sheet].btn').click();
+    assert.equal(await page.locator('#sheet').isHidden(), true, 'OK closes the card');
   } finally { await c.context.close(); }
 });
 
@@ -235,9 +237,9 @@ test('11. signing out empties the cart and the favourites on screen and on the d
     assert.ok(await page.evaluate(() => !!localStorage.getItem('elan_auth_session')), 'still signed in while the question is open');
     await Promise.all([page.waitForEvent('load', { timeout: 10000 }), page.locator('#sheet [data-logout-now]').click()]);
     await page.waitForTimeout(800);
-    assert.equal(await page.locator('#toast b').textContent(), 'تم تسجيل الخروج بنجاح', 'the goodbye is on screen after signing out');
-    assert.equal(await page.locator('#toast span').textContent(), 'كنا سعداء بوجودك معنا، وفي انتظارك دائمًا.', 'with the farewell line');
-    assert.equal(await page.locator('#toast').getAttribute('class'), 'show rich');
+    assert.equal(await page.locator('#sheet[data-kind="goodbye"] .auth-done h3').textContent(), 'تم تسجيل الخروج بنجاح', 'the goodbye card is on screen after signing out');
+    assert.match(await page.locator('#sheet .auth-done p').textContent(), /كنا سعداء بوجودك معنا، وفي انتظارك دائمًا\./, 'with the farewell line');
+    assert.equal(await page.locator('#sheet [data-close-sheet].btn').textContent(), 'موافق', 'it has its own OK button, like the first-time welcome');
     const after = await read();
     assert.deepEqual({ cart: after.cart, favs: after.favs, auth: after.auth, cartN: after.cartN, favN: after.favN }, { cart: null, favs: null, auth: null, cartN: '0', favN: '0' });
     assert.deepEqual(favWrites.filter((w) => w.method === 'DELETE'), [], 'signing out never deletes the customer\'s saved favourites in the account');
@@ -300,10 +302,11 @@ test('14. the welcome message is on screen right after signing in', async () => 
     await page.locator('[data-auth-mode="login"] input[name="email"]').fill('customer@example.test');
     await page.locator('[data-auth-mode="login"] input[name="password"]').fill('correct-password');
     await page.locator('[data-auth-mode="login"] button[type="submit"]').click();
-    await page.waitForFunction(() => /^show/.test(document.getElementById('toast').className) && document.getElementById('toast').textContent.length > 0, null, { timeout: 8000 });
-    assert.equal(await page.locator('#toast b').textContent(), 'أهلًا ومرحبًا بك');
-    assert.equal(await page.locator('#toast span').textContent(), 'ونتمنى لك رحلة تسويقية ممتعة');
-    await page.waitForFunction(() => getComputedStyle(document.getElementById('toast')).opacity === '1', null, { timeout: 3000 });   // it fades in over 0.3 s
+    await page.waitForSelector('#sheet[data-kind="welcome"] .auth-done', { timeout: 8000 });
+    assert.equal(await page.locator('#sheet .auth-done h3').textContent(), 'تم تسجيل الدخول بنجاح');
+    assert.match(await page.locator('#sheet .auth-done p').textContent(), /أهلًا ومرحبًا بك ونتمنى لك رحلة تسويقية ممتعة/);
+    assert.equal(await page.locator('#sheet [data-close-sheet].btn').textContent(), 'موافق', 'the same card and OK button as the first-time welcome');
+    assert.equal(await page.locator('#toast.show').count(), 0, 'no toast any more');
   } finally { await c.context.close(); }
 });
 
@@ -459,5 +462,49 @@ test('16b. an older account left signed in on the device never lends its cart or
     assert.equal(after.cartN, '0'); assert.equal(after.favN, '0');
     assert.equal(after.cartOwner, 'new-1'); assert.equal(after.favOwner, 'new-1');
     assert.deepEqual(favWrites.filter((w) => w.method !== 'GET'), [], 'nothing of the old account is written onto the new one');
+  } finally { await c.context.close(); }
+});
+
+// 17. «forgot password»: the e-mail link opens a card on the shop itself where the new password is written (owner, 8 Nov 2026); no second page.
+const RECOVERY_HASH = '#access_token=rec-token&refresh_token=rec-refresh&expires_in=3600&token_type=bearer&type=recovery';
+test('17. the reset link opens the new-password card on the shop, the password is saved with the link\'s token, and the customer stays on the shop signed in', async () => {
+  const c = await context();
+  try {
+    const page = await c.context.newPage();
+    await mockPage(page);
+    const puts = [];
+    await page.route('**/auth/v1/user', route => {
+      const request = route.request();
+      const bearer = request.headers().authorization || '';
+      if (request.method() === 'PUT') {
+        puts.push({ bearer, body: JSON.parse(request.postData() || '{}') });
+        return H.safeFulfill(route, { status: 200, contentType: 'application/json', body: JSON.stringify({ id: 'rec-1', email: 'rec@example.test' }) });
+      }
+      return H.safeFulfill(route, { status: 200, contentType: 'application/json', body: JSON.stringify(/rec-token/.test(bearer) ? { id: 'rec-1', email: 'rec@example.test' } : CUSTOMER_SESSION.user) });
+    });
+    await page.goto(H.SITE + '/' + RECOVERY_HASH, { waitUntil: 'load' });
+    await page.waitForSelector('#sheet[data-kind="newpass"] form[data-newpass-form]', { timeout: 10000 });
+    assert.equal(new URL(page.url()).pathname, '/', 'on the shop, not on the orders page');
+    assert.equal(new URL(page.url()).hash, '', 'the token is out of the address bar');
+    assert.equal(await page.evaluate(() => localStorage.getItem('elan_auth_session')), null, 'not signed in before the password is saved');
+    const fields = page.locator('#sheet form[data-newpass-form] input[type="password"]');
+    assert.equal(await fields.count(), 2);
+    await page.locator('#sheet form[data-newpass-form] input[name="password"]').fill('a-brand-new-password');
+    await page.locator('#sheet form[data-newpass-form] input[name="confirm"]').fill('a-different-one');
+    await page.locator('#sheet form[data-newpass-form] button[type="submit"]').click();
+    await page.waitForSelector('#toast.show', { timeout: 4000 });
+    assert.equal(await page.locator('#toast').textContent(), 'كلمتا المرور غير متطابقتين.');
+    assert.deepEqual(puts, [], 'a mismatch is caught in the page');
+    await page.locator('#sheet form[data-newpass-form] input[name="confirm"]').fill('a-brand-new-password');
+    await page.locator('#sheet form[data-newpass-form] button[type="submit"]').click();
+    await page.waitForSelector('#sheet[data-kind="passChanged"] .auth-done', { timeout: 10000 });
+    assert.equal(puts.length, 1);
+    assert.equal(puts[0].bearer, 'Bearer rec-token');
+    assert.deepEqual(puts[0].body, { password: 'a-brand-new-password' });
+    assert.equal(await page.locator('#sheet .auth-done h3').textContent(), 'تم تغيير كلمة المرور');
+    assert.equal(JSON.parse(await page.evaluate(() => localStorage.getItem('elan_auth_session'))).user.id, 'rec-1', 'signed in with the new password');
+    assert.equal(new URL(page.url()).pathname, '/', 'still on the shop: no second page');
+    await page.locator('#sheet [data-close-sheet].btn').click();
+    assert.equal(await page.locator('#sheet').isHidden(), true);
   } finally { await c.context.close(); }
 });

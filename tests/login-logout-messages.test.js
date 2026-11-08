@@ -40,32 +40,42 @@ const withPassword = { password: { value: 'a-test-password' } };
 
 /* ---------- welcome after signing in ---------- */
 
-test('after signing in the customer is welcomed on screen, for a few seconds', async () => {
+test('after signing in the customer is welcomed in the same card as the first-time welcome, not in a toast', async () => {
   const s = shop({ access_token: 'a', user: { id: 'u1' } });
   s.submit(s.form('login', withPassword));
   await settle();
-  assert.deepEqual(s.log.toasts, [{ text: 'أهلًا ومرحبًا بك\nونتمنى لك رحلة تسويقية ممتعة', ms: 4500 }], 'the owner\'s wording, as a title and one warm line');
+  assert.deepEqual(s.log.toasts, [], 'no toast: the welcome is a card');
+  assert.equal(s.p.sheet.hidden, false, 'the card is shown');
+  assert.equal(s.p.sheet.dataset.kind, 'welcome');
+  assert.match(s.p.sheetB.innerHTML, /<div class="auth-done" role="alert"><h3>تم تسجيل الدخول بنجاح<\/h3>/, 'the same markup as the «account confirmed» card');
+  assert.match(s.p.sheetB.innerHTML, /أهلًا ومرحبًا بك ونتمنى لك رحلة تسويقية ممتعة/, 'the owner\'s wording');
+  assert.match(s.p.sheetB.innerHTML, /data-close-sheet>موافق<\/button>/, 'it has its own OK button');
   assert.deepEqual(s.log.sheets, [], 'the cart does not open by itself after signing in');
-  assert.equal(s.log.closed, 1, 'the sign-in sheet closes');
+  assert.equal(s.log.closed, 0, 'the sign-in sheet is replaced by the card, not closed under it');
 });
 
 test('the welcome is English on the English page, and a failed sign-in gets no welcome', async () => {
   const en = shop({ access_token: 'a' }, { lang: 'en' });
   en.submit(en.form('login', withPassword));
   await settle();
-  assert.match(en.log.toasts[0].text, /^Welcome/);
+  assert.match(en.p.sheetB.innerHTML, /<h3>Signed in successfully<\/h3>/);
+  assert.match(en.p.sheetB.innerHTML, />OK<\/button>/);
   const bad = shop({ error_code: 'invalid_credentials', msg: 'Invalid login credentials' });
   bad.submit(bad.form('login', withPassword));
   await settle();
   assert.equal(bad.log.toasts.length, 1);
   assert.match(bad.log.toasts[0].text, /غير صحيحة/);
+  assert.equal(bad.p.sheetB.innerHTML, '', 'a failed sign-in shows no welcome card');
 });
 
 test('signing up and being signed in at once says registered, not the sign-in welcome', async () => {
   const s = shop({ access_token: 'a' });
   s.submit(s.form('signup', Object.assign({ name: { value: 'Test Buyer' } }, withPassword)));
   await settle();
-  assert.equal(s.log.toasts[0].text, 'تم التسجيل بنجاح');
+  assert.deepEqual(s.log.toasts, []);
+  assert.equal(s.p.sheet.dataset.kind, 'signupDone');
+  assert.match(s.p.sheetB.innerHTML, /<h3>تم التسجيل بنجاح<\/h3>/);
+  assert.doesNotMatch(s.p.sheetB.innerHTML, /تسجيل الدخول بنجاح/);
 });
 
 /* ---------- signing out ---------- */
@@ -132,25 +142,30 @@ test('a second tap on sign out while the first is running does nothing', async (
 });
 
 function flash(value, lang = 'ar') {
-  const toasts = [], store = new Map(value ? [['elan_flash', value]] : []);
-  const context = vm.createContext({ lang, toast: (text, ms) => toasts.push({ text, ms }), sessionStorage: { getItem: (k) => (store.has(k) ? store.get(k) : null), removeItem: (k) => store.delete(k) } });
+  const p = page(), store = new Map(value ? [['elan_flash', value]] : []);
+  const context = vm.createContext({ lang, document: p.document, toast() {}, sessionStorage: { getItem: (k) => (store.has(k) ? store.get(k) : null), removeItem: (k) => store.delete(k) } });
   vm.runInContext(ESC + '\n' + AUTH, context);
   vm.runInContext('showFlash()', context);
-  return { toasts, store, again: () => vm.runInContext('showFlash()', context) };
+  return { p, store, again: () => vm.runInContext('showFlash()', context) };
 }
 
-test('the page that loads after signing out says so once', () => {
+test('the page that loads after signing out says so once, in the same card as the welcome', () => {
   const f = flash('logout');
-  assert.deepEqual(f.toasts, [{ text: 'تم تسجيل الخروج بنجاح\nكنا سعداء بوجودك معنا، وفي انتظارك دائمًا.', ms: 5000 }], 'the goodbye carries the farewell line');
+  assert.equal(f.p.sheet.hidden, false);
+  assert.equal(f.p.sheet.dataset.kind, 'goodbye');
+  assert.match(f.p.sheetB.innerHTML, /<div class="auth-done" role="alert"><h3>تم تسجيل الخروج بنجاح<\/h3>/);
+  assert.match(f.p.sheetB.innerHTML, /كنا سعداء بوجودك معنا، وفي انتظارك دائمًا\./, 'the goodbye carries the farewell line');
   assert.equal(f.store.has('elan_flash'), false, 'the note is used up');
+  f.p.sheet.hidden = true; f.p.sheetB.innerHTML = '';
   f.again();
-  assert.equal(f.toasts.length, 1, 'a second load says nothing');
+  assert.equal(f.p.sheet.hidden, true, 'a second load says nothing');
+  assert.equal(f.p.sheetB.innerHTML, '');
 });
 
 test('no note, no message; English page, English message', () => {
-  assert.deepEqual(flash('').toasts, []);
-  assert.deepEqual(flash('something-else').toasts, []);
-  assert.match(flash('logout', 'en').toasts[0].text, /^Signed out successfully\n/);
+  assert.equal(flash('').p.sheet.hidden, true);
+  assert.equal(flash('something-else').p.sheet.hidden, true);
+  assert.match(flash('logout', 'en').p.sheetB.innerHTML, /<h3>Signed out successfully<\/h3>/);
 });
 
 test('the page calls showFlash when it starts, and toast takes an optional duration', () => {
@@ -213,12 +228,12 @@ test('every new text exists in Arabic and in English', () => {
   }
 });
 
-test('asking for the link: the reset request goes to Supabase with the account page as the return address, and the customer is told to check the inbox', async () => {
+test('asking for the link: the reset request goes to Supabase with the home page of the shop as the return address (the new-password card opens there), and the customer is told to check the inbox', async () => {
   const s = shop({});
   s.submit(s.form('forgot', {}));
   await settle();
   assert.equal(s.log.requests.length, 1);
-  assert.equal(s.log.requests[0].url, 'https://project.example.invalid/auth/v1/recover?redirect_to=' + encodeURIComponent('https://shop.example.invalid/account.html'));
+  assert.equal(s.log.requests[0].url, 'https://project.example.invalid/auth/v1/recover?redirect_to=' + encodeURIComponent('https://shop.example.invalid/'));
   assert.deepEqual(s.log.requests[0].body, { email: 'buyer@example.invalid' }, 'only the e-mail is sent');
   assert.equal(s.p.sheet.dataset.kind, 'forgotDone');
   assert.match(s.p.sheetB.innerHTML, /<h3>تم إرسال الرابط<\/h3>/);

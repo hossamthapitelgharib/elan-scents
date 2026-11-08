@@ -62,12 +62,15 @@ test('the address shown in the notice is escaped', async () => {
   assert.match(s.p.sheetB.innerHTML, /&lt;img src=x/);
 });
 
-test('a new account that is logged in at once: success message, sheet closes, no cart sheet opens', async () => {
+test('a new account that is logged in at once: the success card replaces the form, no toast, no cart sheet opens', async () => {
   const s = shop({ access_token: 'a', refresh_token: 'r', user: { id: 'u1' } });
   s.submit(s.form('signup'));
   await settle();
-  assert.equal(s.log.toasts.at(-1), 'تم التسجيل بنجاح');
-  assert.equal(s.log.closed, 1);
+  assert.deepEqual(s.log.toasts, [], 'the message is a card (the same one as the welcome), not a toast');
+  assert.equal(s.p.sheet.hidden, false);
+  assert.equal(s.p.sheet.dataset.kind, 'signupDone');
+  assert.match(s.p.sheetB.innerHTML, /<h3>تم التسجيل بنجاح<\/h3>/);
+  assert.match(s.p.sheetB.innerHTML, /data-close-sheet>موافق<\/button>/);
   assert.deepEqual(s.log.sheets, []);
   assert.equal(s.log.saved.length, 1);
 });
@@ -80,13 +83,14 @@ test('sign-up that began from «execute order» goes on to the store order form,
   assert.equal(s.log.closed, 0);
 });
 
-test('sign-in shows the welcome and closes its sheet: no sign-up message, and the cart does not open by itself', async () => {
+test('sign-in shows the welcome card: no sign-up message, and the cart does not open by itself', async () => {
   const s = shop({ access_token: 'a' });
   s.submit(s.form('login'));
   await settle();
-  assert.deepEqual(s.log.toasts, ['أهلًا ومرحبًا بك\nونتمنى لك رحلة تسويقية ممتعة'], 'the welcome of tests/login-logout-messages.test.js, not «registered»');
+  assert.equal(s.p.sheet.dataset.kind, 'welcome', 'the welcome of tests/login-logout-messages.test.js, not «registered»');
+  assert.match(s.p.sheetB.innerHTML, /<h3>تم تسجيل الدخول بنجاح<\/h3>/);
+  assert.deepEqual(s.log.toasts, []);
   assert.deepEqual(s.log.sheets, []);
-  assert.equal(s.log.closed, 1);
 });
 
 test('an address that is already registered is said so and the sheet stays as it was', async () => {
@@ -225,8 +229,8 @@ test('no site configuration: the link cannot be checked, so nothing is stored', 
   assert.equal(c.p.sheet.dataset.kind, 'confirmFail');
 });
 
-test('ordinary addresses are not touched: menu anchors, a recovery link and an empty hash', async () => {
-  for (const hash of ['', '#about', '#contact', '#access_token=x&type=recovery', '#type=signup']) {
+test('ordinary addresses are not touched: menu anchors, a link of another kind and an empty hash', async () => {
+  for (const hash of ['', '#about', '#contact', '#access_token=x&type=magiclink', '#type=signup']) {
     const c = confirmPage(hash);
     assert.equal(await c.run(), false, hash);
     assert.deepEqual(c.log.replaced, [], 'the address is left as it was: ' + hash);

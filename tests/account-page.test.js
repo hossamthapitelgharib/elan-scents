@@ -118,7 +118,7 @@ test('an expired recovery link shows a message and never opens the password form
   assert.deepEqual(p.replaced, ['/account.html']);
 });
 
-test('forgot-password asks the auth service for a link back to this page and answers the same way for any address', async () => {
+test('forgot-password asks the auth service for a link back to the home page of the shop (where the new-password card opens) and answers the same way for any address', async () => {
   const p = page();
   const form = p.el('#resetForm');
   form.elements.email.value = ' someone@example.invalid ';
@@ -126,7 +126,7 @@ test('forgot-password asks the auth service for a link back to this page and ans
   await tick();
   const call = p.calls.find(item => item.url.includes('/auth/v1/recover'));
   assert.equal(call.options.method, 'POST');
-  assert.equal(call.url.includes(`redirect_to=${encodeURIComponent('https://shop.example.invalid/account.html')}`), true);
+  assert.equal(call.url.includes(`redirect_to=${encodeURIComponent('https://shop.example.invalid/')}`), true);
   assert.deepEqual(JSON.parse(call.options.body), { email: 'someone@example.invalid' });
   assert.match(p.el('#message').textContent, /إن كان هذا البريد مسجلًا/);
   assert.equal(form.hidden, true);

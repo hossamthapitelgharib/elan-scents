@@ -266,7 +266,8 @@ document.querySelector('#resetForm').addEventListener('submit', async event => {
   const form = event.target, button = form.querySelector('button'); button.disabled = true;
   try {
     const config = await authConfig();
-    const redirect = encodeURIComponent(`${location.origin}/account.html`);
+    // the link opens the shop itself, which asks for the new password there (not this page)
+    const redirect = encodeURIComponent(`${location.origin}/`);
     // The "are you a person" check (turnstile.js); '' when the shop has no key, and then the request is as it was.
     const captcha = window.ElanTurnstile ? await window.ElanTurnstile.token(form) : '';
     const payload = { email: form.elements.email.value.trim() };

@@ -1,7 +1,8 @@
 // The on-screen messages and the sign-out question:
 //  - the storefront asks «OK / Cancel» before signing out (the menu entry only asks), and says goodbye on the next page;
 //  - the welcome appears the moment the session exists, before the slower account syncs;
-//  - the account page (and the other panels) say welcome / goodbye too, in a toast that is actually styled.
+//  - the account page (and the other panels) say welcome / goodbye too, in a toast that is actually styled;
+//  - on the storefront the welcome and the goodbye are the same card as the first-time «account confirmed» one (owner, 8 Nov 2026).
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -56,30 +57,32 @@ test('confirmLogout builds the sheet with OK and Cancel, and does nothing while 
   assert.equal(sheet.hidden, true);
 });
 
-test('the welcome and the closing of the sheet come before the slower account syncs, so a slow network never hides them', () => {
+test('the welcome card comes before the slower account syncs, so a slow network never hides it', () => {
   const i = core.indexOf("buildMenu();mailEvent(mode=='signup'?'registered':'login',d.access_token);");
   assert.ok(i > 0);
   const tail = core.slice(i, core.indexOf('}).catch(', i));
-  const order = ["toast(welcomeBackText(),4500)", 'if(!st)closeSheet()', 'await GuestIdentity.claim', 'await syncCartFromCloud', 'await syncFavsFromCloud', 'openStoreOrder(st)'].map((marker) => {
+  const order = ['else welcomeNotice()', 'await GuestIdentity.claim', 'await syncCartFromCloud', 'await syncFavsFromCloud', 'openStoreOrder(st)'].map((marker) => {
     const at = tail.indexOf(marker); assert.ok(at >= 0, marker + ' is in the sign-in path'); return at;
   });
-  assert.deepEqual(order, [...order].sort((a, b) => a - b), 'welcome, close, then claim and syncs, then the store order form');
+  assert.deepEqual(order, [...order].sort((a, b) => a - b), 'welcome card, then claim and syncs, then the store order form');
+  assert.doesNotMatch(tail, /toast\(welcomeBackText/, 'the old toast is gone');
 });
 
-test('signing in without waiting: the toast shows while the syncs are still pending', async () => {
+test('signing in without waiting: the welcome card shows while the syncs are still pending', async () => {
   // run the real success path with syncs that never finish
-  const toasts = [], closed = [];
-  const path = core.slice(core.indexOf("AUTH=d;try{localStorage.setItem('elan_auth_session'"), core.indexOf('}).catch(', core.indexOf("AUTH=d;try{localStorage.setItem('elan_auth_session'")));
+  const notices = [];
+  const start = core.indexOf("AUTH=d;try{localStorage.setItem('elan_auth_session'");
+  const path = core.slice(start, core.indexOf('}).catch(', start));
   const context = vm.createContext({
     AUTH: null, mode: 'login', d: { access_token: 'tok' }, PENDING_STORE: '', CART_FIRST_SYNC_DONE: false, lang: 'ar', localStorage: { setItem() {} },
-    buildMenu() {}, adoptAccountLists() {}, mailEvent() {}, toast: (m) => toasts.push(m), closeSheet: () => closed.push(1), welcomeBackText: () => 'welcome', signupDoneText: () => 'signup',
+    buildMenu() {}, adoptAccountLists() {}, mailEvent() {}, toast() { throw new Error('no toast'); }, welcomeNotice: () => notices.push('welcome'),
+    sheetNotice: (kind) => notices.push(kind), signupDoneTitle: () => 'done', signupDoneText: () => 'signup',
     window: { GuestIdentity: { claim: () => new Promise(() => {}) } }, GuestIdentity: { claim: () => new Promise(() => {}) },
     syncCartFromCloud: () => new Promise(() => {}), syncFavsFromCloud: () => new Promise(() => {}), openStoreOrder() { throw new Error('no store chosen'); }
   });
   vm.runInContext('(async function(){' + path + '})()', context);
   await new Promise((resolve) => setImmediate(resolve));
-  assert.deepEqual(toasts, ['welcome'], 'the welcome is on screen although the syncs never finished');
-  assert.equal(closed.length, 1, 'and the sign-in sheet is already closed');
+  assert.deepEqual(notices, ['welcome'], 'the welcome is on screen although the syncs never finished');
 });
 
 test('the account page and every panel: welcome after signing in on the account page, goodbye after any sign-out', () => {
