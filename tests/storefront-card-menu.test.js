@@ -95,7 +95,8 @@ test('menu: Create account, Sign in and Sign out are always listed in that order
 test('menu follows the sign-in state after login, expiry and sign-in from another tab', () => {
   assert.match(core, /AUTH=d;try\{localStorage\.setItem\('elan_auth_session',JSON\.stringify\(d\)\)\}catch\(e\)\{\}adoptAccountLists\(d\.user&&d\.user\.id\);buildMenu\(\);/);
   assert.match(core, /AUTH=null;buildMenu\(\);try\{toast\('انتهت جلسة الدخول/);
-  assert.match(core, /catch\(_\)\{AUTH=null\}buildMenu\(\)\}\)/);
+  assert.match(core, /window\.addEventListener\('storage',crossTabAuth\);/);
+  assert.match(core, /function crossTabAuth\(e\)\{[^]*?catch\(_\)\{next=null\}AUTH=next;[^]*?buildMenu\(\)\}\n/, 'a session written by another tab reaches the menu (tests/cross-tab-auth.test.js runs it)');
   assert.match(core, /var m=document\.getElementById\('menu'\);buildMenu\(\);/);
 });
 

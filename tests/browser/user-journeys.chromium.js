@@ -534,3 +534,29 @@ test('18. every password field has an eye: hidden by default, one tap shows what
     }
   } finally { await c.context.close(); }
 });
+
+// 19. two tabs of one browser: signing out in one makes the other forget the account's lists (before, the left-open tab kept them in memory
+//     and could write them back to the device as a visitor's lists after the sign-out).
+test('19. signing out in one tab makes another open tab reload as a visitor, without the account\'s cart and hearts', async () => {
+  const c = await context();
+  try {
+    await c.context.addInitScript(([size, session]) => {
+      if (localStorage.getItem('__seeded')) return;
+      localStorage.setItem('__seeded', '1');
+      localStorage.setItem('elan_auth_session', JSON.stringify(session));
+      localStorage.setItem('elan_cart', JSON.stringify([{ sid: size, q: 2 }]));
+      localStorage.setItem('elan_favs', JSON.stringify([size]));
+    }, [FAV_SIZE, CUSTOMER_SESSION]);
+    const first = await openPage(c, '/');
+    const second = await openPage(c, '/');
+    const badges = (p) => p.evaluate(() => ({ cartN: document.querySelector('button[data-sheet="cart"]').getAttribute('data-n'), favN: document.querySelector('button[data-sheet="fav"]').getAttribute('data-n') }));
+    assert.deepEqual(await badges(first), { cartN: '2', favN: '1' });
+    await second.locator('#mb').click();
+    await second.locator('#menu [data-logout]').click();
+    await Promise.all([first.waitForEvent('load', { timeout: 10000 }), second.waitForEvent('load', { timeout: 10000 }), second.locator('#sheet [data-logout-now]').click()]);
+    await first.waitForTimeout(800);
+    assert.deepEqual(await badges(first), { cartN: '0', favN: '0' }, 'the left-open tab shows a visitor');
+    const device = await first.evaluate(() => ({ auth: localStorage.getItem('elan_auth_session'), cart: localStorage.getItem('elan_cart'), favs: localStorage.getItem('elan_favs'), owner: localStorage.getItem('elan_cart_owner') }));
+    assert.deepEqual(device, { auth: null, cart: null, favs: null, owner: null }, 'nothing of the account is written back to the device');
+  } finally { await c.context.close(); }
+});
