@@ -34,6 +34,7 @@ module.exports = {
     'request-store-order-cancellation': () => require('../api/request-store-order-cancellation.js'),
     'restore-store-order': () => require('../api/restore-store-order.js'),
     'store-dashboard-orders': () => require('../api/store-dashboard-orders.js'),
+    'store-catalog-figures': () => require('../api/store-catalog-figures.js'),
     'store-integrations': () => require('../api/store-integrations.js'),
     'store-order-cancelled': () => require('../api/store-order-cancelled.js'),
     'store-order-status': () => require('../api/store-order-status.js'),

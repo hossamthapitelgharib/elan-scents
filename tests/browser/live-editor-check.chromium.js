@@ -46,7 +46,7 @@ test('without the secrets the check says what to add and does nothing else', () 
   const { spawnSync } = require('node:child_process');
   const r = spawnSync(process.execPath, ['scripts/live-editor-check.js', 'https://elan.invalid'], { cwd: require('node:path').resolve(__dirname, '..', '..'), env: { PATH: process.env.PATH }, encoding: 'utf8' });
   assert.equal(r.status, 0);
-  assert.match(r.stdout, /EDITOR_LIVE_EMAIL and EDITOR_LIVE_PASSWORD are not set/);
+  assert.match(r.stdout, /Set EDITOR_LIVE_EMAIL and EDITOR_LIVE_PASSWORD, or the short-lived EDITOR_LIVE_ACCESS_KEY repository secret/, 'it names both ways in: the email and password pair, or the short-lived access key');
   assert.match(r.stdout, /Nothing was checked/);
 });
 
