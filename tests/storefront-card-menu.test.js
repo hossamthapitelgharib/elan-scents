@@ -448,10 +448,10 @@ test('the Coming soon section lists the perfumes a store flagged as coming soon,
 });
 
 test('the storefront reads is_coming_soon and marks those product sizes with the soon flag', () => {
-  assert.match(core, /ga\('catalog_eligible_offers\?select=[^']*is_new_arrival,is_catalog_bestseller,is_coming_soon/);
+  assert.match(core, /ga\('catalog_eligible_offers\?select=[^']*is_new_arrival,is_coming_soon/);
   assert.match(core, /offers\?select=product_size_id,store_id&order=product_size_id\.asc,store_id\.asc/);
   assert.match(core, /d\[13\]\.forEach\(function\(r\)\{if\(r\.product_size_id&&r\.store_id\)promoOwner\[String\(r\.product_size_id\)\+'\|'\+String\(r\.store_id\)\]=1\}\)/);
-  assert.match(core, /flags:\(r\.is_new_arrival\?\['new'\]:\[\]\)\.concat\(promoOwner\[String\(r\.product_size_id\)\+'\|'\+String\(r\.store_id\)\]\?\['offers'\]:\[\],r\.is_catalog_bestseller\|\|indOf\(pm\[r\.product_id\]\|\|\{\}\)\.length\?\['master'\]:\[\],r\.is_coming_soon\?\['soon'\]:\[\]\)/);
+  assert.match(core, /flags:\(r\.is_new_arrival\?\['new'\]:\[\]\)\.concat\(promoOwner\[String\(r\.product_size_id\)\+'\|'\+String\(r\.store_id\)\]\?\['offers'\]:\[\],indOf\(pm\[r\.product_id\]\|\|\{\}\)\.length\?\['master'\]:\[\],r\.is_coming_soon\?\['soon'\]:\[\]\)/);
   assert.match(core, /allEligibleOffers:allOffers\[k\]\|\|\[\],globalOffer:globalOffer,offersByStore:offersByStore/);
   assert.doesNotMatch(core, /offers:allOffers/);
   assert.match(core, /var record=platformOfferBySize\[k\],o=record\.row,globalOffer=record\.offer/);

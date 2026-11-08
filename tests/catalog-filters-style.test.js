@@ -151,3 +151,24 @@ test('every chip ranks by its own database rank, and the ranking does not touch 
   assert.match(core, /function ranked\(by\)\{var k=MASTER_CHIPS\.indexOf\(F\.ind\)>-1\?F\.ind:'';return k\?function\(a,b\)\{return\(\(\(a\.p\.rk\|\|\{\}\)\[k\]\|\|1e9\)-\(\(b\.p\.rk\|\|\{\}\)\[k\]\|\|1e9\)\)\|\|by\(a,b\)\}:by\}/);
   assert.match(core, /\(x\.id=='master'\?chips\(\):filterPanel\(l\)\)\+'<div id="res" class="grid"><\/div>'/, 'the Masterpieces page shows the chips and no filter panel; every other list page keeps its filters');
 });
+
+test('"most distinguished" is gone: the home sections are ordered by the same ranks as the four buttons, "most rated" first', () => {
+  assert.doesNotMatch(core, /featureScore/, 'no hand-weighted score any more');
+  assert.doesNotMatch(core, /request_count|requests:\+/, 'the dead "requests" figure is not read');
+  const rankSrc = core.match(/function sectionRank\(p\)\{[^\n]*?\}\n/)[0];
+  const topSrc = core.match(/function topSectionCards\(field,key,limit\)\{[^\n]*?\.slice\(0,limit\)\}/)[0];
+  const mkp = (id, name, rk) => ({ id, name, rk, gender: 'men', cats: [], occs: [], notes: [] });
+  const PERFUMES = [
+    mkp('s1', 'Seller', { sales: 1, views: 3 }),
+    mkp('r2', 'Rated two', { rated: 2, sales: 5 }),
+    mkp('r1', 'Rated one', { rated: 1 }),
+    mkp('v1', 'Viewed', { views: 1 }),
+    mkp('x', 'Unranked B', {}),
+    mkp('y', 'Unranked A', {})
+  ];
+  const context = vm.createContext({ PERFUMES, globalOffer: () => ({ price: 1 }) });
+  vm.runInContext(rankSrc + topSrc, context);
+  const order = (limit) => vm.runInContext(`topSectionCards('cats','men',${limit}).map(function(x){return x.p.id})`, context);
+  assert.deepEqual(Array.from(order(10)), ['r1', 'r2', 's1', 'v1', 'y', 'x'], 'rated rank first, then sales, then views, then searches; unranked last by name');
+  assert.deepEqual(Array.from(order(2)), ['r1', 'r2'], 'the limit takes the best ones');
+});

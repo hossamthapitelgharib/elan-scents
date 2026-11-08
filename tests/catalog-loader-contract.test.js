@@ -89,7 +89,8 @@ test('active promotions are scoped to the same store as the canonical offer, wit
   assert.match(core, /offers\?select=product_size_id,store_id&order=product_size_id\.asc,store_id\.asc/);
   assert.match(core, /var promoOwner=\{\},rk=\{\};d\[13\]\.forEach/);
   assert.match(core, /promoOwner\[String\(r\.product_size_id\)\+'\|'\+String\(r\.store_id\)\]\?\['offers'\]:\[\]/);
-  assert.match(core, /is_new_arrival,is_catalog_bestseller,is_coming_soon/);
+  assert.match(core, /is_new_arrival,is_coming_soon/);
+  assert.doesNotMatch(core, /is_catalog_bestseller/, 'a flag a store (or the admin) can switch gives no place on the master page; only the real ranks do');
   assert.match(core, /d\[14\]\.forEach\(function\(r\)\{if\(!r\.product_size_id\|\|!r\.store_id/);
   assert.match(promotionScopeMigration, /GRANT SELECT \(store_id\) ON TABLE public\.offers TO anon, authenticated;/);
   assert.match(promotionScopeRollback, /REVOKE SELECT \(store_id\) ON TABLE public\.offers FROM anon, authenticated;/);

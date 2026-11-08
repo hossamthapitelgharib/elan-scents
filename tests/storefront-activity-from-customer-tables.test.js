@@ -52,7 +52,8 @@ test('nothing is exposed that was not: the helper is private, returns only a pro
   assert.doesNotMatch(result, /user_id|visitor_hash|search_text|session_id|guest_id|snapshot/i, 'no identity column reaches the result');
 });
 
-test('the storefront needs no change: it reads the same three columns from public_products', () => {
+test('the storefront reads the three activity columns and the rating from public_products, and nothing that has no real source', () => {
   const core = read('app-core.js');
-  assert.match(core, /public_products\?select=id,name,brand_name,sales_count,views_count,search_count,request_count,average_rating,/);
+  assert.match(core, /public_products\?select=id,name,brand_name,sales_count,views_count,search_count,average_rating,/);
+  assert.doesNotMatch(core, /public_products\?select=[^']*(request_count|distinctiveness_score|catalog_bestseller)/, 'the dead / hand-switchable columns are not read');
 });
