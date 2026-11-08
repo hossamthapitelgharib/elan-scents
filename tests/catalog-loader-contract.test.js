@@ -11,6 +11,7 @@ const filterMigration = fs.readFileSync(path.join(root, 'supabase/migrations/202
 const promotionScopeMigration = fs.readFileSync(path.join(root, 'supabase/migrations/20261107022440_catalog_promotion_owner_scope.sql'), 'utf8');
 const promotionScopeRollback = fs.readFileSync(path.join(root, 'supabase/rollback/20261107022440_catalog_promotion_owner_scope.sql'), 'utf8');
 const editorCatalog = fs.readFileSync(path.join(root, 'railway/editor-catalog.js'), 'utf8');
+const designLayer = fs.readFileSync(path.join(root, 'design-layer.js'), 'utf8');
 
 test('loader requests global and eligible offer views, gender, and stable taxonomy keys', () => {
   assert.match(core, /public_products\?select=[^'\n]*\bgender\b/);
@@ -59,6 +60,15 @@ test('gender, occasion, and note filters use stable values with AND across dimen
   assert.deepEqual(Array.from(vm.runInContext('list()', context), (row) => row.p.name), ['matching']);
 });
 
+test('every storefront section, including coming-soon, requires a canonical eligible offer', () => {
+  const start = core.indexOf('function list()');
+  const end = core.indexOf('\nfunction results()', start);
+  const source = core.slice(start, end);
+  assert.match(source, /return x\.b&&/);
+  assert.doesNotMatch(source, /x\.b\|\|F\.sec=='soon'/, 'coming-soon must not bypass offer eligibility');
+  assert.doesNotMatch(source, /\(x\.b\|\|\{price:0\}\)/, 'price filters must never invent a zero price for missing offers');
+});
+
 
 test('size filter is available in the storefront and matches the exact unified product size', () => {
   assert.match(core, /sel\('size',l\.sz,CATALOG_SIZE_OPTIONS\.map/);
@@ -83,6 +93,15 @@ test('store pages use the same selected global offer contract, not the removed p
   assert.doesNotMatch(core, /PERFUMES\.forEach\(function\(p\)\{p\.offers\.forEach/);
   assert.match(core, /var offer=globalOffer\(p\);if\(offer&&su&&String\(offer\.storeId\)===String\(su\[2\]\)\)bs\[p\.brand\]=1/);
   assert.match(core, /function counts\(\).*if\(globalOffer\(p\)\)/);
+});
+
+test('manual and automatic smart sections use the canonical offer owner, never a store-specific replacement', () => {
+  assert.match(designLayer, /function manualList\(ids, f\)/);
+  assert.match(designLayer, /String\(offer\.storeId\) === String\(f\.store\)/);
+  assert.match(designLayer, /manualList\(pend\.items \|\| \[\], pend\.filters\)/);
+  assert.match(designLayer, /manualList\(ids, def\.filters\)/);
+  assert.match(designLayer, /var offer = Object\.prototype\.hasOwnProperty\.call\(p, 'globalOffer'\)/);
+  assert.doesNotMatch(designLayer, /offersByStore/);
 });
 
 test('active promotions are scoped to the same store as the canonical offer, with least-privilege SQL', () => {
@@ -123,6 +142,7 @@ test('the database contract treats NULL stock as unknown-but-eligible and uses d
   assert.match(migration, /offer\.store_id ASC,\s*offer\.store_product_id ASC/);
   assert.match(migration, /store_products_currency_egp_check/);
   assert.match(migration, /store_product_id uuid/);
+  assert.match(core, /stock:r\.stock_quantity,stockUnknown:r\.stock_quantity==null/);
 });
 
 test('editor taxonomy filters are one service-only EXISTS RPC and compatibility selectors delegate to the platform view', () => {

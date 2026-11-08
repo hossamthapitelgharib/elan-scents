@@ -105,8 +105,12 @@
     else l.sort(function (a, b) { return (b.p.rel || 0) - (a.p.rel || 0); });
     return l;
   }
-  function manualList(ids) {
-    return ids.map(perfumeBy).filter(Boolean).map(function (p) { return { p: p, b: globalOffer(p) }; });
+  function manualList(ids, f) {
+    f = f || {};
+    return ids.map(perfumeBy).filter(Boolean).map(function (p) {
+      var offer = globalOffer(p);
+      return { p: p, b: offer && (!f.store || String(offer.storeId) === String(f.store)) ? offer : null };
+    }).filter(function (x) { return x.b; });
   }
   function paint(root, name, list) {
     root.textContent = '';
@@ -117,7 +121,7 @@
   }
   function fillSmart(root, ref) {
     var pend = window.ElanPendingSections[ref];
-    if (pend) { paint(root, pend.name, pend.mode === 'auto' ? autoList(pend.filters) : manualList(pend.items || [])); return; }
+    if (pend) { paint(root, pend.name, pend.mode === 'auto' ? autoList(pend.filters) : manualList(pend.items || [], pend.filters)); return; }
     if (typeof SB === 'undefined' || !SB || !SB.url) { root.remove(); return; }
     var hit = smartCache[ref];
     if (hit && Date.now() - hit.t < 60000) { if (hit.def) paint(root, hit.def.name, hit.list()); else root.remove(); return; }
@@ -130,7 +134,7 @@
         if (def.selection_mode === 'auto') { smartCache[ref] = { t: Date.now(), def: def, list: function () { return autoList(def.filters); } }; paint(root, def.name, autoList(def.filters)); return null; }
         return fetch(SB.url + '/rest/v1/editor_section_items?section_id=eq.' + def.id + '&select=product_size_id&order=sort_order', { headers: H })
           .then(function (r) { return r.ok ? r.json() : []; })
-          .then(function (items) { var ids = items.map(function (i) { return i.product_size_id; }); smartCache[ref] = { t: Date.now(), def: def, list: function () { return manualList(ids); } }; paint(root, def.name, manualList(ids)); });
+          .then(function (items) { var ids = items.map(function (i) { return i.product_size_id; }); smartCache[ref] = { t: Date.now(), def: def, list: function () { return manualList(ids, def.filters); } }; paint(root, def.name, manualList(ids, def.filters)); });
       })
       .catch(function () { root.remove(); });
   }
