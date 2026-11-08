@@ -508,3 +508,29 @@ test('17. the reset link opens the new-password card on the shop, the password i
     assert.equal(await page.locator('#sheet').isHidden(), true);
   } finally { await c.context.close(); }
 });
+
+// 18. the eye on every password field: hidden by default, shown only while the customer asks for it.
+test('18. every password field has an eye: hidden by default, one tap shows what was typed, a second tap hides it again', async () => {
+  const c = await context();
+  try {
+    const page = await openPage(c, '/');
+    for (const sheetName of ['login', 'signup']) {
+      await page.locator('#mb').click();
+      await page.locator(`#menu [data-sheet="${sheetName}"]`).click();
+      const field = page.locator(`[data-auth-mode="${sheetName}"] input[name="password"]`);
+      await field.fill('Typed-Secret-1');
+      assert.equal(await field.getAttribute('type'), 'password', sheetName + ': hidden by default');
+      const eye = page.locator(`[data-auth-mode="${sheetName}"] .pw-wrap .pw-eye`);
+      assert.equal(await eye.count(), 1, sheetName + ': one eye');
+      assert.equal(await eye.getAttribute('aria-pressed'), 'false');
+      await eye.click();
+      assert.equal(await field.getAttribute('type'), 'text', sheetName + ': shown after the tap');
+      assert.equal(await field.inputValue(), 'Typed-Secret-1', 'what he typed is kept');
+      assert.equal(await eye.getAttribute('aria-pressed'), 'true');
+      await eye.click();
+      assert.equal(await field.getAttribute('type'), 'password', sheetName + ': hidden again after the second tap');
+      assert.equal(await eye.getAttribute('aria-pressed'), 'false');
+      await page.locator('#sheet [data-close-sheet]').first().click();
+    }
+  } finally { await c.context.close(); }
+});
