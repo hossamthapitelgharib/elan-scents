@@ -441,6 +441,7 @@ header .ic button[data-sheet="cart"] svg{width:20px!important;height:20px!import
 .acct-map{display:grid;gap:6px}.acct-map[hidden]{display:none}
 .acct-map iframe{display:block;width:100%;height:200px;border:1px solid #ead9b1;border-radius:14px;background:#f4eedd;pointer-events:none}   /* the map is only shown: a tap on it must never hand the customer over to the Google Maps app */
 .acct-ship{display:grid;gap:12px}.acct-ship[hidden]{display:none}
+.acct-row3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.acct-row3 .acct-field label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .acct-check{display:flex;align-items:center;gap:10px;font-size:13px;cursor:pointer}
 .acct-check input[type=checkbox]{-webkit-appearance:none;appearance:none;flex:none;display:grid;place-content:center;width:20px;height:20px;margin:0;padding:0;border:1.5px solid #c8962a;border-radius:6px;background:#fff;cursor:pointer}
 .acct-check input[type=checkbox]:checked{background:#c8962a}

@@ -40,7 +40,7 @@ async function mockPage(page) {
   }));
   await page.route('**/api/place-store-order', route => H.safeFulfill(route, { status: 200, contentType: 'application/json', body: JSON.stringify({ id: 'request-1', trackingNumber: 'ELN-TEST-0001', currency: 'EGP' }) }));
   await page.route('https://nominatim.openstreetmap.org/reverse*', route => H.safeFulfill(route, { status: 200, contentType: 'application/json',
-    body: JSON.stringify({ display_name: 'x', address: { road: 'شارع التحرير', suburb: 'وسط البلد', city: 'القاهرة', state: 'محافظة القاهرة', country: 'مصر' } }) }));
+    body: JSON.stringify({ display_name: 'x', address: { house_number: '12', road: 'شارع التحرير', suburb: 'وسط البلد', city: 'القاهرة', state: 'محافظة القاهرة', country: 'مصر' } }) }));
   await page.route('https://www.google.com/maps*', route => H.safeFulfill(route, { status: 200, contentType: 'text/html', body: '<!doctype html><title>map</title><p>map</p>' }));
   await page.route('**/api/customer-cart', route => H.safeFulfill(route, { status: 200, contentType: 'application/json', body: '{"ok":true,"items":[]}' }));
   await page.route('**/api/request-store-order-cancellation', route => H.safeFulfill(route, { status: 200, contentType: 'application/json', body: '{"requestId":"request-1","duplicate":false}' }));
@@ -59,7 +59,7 @@ async function mockPage(page) {
       const body = JSON.parse(request.postData() || '{}');
       acctWrites.push({ method: request.method(), url: request.url(), prefer: request.headers().prefer || '', auth: request.headers().authorization || '', body });
       // what the database trigger does: the delivery address is a copy of the home address while ship_same is true
-      acctRow = { ...body, ...(body.ship_same ? { ship_governorate: body.governorate, ship_address: body.address, ship_lat: body.address_lat, ship_lng: body.address_lng } : {}) };
+      acctRow = { ...body, ...(body.ship_same ? { ship_governorate: body.governorate, ship_city: body.city, ship_address: body.address, ship_building_no: body.building_no, ship_floor_no: body.floor_no, ship_apartment_no: body.apartment_no, ship_lat: body.address_lat, ship_lng: body.address_lng } : {}) };
       return H.safeFulfill(route, { status: 201, contentType: 'application/json', body: JSON.stringify([acctRow]) });
     }
     if (url.pathname.includes('/auth/v1/logout')) return H.safeFulfill(route, { status: 204, contentType: 'application/json', body: '' });
@@ -332,20 +332,28 @@ test('15. «حسابي»: under sign out in the menu, written once, saved on the
     await page.locator('#sheet [data-acct-form] button[type="submit"]').click();
     assert.match(await page.locator('#sheet .acct-form .order-error').innerText(), /اكتب اسمك رباعيًا/);
     assert.equal(acctWrites.length, 0);
-    // 3. "find my location": the page's own geolocation, the map frame, the address and the governorate
+    // 3. "find my location": the page's own geolocation, the map frame, and the governorate, city, street and building from the lookup
     await page.locator('#sheet [data-acct-locate]').first().click();
     await page.waitForFunction(() => document.getElementById('acct-address').value.length > 0, null, { timeout: 8000 });
-    assert.equal(await page.locator('#acct-address').inputValue(), 'شارع التحرير، وسط البلد، القاهرة');
+    assert.equal(await page.locator('#acct-address').inputValue(), 'شارع التحرير');
+    assert.equal(await page.locator('#acct-city').inputValue(), 'وسط البلد', 'the governorate\'s own name is not repeated as the city');
+    assert.equal(await page.locator('#acct-building_no').inputValue(), '12');
+    assert.equal(await page.locator('#acct-floor_no').inputValue(), '', 'the floor and the flat are for the customer to write');
     assert.equal(await page.locator('#acct-governorate').inputValue(), 'القاهرة');
     assert.equal(await page.locator('.acct-map iframe').first().getAttribute('src'), 'https://www.google.com/maps?q=30.0444,31.2357&z=17&output=embed');
     assert.equal(await page.locator('.acct-map').first().isVisible(), true);
-    assert.match(await page.locator('.acct-loc-note').first().innerText(), /أضف رقم المبنى والدور والشقة/);
-    // 4. the rest: four names, another delivery address and another recipient
+    assert.match(await page.locator('.acct-loc-note').first().innerText(), /راجع العنوان وأكمل المبنى والدور والشقة/);
+    // 4. the rest: floor and flat, four names, another delivery address and another recipient
     await page.locator('#acct-full_name').fill('أحمد محمد علي حسن');
+    await page.locator('#acct-floor_no').fill('3');
+    await page.locator('#acct-apartment_no').fill('8');
     await page.locator('input[name="ship_same"]').uncheck();
     await page.waitForSelector('.acct-ship', { state: 'visible' });
     await page.locator('#acct-ship_governorate').selectOption('الجيزة');
-    await page.locator('#acct-ship_address').fill('5 شارع النيل، المعادي، بجوار الصيدلية');
+    await page.locator('#acct-ship_city').fill('المعادي');
+    await page.locator('#acct-ship_address').fill('شارع النيل، بجوار الصيدلية');
+    await page.locator('#acct-ship_building_no').fill('5');
+    await page.locator('#acct-ship_apartment_no').fill('2');
     await page.locator('#acct-recipient_name').fill('منى سيد');
     await page.locator('#acct-recipient_phone').fill('+20 111 222 3334');
     await page.locator('textarea[name="delivery_notes"]').fill('اتصل قبل الوصول');
@@ -357,17 +365,21 @@ test('15. «حسابي»: under sign out in the menu, written once, saved on the
     assert.match(w.url, /\/rest\/v1\/customer_details\?on_conflict=user_id$/);
     assert.equal(w.prefer, 'resolution=merge-duplicates,return=representation');
     assert.equal(w.auth, 'Bearer customer-test-token', 'written with the customer\'s own token');
-    assert.deepEqual(w.body, { user_id: 'customer-1', full_name: 'أحمد محمد علي حسن', phone: '01012345678', governorate: 'القاهرة', address: 'شارع التحرير، وسط البلد، القاهرة', address_lat: 30.0444, address_lng: 31.2357,
-      ship_same: false, ship_governorate: 'الجيزة', ship_address: '5 شارع النيل، المعادي، بجوار الصيدلية', ship_lat: null, ship_lng: null,
+    assert.deepEqual(w.body, { user_id: 'customer-1', full_name: 'أحمد محمد علي حسن', phone: '01012345678', governorate: 'القاهرة', city: 'وسط البلد', address: 'شارع التحرير', building_no: '12', floor_no: '3', apartment_no: '8', address_lat: 30.0444, address_lng: 31.2357,
+      ship_same: false, ship_governorate: 'الجيزة', ship_city: 'المعادي', ship_address: 'شارع النيل، بجوار الصيدلية', ship_building_no: '5', ship_floor_no: null, ship_apartment_no: '2', ship_lat: null, ship_lng: null,
       recipient_name: 'منى سيد', recipient_phone: '01112223334', delivery_notes: 'اتصل قبل الوصول' });
     // 5. "place order": «حسابي» opens first, with what was saved; the customer changes one thing and presses OK
     await page.evaluate(() => openAccount('Test Store'));   // what «place order» calls once the cart lines pass the review check (openStoreOrder itself is covered in tests/customer-account-page.test.js)
     await page.waitForSelector('#sheet .acct-wrap [data-back-cart]', { state: 'attached' });
     assert.equal(await page.locator('#acct-full_name').inputValue(), 'أحمد محمد علي حسن');
     assert.equal(await page.locator('#acct-phone').inputValue(), '01012345678');
-    assert.equal(await page.locator('#acct-address').inputValue(), 'شارع التحرير، وسط البلد، القاهرة');
+    assert.equal(await page.locator('#acct-address').inputValue(), 'شارع التحرير');
+    assert.equal(await page.locator('#acct-city').inputValue(), 'وسط البلد');
+    assert.equal(await page.locator('#acct-apartment_no').inputValue(), '8');
     assert.equal(await page.locator('input[name="ship_same"]').isChecked(), false);
-    assert.equal(await page.locator('#acct-ship_address').inputValue(), '5 شارع النيل، المعادي، بجوار الصيدلية');
+    assert.equal(await page.locator('#acct-ship_city').inputValue(), 'المعادي');
+    assert.equal(await page.locator('#acct-ship_address').inputValue(), 'شارع النيل، بجوار الصيدلية');
+    assert.equal(await page.locator('#acct-ship_building_no').inputValue(), '5');
     assert.equal(await page.locator('#acct-recipient_phone').inputValue(), '01112223334');
     await page.locator('#acct-recipient_phone').fill('01099998888');
     await page.locator('#sheet [data-acct-form] button[type="submit"]').click();
@@ -379,7 +391,7 @@ test('15. «حسابي»: under sign out in the menu, written once, saved on the
     assert.equal(await f('name'), 'منى سيد');
     assert.equal(await f('phone'), '01099998888');
     assert.equal(await f('email'), 'customer@example.test');
-    assert.equal(await f('address'), 'الجيزة، 5 شارع النيل، المعادي، بجوار الصيدلية');
+    assert.equal(await f('address'), 'الجيزة، المعادي، شارع النيل، بجوار الصيدلية، مبنى 5، شقة 2', 'the courier reads it in order: governorate, city, street, building, flat');
     assert.equal(await f('notes'), 'المشتري: أحمد محمد علي حسن - 01012345678\nاتصل قبل الوصول');
     assert.deepEqual(csp, [], 'the policy let the map, the address lookup and the location request through');
   } finally { await c.context.close(); }
