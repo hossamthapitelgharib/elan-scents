@@ -261,7 +261,12 @@
     return best;
   }
 
-  function base(id) { var e = cur(id); return { dx: e.dx || 0, dy: e.dy || 0 }; }
+  /* Where the element is drawn now: for a card in a strip that can differ from the saved offset (the strip limits it), and the next move starts from what is seen. */
+  function base(id) {
+    var en = entryById(id), shown = en && en.el && en.el.__elanApplied;
+    if (shown) return { dx: shown.dx, dy: shown.dy };
+    var e = cur(id); return { dx: e.dx || 0, dy: e.dy || 0 };
+  }
 
   /* ---------- automatic displacement (the original editor's flow) ----------
      Cards (inside their strip) and the page's sections and extra blocks sit in the page's own flow. Dropping one between others

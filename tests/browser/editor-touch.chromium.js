@@ -94,3 +94,38 @@ test('mouse: dragging a card out of its strip still frees it from the strip whil
     assert.notEqual(after.overflow, 'visible', 'after the drop the strip clips and scrolls again');
   } finally { await context.close(); }
 });
+
+/* The owner (2026-11-08): "don't leave it". A card moved by hand inside a card strip used to open the strip up (overflow:visible) so the card showed in full, and
+   every visitor then lost the sideways scroll of that row. Now the card stays inside the strip's own box and the strip keeps clipping and scrolling. */
+test('a card moved far outside its strip stays inside it, and the strip keeps scrolling sideways', async () => {
+  const { context, page, frame } = await openEditorFrame(false);
+  try {
+    await aimAtStrip(frame);
+    await page.waitForTimeout(300);
+    const id = await frame.evaluate(() => {
+      const st = document.querySelectorAll('.strip')[window.__stripIdx], card = st.querySelector('.card');
+      const hit = window.ElanDesignLayer.elements().find((e) => e.el === card);
+      return hit && hit.id;
+    });
+    assert.ok(id, 'the first card of the strip is an editable element');
+    await frame.evaluate(async (cardId) => { await window.ElanEditMode.execute('element.move', { elementId: cardId, dx: -3000, dy: 900 }); }, id);
+    await page.waitForTimeout(500);
+    const r = await frame.evaluate(() => {
+      const st = document.querySelectorAll('.strip')[window.__stripIdx], card = st.querySelector('.card');
+      const cs = getComputedStyle(st), a = card.getBoundingClientRect(), b = st.getBoundingClientRect();
+      const before = st.scrollLeft; st.scrollLeft = before - Math.min(500, st.scrollWidth - st.clientWidth); const moved = Math.abs(st.scrollLeft - before);
+      return { overflowInline: st.style.overflow, overflowX: cs.overflowX, scrolls: st.scrollWidth > st.clientWidth, moved,
+        inside: a.top >= b.top - 1 && a.bottom <= b.bottom + 1, applied: card.__elanApplied || null, scrollWidth: st.scrollWidth, saved: card.style.transform };
+    });
+    assert.notEqual(r.overflowInline, 'visible', 'the strip is not opened up: ' + JSON.stringify(r));
+    assert.notEqual(r.overflowX, 'visible', 'the strip still clips: ' + JSON.stringify(r));
+    assert.ok(r.scrolls && r.moved > 0, 'the strip still scrolls sideways: ' + JSON.stringify(r));
+    assert.ok(r.inside, 'the card sits inside the strip, not 900px below it: ' + JSON.stringify(r));
+    assert.ok(r.applied && Math.abs(r.applied.dx) <= r.scrollWidth && r.applied.dx !== -3000, 'the drawn offset is the saved one limited to the strip: ' + JSON.stringify(r));
+    /* the next small move starts from where the card is drawn, not from the saved number that was cut down */
+    await frame.evaluate(async (cardId) => { await window.ElanEditMode.execute('element.nudge', { elementId: cardId, dx: 10, dy: 0 }); }, id);
+    await page.waitForTimeout(400);
+    const nowDx = await frame.evaluate((cardId) => { const dev = window.ElanEditMode.state().device, e = ((window.ElanEditMode._debug().edits || {})[dev] || {})[cardId]; return e && e.dx; }, id);
+    assert.ok(Math.abs(nowDx - (r.applied.dx + 10)) <= 1, 'the nudge adds 10 to what is drawn (' + r.applied.dx + '), saved ' + nowDx);
+  } finally { await context.close(); }
+});

@@ -272,7 +272,26 @@
       var t = el.__elanText; t.node.textContent = t.children && t.children.length ? '' : t.value;
       (t.children || []).forEach(function (child) { t.node.appendChild(child); }); delete el.__elanText;
     }
-    if (el.__elanStrip) { var st = el.__elanStrip; if (st.base) st.node.setAttribute('style', st.base); else st.node.removeAttribute('style'); delete el.__elanStrip; }
+    delete el.__elanOff; delete el.__elanApplied;
+  }
+
+  /* A card moved inside a card strip stays inside it. A strip scrolls sideways only while it clips, so it is never opened up (overflow:visible, which is what
+     used to be done: the moved card then showed in full but every visitor lost the sideways scroll). The offset that is drawn is the saved one limited to the
+     strip's own box: along the strip within its scrollable length, across it within its height. The saved numbers are not changed; the editor starts the next
+     move from what is drawn (__elanApplied). */
+  function fitStripCards(list) {
+    var cards = list.filter(function (c) { return c.__elanOff && c.closest('.strip'); });
+    if (!cards.length) return;
+    cards.forEach(function (c) { c.style.transform = ''; });                  // measure where the card sits without any offset
+    var boxes = cards.map(function (c) { var s = c.closest('.strip'); return { c: c, s: s, r: c.getBoundingClientRect(), sr: s.getBoundingClientRect(), rtl: getComputedStyle(s).direction === 'rtl' }; });
+    function limit(v, lo, hi) { return lo > hi ? 0 : Math.round(Math.max(lo, Math.min(hi, v))); }
+    boxes.forEach(function (x) {
+      var s = x.s, along = s.scrollLeft + (x.rtl ? s.scrollWidth - s.clientWidth : 0);   // scrolled distance counted from the left edge, in either direction
+      var left = x.sr.left + s.clientLeft - along, right = left + s.scrollWidth, top = x.sr.top + s.clientTop, bottom = top + s.clientHeight;
+      var dx = limit(x.c.__elanOff.dx, left - x.r.left, right - x.r.right), dy = limit(x.c.__elanOff.dy, top - x.r.top, bottom - x.r.bottom);
+      x.c.__elanApplied = { dx: dx, dy: dy };
+      x.c.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+    });
   }
 
   /* A card's own artwork (a picture or a drawing) sits over the card; to show anything else, or to leave the white base, it is hidden.
@@ -382,8 +401,7 @@
       el.style.transform = 'translate(' + (ed.dx || 0) + 'px,' + (ed.dy || 0) + 'px)';
       if (!el.style.position && getComputedStyle(el).position === 'static') el.style.position = 'relative';
       el.style.zIndex = '3';
-      var strip = entry.kind === 'card' && el.closest('.strip');
-      if (strip && !el.__elanStrip) { el.__elanStrip = { node: strip, base: strip.getAttribute('style') || '' }; strip.style.overflow = 'visible'; }
+      if (entry.kind === 'card' && el.closest('.strip')) el.__elanOff = { dx: ed.dx || 0, dy: ed.dy || 0 };   // limited to the strip once every size is painted (fitStripCards)
     }
     if (ed.w) { el.style.width = ed.w + 'px'; el.style.maxWidth = 'none'; el.style.flex = '0 0 auto'; }
     if (ed.h) { el.style.height = ed.h + 'px'; }
@@ -434,6 +452,7 @@
       paint(entry, ed);
       touched.push(entry.el);
     });
+    fitStripCards(touched);
   }
 
   function apply() {
