@@ -371,8 +371,16 @@ test('15. «حسابي»: under sign out in the menu, written once, saved on the
     assert.deepEqual(w.body, { user_id: 'customer-1', full_name: 'أحمد محمد علي حسن', phone: '01012345678', governorate: 'القاهرة', city: 'وسط البلد', address: 'شارع التحرير', building_no: '12', floor_no: '3', apartment_no: '8', address_lat: 30.0444, address_lng: 31.2357,
       ship_same: false, ship_governorate: 'الجيزة', ship_city: 'المعادي', ship_address: 'شارع النيل، بجوار الصيدلية', ship_building_no: '5', ship_floor_no: null, ship_apartment_no: '2', ship_lat: null, ship_lng: null,
       recipient_name: 'منى سيد', recipient_phone: '01112223334', delivery_notes: 'اتصل قبل الوصول' });
-    // 5. "place order": «حسابي» opens first, with what was saved; the customer changes one thing and presses OK
-    await page.evaluate(() => openAccount('Test Store'));   // what «place order» calls once the cart lines pass the review check (openStoreOrder itself is covered in tests/customer-account-page.test.js)
+    // 5. "place order" with a complete «حسابي» opens the read-only review first (phase 1: no editable order form any more); «تعديل بياناتي» opens «حسابي» with a way back
+    //    to the cart. The catalogue is empty in this mocked page, so the cart line the review needs is given by the page's own cartGroups().
+    await page.evaluate(() => {
+      window.cartGroups = function () { return { 'Test Store': [{ c: { q: 1 }, p: { name: 'Test Perfume', brand: 'Test Brand', sz: '50 ml' }, b: { store: 'Test Store', storeId: 'store-1', storeProductId: 'sp-1', price: 150, cur: 'EGP', review: false } }] }; };
+      openStoreOrder('Test Store');
+    });
+    await page.waitForSelector('[data-store-order-form]');
+    assert.equal(await page.locator('#sheet .acct-wrap').count(), 0, 'a complete account goes straight to the review, not to the editing form');
+    assert.equal(await page.locator('[data-store-order-form] input, [data-store-order-form] textarea').count(), 0, 'the review is read only: the form holds the order button alone');
+    await page.locator('[data-acct-edit]').click();
     await page.waitForSelector('#sheet .acct-wrap [data-back-cart]', { state: 'attached' });
     assert.equal(await page.locator('#acct-full_name').inputValue(), 'أحمد محمد علي حسن');
     assert.equal(await page.locator('#acct-phone').inputValue(), '01012345678');
@@ -389,13 +397,14 @@ test('15. «حسابي»: under sign out in the menu, written once, saved on the
     await page.waitForSelector('[data-store-order-form]');
     assert.equal(acctWrites.length, 2, 'the change was saved');
     assert.equal(acctWrites[1].body.recipient_phone, '01099998888');
-    // 6. the order form is filled from «حسابي»: the store delivers to the recipient, at the delivery address, and still sees who bought
-    const f = (n) => page.locator('[data-store-order-form] [name="' + n + '"]').inputValue();
-    assert.equal(await f('name'), 'منى سيد');
-    assert.equal(await f('phone'), '01099998888');
-    assert.equal(await f('email'), 'customer@example.test');
-    assert.equal(await f('address'), 'الجيزة، المعادي، شارع النيل، بجوار الصيدلية، مبنى 5، شقة 2', 'the courier reads it in order: governorate, city, street, building, flat');
-    assert.equal(await f('notes'), 'المشتري: أحمد محمد علي حسن - 01012345678\nاتصل قبل الوصول');
+    // 6. the review shows what «حسابي» holds: the store delivers to the recipient, at the delivery address, and still sees who bought
+    const review = await page.locator('.order-review').innerText();
+    assert.match(review, /منى سيد/, 'the recipient');
+    assert.match(review, /01099998888/, 'with the changed phone');
+    assert.match(review, /customer@example\.test/);
+    assert.match(review, /الجيزة، المعادي، شارع النيل، بجوار الصيدلية، مبنى 5، شقة 2/, 'the courier reads it in order: governorate, city, street, building, flat');
+    assert.match(review, /المشتري: أحمد محمد علي حسن - 01012345678/);
+    assert.match(review, /اتصل قبل الوصول/);
     assert.deepEqual(csp, [], 'the policy let the map, the address lookup and the location request through');
   } finally { await c.context.close(); }
 });
