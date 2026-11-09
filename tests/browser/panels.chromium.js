@@ -86,6 +86,8 @@ async function chooseTool(page, frame, re) {
   assert.ok(at >= 0, 'the menu has ' + re + ': ' + labels.join(' | '));
   await page.locator('#menu > *').nth(at).click();
   await page.waitForTimeout(900);
+  /* creating a picture or a banner first asks for a standard size: Enter takes the first choice, "automatic" */
+  if (await page.locator('#elanSizeDlg').count()) { await page.keyboard.press('Enter'); await page.waitForTimeout(900); }
 }
 const closeDialogs = (page) => page.evaluate(() => document.querySelectorAll('dialog[open]').forEach((d) => d.close()));
 const shape = (page, selector) => page.evaluate(F.describePanel, { selector, props: F.PROPS });

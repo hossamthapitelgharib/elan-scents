@@ -106,6 +106,8 @@ async function check({ context, base, login, accessKey, shots, loginWaitMs }) {
       const at = labels.findIndex((t) => panel.tool.test(t));
       if (at < 0) { bad(panel.name + ': no menu item ' + panel.tool); continue; }
       await page.locator('#menu > *').nth(at).click(); await page.waitForTimeout(1500);
+      /* creating a picture or a banner first asks for a standard size (the first choice, "automatic", is what the original did): take it */
+      if (await page.locator('#elanSizeDlg').count()) { await page.keyboard.press('Enter'); await page.waitForTimeout(1500); }
       if (panel.after) { await panel.after(page); await page.waitForTimeout(300); }
       const live = await page.evaluate(F.describePanel, { selector: panel.selector, props: F.PROPS });
       await shot(page, panel.key);

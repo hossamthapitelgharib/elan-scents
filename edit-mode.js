@@ -15,6 +15,37 @@
   var SECTIONS_NAMES = { section: 1 };
 
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
+  /* A standard size chosen in the editor ({w, h}, pixels): refused unless it is inside the limits of a saved size; scaled down (same shape) to the room
+     the element has when it is wider than that, so on a phone a 728x90 banner is a full-width strip and never wider than the screen. */
+  function sizeArg(v) {
+    if (v === undefined || v === null) return null;
+    var w = Math.round(+(v && v.w)), h = Math.round(+(v && v.h)), lo = Geometry.MIN_WIDTH || 40, lh = Geometry.MIN_HEIGHT || 30, hi = Geometry.MAX_SIZE || 4000;
+    if (!(w >= lo && w <= hi && h >= lh && h <= hi)) throw new Error('مقاس غير صالح.');
+    return { w: w, h: h };
+  }
+  /* The width an element can really use: the inside of the box it sits in (its padding left out). A new element has no box yet, so it is the one the page puts new blocks in. */
+  function roomOf(box) {
+    var inside = box && box.clientWidth;
+    if (!inside) return 0;
+    try { var cs = getComputedStyle(box); inside -= (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0); } catch (_) { /* no styles: the whole width */ }
+    return inside;
+  }
+  function fitFor(size, id) {
+    var e = id && entryById(id), box = e && e.el && e.el.parentElement;
+    if (!box) box = document.body.classList.contains('inner') ? document.getElementById('view') : document.getElementById('main');
+    var room = roomOf(box) || document.documentElement.clientWidth || window.innerWidth;
+    return (Geometry.fitSize && Geometry.fitSize(size, room)) || size;
+  }
+  /* "Back to the original size": the fixed width and height chosen on this screen size are dropped. */
+  function clearSize(id) {
+    mutate(function () { var t = edit(device(), id); delete t.w; delete t.h; });
+    return null;
+  }
+  function applySize(id, size) {
+    var s = fitFor(sizeArg(size), id);
+    mutate(function () { var t = edit(device(), id); t.w = s.w; t.h = s.h; });
+    return { w: s.w, h: s.h };
+  }
   function lang() { return document.documentElement.lang === 'en' ? 'en' : 'ar'; }
   function device() { return ED.deviceOf(window.innerWidth); }
   function rid() { var a = new Uint8Array(5); crypto.getRandomValues(a); return Array.prototype.map.call(a, function (b) { return (b % 36).toString(36); }).join(''); }
@@ -759,7 +790,8 @@
     if (opts.image) { if (ED.isVideoUrl && ED.isVideoUrl(opts.image)) b.video = opts.image; else b.image = opts.image; }   // a banner shows a picture or a video
     if (!validBlock(b)) throw new Error('بيانات البلوك غير صالحة (راجعي رابط الصورة).');
     var order = insertAfterSelected(id, opts.at, !!b.float);
-    mutate(function (d) { d.blocks.push(b); d.order = order; });
+    var size = opts.size ? fitFor(sizeArg(opts.size), null) : null;   // a standard size chosen before creating: part of the same undo step
+    mutate(function (d) { d.blocks.push(b); d.order = order; if (size) { var t = edit(device(), id); t.w = size.w; t.h = size.h; } });
     select(id);
     if (opts.at && b.float) placeAt(id, opts.at);   // only a free text sits exactly at the click; the others enter the flow there
     return { elementId: id };
@@ -914,7 +946,7 @@
   var TOOLS = [];
   function registerTool(t) { TOOLS = TOOLS.filter(function (x) { return x.id !== t.id; }).concat([t]); }
   function toolList(i) {
-    return TOOLS.filter(function (t) { return !t.show || t.show(i); }).map(function (t) { return { id: t.id, label: typeof t.label === 'function' ? t.label(i) : t.label, ui: t.ui || null, enabled: t.when ? !!t.when(i) : true }; });
+    return TOOLS.filter(function (t) { return !t.show || t.show(i); }).map(function (t) { var d = { id: t.id, label: typeof t.label === 'function' ? t.label(i) : t.label, ui: t.ui || null, enabled: t.when ? !!t.when(i) : true }; if (t.sizes && Geometry.SIZE_GROUPS) d.sizes = Geometry.SIZE_GROUPS; return d; });
   }
   /* ---- default pages: one design for every product / brand / store page; a page that has its own edits keeps them ---- */
   var KIND_NAMES = { prod: 'كل صفحات المنتجات', brand: 'كل صفحات البراندات', store: 'كل صفحات المتاجر' };
@@ -937,9 +969,9 @@
   function hasText(i) { return !!(i && i.canText); }
   registerTool({ id: 'format', label: 'تنسيق النص: الخط • اللون • الحجم • 3D', ui: 'format', when: has });
   [['create_section', 'إنشاء سيكشن'], ['create_brand', 'إنشاء كارت براند'], ['create_store', 'إنشاء كارت متجر'], ['create_perfume', 'إنشاء كارت عطر'], ['create_occasion', 'إنشاء مناسبة'], ['create_note', 'إنشاء نوتة عطر']].forEach(function (x) { registerTool({ id: x[0], label: x[1], ui: 'create', run: function (c) { return createSmart(x[0].replace('create_', ''), c); } }); });
-  registerTool({ id: 'create_text_block', label: 'إنشاء كتلة نصية', run: function (c) { return createBlock('text_block', { at: c.at }); } });
-  registerTool({ id: 'create_banner', label: 'إنشاء بانر صورة أو فيديو', ui: 'media_new', run: function (c) { return createBlock('banner', { at: c.at, image: c.src }); } });
-  registerTool({ id: 'create_text', label: 'إنشاء نص', run: function (c) { return createBlock('text', { at: c.at, float: true, text: 'اكتب نصك هنا' }); } });
+  registerTool({ id: 'create_text_block', label: 'إنشاء كتلة نصية', sizes: true, run: function (c) { return createBlock('text_block', { at: c.at, size: c.size }); } });
+  registerTool({ id: 'create_banner', label: 'إنشاء بانر صورة أو فيديو', ui: 'media_new', sizes: true, run: function (c) { return createBlock('banner', { at: c.at, image: c.src, size: c.size }); } });
+  registerTool({ id: 'create_text', label: 'إنشاء نص', sizes: true, run: function (c) { return createBlock('text', { at: c.at, float: true, text: 'اكتب نصك هنا', size: c.size }); } });
   registerTool({ id: 'media', label: 'رفع صورة أو فيديو داخل العناصر أو الهيرو', ui: 'media', when: function (i) { return !!i && ['text', 'text_block'].indexOf(i.type) === -1; }, run: function (c) { return mediaPrompt(c.id).then(function (src) { setMedia(c.id, src); return null; }); } });
   registerTool({ id: 'media_delete', label: 'حذف ميديا الكارت أو الهيرو إلى الأرشيف', when: function (i) { return !!i && !!i.hasMedia; }, run: deleteMedia });
   registerTool({ id: 'edit_text', label: 'تعديل النص بالكيبورد', when: function (i) { return !!(i && i.textId && i.type !== 'image' && i.type !== 'video'); }, run: function (c) { var id = (c.info && c.info.textId) || c.id; select(id); startText(id); return null; } });
@@ -949,7 +981,9 @@
   function notBar(i) { return has(i) && i.kind !== 'top-bar'; }
   registerTool({ id: 'library_save', label: 'حفظ العنصر في المكتبة', when: notBar, run: saveToLibrary });
   registerTool({ id: 'library_download', label: 'تنزيل العنصر للمكتبة كملف', when: notBar, run: downloadFromLibrary });
-  registerTool({ id: 'create_image', label: 'إنشاء صورة أو فيديو', ui: 'media_new', run: function (c) { if (!c.src) throw new Error('اختاري صورة أو فيديو الأول.'); return createBlock('image', { at: c.at, src: c.src }); } });
+  registerTool({ id: 'create_image', label: 'إنشاء صورة أو فيديو', ui: 'media_new', sizes: true, run: function (c) { if (!c.src) throw new Error('اختاري صورة أو فيديو الأول.'); return createBlock('image', { at: c.at, src: c.src, size: c.size }); } });
+  /* A standard size for the selected element (the free drag handle stays as it is): the host shows the saved groups, this applies the choice on the current screen size only. */
+  registerTool({ id: 'size_preset', label: 'مقاس قياسي للعنصر…', ui: 'size', sizes: true, show: function (i) { return !!i; }, when: function (i) { return !!i && i.kind !== 'top-bar'; }, run: function (c) { return c.size ? applySize(c.id, c.size) : clearSize(c.id); } });
   registerTool({ id: 'open', label: 'دخول لصفحة', when: function (i) { return !!(i && i.dynamic); }, run: function (c) { enterPage(entryById(c.id)); return null; } });
   /* Back / home are not in the mouse menu any more: the editor header has the «صفحة سابقة» button for them. The tools stay registered
      (the button runs go_back through tool.run) but show:false keeps them out of the menu. */
@@ -983,7 +1017,7 @@
       case 'page.markSaved': if (readOnly) throw new Error('هذا الإصدار للقراءة فقط ولا يمكن تأكيد حفظه.'); baseRevision = p.revision; undoStack = []; redoStack = []; baseJson = JSON.stringify(work); dirty = true; setDirty(false); if (hostApi) hostApi.revision(baseRevision); return snapshot();
       case 'element.select': select(need(p.elementId).id); return { selected: selectedId };
       case 'element.move': { var e1 = need(p.elementId || selectedId); mutate(function () { var t = edit(device(), e1.id); t.dx = Math.round(+p.dx || 0); t.dy = Math.round(+p.dy || 0); }); return null; }
-      case 'element.resize': { var e2 = need(p.elementId || selectedId); mutate(function () { var t = edit(device(), e2.id); if (p.w) t.w = Math.round(p.w); if (p.h) t.h = Math.round(p.h); }); return null; }
+      case 'element.resize': { var e2 = need(p.elementId || selectedId); if (p.size) return applySize(e2.id, p.size); mutate(function () { var t = edit(device(), e2.id); if (p.w) t.w = Math.round(p.w); if (p.h) t.h = Math.round(p.h); }); return null; }
       case 'element.format': { var e3 = need(p.elementId || selectedId), sty = p.style || {}; mutate(function (d) { var t = edit('all', e3.id); t.style = t.style || {}; Object.keys(sty).forEach(function (k) { if (sty[k] === null) delete t.style[k]; else t.style[k] = sty[k]; }); }); return null; }
       case 'element.setText': { var e4 = need(p.elementId || selectedId); mutate(function () { var t = edit('all', e4.id); t.text = t.text || {}; t.text[lang()] = String(p.text || '').slice(0, 600); }); return null; }
       case 'element.setMedia': { var e5 = need(p.elementId || selectedId); setMedia(e5.id, p.src || await mediaPrompt(e5.id)); return null; }
@@ -1001,7 +1035,7 @@
         if (!tool) throw new Error('أداة غير معروفة');
         var ei = p.elementId ? entryById(p.elementId) : null, inf = info(ei);
         if (tool.when && !tool.when(inf)) throw new Error('الأداة دي مش متاحة للعنصر ده.');
-        var out = await tool.run({ id: p.elementId || null, info: inf, at: p.at || null, src: typeof p.src === 'string' ? p.src : null });
+        var out = await tool.run({ id: p.elementId || null, info: inf, at: p.at || null, src: typeof p.src === 'string' ? p.src : null, size: tool.sizes ? sizeArg(p.size) : null });
         return out === undefined ? null : out;
       }
       case 'element.nudge': {

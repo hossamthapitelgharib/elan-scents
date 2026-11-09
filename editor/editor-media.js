@@ -9,7 +9,18 @@
     '#elanMediaDlg{width:420px;max-width:94vw;padding:22px;background:#fffdf8;border:1px solid #c6aa70;border-radius:14px;direction:rtl;font-family:Tahoma,Arial}',
     '#elanMediaDlg::backdrop{background:#0005}',
     '#elanMediaDlg h3{color:#87652d}',
-    '#elanMediaDlg .note{font-size:12px;line-height:1.7;color:#7d6a49}#elanMediaDlg .note:empty{display:none}'
+    '#elanMediaDlg .note{font-size:12px;line-height:1.7;color:#7d6a49}#elanMediaDlg .note:empty{display:none}',
+    /* the standard-size chooser: same cream and gold, the sizes in a two-column grid inside a scrolling list */
+    '#elanSizeDlg{width:460px;max-width:94vw;max-height:84vh;padding:18px;background:#fffdf8;border:1px solid #c6aa70;border-radius:14px;direction:rtl;font-family:Tahoma,Arial;overflow:auto}',
+    '#elanSizeDlg::backdrop{background:#0005}#elanSizeDlg h3{color:#87652d;margin:0 0 6px}',
+    '#elanSizeDlg .note{font-size:12px;line-height:1.7;color:#7d6a49;margin:0 0 10px}',
+    '#elanSizeDlg h4{margin:14px 0 6px;color:#87652d;font-size:13px}',
+    '#elanSizeDlg .grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}',
+    '#elanSizeDlg button{font:inherit;cursor:pointer;border:1px solid #d9c79c;background:#fff;color:#4a3a1a;border-radius:9px;padding:8px 6px;line-height:1.5;unicode-bidi:plaintext;text-align:center}',
+    '#elanSizeDlg button:hover,#elanSizeDlg button:focus{background:#f6ecd4;outline:2px solid #c8962a;outline-offset:1px}',
+    '#elanSizeDlg button.auto{display:block;width:100%;background:#f6ecd4;font-weight:700}',
+    '#elanSizeDlg button .dim{display:block;font-weight:700;direction:ltr}#elanSizeDlg button .lbl{display:block;font-size:11.5px;color:#7d6a49}',
+    '#elanSizeDlg .foot{margin-top:14px;display:flex;justify-content:flex-start}#elanSizeDlg .foot button{padding:8px 18px}'
   ].join('\n');
   document.head.appendChild(css);
 
@@ -160,10 +171,40 @@
     var url = await window.elanPickMedia();
     if (url && typeof runLive === 'function') runLive('element.setMedia', { elementId: element && element.id, src: url });
   };
+  /* The standard sizes, chosen in the editor window (the groups come from the page's own list, see ElanEditorGeometry.SIZE_GROUPS).
+     Gives back { w, h } for a size, null for "automatic", and undefined when the owner closes it without choosing. */
+  window.elanPickSize = function (groups, opts) {
+    opts = opts || {};
+    return new Promise(function (resolve) {
+      var old = document.getElementById('elanSizeDlg'); if (old) old.remove();
+      var dlg = el('dialog', '', { id: 'elanSizeDlg' }), done = false;
+      function finish(value) { if (done) return; done = true; try { dlg.close(); } catch (_) { /* already closed */ } dlg.remove(); resolve(value); }
+      dlg.appendChild(el('h3', opts.title || 'اختار المقاس'));
+      dlg.appendChild(el('p', 'مقاسات قياسية عالمية. على الموبايل المقاس الأعرض من الشاشة بيتصغّر بنفس النسبة، وتقدر بعدها تعدّله بالسحب من مربع الركن.', { className: 'note' }));
+      var auto = el('button', opts.auto || 'تلقائي (المقاس الافتراضي)', { type: 'button', className: 'auto' });
+      auto.onclick = function () { finish(null); };
+      dlg.appendChild(auto);
+      (groups || []).forEach(function (group) {
+        dlg.appendChild(el('h4', group.label));
+        var grid = el('div', '', { className: 'grid' });
+        group.sizes.forEach(function (size) {
+          var b = el('button', '', { type: 'button' }), dim = el('span', '', { className: 'dim' }), lbl = el('span', '', { className: 'lbl' });
+          dim.textContent = size.w + ' × ' + size.h; nameInto(lbl, size.label);
+          b.append(dim, lbl); b.onclick = function () { finish({ w: size.w, h: size.h }); }; grid.appendChild(b);
+        });
+        dlg.appendChild(grid);
+      });
+      var foot = el('div', '', { className: 'foot' }), cancel = el('button', 'إلغاء', { type: 'button' });
+      cancel.onclick = function () { finish(undefined); }; foot.appendChild(cancel); dlg.appendChild(foot);
+      dlg.addEventListener('cancel', function (ev) { ev.preventDefault(); finish(undefined); });
+      dlg.addEventListener('click', function (ev) { if (ev.target === dlg) finish(undefined); });
+      document.body.appendChild(dlg); dlg.showModal(); auto.focus();
+    });
+  };
   // Menu tool: create something (a banner or an image) with an image, at the pointer.
-  window.elanLiveMediaNew = async function (tool, at) {
+  window.elanLiveMediaNew = async function (tool, at, size) {
     var url = await window.elanPickMedia({ optional: tool.id === 'create_banner' });
     if (!url && tool.id !== 'create_banner') return;
-    if (typeof runLive === 'function') runLive('tool.run', { id: tool.id, at: at, src: url || undefined });
+    if (typeof runLive === 'function') runLive('tool.run', { id: tool.id, at: at, src: url || undefined, size: size || undefined });
   };
 })();

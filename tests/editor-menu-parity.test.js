@@ -9,7 +9,7 @@ const { designBrowser, plain, read } = require('./browser-fixture');
    (tests/fixtures/elan-original-tools-golden.json): same tools, same order, same enablement. */
 const golden = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'elan-original-tools-golden.json'), 'utf8'));
 const GOLDEN_IDS = ['format', 'create_section', 'create_brand', 'create_store', 'create_perfume', 'create_occasion', 'create_note', 'create_text_block', 'create_banner', 'create_text', 'media', 'media_delete', 'edit_text', 'copy', 'archive', 'library_save', 'library_download'];
-const EXTRA_IDS = ['create_image', 'open', 'go_back', 'go_home'];
+const EXTRA_IDS = ['create_image', 'size_preset', 'open', 'go_back', 'go_home'];   // size_preset: standard sizes, shown only when an element is chosen
 const SCOPE_IDS = ['scope_toggle', 'scope_reset'];   // default pages: they show only on a product, brand or store page
 const flags = (rows) => rows.map((r) => r.startsWith('[ok]'));
 
@@ -47,7 +47,7 @@ test('the menu keeps the original editor tools in the original order, new ones a
   stack(b);
   const idsOn = (el) => plain(b.tools.menu(el).map((t) => t.id));
   assert.deepEqual(idsOn(null).slice(17), ['create_image', 'open'], 'an empty page: "دخول لصفحة" is listed (the owner asked for it in the menu) but no back / home');
-  assert.deepEqual(idsOn({ dynamic: true }).slice(17), ['create_image', 'open']);
+  assert.deepEqual(idsOn({ dynamic: true }).slice(17), ['create_image', 'size_preset', 'open']);
   const open = (el) => plain(b.tools.menu(el).find((t) => t.id === 'open'));
   assert.equal(open(null).label, 'دخول لصفحة');
   assert.equal(open(null).enabled, false, 'nothing to enter on an empty area');

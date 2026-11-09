@@ -30,6 +30,41 @@
     };
   }
 
+  /* The standard sizes (in pixels) an element can be given instead of a random one: the IAB web-banner set, the usual social-media
+     sizes, the common screen ratios and print paper at 96 ppi. Every entry is inside the limits the design file accepts (see design-schema.js);
+     tests/editor-sizes.test.js checks that. The editor shows them grouped, the first choice always being "automatic" (no fixed size). */
+  var SIZE_GROUPS = [
+    { id: 'web', label: 'بانرات الويب (IAB)', sizes: [
+      { w: 728, h: 90, label: 'ليدربورد' }, { w: 970, h: 250, label: 'بيلبورد' }, { w: 970, h: 90, label: 'ليدربورد كبير' }, { w: 468, h: 60, label: 'بانر كلاسيكي' },
+      { w: 300, h: 250, label: 'مستطيل متوسط' }, { w: 336, h: 280, label: 'مستطيل كبير' }, { w: 300, h: 600, label: 'نصف صفحة' }, { w: 160, h: 600, label: 'ناطحة سحاب عريضة' },
+      { w: 320, h: 50, label: 'بانر موبايل' }, { w: 320, h: 100, label: 'بانر موبايل كبير' }
+    ] },
+    { id: 'social', label: 'سوشيال ميديا', sizes: [
+      { w: 1080, h: 1080, label: 'بوست مربع 1:1' }, { w: 1080, h: 1350, label: 'بوست طولي 4:5' }, { w: 1080, h: 1920, label: 'ستوري / ريلز 9:16' },
+      { w: 1200, h: 630, label: 'مشاركة رابط (Open Graph)' }, { w: 1280, h: 720, label: 'صورة يوتيوب المصغّرة' }, { w: 820, h: 312, label: 'غلاف فيسبوك' },
+      { w: 1500, h: 500, label: 'غلاف X' }, { w: 1584, h: 396, label: 'غلاف لينكدإن' }
+    ] },
+    { id: 'screen', label: 'شاشات ونسب شائعة', sizes: [
+      { w: 1920, h: 1080, label: 'Full HD 16:9' }, { w: 1600, h: 900, label: '16:9' }, 
+      { w: 1024, h: 768, label: '4:3' }, { w: 1200, h: 800, label: '3:2' }, { w: 1000, h: 1000, label: 'مربع 1:1' }
+    ] },
+    { id: 'print', label: 'ورق الطباعة (96 نقطة/بوصة)', sizes: [
+      { w: 794, h: 1123, label: 'A4' }, { w: 559, h: 794, label: 'A5' }, { w: 1123, h: 794, label: 'A4 عرضي' }
+    ] }
+  ];
+
+  /* The size to really use: when it is wider than the room the element has (a phone, a narrow card), it is scaled down to that width
+     keeping its shape, so a 728x90 banner stays an 8:1 strip on a 360px screen. Always inside the limits of a saved size. */
+  function fitSize(size, room) {
+    var w = Number(size && size.w) || 0, h = Number(size && size.h) || 0, avail = Number(room) || 0;
+    if (!(w > 0 && h > 0)) return null;
+    if (avail > 0 && w > avail) { h = h * avail / w; w = avail; }
+    return {
+      w: Math.max(MIN_WIDTH, Math.min(MAX_SIZE, Math.round(w))),
+      h: Math.max(MIN_HEIGHT, Math.min(MAX_SIZE, Math.round(h)))
+    };
+  }
+
   /* Automatic displacement (the original editor's flow): a dragged card or section is dropped next to the sibling that is
      closest to the pointer, and every other sibling shifts to make room. `rects` are the siblings' boxes on screen
      ({id, left, top, width, height}); `point` is the pointer. The rule is the original `reflowAt` rule:
@@ -79,5 +114,5 @@
     return [].concat.apply([], groups);
   }
 
-  return { move: move, resize: resize, dropSlot: dropSlot, reorder: reorder, reorderSticky: reorderSticky, MIN_WIDTH: MIN_WIDTH, MIN_HEIGHT: MIN_HEIGHT, MAX_SIZE: MAX_SIZE };
+  return { move: move, resize: resize, SIZE_GROUPS: SIZE_GROUPS, fitSize: fitSize, dropSlot: dropSlot, reorder: reorder, reorderSticky: reorderSticky, MIN_WIDTH: MIN_WIDTH, MIN_HEIGHT: MIN_HEIGHT, MAX_SIZE: MAX_SIZE };
 });
