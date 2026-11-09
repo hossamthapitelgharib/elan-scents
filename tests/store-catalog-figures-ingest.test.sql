@@ -100,7 +100,8 @@ begin
   perform public.ingest_store_catalog_figures(sb, jsonb_build_array(jsonb_build_object('product_size_id', zb, 'units_sold', 8)));
   reset role;
 
-  -- the rankings now show them, as the stores' catalog source
+  -- the rankings now show them, as the stores' catalog source (the final table is refreshed by the 5-minute job)
+  perform private.refresh_product_stats();
   select * into a from public.storefront_product_rankings where product_id = p_a1;
   select * into b from public.storefront_product_rankings where product_id = p_b;
   if a.sales_source <> 'store_catalog' or a.rating_source <> 'store_catalog' or a.views_source <> 'store_catalog' or a.searches_source <> 'store_catalog' then

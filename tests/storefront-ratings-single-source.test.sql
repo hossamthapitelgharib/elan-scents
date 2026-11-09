@@ -1,5 +1,6 @@
--- Real-database test for supabase/migrations/20261108061117_storefront_ratings_single_source.sql
--- Run AFTER the migration, as the project owner, inside one transaction. Every fixture is synthetic (example.invalid users,
+-- Real-database test for supabase/migrations/20261108061117_storefront_ratings_single_source.sql (as changed by
+-- 20261109060420_final_product_stats_table.sql: the card and the ranking read the final table public.product_stats).
+-- Run AFTER the migrations, as the project owner, inside one transaction. Every fixture is synthetic (example.invalid users,
 -- fixture stores / brand / perfumes) and everything is rolled back at the end.
 --
 -- Proves that a perfume's rating has ONE source:
@@ -76,6 +77,8 @@ begin
   o5c := pg_temp.fx_rt_offer(sc, z5);                          -- the inactive store C also offers P5 and reports a glowing rating
   insert into public.store_catalog_ratings(store_product_id, store_id, product_size_id, average_rating, ratings_count) values (o5c, sc, z5, 5.00, 50);
   update public.store_products set is_catalog_bestseller = true where id = o6;
+  -- the final table is refreshed by the 5-minute job; the review trigger already did the customers' ratings
+  perform private.refresh_product_stats();
 
   ---------------------------------------------------------------- 1. the one function
   select * into a from private.fn_product_rating_sources() where product_id = p1;
@@ -143,9 +146,15 @@ begin
   reset role;
   if v_denied then raise exception 'the view runs as the caller, so the caller needs execute on the private rating function (like the activity function)'; end if;
 
-  ---------------------------------------------------------------- 5. product_stats is untouched
+  ---------------------------------------------------------------- 5. the final table holds the same ratings, each with its source
   select count(*) into v_stats_after from public.product_stats;
   if v_stats_after < v_stats_before then raise exception 'product_stats must keep its rows'; end if;
+  select average_rating, reviews_count, rating_source into a from public.product_stats where product_id = p1;
+  if a.average_rating is distinct from 4.67 or a.reviews_count <> 3 or a.rating_source <> 'customers' then raise exception 'product_stats P1: %', a; end if;
+  select average_rating, reviews_count, rating_source into a from public.product_stats where product_id = p2;
+  if a.average_rating is distinct from 4.90 or a.reviews_count <> 10 or a.rating_source <> 'store_catalog' then raise exception 'product_stats P2: %', a; end if;
+  select count(*) into n from public.product_stats where product_id in (p3, p6, p7) and average_rating is null and reviews_count = 0 and rating_source is null;
+  if n <> 3 then raise exception 'product_stats must hold no rating for P3 / P6 / P7 (got % of 3)', n; end if;
 end
 $fixture$;
 

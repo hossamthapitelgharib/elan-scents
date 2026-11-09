@@ -1,9 +1,12 @@
--- Real-database test for supabase/migrations/20261106080837_storefront_activity_from_customer_tables.sql
--- Run AFTER the migration, as the project owner, inside one transaction. Every fixture is synthetic
+-- Real-database test for supabase/migrations/20261106080837_storefront_activity_from_customer_tables.sql, as changed by
+-- 20261109060420_final_product_stats_table.sql (all-time figures, no 365-day window, read through the final table).
+-- Run AFTER the migrations, as the project owner, inside one transaction. Every fixture is synthetic
 -- (example.invalid user, one fixture perfume, fixture orders and events) and everything is rolled back at the end.
 --
 -- Proves that the three figures the storefront reads from public.public_products (sales_count, views_count, search_count)
--- come from the real customer tables and not from the hand-entered product_stats numbers, that only the right rows count,
+-- come from the real customer tables (through the final table public.product_stats, refreshed by
+-- private.refresh_product_stats()) and not from a hand-edited number, that only the right rows count, that NOTHING expires
+-- after a year,
 -- and that the visitor roles still cannot read any customer table.
 begin;
 
@@ -69,7 +72,7 @@ begin
   v_payload := jsonb_set(v_payload, '{items,0,total}', to_jsonb(v_price * 4));
   perform public.create_store_order_request(v_payload);
 
-  -- EVENTS of a registered customer: 3 views and 1 search count; a view 400 days ago and 2 cart additions do not.
+  -- EVENTS of a registered customer: 4 views (one of them 400 days ago: nothing expires) and 1 search count; 2 cart additions do not.
   insert into public.guest_visitors (fingerprint_hash, status) values (repeat('a', 64), 'guest') returning id into v_guest;
   insert into public.customer_sessions (session_id, user_id) values (v_sid_user, v_user);
   insert into public.customer_sessions (session_id, guest_id) values (v_sid_guest, v_guest);
@@ -84,17 +87,19 @@ begin
   -- the detailed trail of a guest is a second copy of the guest's counters: it must not be counted twice
   insert into public.customer_product_events (session_id, guest_id, product_id, event_type) values
     (v_sid_guest, v_guest, v_product, 'view'), (v_sid_guest, v_guest, v_product, 'view'), (v_sid_guest, v_guest, v_product, 'search');
-  -- GUEST counters: 5 views and 2 searches in the last 365 days count; 100 views from 400 days ago do not.
+  -- GUEST counters: 5 views and 2 searches count, and so do the 100 views from 400 days ago (all time).
   insert into public.guest_product_analytics (visitor_hash, product_id, activity_date, event_type, event_count) values
     (repeat('b', 64), v_product, current_date, 'view', 5),
     (repeat('b', 64), v_product, current_date - 3, 'search', 2),
     (repeat('c', 64), v_product, current_date - 400, 'view', 100);
 
-  -- the old hand-entered numbers must have no say any more
-  update public.product_stats set views_count = 999, sales_count = 999, search_count = 999 where product_id = v_product;
+  -- a hand-edited number has no say: the next refresh writes the real figures over it
+  update public.product_stats set views_count = 999, views_source = 'customers', sales_count = 999, sales_source = 'customers',
+                                  search_count = 999, search_source = 'customers' where product_id = v_product;
+  perform private.refresh_product_stats();
 
   select views_count, search_count, sales_count into v_row from public.public_products where id = v_product;
-  if v_row.views_count is distinct from 8 then raise exception 'views_count expected 8 (5 guest + 3 registered, last 365 days), got %', v_row.views_count; end if;
+  if v_row.views_count is distinct from 109 then raise exception 'views_count expected 109 (5 + 100 guest, 4 registered, all time), got %', v_row.views_count; end if;
   if v_row.search_count is distinct from 3 then raise exception 'search_count expected 3 (2 guest + 1 registered), got %', v_row.search_count; end if;
   if v_row.sales_count is distinct from 5 then raise exception 'sales_count expected 5 (completed 2 + delivered 3; rejected and new excluded), got %', v_row.sales_count; end if;
 
@@ -107,8 +112,8 @@ begin
   -- the storefront's own role sees the same numbers and still cannot read any customer table
   set local role anon;
   select views_count, search_count, sales_count into v_row from public.public_products where id = v_product;
-  if v_row.views_count is distinct from 8 or v_row.search_count is distinct from 3 or v_row.sales_count is distinct from 5 then
-    raise exception 'anon sees %/%/% instead of 8/3/5', v_row.views_count, v_row.search_count, v_row.sales_count;
+  if v_row.views_count is distinct from 109 or v_row.search_count is distinct from 3 or v_row.sales_count is distinct from 5 then
+    raise exception 'anon sees %/%/% instead of 109/3/5', v_row.views_count, v_row.search_count, v_row.sales_count;
   end if;
   v_denied := false; begin perform 1 from public.customer_product_events limit 1; exception when insufficient_privilege then v_denied := true; end;
   if not v_denied then raise exception 'anon can read customer_product_events'; end if;

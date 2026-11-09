@@ -114,7 +114,8 @@ begin
   reset role;
   if not v_denied then raise exception 'a row for a store offer that does not exist must be refused'; end if;
 
-  ---------------------------------------------------------------- the rankings
+  ---------------------------------------------------------------- the rankings (read from the final table, refreshed by the 5-minute job)
+  perform private.refresh_product_stats();
   select * into a from private.fn_storefront_product_rankings() where product_id = p1;
   select * into b from private.fn_storefront_product_rankings() where product_id = p2;
   select * into c from private.fn_storefront_product_rankings() where product_id = p3;
