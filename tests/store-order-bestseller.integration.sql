@@ -20,7 +20,12 @@ declare
   v_before_units bigint := 0;
   v_tracking text := 'IT-' || replace(gen_random_uuid()::text, '-', '');
 begin
-  SELECT id INTO v_uid FROM auth.users ORDER BY created_at LIMIT 1;
+  -- A synthetic customer (no real account is read or touched); everything is rolled back.
+  v_uid := 'b0000000-0000-4000-8000-0000000000e1';
+  INSERT INTO auth.users (id, aud, role, email, raw_user_meta_data)
+  VALUES (v_uid, 'authenticated', 'authenticated', 'bestseller-1@example.invalid', '{"full_name":"Best Seller One"}'::jsonb);
+  INSERT INTO public.customer_details (user_id, full_name, phone, governorate, address, ship_same)
+  VALUES (v_uid, 'احمد محمد علي حسن', '01012345678', 'القاهرة', 'شارع التحرير', true);
   SELECT sp.* INTO v_sp
   FROM public.store_products sp
   JOIN public.stores s ON s.id = sp.store_id AND s.status = 'active'
@@ -28,8 +33,8 @@ begin
   ORDER BY sp.created_at
   LIMIT 1;
 
-  IF v_uid IS NULL OR v_sp.id IS NULL THEN
-    RAISE NOTICE 'SKIPPED: requires one auth user and one available store product';
+  IF v_sp.id IS NULL THEN
+    RAISE NOTICE 'SKIPPED: requires one available store product';
     RETURN;
   END IF;
 
@@ -42,7 +47,8 @@ begin
   FROM public.product_sizes
   WHERE id = v_sp.product_size_id;
   ASSERT v_product_id IS NOT NULL, 'store product must resolve to a base product';
-  SELECT COALESCE(units_sold, 0) INTO v_before_units FROM public.registered_customer_best_sellers WHERE product_id = v_product_id;
+  -- A product with no sale yet has no row in the view: that is zero units, not NULL.
+  v_before_units := COALESCE((SELECT units_sold FROM public.registered_customer_best_sellers WHERE product_id = v_product_id), 0);
 
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_uid, 'role', 'authenticated')::text, true);
   PERFORM set_config('request.jwt.claim.sub', v_uid::text, true);
@@ -53,21 +59,20 @@ begin
   RETURNING id INTO v_cart_item_id;
 
   v_total := round(v_sp.price * 2, 2);
-  v_result := public.create_store_order_request_from_cart(jsonb_build_object(
-    'storeId', v_sp.store_id,
-    'trackingNumber', v_tracking,
-    'customer', jsonb_build_object('name', 'Integration Test', 'phone', '000', 'address', 'Test address')
-  ));
+  -- The server places the order for the verified customer from his account and his saved cart (phase 1); the tracking number is the server's.
+  v_result := public.place_store_order_server(jsonb_build_object('storeId', v_sp.store_id, 'idempotencyKey', 'bestseller-key-0001'), v_uid);
 
   v_request_id := (v_result->>'id')::uuid;
+  v_tracking := v_result->>'trackingNumber';
+  ASSERT v_tracking ~ '^ELN-[0-9]{8}-[0-9]{6}$', 'the tracking number is made by the server';
   ASSERT v_result->>'createdFromCart' = 'true', 'request must be created from the cart';
-  ASSERT v_result->>'cartCleared' = 'true', 'cart must be cleared after request submission';
-  ASSERT NOT EXISTS (SELECT 1 FROM public.cart_items WHERE id = v_cart_item_id), 'cart row is cleared after submission';
+  ASSERT v_result->>'cartCleared' = 'false', 'the cart is not cleared at creation: only a trusted payment result clears it (phase 2)';
+  ASSERT EXISTS (SELECT 1 FROM public.cart_items WHERE id = v_cart_item_id), 'the cart row is still there after submission';
   ASSERT (SELECT status FROM public.store_order_requests WHERE id = v_request_id) = 'awaiting_store_confirmation', 'submitted request is not a sale yet';
   ASSERT (SELECT source_cart_item_id FROM public.store_order_request_items WHERE request_id = v_request_id) = v_cart_item_id, 'request item retains cart lineage';
 
   -- 2) Before the merchant confirms execution, the request is absent from best sellers.
-  SELECT COALESCE(units_sold, 0) INTO v_units FROM public.registered_customer_best_sellers WHERE product_id = v_product_id;
+  v_units := COALESCE((SELECT units_sold FROM public.registered_customer_best_sellers WHERE product_id = v_product_id), 0);
   ASSERT v_units = v_before_units, 'unconfirmed store request must not count as a sale';
 
   SELECT id INTO v_request_item_id
@@ -75,13 +80,19 @@ begin
   WHERE request_id = v_request_id
   LIMIT 1;
 
-  -- 3) Merchant sends the complete, matching execution notification.
+  -- 3) Merchant sends the complete, matching execution notification: every line with its platform number, the customer as the order holds
+  --    him, the shipping amount and the carrier (the matcher refuses a report without them).
   v_notification := jsonb_build_object(
     'trackingNumber', v_tracking,
     'status', 'completed',
     'subtotal', v_total,
+    'shipping', 0,
+    'customer', (SELECT jsonb_build_object('name', customer_name, 'phone', customer_phone, 'address', customer_address)
+                 FROM public.store_order_requests WHERE id = v_request_id),
+    'shipment', jsonb_build_object('carrier', 'Test Carrier', 'status', 'preparing'),
     'items', jsonb_build_array(jsonb_build_object(
       'productSizeId', v_sp.product_size_id,
+      'platformOrderNumber', (SELECT platform_order_number FROM public.store_order_request_items WHERE id = v_request_item_id),
       'quantity', 2,
       'unitPrice', v_sp.price,
       'total', v_total,

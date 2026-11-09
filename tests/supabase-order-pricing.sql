@@ -19,7 +19,8 @@ begin
   assert not has_any_column_privilege('anon', 'public.profiles', 'UPDATE'), 'anon must not update profiles';
   assert not has_table_privilege('anon', 'public.store_products', 'DELETE'), 'anon must not delete store_products';
   assert not has_any_column_privilege('anon', 'public.store_products', 'UPDATE'), 'anon must not update store_products';
-  assert has_any_column_privilege('anon', 'public.analytics_events', 'INSERT'), 'anon keeps the intentional analytics insert';
+  assert not has_any_column_privilege('anon', 'public.analytics_events', 'INSERT'), 'anon writes nothing (since 20261101151945): visitor events go through the server';
+  assert has_any_column_privilege('authenticated', 'public.analytics_events', 'INSERT'), 'a signed-in customer keeps the analytics insert';
   assert has_any_column_privilege('anon', 'public.brands', 'SELECT'), 'anon keeps public reads (column-level grants)';
   assert has_any_column_privilege('anon', 'public.store_products', 'SELECT'), 'anon keeps catalog reads';
   assert has_table_privilege('anon', 'public.public_products', 'SELECT'), 'anon keeps the public views';
@@ -27,17 +28,18 @@ begin
   assert has_any_column_privilege('authenticated', 'public.cart_items', 'INSERT'), 'signed-in cart sync keeps working';
   assert not has_function_privilege('anon', 'public.create_store_order_request(jsonb)', 'EXECUTE'), 'anon must not create orders';
   assert not has_function_privilege('authenticated', 'public.create_store_order_request(jsonb)', 'EXECUTE'), 'browsers use place_store_order; the older function (client-chosen tracking number) is server-only';
-  assert has_function_privilege('authenticated', 'public.place_store_order(jsonb)', 'EXECUTE'), 'signed-in users create orders through place_store_order';
+  assert not has_function_privilege('authenticated', 'public.place_store_order(jsonb)', 'EXECUTE'), 'a browser token cannot place orders directly: the server does, for a verified user';
+  assert has_function_privilege('service_role', 'public.place_store_order_server(jsonb, uuid)', 'EXECUTE'), 'the server places orders through place_store_order_server';
 
-  -- policies: auth.uid() must be wrapped in a sub-select ------------------------------------------
-  assert (select count(*) from pg_policies where schemaname = 'public' and policyname in (
-      'checkout_sessions_owner_read', 'notifications_realtime_user_read', 'notifications_realtime_store_read',
-      'store_order_cart_restorations_owner_read', 'store_order_notifications_owner_read',
-      'store_order_request_items_owner_read', 'store_order_requests_owner_read')) = 7, 'all 7 policies still exist';
-  assert (select count(*) from pg_policies where schemaname = 'public' and policyname in (
-      'checkout_sessions_owner_read', 'notifications_realtime_user_read', 'notifications_realtime_store_read',
-      'store_order_cart_restorations_owner_read', 'store_order_notifications_owner_read',
-      'store_order_request_items_owner_read', 'store_order_requests_owner_read')
+  -- policies: auth.uid() must be wrapped in a sub-select (the owner-read policy of each order table) -----------------
+  assert (select count(*) from pg_policies where schemaname = 'public' and (tablename, policyname) in (
+      ('checkout_sessions', 'checkout_sessions_owner_read'), ('notifications', 'own_read'),
+      ('store_order_cart_restorations', 'store_order_cart_restorations_owner_read'), ('store_order_notifications', 'store_order_notifications_owner_read'),
+      ('store_order_request_items', 'store_order_request_items_owner_read'), ('store_order_requests', 'store_order_requests_owner_read'))) = 6, 'all 6 owner-read policies still exist';
+  assert (select count(*) from pg_policies where schemaname = 'public' and (tablename, policyname) in (
+      ('checkout_sessions', 'checkout_sessions_owner_read'), ('notifications', 'own_read'),
+      ('store_order_cart_restorations', 'store_order_cart_restorations_owner_read'), ('store_order_notifications', 'store_order_notifications_owner_read'),
+      ('store_order_request_items', 'store_order_request_items_owner_read'), ('store_order_requests', 'store_order_requests_owner_read'))
       and qual !~* 'select auth\.uid\(\)') = 0, 'auth.uid() is evaluated once per statement';
 
   -- ordering ------------------------------------------------------------------------------------

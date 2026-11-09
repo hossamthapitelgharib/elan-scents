@@ -91,6 +91,7 @@ Portal.errorMessages = {
   invalid_match_status: 'حالة المطابقة المطلوبة غير صحيحة.',
   invalid_date: 'التاريخ المدخل غير صحيح.',
   store_access_denied: 'هذا الطلب لا يتبع متجرك.',
+  reason_required: 'اكتب السبب الذي سيراه العميل ثم أعد المحاولة.',
   store_access_check_failed: 'تعذر التحقق من ربط حسابك بالمتجر الآن، حاول بعد قليل.',
   store_dashboard_failed: 'تعذر تحميل طلبات المتجر الآن، حاول بعد قليل.',
   invalid_status_transition: 'لا يمكن نقل الطلب إلى هذه الحالة من حالته الحالية.',

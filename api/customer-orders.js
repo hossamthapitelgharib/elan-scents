@@ -1,5 +1,5 @@
 const { getContext, requireRoles } = require('./_auth');
-const ORDER_SELECT = 'id,created_at,store_order_requests(id,tracking_number,status,created_at,subtotal,shipping_amount,total_amount,currency,stores(name),store_order_request_items(product_name,brand_name,size_label,product_size_id,quantity,unit_price,line_total,currency),store_order_cart_restorations(status),store_order_cancellation_requests(created_at),store_shipments(carrier_name,tracking_code,shipping_status,estimated_delivery_at,delivered_at,delivery_verified_at,status_note,updated_at))';
+const ORDER_SELECT = 'id,created_at,store_order_requests(id,tracking_number,status,created_at,subtotal,shipping_amount,total_amount,currency,merchant_order_number,merchant_invoice_number,stores(name),store_order_request_items(product_name,brand_name,size_label,product_size_id,quantity,unit_price,line_total,currency,platform_order_number),store_order_cart_restorations(status),store_order_cancellation_requests(created_at),store_shipments(carrier_name,tracking_code,shipping_status,estimated_delivery_at,delivered_at,delivery_verified_at,status_note,updated_at))';
 function reply(res, status, body) {
   res.setHeader('Cache-Control', 'no-store');
   return res.status(status).setHeader('Content-Type', 'application/json').json(body);
@@ -24,9 +24,9 @@ function sanitizeSessions(rows) {
   return rows.map(session => {
     const safeSession = pick(session, ['id', 'created_at']);
     safeSession.store_order_requests = (Array.isArray(session.store_order_requests) ? session.store_order_requests : []).map(request => {
-      const safeRequest = pick(request, ['id', 'tracking_number', 'status', 'created_at', 'subtotal', 'shipping_amount', 'total_amount', 'currency']);
+      const safeRequest = pick(request, ['id', 'tracking_number', 'status', 'created_at', 'subtotal', 'shipping_amount', 'total_amount', 'currency', 'merchant_order_number', 'merchant_invoice_number']);
       safeRequest.stores = request.stores && typeof request.stores === 'object' ? pick(request.stores, ['name']) : null;
-      safeRequest.store_order_request_items = (Array.isArray(request.store_order_request_items) ? request.store_order_request_items : []).map(item => pick(item, ['product_name', 'brand_name', 'size_label', 'product_size_id', 'quantity', 'unit_price', 'line_total', 'currency']));
+      safeRequest.store_order_request_items = (Array.isArray(request.store_order_request_items) ? request.store_order_request_items : []).map(item => pick(item, ['product_name', 'brand_name', 'size_label', 'product_size_id', 'quantity', 'unit_price', 'line_total', 'currency', 'platform_order_number']));
       // One request per order at most; PostgREST answers an object for this one-to-one link, an array elsewhere: the page always gets a list.
       const cancellation = request.store_order_cancellation_requests;
       safeRequest.store_order_cancellation_requests = (Array.isArray(cancellation) ? cancellation : cancellation && typeof cancellation === 'object' ? [cancellation] : []).map(row => pick(row, ['created_at']));

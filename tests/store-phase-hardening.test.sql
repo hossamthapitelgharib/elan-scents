@@ -34,7 +34,6 @@ declare
   pa1 public.store_products;
   pa2 public.store_products;
   pb1 public.store_products;
-  v_payload jsonb;
   v_res jsonb;
   v_acc_a uuid;
   v_acc_b uuid;
@@ -67,8 +66,9 @@ begin
   assert not has_function_privilege('authenticated', 'public.create_store_order_request_from_cart(jsonb)', 'execute'), 'clients cannot call create_store_order_request_from_cart';
   assert not has_function_privilege('anon', 'public.create_store_order_request(jsonb)', 'execute'), 'anon cannot either';
   assert has_function_privilege('service_role', 'public.create_store_order_request(jsonb)', 'execute'), 'the server keeps the older functions';
-  assert has_function_privilege('authenticated', 'public.place_store_order(jsonb)', 'execute'), 'a signed-in customer still places orders';
+  assert not has_function_privilege('authenticated', 'public.place_store_order(jsonb)', 'execute'), 'a browser token cannot place orders: only the server does, for a verified user';
   assert not has_function_privilege('anon', 'public.place_store_order(jsonb)', 'execute'), 'anon cannot place orders';
+  assert has_function_privilege('service_role', 'public.place_store_order_server(jsonb, uuid)', 'execute'), 'the server places orders for a verified customer';
   assert (select count(*) from pg_policies where schemaname = 'public' and tablename in ('orders', 'order_items') and cmd = 'INSERT') = 0,
     'no insert policy is left on the legacy order tables';
   perform set_config('request.jwt.claims', json_build_object('sub', u_other, 'role', 'authenticated')::text, true);
@@ -80,13 +80,11 @@ begin
   end;
   reset role;
 
-  v_payload := jsonb_build_object('storeId', v_a, 'customer', '{"name":"Test Customer","phone":"+201000000000","address":"Test street 1"}'::jsonb,
-    'items', jsonb_build_array(jsonb_build_object('storeProductId', pa1.id, 'productSizeId', pa1.product_size_id, 'quantity', 1, 'unitPrice', pa1.price)));
-  perform set_config('request.jwt.claims', json_build_object('sub', u_order, 'role', 'authenticated')::text, true);
-  set local role authenticated;
-  v_res := public.place_store_order(v_payload);
-  reset role;
-  assert v_res->>'trackingNumber' is not null, 'place_store_order still works and makes the tracking number';
+  insert into public.customer_details (user_id, full_name, phone, governorate, address, ship_same)
+  values (u_order, 'منى سمير فتحي عبد', '01112345678', 'القاهرة', 'شارع التحرير', true);
+  insert into public.cart_items (user_id, store_product_id, quantity) values (u_order, pa1.id, 1);
+  v_res := public.place_store_order_server(jsonb_build_object('storeId', v_a, 'idempotencyKey', 'hardening-key-0001'), u_order);
+  assert v_res->>'trackingNumber' is not null, 'place_store_order_server works and the server makes the tracking number';
 
   -- 2. Offer rules.
   assert pg_temp.fails(format('insert into public.offers (store_id, title) values (%L, %L)', v_a, ''), '23514'), 'an empty offer title is refused';

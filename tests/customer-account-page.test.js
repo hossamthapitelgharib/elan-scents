@@ -266,9 +266,16 @@ test('the menu has «حسابي» under the sign-out item, and "place order" ope
   assert.match(menu, /data-menu-note="notin">'\+t\.menu\[15\]\+'<\/a><a class="off" data-menu-note="notin">'\+\(t\.menu\[16\]/, 'signed out: greyed, like sign out');
   assert.match(oneLine('function openStoreOrder'), /openAccount\(store\)\}$/, 'a signed-in customer goes through «حسابي» first');
   assert.match(oneLine('function openStoreOrder'), /PENDING_STORE=store;sheet\('signup'\)/, 'a visitor still creates an account first');
+  // Phase 1: the customer's data is read from the account, never typed again. The order sheet is a read-only review.
   const form = oneLine('function orderFormHTML');
-  assert.match(form, /acctOrderPrefill\(\)/); assert.match(form, /name="name"[^>]*value="'\+esc\(pf\.name\)\+'"/); assert.match(form, /'\+esc\(pf\.address\)\+'<\/textarea>/);
-  assert.match(oneLine('function sendStoreOrder'), /customer=\{name:form\.elements\.name\.value\.trim\(\),phone:/, 'the order still carries the same customer fields');
+  assert.match(form, /acctOrderPrefill\(\)/, 'the review shows what the account holds');
+  assert.match(form, /row=function\(k,v\)\{return v\?'<div class="orv-row"><span>'\+esc\(k\)\+'<\/span><b>'\+esc\(v\)\+'<\/b>/, 'every value shown from the account is escaped');
+  assert.doesNotMatch(form, /<input|<textarea|<select/, 'no field to type in: the data comes from the account');
+  assert.match(form, /data-acct-edit=/, 'a wrong detail is corrected in «حسابي»');
+  const send = oneLine('function sendStoreOrder');
+  assert.doesNotMatch(send, /form\.elements|customer=|unitPrice|lines=/, 'the browser sends no customer data, no lines and no prices');
+  assert.match(send, /payload:\{storeId:storeId,idempotencyKey:form\.dataset\.orderKey,expectedSubtotal:subtotal\}/, 'the browser sends the store, the retry key and the total it showed');
+  assert.match(core, /if\(next&&!edit&&!failed&&acctComplete\(row\)\)\{showOrderForm\(next\);return\}/, 'a complete account goes straight to the review');
 });
 
 test('the files that belong to the table are all there, under the version the database recorded', () => {

@@ -36,7 +36,7 @@ async function run(role, query, database) {
 const privateOrder = {
   id: 'request-1', store_id: storeId, tracking_number: 'TRK-1', checkout_tracking_number: 'ELAN-1',
   customer_name: 'اسم العميل', customer_phone: '01000000000', customer_address: 'عنوان التسليم',
-  customer_email: 'private@example.test', customer_notes: 'private note', status: 'processing', subtotal: 1000,
+  customer_email: 'private@example.test', customer_notes: 'private note', user_id: 'must-not-return-user', customer_snapshot: { private: true }, merchant_order_number: null, merchant_invoice_number: null, status: 'processing', subtotal: 1000,
   shipping_amount: 50, total_amount: 1050, currency: 'EGP', reconciliation_status: 'matched',
   created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-02T00:00:00Z', initial_payload: { private: true },
   stores: { name: 'متجر تجريبي', private_field: 'must-not-return' },
@@ -69,15 +69,19 @@ test('store admins receive only assigned-store orders with minimum delivery data
   assert.equal(order.store_order_request_items[0].product_name, 'عطر ورد');
   assert.equal(order.store_shipments[0].tracking_code, 'SHIP-1');
   const serialized = JSON.stringify(order);
-  for (const secret of ['customer_email', 'private@example.test', 'private note', 'initial_payload', 'payload', 'private_field']) assert.equal(serialized.includes(secret), false, `unexpected ${secret}`);
+  // Phase 1 (docs/implementation-phase-1-purchase-core.ar.md): the store gets what it and its courier need for this order, the e-mail and the delivery notes included.
+  assert.equal(order.customer_email, 'private@example.test');
+  assert.equal(order.customer_notes, 'private note');
+  for (const secret of ['initial_payload', 'payload', 'private_field', 'customer_snapshot', 'user_id']) assert.equal(serialized.includes(secret), false, `unexpected ${secret}`);
   const orderCall = calls.find(call => call.url.pathname.endsWith('/store_order_requests'));
   assert.equal(orderCall.url.searchParams.get('store_id'), `in.(${storeId})`);
   assert.equal(orderCall.url.searchParams.get('order'), 'created_at.desc,id.desc');
   assert.equal(orderCall.url.searchParams.get('limit'), '1');
   assert.equal(orderCall.url.searchParams.get('offset'), '100');
   const selected = orderCall.url.searchParams.get('select');
-  assert.match(selected, /customer_name,customer_phone,customer_address/);
-  for (const field of ['customer_email', 'customer_notes', 'initial_payload', 'latest_store_payload', 'payload', 'idempotency_key']) assert.equal(selected.includes(field), false, `unsafe select field ${field}`);
+  assert.match(selected, /customer_name,customer_phone,customer_email,customer_address,customer_notes/);
+  assert.match(selected, /merchant_order_number,merchant_invoice_number/);
+  for (const field of ['customer_snapshot', 'user_id', 'initial_payload', 'latest_store_payload', 'payload', 'idempotency_key']) assert.equal(selected.includes(field), false, `unsafe select field ${field}`);
 });
 
 test('store account discovery paginates instead of truncating after 500 linked stores', async () => {
@@ -119,7 +123,7 @@ test('platform admins can request only a validated explicit store scope', async 
   assert.equal(empty.res.body.pagination.total, 0);
 });
 
-test('store portal paginates and displays only delivery contact fields', () => {
+test('store portal paginates and displays the delivery data of its own orders', () => {
   const root = path.join(__dirname, '..');
   const script = fs.readFileSync(path.join(root, 'store-dashboard.js'), 'utf8');
   const html = fs.readFileSync(path.join(root, 'store-dashboard.html'), 'utf8');
@@ -127,7 +131,10 @@ test('store portal paginates and displays only delivery contact fields', () => {
   assert.match(script, /loadStore\(true\)/);
   assert.match(script, /customer_phone/);
   assert.match(script, /customer_address/);
-  assert.doesNotMatch(script, /customer_email|customer_notes/);
+  assert.match(script, /customer_email/);
+  assert.match(script, /customer_notes/);
+  assert.match(script, /Élan Scents/, 'the order says it came from Élan Scents');
+  assert.match(script, /platform_order_number/, 'each line shows its platform number');
   assert.match(html, /id="loadMoreOrders"/);
 });
 

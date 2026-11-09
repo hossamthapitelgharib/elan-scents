@@ -457,3 +457,4 @@ header .ic button[data-sheet="cart"] svg{width:20px!important;height:20px!import
 .auth-actions .btn{width:100%;padding:13px 10px;font-size:14px}
 .btn.ghost{background:#fff;color:#8a5e0c;border:1.5px solid #d9bf7c;box-shadow:none}
 /* Welcome and goodbye: a card with a gold tick, a title and one warm line (the plain pill stays for short notices and errors) */
+.order-review{display:grid;gap:6px;padding:10px 12px;border:1px solid #ead9b1;border-radius:14px;background:#fff}.orv-row{display:flex;justify-content:space-between;gap:10px;font-size:12px;line-height:1.7}.orv-row span{color:var(--gray);white-space:nowrap}.orv-row b{color:#3b2a08;text-align:end;overflow-wrap:anywhere}.orv-note{margin:0;color:var(--gray);font-size:12px;line-height:1.7}

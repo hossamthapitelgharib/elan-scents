@@ -59,14 +59,15 @@ function shipmentLine(request) {
 function itemLine(item) {
   const label = [item.brand_name, item.product_name, item.size_label].filter(Boolean).map(escA).join(' · ');
   const unit = item.unit_price != null && Number(item.quantity) > 1 ? ` <small class="muted">(${moneyA(item.unit_price, item.currency)} للواحدة)</small>` : '';
-  return `<div><span>${label} × ${Number(item.quantity) || 0}${unit}</span><b>${moneyA(item.line_total, item.currency)}</b></div>`;
+  const platformNo = item.platform_order_number ? ` <small class="muted" dir="ltr">${escA(item.platform_order_number)}</small>` : '';
+  return `<div><span>${label} × ${Number(item.quantity) || 0}${unit}${platformNo}</span><b>${moneyA(item.line_total, item.currency)}</b></div>`;
 }
 function requestLine(request) {
   const state = stateA(request), items = request.store_order_request_items || [];
   const names = items.slice(0, 2).map(item => `${escA(item.product_name)}${Number(item.quantity) > 1 ? ` × ${item.quantity}` : ''}`).join('، ');
   const shipping = request.shipping_amount == null ? '' : `<div><span>الشحن</span><b>${moneyA(request.shipping_amount, request.currency)}</b></div>`;
   const canReorder = items.some(item => /^[0-9a-f-]{36}$/i.test(String(item.product_size_id || '')));
-  return `<article class="compact-order"><div class="compact-order-main"><div><span class="order-store">${escA(request.stores && request.stores.name || 'متجر')}</span><h3>${escA(request.tracking_number)}</h3><p>${names || 'تفاصيل المنتجات متاحة داخل الطلب'}${items.length > 2 ? ` <span class="muted">+${items.length - 2} أخرى</span>` : ''}</p></div><div class="compact-order-side">${badgeA(state)}<strong>${moneyA(request.total_amount ?? request.subtotal, request.currency)}</strong></div></div>${shipmentLine(request)}${cancelLine(request)}<div class="compact-order-foot"><span>${dateA(request.created_at)}</span><details><summary>التفاصيل</summary><div class="order-detail">${items.map(itemLine).join('')}<hr><div><span>المجموع الفرعي</span><b>${moneyA(request.subtotal, request.currency)}</b></div>${shipping}<div><span>الإجمالي</span><b>${moneyA(request.total_amount ?? request.subtotal, request.currency)}</b></div><hr><div><span>المتجر</span><b>${escA(request.stores && request.stores.name || '—')}</b></div><div><span>رقم التتبع الموحد</span><b dir="ltr">${escA(request.tracking_number)}</b></div><div><span>وقت الطلب</span><b>${dateTimeA(request.created_at)}</b></div>${canReorder ? `<button class="ghost order-reorder" type="button" data-reorder="${escA(request.id)}">اطلب مرة أخرى</button>` : ''}</div></details></div></article>`;
+  return `<article class="compact-order"><div class="compact-order-main"><div><span class="order-store">${escA(request.stores && request.stores.name || 'متجر')}</span><h3>${escA(request.tracking_number)}</h3><p>${names || 'تفاصيل المنتجات متاحة داخل الطلب'}${items.length > 2 ? ` <span class="muted">+${items.length - 2} أخرى</span>` : ''}</p></div><div class="compact-order-side">${badgeA(state)}<strong>${moneyA(request.total_amount ?? request.subtotal, request.currency)}</strong></div></div>${shipmentLine(request)}${cancelLine(request)}<div class="compact-order-foot"><span>${dateA(request.created_at)}</span><details><summary>التفاصيل</summary><div class="order-detail">${items.map(itemLine).join('')}<hr><div><span>المجموع الفرعي</span><b>${moneyA(request.subtotal, request.currency)}</b></div>${shipping}<div><span>الإجمالي</span><b>${moneyA(request.total_amount ?? request.subtotal, request.currency)}</b></div><hr><div><span>المتجر</span><b>${escA(request.stores && request.stores.name || '—')}</b></div><div><span>رقم التتبع الموحد</span><b dir="ltr">${escA(request.tracking_number)}</b></div>${request.merchant_order_number ? `<div><span>رقم طلب المتجر</span><b dir="ltr">${escA(request.merchant_order_number)}</b></div>` : ''}${request.merchant_invoice_number ? `<div><span>رقم فاتورة المتجر</span><b dir="ltr">${escA(request.merchant_invoice_number)}</b></div>` : ''}<div><span>وقت الطلب</span><b>${dateTimeA(request.created_at)}</b></div>${canReorder ? `<button class="ghost order-reorder" type="button" data-reorder="${escA(request.id)}">اطلب مرة أخرى</button>` : ''}</div></details></div></article>`;
 }
 function flatten(sessions) { return sessions.flatMap(session => (session.store_order_requests || []).map(request => ({ ...request, session }))); }
 function mergeSessions(newer, older) {
@@ -181,6 +182,10 @@ function reorder(requestId) {
 
 let cancelling = false;
 const cancelErrors = [
+  ['order_not_waiting', 'المتجر بدأ في معالجة الطلب، فلم يعد إلغاؤه ممكنًا من هنا. تواصل مع المتجر.'],
+  ['reason_too_long', 'سبب الإلغاء طويل، اختصره وحاول مرة أخرى.'],
+  ['order_not_found', 'لم نجد هذا الطلب، حدّث الصفحة وحاول مرة أخرى.'],
+  ['unauthorized', 'انتهت جلسة الدخول، سجّل الدخول من جديد.'],
   ['no longer waiting', 'المتجر بدأ في معالجة الطلب، فلم يعد إلغاؤه ممكنًا من هنا. تواصل مع المتجر.'],
   ['Reason is too long', 'سبب الإلغاء طويل، اختصره وحاول مرة أخرى.'],
   ['Order not found', 'لم نجد هذا الطلب، حدّث الصفحة وحاول مرة أخرى.'],

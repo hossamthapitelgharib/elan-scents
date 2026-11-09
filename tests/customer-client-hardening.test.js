@@ -7,13 +7,11 @@ const root = path.join(__dirname, '..');
 const core = fs.readFileSync(path.join(root, 'app-core.js'), 'utf8');
 const portal = fs.readFileSync(path.join(root, 'portal.js'), 'utf8');
 
-test('the checkout form limits stay below the database ceilings', () => {
-  const ceilings = { name: 120, phone: 32, email: 254, address: 500, notes: 1000 };
-  for (const [field, ceiling] of Object.entries(ceilings)) {
-    const match = core.match(new RegExp('<(?:input|textarea) name="' + field + '"[^>]*maxlength="(\\d+)"'));
-    assert.ok(match, `the ${field} field has a maxlength`);
-    assert.ok(Number(match[1]) <= ceiling, `${field}: ${match && match[1]} is within ${ceiling}`);
-  }
+test('the order sheet has no free text field, so no customer detail can exceed the database ceilings', () => {
+  // The customer's data is typed once in «حسابي» (limits checked in customer-account-page.test.js) and copied by the database.
+  const review = core.split('\n').find(line => line.startsWith('function orderFormHTML('));
+  assert.ok(review, 'the order sheet exists');
+  assert.doesNotMatch(review, /<input|<textarea|<select/, 'the order sheet has nothing to type in');
 });
 
 test('a cart line is capped at 99 in the page and in what is sent to the account', () => {
