@@ -412,6 +412,8 @@
         .then(function () { autoButton.disabled = false; });
     };
     cancel.onclick = closePanel;
+    /* Enter in the name or purpose box confirms, as it does in the small name panels; what is still missing is told in the panel's own words */
+    [nameInput, purposeInput].forEach(function (box) { box.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' && !save.disabled) { ev.preventDefault(); save.click(); } }); });
     save.onclick = function () {
       fail('');
       var model, body;

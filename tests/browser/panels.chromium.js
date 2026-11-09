@@ -182,6 +182,51 @@ test('the picture / video source dialog (banner and image creation): the same as
   } finally { await context.close(); }
 });
 
+test('Enter confirms in the creation panels: the section panel (what is missing is told in the panel) and the name panels', async () => {
+  const { context, page, frame, calls, errors } = await openEditor();
+  try {
+    await chooseTool(page, frame, /إنشاء سيكشن/);
+    const name = page.locator('dialog.sectionPanelClean .sectionGrid input').nth(0), purpose = page.locator('dialog.sectionPanelClean .sectionGrid input').nth(1);
+    await name.fill('عروض الأسبوع'); await name.press('Enter'); await page.waitForTimeout(300);
+    const missing = await page.evaluate(() => (document.querySelector('dialog.sectionPanelClean [data-error]') || {}).textContent || '');
+    assert.match(missing, /اكتب الاسم والغرض/, 'Enter with the purpose missing says so and creates nothing');
+    assert.ok(!calls.includes('section.create'));
+    await page.evaluate(() => { const s = document.querySelector('dialog.sectionPanelClean fieldset select'); s.value = 'automatic'; s.dispatchEvent(new Event('change')); });
+    await purpose.fill('عروض'); await purpose.press('Enter'); await page.waitForTimeout(600);
+    assert.ok(calls.includes('section.create'), 'with both filled, Enter sends the section to be created: ' + calls.join(','));
+    await closeDialogs(page);
+    await chooseTool(page, frame, /إنشاء كارت براند/);
+    const brand = page.locator('dialog[open] input[type=text]').first();
+    await brand.fill('شانيل'); await brand.press('Enter'); await page.waitForTimeout(600);
+    assert.ok(calls.includes('catalog.create'), 'Enter in a name panel creates: ' + calls.join(','));
+    assert.deepEqual(errors, []);
+  } finally { await context.close(); }
+});
+
+test('on a phone the creation panels fit the window: nothing is cut sideways and every button can be reached (the size chooser is checked in editor-sizes.chromium.js)', async () => {
+  const PHONE = { name: 'phone', width: 390, height: 844 };
+  const { context, page, frame, errors } = await openEditor(PHONE);
+  try {
+    const fits = (selector) => page.evaluate((sel) => {
+      const d = document.querySelector(sel); if (!d) return null;
+      const r = d.getBoundingClientRect(), buttons = Array.from(d.querySelectorAll('button')).filter((b) => /حفظ|إنشاء|إلغاء/.test(b.textContent));
+      d.scrollTop = d.scrollHeight;   // scrolled to the end, the last buttons must be inside the window
+      const after = buttons.map((b) => { const q = b.getBoundingClientRect(); return q.top >= 0 && q.bottom <= innerHeight && q.left >= 0 && q.right <= innerWidth; });
+      return { left: Math.round(r.left), right: Math.round(r.right), top: Math.round(r.top), bottom: Math.round(r.bottom), w: innerWidth, h: innerHeight, sideways: d.scrollWidth > d.clientWidth + 1, reachable: after.length > 0 && after.every(Boolean) };
+    }, selector);
+    for (const [tool, selector] of [[/إنشاء سيكشن/, 'dialog.sectionPanelClean[open]'], [/إنشاء كارت براند/, 'dialog[open]'], [/إنشاء كارت عطر/, 'dialog.sectionPanelClean[open]']]) {
+      await chooseTool(page, frame, tool);
+      const r = await fits(selector);
+      assert.ok(r, 'the panel opened: ' + tool);
+      assert.ok(r.left >= 0 && r.right <= r.w && r.top >= 0 && r.bottom <= r.h, tool + ' is inside the phone window: ' + JSON.stringify(r));
+      assert.equal(r.sideways, false, tool + ' does not scroll sideways');
+      assert.ok(r.reachable, tool + ': its buttons can be reached: ' + JSON.stringify(r));
+      await closeDialogs(page);
+    }
+    assert.deepEqual(errors, []);
+  } finally { await context.close(); }
+});
+
 test('library window: the same layout as the original, with the cloud library behind it and nothing from the AI', async () => {
   const { context, page, calls, errors } = await openEditor();
   try {
