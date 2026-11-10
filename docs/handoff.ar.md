@@ -66,6 +66,11 @@
 - المؤرشف الذي أُخفي فقط (علامة archived على عنصر أصلي) يرجع لمكانه الأصلي فوراً بلا تحديد مكان.
 - الكود: `placement mode` في `edit-mode.js` (`beginPlacing`, `libraryBlock`/`putLibraryBlock`, إجراءان جديدان `media.place` و`placement.cancel` في `elan-host-bridge.js`)؛ اختبار المتصفح «using an item waits for a left click» في `tests/browser/panels.chromium.js`.
 
+### 2026-11-10: فحص المحرر الحي بعد «مقاساتي» (مفتوح — للمالك)
+- **تحقّقت من النشر:** `/edit-mode.js` على الموقع الحي يحمل `size_preset` و`size.save` و`size.remove` و`mySizes` (الرفعة `144841a`، وكل CI أخضر ما عدا `Supabase Preview` المعروف).
+- **ما لم يُفحص:** الدخول الآلي إلى المحرر الحي ما زال يوقفه Turnstile (`/api/config` الحي فيه `turnstile_site_key` مضبوط)، فلم أقارن واجهة المحرر الحي بالمحلية. لم أفتح أي باب في الإنتاج. لو يريد المالك المقارنة الكاملة: يضبط على الـ Worker العبارة نفسها (16+ حرفًا) كـ`EDITOR_ACCESS_KEY` مع `EDITOR_AUTH_BYPASS=1` و`EDITOR_ACCESS_KEY_UNTIL` خلال 24 ساعة، ويضعها Secret باسم `EDITOR_LIVE_ACCESS_KEY` في GitHub، ثم يشغّل «Live editor check» (المفتاح لا يُكتب في المحادثة). يتعارض هذا مع سطر «لا يُنقل `EDITOR_AUTH_BYPASS` إلى الـ Worker» في CLAUDE.md، فهو قرار المالك وحده.
+- **ملاحظة لتحديث CLAUDE.md:** بند «Turnstile معطَّل مؤقتًا» قديم؛ المفتاح العام مضبوط اليوم على الموقع الحي. يُحدَّث البند بتأكيد المالك.
+
 ### 2026-11-07: فحص «Live editor check» لا يستطيع الدخول من CI بالبريد (أُضيف له مسار آمن بالمفتاح المؤقت)
 - **التشخيص من سجل التشغيل نفسه:** الدخول بالبريد والباسورد يعلّق على «جاري الدخول...» لأن Turnstile (التحقق الأمني) لا يعطي متصفح CI توكن: سكربت Cloudflare ينزل (200)، وطلب `…/pat` يرجع 401، ونطاق فرعي لـchallenges.cloudflare.com لا يُحل؛ والسيرفر لم يُسأل أصلاً (`/api/editor-login` غير ظاهر). الموقع نفسه سليم.
 - **تصحيح فهم سابق:** التشغيلات «الناجحة» يوم 4 نوفمبر كانت بلا secrets ولم تفحص شيئاً؛ فالفحص لم ينجح فعلياً من CI قبل كده.
