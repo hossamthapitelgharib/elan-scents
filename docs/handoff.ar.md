@@ -11,6 +11,10 @@
 
 ## مفتوح
 
+### 2026-11-10: فحص «Supabase Preview» أحمر على main — ترحيل حيّ بلا ملف في المستودع (مفتوح — لصاحب الترحيل)
+- القاعدة الحية فيها الإصدار `20261110081953` (`catalog_offer_stock_and_announcement_contract`، طُبّق نحو 08:19 UTC) ولا ملف له في `supabase/migrations/`، فيفشل الفحص برسالة `Remote migration versions not found in local migrations directory` على كل كوميت منذئذ (آخرها `39596b2`). ليس من عمل «signup carry» (`20261109072338` مرفوع ومطابق).
+- المطلوب: النسخة التي طبّقته ترفع ملفه (ومعه ملف التراجع في `rollback/` واختباره) بالإصدار نفسه. نصّه المسجَّل في `supabase_migrations.schema_migrations.statements` إن ضاع الأصل. لم أكتب الملف بدلًا منها حتى لا يتعارض مع ما قد تكون تعمل عليه.
+
 ### 2026-11-09: خطة المعمار: المرحلة 1 (نواة الشراء) منفّذة؛ المرحلتان 2 و3 مفتوحتان بالترتيب
 - المالك طلب (7 نوفمبر) تنفيذ `docs/implementation-phase-1/2/3-*.ar.md` حرفيًا بالتتابع، كل مرحلة بالتزام مستقل واختبارات ناجحة، ولا تبدأ مرحلة قبل قبول سابقتها. **المرحلة 1 كاملة**: التقرير والقرارات والتعارضات في `docs/phase-1-purchase-core-decisions.ar.md`، وملخص التصميم في فقرة «نواة الشراء» من `CLAUDE.md`.
 - ترحيلان حيّان: `20261107160412_phase1_purchase_core` و`20261108135126_phase1_ship_address_parts` (لكل منهما تراجع حقيقي في `supabase/rollback/`). اختبار القاعدة الحي: `tests/place-store-order.test.sql`.
