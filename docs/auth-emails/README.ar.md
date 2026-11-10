@@ -7,7 +7,7 @@
 | القالب في Supabase | عنوان الرسالة (Subject) | الملف |
 |---|---|---|
 | Confirm sign up | `تأكيد حسابك في Élan Scents` | `confirm-signup.html` |
-| Reset password | `إعادة تعيين كلمة المرور` | `reset-password.html` |
+| Reset password | `استعادة كلمة المرور في Élan Scents` | `reset-password.html` |
 
 - يُلصق محتوى الملف كاملًا في خانة الرسالة (Message body)، والعنوان في خانة Subject، ثم Save.
 - قالب «Reset password» واحد لكل من يطلب نسيان كلمة المرور: العملاء من صفحة الحساب، ومالك الموقع من صفحة دخول المحرر. لذلك نصّه عام.
