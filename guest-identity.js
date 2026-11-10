@@ -113,16 +113,18 @@
     var VISIT_IDLE_MS = 30 * 60 * 1000;       // a new visit starts only after 30 quiet minutes
     var lastStartedVisit = null;
     var recentViews = {};
-    var ACTIVE_MS = 30000;                    // time counts only while the person is really using the page
-    var lastInteraction = 0;
+    var ACTIVE_MS = 30000;
+    var lastInteraction = 0, firstInteraction = 0, interactionCount = 0;
     function recentlyActive() { return Date.now() - lastInteraction < ACTIVE_MS; }
     function interacted() {
       if (!active()) return;
       var now = Date.now(), wasIdle = now - lastInteraction >= ACTIVE_MS;
-      if (lastInteraction) behaviorStats.activeMs += Math.min(now - lastInteraction, 5000);
-      behaviorStats.interactions += 1;
+      if (!firstInteraction) firstInteraction = now;
+      interactionCount += 1;
       lastInteraction = now;
-      if (behaviorStats.activeMs >= 5000 && behaviorStats.interactions >= 1 && identifiedFor !== sessionId(false)) identify();
+      // This is only a client-side request-throttling hint. The server independently validates
+      // activity from timestamped database events before it stores or links any fingerprint.
+      if (interactionCount >= 1 && now - firstInteraction >= 5000 && identifiedFor !== sessionId(false)) identify();
       if (wasIdle && sessionStarted) sendSession('resume').catch(function () {});
     }
 
@@ -173,7 +175,6 @@
 
 
     /* ---------- device signals (for counting people, never for moving baskets) ---------- */
-    var behaviorStats = { interactions: 0, activeMs: 0, pages: 1 };
     var identifiedFor = null, identifying = null, identifyAttempts = {}, finalVisitorId = null, lastCartSig = '', fingerprintPromise = null;
 
     function smallHash(str) {                 // cyrb53: fast, well spread, 14 hex characters
@@ -300,12 +301,8 @@
       return fingerprintPromise;
     }
 
-    function behaviorSnapshot() {
-      return { interactions: behaviorStats.interactions, activeSeconds: Math.round(behaviorStats.activeMs / 1000), pages: behaviorStats.pages };
-    }
-
-    // One identification per visit, only after the person really used the page (5 active seconds
-    // and an interaction), so bots and instant bounces do not create or link anything.
+    // One identification request per visit after a local interaction and a short delay. This only
+    // throttles requests; the server uses its own event/session records to decide whether to link.
     function identify() {
       if (accessToken()) return Promise.resolve({ ok: true, identified: false });
       var visit = sessionId(false);
@@ -313,9 +310,12 @@
       if (identifiedFor === visit || (identifyAttempts[visit] || 0) >= 3) return Promise.resolve({ ok: true, identified: false });
       identifyAttempts[visit] = (identifyAttempts[visit] || 0) + 1;
       identifying = resolve().then(collectFingerprint).then(function (info) {
-        return request('identify', { fp: info.fp, parts: info.parts, behavior: behaviorSnapshot(), cartSig: lastCartSig });
+        return request('identify', { fp: info.fp, parts: info.parts, cartSig: lastCartSig });
       }).then(function (result) {
-        if (result && result.ok) { identifiedFor = visit; if (result.identified) finalVisitorId = result.finalVisitorId || finalVisitorId; }
+        if (result && result.ok && result.identified) {
+          identifiedFor = visit;
+          finalVisitorId = result.finalVisitorId || finalVisitorId;
+        }
         return result;
       }).catch(function () { return { ok: false, identified: false }; }).then(function (result) { identifying = null; return result; });
       return identifying;
@@ -533,9 +533,6 @@
     });
     ['pointerdown', 'keydown', 'touchstart', 'wheel', 'scroll'].forEach(function (type) {
       window.addEventListener(type, interacted, { capture: true, passive: true });
-    });
-    ['hashchange', 'popstate'].forEach(function (type) {
-      window.addEventListener(type, function () { behaviorStats.pages += 1; });
     });
     window.addEventListener('storage', function (e) {
       if (e.key === STORAGE_KEY && e.newValue && UUID.test(e.newValue)) cachedKey = e.newValue;

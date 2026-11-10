@@ -76,21 +76,29 @@ const HEXFP = /^[a-f0-9]{16,64}$/;
 
 // Stores this browser's signals and links it to other guests only when the strict rules say so.
 // A failure here never affects the shopper: the answer is simply "not identified".
-async function identify({ req, body, admin, hashSecret, analyticsUse, ip }) {
+async function identify({ req, body, admin, hashSecret, fingerprintUse, analyticsUse, ip }) {
   try {
-    const parts = match.cleanParts(body.parts);
-    const fp = HEXFP.test(String(body.fp || '')) ? String(body.fp) : '';
-    if (!fp || Object.keys(parts).length < 4) return { ok: true, identified: false };
-    const b = body.behavior && typeof body.behavior === 'object' ? body.behavior : {};
-    const behavior = {
-      interactions: Math.max(0, Math.min(100000, Math.trunc(Number(b.interactions) || 0))),
-      activeSeconds: Math.max(0, Math.min(86400, Math.trunc(Number(b.activeSeconds) || 0))),
-      pages: Math.max(0, Math.min(10000, Math.trunc(Number(b.pages) || 0)))
-    };
+    const rawParts = match.cleanParts(body.parts);
+    const rawFp = HEXFP.test(String(body.fp || '')) ? String(body.fp) : '';
+    if (!rawFp || Object.keys(rawParts).length < 4) return { ok: true, identified: false };
     const headers = req.headers || {};
     const h = (purpose, value) => (value ? hmac(hashSecret, purpose, value) : null);
+    // The browser supplies only opaque, non-keyed fingerprints. Key them on the server before
+    // persistence so a database-only disclosure cannot be used for cross-dataset correlation.
+    const fp = h('guest-device-fp', rawFp);
+    const parts = Object.fromEntries(Object.entries(rawParts).map(([key, value]) => [key, h(`guest-device-part:${key}`, value)]));
     const ipSignal = typeof ip === 'string' && ip.trim() && ip.trim().toLowerCase() !== 'unknown' ? ip.trim() : '';
     const cartSig = typeof body.cartSig === 'string' && /^[a-f0-9]{8,64}$/.test(body.cartSig) ? body.cartSig : '';
+    // Activity values from the browser are untrusted. The database derives the gate from
+    // validated product events and server-timestamped sessions for this exact guest.
+    const behaviorResponse = await admin('rpc/guest_signal_behavior', { p_fingerprint_hash: fingerprintUse });
+    if (!behaviorResponse.ok) return { ok: true, identified: false };
+    const b = await behaviorResponse.json().catch(() => ({}));
+    const behavior = {
+      interactions: Math.max(0, Math.min(100000, Math.trunc(Number(b && b.interactions) || 0))),
+      activeSeconds: Math.max(0, Math.min(86400, Math.trunc(Number(b && b.activeSeconds) || 0)))
+    };
+    if (!match.trustedBehavior(behavior)) return { ok: true, identified: false };
     const own = {
       parts, fp, behavior,
       ipHash: h('guest-ip', ipSignal), ipPrefixHash: h('guest-ip-prefix', ipPrefix(ipSignal)),
@@ -102,7 +110,7 @@ async function identify({ req, body, admin, hashSecret, analyticsUse, ip }) {
       p_ip_hash: own.ipHash, p_ip_prefix_hash: own.ipPrefixHash,
       p_ua_hash: h('guest-ua', String(headers['user-agent'] || '')), p_lang_hash: h('guest-lang', String(headers['accept-language'] || '')),
       p_cart_hash: own.cartHash || null,
-      p_interactions: behavior.interactions, p_active_seconds: behavior.activeSeconds, p_pages: behavior.pages
+      p_interactions: behavior.interactions, p_active_seconds: behavior.activeSeconds, p_pages: 0
     });
     if (!stored.ok) return { ok: true, identified: false };
 
@@ -230,7 +238,7 @@ module.exports = async (req, res) => {
     const fingerprintUse = canonicalKey ? hmac(hashSecret, 'guest-browser', canonicalKey) : fingerprintHash;
     const analyticsUse = canonicalKey ? hmac(hashSecret, 'guest-analytics', canonicalKey) : analyticsHash;
     if (action === 'identify') {
-      return json(res, 200, await identify({ req, body, admin, hashSecret, analyticsUse, ip }));
+      return json(res, 200, await identify({ req, body, admin, hashSecret, fingerprintUse, analyticsUse, ip }));
     }
 
     if (action === 'resolve' || action === 'save') {

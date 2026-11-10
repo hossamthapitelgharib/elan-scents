@@ -133,10 +133,11 @@ test('a new-guest request replaces the cookie and is never merged back into the 
 
 const hex = (c, n = 64) => c.repeat(n);
 const partsBody = { gpu: 'aaaaaaaa11', screen: 'bbbbbbbb22', canvas: 'cccccccc33', fonts: 'eeeeeeee55', tz: 'ffffffff66', hw: '1111111177', platform: '2222222288', lang: '3333333399' };
-async function identifyRun(candidates, { storeOk = true, batchAvailable = true, headers = { 'user-agent': 'Mozilla/5.0 Chrome', 'accept-language': 'ar-EG', 'x-forwarded-for': '41.2.3.4' } } = {}) {
+async function identifyRun(candidates, { storeOk = true, batchAvailable = true, serverBehavior = { interactions: 2, activeSeconds: 10 }, headers = { 'user-agent': 'Mozilla/5.0 Chrome', 'accept-language': 'ar-EG', 'x-forwarded-for': '41.2.3.4' } } = {}) {
   env(); const calls = [];
   global.fetch = async (url, options = {}) => {
     const u = String(url), body = JSON.parse(options.body || '{}'); calls.push({ u, body });
+    if (u.endsWith('/rpc/guest_signal_behavior')) return reply(serverBehavior);
     if (u.endsWith('/rpc/guest_signal_store')) return storeOk ? reply(true) : reply({}, 500);
     if (u.endsWith('/rpc/guest_signal_candidates')) return reply(candidates);
     if (u.endsWith('/rpc/guest_identity_link_many')) return batchAvailable ? reply((body.p_links || []).length) : reply({}, 404);
@@ -150,14 +151,21 @@ async function identifyRun(candidates, { storeOk = true, batchAvailable = true, 
 }
 const sameIp = async () => { const { createHmac } = require('node:crypto'); return createHmac('sha256', 'service-key').update('guest-ip:41.2.3.4').digest('hex'); };
 const samePrefix = async () => { const { createHmac } = require('node:crypto'); return createHmac('sha256', 'service-key').update('guest-ip-prefix:41.2.3').digest('hex'); };
+const keyed = (purpose, value) => require('node:crypto').createHmac('sha256', 'service-key').update(`${purpose}:${value}`).digest('hex');
+const keyedFp = () => keyed('guest-device-fp', hex('1', 32));
+const keyedParts = () => Object.fromEntries(Object.entries(partsBody).map(([name, value]) => [name, keyed(`guest-device-part:${name}`, value)]));
 
 test('identify stores hashed signals and links a very similar guest on the same network', async () => {
   const ipHash = await sameIp();
-  const { res, calls } = await identifyRun([{ analyticsHash: hex('b'), fp: hex('1', 32), parts: partsBody, ipHash, ipPrefixHash: hex('0'), cartHash: null, lastSeenAt: new Date().toISOString(), popularity: 1, convertedUserIds: [] }]);
+  const { res, calls } = await identifyRun([{ analyticsHash: hex('b'), fp: keyedFp(), parts: keyedParts(), ipHash, ipPrefixHash: hex('0'), cartHash: null, lastSeenAt: new Date().toISOString(), popularity: 1, convertedUserIds: [] }]);
   assert.equal(res.status, 200); assert.equal(res.body.identified, true); assert.equal(res.body.linked, 1);
   assert.match(res.body.finalVisitorId, /^[a-f0-9]{32}$/);
   const store = calls.find((c) => c.u.endsWith('/rpc/guest_signal_store')).body;
   for (const k of ['p_ip_hash', 'p_ip_prefix_hash', 'p_ua_hash', 'p_lang_hash']) assert.match(store[k], /^[a-f0-9]{64}$/);
+  assert.equal(store.p_fp_hash, keyedFp());
+  assert.deepEqual(store.p_parts, keyedParts());
+  assert.equal(JSON.stringify(store).includes(hex('1', 32)), false, 'the client fingerprint is not stored as sent');
+  assert.equal(JSON.stringify(store).includes(partsBody.gpu), false, 'client part hashes are keyed on the server');
   assert.equal(JSON.stringify(store).includes('41.2.3.4'), false);
   assert.equal(JSON.stringify(store).includes('Chrome'), false);
 });
@@ -166,7 +174,7 @@ test('identify batches several accepted links into one RPC instead of one reques
   // Two look-alike guests on the SAME exact address would now count as a crowded address and prove nothing,
   // so the two candidates sit on different addresses inside the caller's /24 prefix (not crowded: fewer than 4).
   const ipPrefixHash = await samePrefix();
-  const candidate = (digit) => ({ analyticsHash: hex(digit), fp: hex('1', 32), parts: partsBody, ipHash: hex(digit === 'b' ? 'd' : 'e'), ipPrefixHash, cartHash: null, lastSeenAt: new Date().toISOString(), popularity: 1, convertedUserIds: [] });
+  const candidate = (digit) => ({ analyticsHash: hex(digit), fp: keyedFp(), parts: keyedParts(), ipHash: hex(digit === 'b' ? 'd' : 'e'), ipPrefixHash, cartHash: null, lastSeenAt: new Date().toISOString(), popularity: 1, convertedUserIds: [] });
   const { res, calls } = await identifyRun([candidate('b'), candidate('c')]);
   const batchCalls = calls.filter((c) => c.u.endsWith('/rpc/guest_identity_link_many'));
   assert.equal(res.body.linked, 2);
@@ -177,7 +185,7 @@ test('identify batches several accepted links into one RPC instead of one reques
 
 test('identify falls back to the existing per-link RPC until the batch migration is applied', async () => {
   const ipHash = await sameIp();
-  const candidate = { analyticsHash: hex('b'), fp: hex('1', 32), parts: partsBody, ipHash, ipPrefixHash: hex('0'), cartHash: null, lastSeenAt: new Date().toISOString(), popularity: 1, convertedUserIds: [] };
+  const candidate = { analyticsHash: hex('b'), fp: keyedFp(), parts: keyedParts(), ipHash, ipPrefixHash: hex('0'), cartHash: null, lastSeenAt: new Date().toISOString(), popularity: 1, convertedUserIds: [] };
   const { res, calls } = await identifyRun([candidate], { batchAvailable: false });
   assert.equal(res.body.linked, 1);
   assert.equal(calls.filter((c) => c.u.endsWith('/rpc/guest_identity_link_many')).length, 1);
@@ -186,22 +194,22 @@ test('identify falls back to the existing per-link RPC until the batch migration
 
 test('identify never links a guest that belongs to a different registered person', async () => {
   const ipHash = await sameIp();
-  const { res, calls } = await identifyRun([{ analyticsHash: hex('b'), fp: hex('1', 32), parts: partsBody, ipHash, ipPrefixHash: hex('0'), cartHash: null, lastSeenAt: new Date().toISOString(), popularity: 1, convertedUserIds: ['u-1'] }]);
+  const { res, calls } = await identifyRun([{ analyticsHash: hex('b'), fp: keyedFp(), parts: keyedParts(), ipHash, ipPrefixHash: hex('0'), cartHash: null, lastSeenAt: new Date().toISOString(), popularity: 1, convertedUserIds: ['u-1'] }]);
   assert.equal(res.body.linked, 0);
   assert.equal(calls.some((c) => c.u.endsWith('/rpc/guest_identity_link')), false);
 });
 
 test('identify never links on a common device or without network support', async () => {
   const ipHash = await sameIp();
-  const common = await identifyRun([{ analyticsHash: hex('b'), fp: hex('1', 32), parts: partsBody, ipHash, ipPrefixHash: hex('0'), popularity: 9, convertedUserIds: [], lastSeenAt: new Date().toISOString() }]);
+  const common = await identifyRun([{ analyticsHash: hex('b'), fp: keyedFp(), parts: keyedParts(), ipHash, ipPrefixHash: hex('0'), popularity: 9, convertedUserIds: [], lastSeenAt: new Date().toISOString() }]);
   assert.equal(common.res.body.linked, 0);
-  const elsewhere = await identifyRun([{ analyticsHash: hex('b'), fp: hex('1', 32), parts: partsBody, ipHash: hex('d'), ipPrefixHash: hex('e'), popularity: 1, convertedUserIds: [], lastSeenAt: new Date().toISOString() }]);
+  const elsewhere = await identifyRun([{ analyticsHash: hex('b'), fp: keyedFp(), parts: keyedParts(), ipHash: hex('d'), ipPrefixHash: hex('e'), popularity: 1, convertedUserIds: [], lastSeenAt: new Date().toISOString() }]);
   assert.equal(elsewhere.res.body.linked, 0);
 });
 
 test('identify does not hash the shared unknown-IP placeholder or link without a usable address', async () => {
   const { res, calls } = await identifyRun([{
-    analyticsHash: hex('b'), fp: hex('1', 32), parts: partsBody,
+    analyticsHash: hex('b'), fp: keyedFp(), parts: keyedParts(),
     ipHash: await (async () => { const { createHmac } = require('node:crypto'); return createHmac('sha256', 'service-key').update('guest-ip:unknown').digest('hex'); })(),
     ipPrefixHash: null, cartHash: null, lastSeenAt: new Date().toISOString(), popularity: 1, convertedUserIds: []
   }], { headers: { 'user-agent': 'Mozilla/5.0 Chrome', 'accept-language': 'ar-EG' } });
@@ -210,6 +218,15 @@ test('identify does not hash the shared unknown-IP placeholder or link without a
   assert.equal(store.p_ip_prefix_hash, null);
   assert.equal(res.body.linked, 0);
   assert.equal(calls.some((c) => c.u.endsWith('/rpc/guest_identity_link')), false);
+});
+
+test('client-supplied activity cannot authorize fingerprint storage when server records do not meet the gate', async () => {
+  const { res, calls } = await identifyRun([], { serverBehavior: { interactions: 0, activeSeconds: 0 } });
+  assert.equal(res.status, 200);
+  assert.deepEqual(res.body, { ok: true, identified: false });
+  assert.ok(calls.some((c) => c.u.endsWith('/rpc/guest_signal_behavior')));
+  assert.equal(calls.some((c) => c.u.endsWith('/rpc/guest_signal_store')), false);
+  assert.equal(calls.some((c) => c.u.endsWith('/rpc/guest_signal_candidates')), false);
 });
 
 test('a failing database never breaks the shopper: identify just reports not identified', async () => {

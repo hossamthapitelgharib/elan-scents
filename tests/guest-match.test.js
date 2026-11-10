@@ -1,9 +1,9 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { decide, cleanParts, similarity, cartSignature } = require('../lib/guest-match');
+const { decide, cleanParts, similarity, cartSignature, WEIGHTS, TOTAL_WEIGHT } = require('../lib/guest-match');
 
 const now = Date.parse('2026-10-15T12:00:00Z');
-const parts = (over = {}) => ({ gpu: 'aaaaaaaa11', screen: 'bbbbbbbb22', canvas: 'cccccccc33', audio: 'dddddddd44', fonts: 'eeeeeeee55', tz: 'ffffffff66', hw: '1111111177', platform: '2222222288', lang: '3333333399', ...over });
+const parts = (over = {}) => ({ gpu: 'aaaaaaaa11', screen: 'bbbbbbbb22', canvas: 'cccccccc33', fonts: 'eeeeeeee55', tz: 'ffffffff66', hw: '1111111177', platform: '2222222288', lang: '3333333399', ...over });
 const behavior = { interactions: 4, activeSeconds: 20 };
 const own = (over = {}) => ({ parts: parts(), fp: 'f'.repeat(16), ipHash: 'ip1', ipPrefixHash: 'pre1', cartHash: '', behavior, ...over });
 const other = (over = {}) => ({ parts: parts(), fp: 'e'.repeat(16), ipHash: 'ip1', ipPrefixHash: 'pre1', cartHash: '', lastSeenAt: new Date(now - 3600e3).toISOString(), convertedUserIds: [], ...over });
@@ -54,7 +54,13 @@ test('a visit with no real interaction is not trusted to create links', () => {
 
 test('parts are cleaned: unknown keys and non-hex values are dropped', () => {
   assert.deepEqual(cleanParts({ gpu: 'aaaaaaaa11', evil: 'aaaaaaaa11', tz: '<script>' }), { gpu: 'aaaaaaaa11' });
+  assert.equal(Object.hasOwn(cleanParts({ audio: 'aaaaaaaa11' }), 'audio'), false, 'an uncollected signal cannot affect the score');
   assert.equal(similarity({ gpu: 'aaaaaaaa11' }, {}).comparable, 0);
+});
+
+test('the published comparison weight equals the signals collected by the browser', () => {
+  assert.deepEqual(Object.keys(WEIGHTS).sort(), ['canvas', 'fonts', 'gpu', 'hw', 'lang', 'platform', 'screen', 'tz'].sort());
+  assert.equal(TOTAL_WEIGHT, 13);
 });
 
 test('basket signature ignores order and empty rows', () => {

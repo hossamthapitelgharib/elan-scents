@@ -155,9 +155,9 @@ test('"not your basket" gives the next person a new guest key and the server coo
   assert.equal(last.fresh, true); assert.equal(last.visitorKey, after);
 });
 
-test('identify runs once per visit, only after real use, and sends signals plus behaviour', async () => {
+test('identify runs once per visit after a local delay, and sends signals without client behavior counters', async () => {
   const browser = shared(); let t = 1_800_000_000_000;
-  const tab = openTab(browser, () => t);
+  const tab = openTab(browser, () => t, (url, body) => url === '/api/guest-cart' && body.action === 'identify' ? { ok: true, identified: true, finalVisitorId: 'v1' } : null);
   await tab.identity.startSession();
   tab.listeners.pointerdown();
   await new Promise((r) => setImmediate(r));
@@ -167,11 +167,27 @@ test('identify runs once per visit, only after real use, and sends signals plus 
   const sent = tab.requests.filter((r) => r.body.action === 'identify');
   assert.equal(sent.length, 1);
   assert.match(sent[0].body.fp, /^[a-f0-9]{16,64}$/);
-  assert.ok(sent[0].body.behavior.interactions >= 3 && sent[0].body.behavior.activeSeconds >= 5);
+  assert.equal(Object.hasOwn(sent[0].body, 'behavior'), false, 'activity is derived by the server, not trusted from this request');
   assert.equal(typeof sent[0].body.parts, 'object');
   t += 3000; tab.listeners.pointerdown();
   await new Promise((r) => setTimeout(r, 20));
   assert.equal(tab.requests.filter((r) => r.body.action === 'identify').length, 1, 'not repeated in the same visit');
+});
+
+test('a server refusal of early fingerprint storage can be retried later in the same visit', async () => {
+  const browser = shared(); let t = 1_800_000_000_000, tries = 0;
+  const tab = openTab(browser, () => t, (url, body) => {
+    if (url !== '/api/guest-cart' || body.action !== 'identify') return null;
+    tries += 1;
+    return { ok: true, identified: tries > 1 };
+  });
+  await tab.identity.startSession();
+  tab.listeners.pointerdown(); t += 6000; tab.listeners.pointerdown();
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(tries, 1);
+  t += 1000; tab.listeners.pointerdown();
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(tries, 2, 'a false result does not permanently suppress later server-backed evidence');
 });
 
 test('identify never sends the raw basket or any personal value', async () => {
