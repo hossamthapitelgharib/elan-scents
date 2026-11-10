@@ -33,6 +33,7 @@ module.exports = {
     'platform-verify-delivery': () => require('../api/platform-verify-delivery.js'),
     'request-store-order-cancellation': () => require('../api/request-store-order-cancellation.js'),
     'restore-store-order': () => require('../api/restore-store-order.js'),
+    'signup-carry': () => require('../api/signup-carry.js'),
     'store-dashboard-orders': () => require('../api/store-dashboard-orders.js'),
     'store-catalog-figures': () => require('../api/store-catalog-figures.js'),
     'store-integrations': () => require('../api/store-integrations.js'),
