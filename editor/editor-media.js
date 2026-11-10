@@ -19,6 +19,7 @@
     '#elanSizeDlg button{font:inherit;cursor:pointer;border:1px solid #d9c79c;background:#fff;color:#4a3a1a;border-radius:9px;padding:8px 6px;line-height:1.5;unicode-bidi:plaintext;text-align:center}',
     '#elanSizeDlg button:hover,#elanSizeDlg button:focus{background:#f6ecd4;outline:2px solid #c8962a;outline-offset:1px}',
     '#elanSizeDlg button.auto{display:block;width:100%;background:#f6ecd4;font-weight:700}',
+    '#elanSizeDlg button .pic{display:flex;align-items:center;justify-content:center;height:32px}#elanSizeDlg button .shape{display:block;box-sizing:border-box;border:1.5px solid #c8962a;background:#fff4d6;border-radius:2px}',
     '#elanSizeDlg button .dim{display:block;font-weight:700;direction:ltr}#elanSizeDlg button .lbl{display:block;font-size:11.5px;color:#7d6a49}',
     '#elanSizeDlg .foot{margin-top:14px;display:flex;justify-content:flex-start}#elanSizeDlg .foot button{padding:8px 18px}',
     /* the owner's own sizes: the add row, the small delete mark on each saved size, the status line */
@@ -194,8 +195,14 @@
           var grid = el('div', '', { className: 'grid' });
           group.sizes.forEach(function (size) {
             var b = el('button', '', { type: 'button' }), dim = el('span', '', { className: 'dim' }), lbl = el('span', '', { className: 'lbl' });
-            dim.textContent = size.w + ' \u00d7 ' + size.h; nameInto(lbl, size.label);
-            b.append(dim, lbl); b.onclick = function () { finish({ w: size.w, h: size.h }); };
+            var ratio = Array.isArray(size.ratio) ? size.ratio : null, sw = ratio ? ratio[0] : size.w, sh = ratio ? ratio[1] : size.h;
+            dim.textContent = ratio ? ratio[0] + ':' + ratio[1] : size.w + ' \u00d7 ' + size.h; nameInto(lbl, size.label);
+            /* a little drawing with the shape of the size, for whoever does not read pixels: its longer side is always 28 */
+            var longest = Math.max(sw, sh), shape = el('span', '', { className: 'shape' });
+            shape.style.width = Math.max(4, Math.round(28 * sw / longest)) + 'px'; shape.style.height = Math.max(4, Math.round(28 * sh / longest)) + 'px';
+            shape.setAttribute('aria-hidden', 'true');
+            var pic = el('span', '', { className: 'pic' }); pic.appendChild(shape);
+            b.append(pic, dim, lbl); b.onclick = function () { finish(ratio ? { ratio: [ratio[0], ratio[1]] } : { w: size.w, h: size.h }); };
             if (!(size.mine && opts.remove)) { grid.appendChild(b); return; }
             var cell = el('div', '', { className: 'cell' }), del = el('button', '\u2715', { type: 'button', className: 'del', title: 'احذف المقاس ده من مقاساتي' });
             del.setAttribute('aria-label', 'احذف المقاس ' + size.w + ' \u00d7 ' + size.h);
@@ -212,7 +219,7 @@
       msg.setAttribute('role', 'status');
       function say(text) { msg.textContent = text || ''; }
       dlg.appendChild(el('h3', opts.title || 'اختار المقاس'));
-      dlg.appendChild(el('p', 'مقاسات قياسية عالمية. على الموبايل المقاس الأعرض من الشاشة بيتصغّر بنفس النسبة، وتقدر بعدها تعدّله بالسحب من مربع الركن.', { className: 'note' }));
+      dlg.appendChild(el('p', 'اختار شكل جاهز: نسبة (مربع 1:1، عريض 16:9، طولي 9:16…) أو مقاس معروف. النسب هنا أمثلة، وتقدر بعدها تعدّل أي عنصر بالسحب من مربع الركن. على الموبايل المقاس الأعرض من الشاشة بيتصغّر بنفس النسبة.', { className: 'note' }));
       var auto = el('button', opts.auto || 'تلقائي (المقاس الافتراضي)', { type: 'button', className: 'auto' });
       auto.onclick = function () { finish(null); };
       dlg.appendChild(auto);

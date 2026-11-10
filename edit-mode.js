@@ -17,8 +17,14 @@
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
   /* A standard size chosen in the editor ({w, h}, pixels): refused unless it is inside the limits of a saved size; scaled down (same shape) to the room
      the element has when it is wider than that, so on a phone a 728x90 banner is a full-width strip and never wider than the screen. */
-  function sizeArg(v) {
+  function sizeArg(v, width) {
     if (v === undefined || v === null) return null;
+    if (v && v.ratio !== undefined) {   // a common shape ("16:9") instead of pixels: it takes the width the element has (or a new element's usual width)
+      var a = Math.round(+(v.ratio && v.ratio[0])), b = Math.round(+(v.ratio && v.ratio[1]));
+      var made = a >= 1 && a <= 100 && b >= 1 && b <= 100 && Geometry.sizeFromRatio ? Geometry.sizeFromRatio(a, b, width || baseWidth(null)) : null;
+      if (!made) throw new Error('نسبة غير صالحة.');
+      return made;
+    }
     var w = Math.round(+(v && v.w)), h = Math.round(+(v && v.h)), lo = Geometry.MIN_WIDTH || 40, lh = Geometry.MIN_HEIGHT || 30, hi = Geometry.MAX_SIZE || 4000;
     if (!(w >= lo && w <= hi && h >= lh && h <= hi)) throw new Error('مقاس غير صالح.');
     return { w: w, h: h };
@@ -26,6 +32,7 @@
   /* The size groups the chooser shows: the owner's own saved sizes first (they travel with the design file), then the standard ones. */
   function sizeGroups() {
     var groups = (Geometry.SIZE_GROUPS || []).slice(), mine = work && work.mySizes || [];
+    if (Geometry.RATIOS) groups.unshift({ id: 'ratio', label: 'نسب شائعة (أمثلة)', sizes: Geometry.RATIOS.map(function (r) { return { ratio: [r.w, r.h], label: r.label }; }) });
     if (mine.length) groups.unshift({ id: 'mine', label: 'مقاساتي', sizes: mine.map(function (m) { return { w: m.w, h: m.h, label: m.name || '', mine: true }; }) });
     return groups;
   }
@@ -52,11 +59,19 @@
     try { var cs = getComputedStyle(box); inside -= (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0); } catch (_) { /* no styles: the whole width */ }
     return inside;
   }
-  function fitFor(size, id) {
+  function roomFor(id) {
     var e = id && entryById(id), box = e && e.el && e.el.parentElement;
     if (!box) box = document.body.classList.contains('inner') ? document.getElementById('view') : document.getElementById('main');
-    var room = roomOf(box) || document.documentElement.clientWidth || window.innerWidth;
-    return (Geometry.fitSize && Geometry.fitSize(size, room)) || size;
+    return roomOf(box) || document.documentElement.clientWidth || window.innerWidth;
+  }
+  function fitFor(size, id) {
+    return (Geometry.fitSize && Geometry.fitSize(size, roomFor(id))) || size;
+  }
+  /* The width a common shape is made at: an element that exists keeps the width it has now (only its height follows the shape); a new one takes the room
+     it has, up to 480 pixels, so on a phone it is a full-width block. */
+  function baseWidth(id) {
+    var e = id && entryById(id), w = e && e.el && e.el.getBoundingClientRect().width;
+    return w ? Math.round(w) : Math.min(480, roomFor(null));
   }
   /* "Back to the original size": the fixed width and height chosen on this screen size are dropped. */
   function clearSize(id) {
@@ -64,7 +79,7 @@
     return null;
   }
   function applySize(id, size) {
-    var s = fitFor(sizeArg(size), id);
+    var s = fitFor(sizeArg(size, baseWidth(id)), id);
     mutate(function () { var t = edit(device(), id); t.w = s.w; t.h = s.h; });
     return { w: s.w, h: s.h };
   }
@@ -177,17 +192,19 @@
     '.eo-dlg>div{background:#fff;border:1px solid #c2a66a;border-radius:12px;padding:16px;width:min(420px,92vw);font-size:13px}' +
     '.eo-dlg input[type=text]{width:100%;padding:7px;border:1px solid #c2a66a;border-radius:7px;direction:ltr;margin:8px 0}' +
     '.eo-dlg button{font:inherit;padding:6px 12px;border:1px solid #c2a66a;border-radius:7px;background:#fff;cursor:pointer;margin-inline-end:6px}' +
+    '.eo-size{position:fixed;display:none;background:#29251c;color:#fff;border:1px solid #c8962a;padding:3px 9px;border-radius:7px;font-size:12px;direction:ltr;white-space:nowrap;pointer-events:none;font-variant-numeric:tabular-nums}' +
     '.eo-tag{position:absolute;top:-24px;right:-2px;background:#c8962a;color:#fff;font-size:11px;padding:2px 8px;border-radius:5px 5px 0 0;white-space:nowrap;pointer-events:none}' +
     '.eo-drop{position:fixed;display:none;background:#b48b38;border-radius:3px;box-shadow:0 0 0 3px rgba(180,139,56,.28);pointer-events:none}' +
     '.eo-place{position:fixed;top:10px;left:50%;transform:translateX(-50%);background:#29251c;color:#fff;border:1px solid #c8962a;padding:9px 16px;border-radius:9px;font-size:13px;display:none;max-width:92vw;text-align:center;pointer-events:none}' +
     'html.eo-placing,html.eo-placing *{cursor:crosshair !important}' +
     '[contenteditable]{outline:2px dashed #c8962a;outline-offset:2px}' +
-    '</style><div class="eo-drop"></div><div class="eo-place"></div><div class="eo-box"><span class="eo-tag"></span><i class="eo-h" data-h="se"></i></div><div class="eo-msg"></div>' +
+    '</style><div class="eo-drop"></div><div class="eo-place"></div><div class="eo-box"><span class="eo-tag"></span><i class="eo-h" data-h="se" title="اسحب لتغيير الحجم. Shift لتثبيت النسبة"></i></div><div class="eo-size"></div><div class="eo-msg"></div>' +
     '<div class="eo-dlg"><div><b class="eo-dt"></b><input type="text" class="eo-di" dir="ltr"><p class="eo-dh" style="margin:0 0 8px;color:#7a6a52"></p><button class="eo-ok">تأكيد</button><button class="eo-no">إلغاء</button></div></div>';
   document.body.appendChild(root);
 
   var tagEl = root.querySelector('.eo-tag');
   var dropEl = root.querySelector('.eo-drop');
+  var sizeEl = root.querySelector('.eo-size');
   var box = root.querySelector('.eo-box'), msgEl = root.querySelector('.eo-msg'), dlg = root.querySelector('.eo-dlg');
 
   var msgTimer = null;
@@ -387,7 +404,48 @@
     });
     say('اتنقل العنصر، وباقي العناصر اتزاحت تلقائي. (Alt مع السحب = تحريك حر)');
   }
+  /* One step of dragging a corner or an edge handle: the size follows the pointer (Shift keeps the shape), the opposite edge stays where it was,
+     and a small label beside the pointer tells the owner the size he is making. Also run when Shift is pressed or let go in the middle of a drag. */
+  function stepResize(g, ddx, ddy, keepShape) {
+    var h = g.handle, w = g.r.width, hh = g.r.height;
+    if (h.indexOf('e') !== -1) w = g.r.width + ddx; if (h.indexOf('w') !== -1) w = g.r.width - ddx;
+    if (h.indexOf('s') !== -1) hh = g.r.height + ddy; if (h.indexOf('n') !== -1) hh = g.r.height - ddy;
+    var locked = !!keepShape && h.length === 2;                 // only a corner has two sides to keep in shape
+    var size = locked ? Geometry.resizeKeepingShape(g.r.width, g.r.height, w - g.r.width, hh - g.r.height) : Geometry.resize(g.r.width, g.r.height, w - g.r.width, hh - g.r.height);
+    w = size.w; hh = size.h;
+    if (h.length === 2 || h === 'e' || h === 'w') { g.el.style.width = w + 'px'; g.el.style.maxWidth = 'none'; g.el.style.flex = '0 0 auto'; g.w = w; }
+    if (h.length === 2 || h === 'n' || h === 's') { g.el.style.height = hh + 'px'; g.h = hh; }
+    // keep the opposite edge where it was, whatever the page direction is
+    var nr = g.el.getBoundingClientRect(), ox = 0, oy = 0;
+    if (h.indexOf('e') !== -1) ox = g.r.left - nr.left; else if (h.indexOf('w') !== -1) ox = g.r.right - nr.right;
+    if (h.indexOf('s') !== -1) oy = g.r.top - nr.top; else if (h.indexOf('n') !== -1) oy = g.r.bottom - nr.bottom;
+    g.dx = Math.round(g.b.dx + ox); g.dy = Math.round(g.b.dy + oy);
+    g.el.style.transform = 'translate(' + g.dx + 'px,' + g.dy + 'px)';
+    showSize(g, Math.round(nr.width), Math.round(nr.height), locked);
+  }
+  /* the label shows the size the element really has on the page (what a chosen standard size would be called), kept inside the window */
+  function showSize(g, w, h, locked) {
+    var at = g.last || { x: g.sx, y: g.sy };
+    var shape = Geometry.ratioName ? Geometry.ratioName(w, h) : '';
+    sizeEl.textContent = w + ' \u00d7 ' + h + (shape ? ' \u2022 ' + shape : '') + (locked ? ' \u2022 نسبة ثابتة' : '');
+    sizeEl.style.display = 'block';
+    var bw = sizeEl.offsetWidth, bh = sizeEl.offsetHeight, vw = window.innerWidth, vh = window.innerHeight;
+    var left = at.x + 16, top = at.y + 20;
+    if (left + bw > vw - 4) left = at.x - bw - 16;
+    if (top + bh > vh - 4) top = at.y - bh - 20;
+    sizeEl.style.left = Math.max(4, left) + 'px'; sizeEl.style.top = Math.max(4, top) + 'px';
+  }
+  function hideSize() { sizeEl.style.display = 'none'; }
+  function shiftChanged(ev) {
+    if (ev.key !== 'Shift' || !gesture || gesture.mode !== 'resize' || !gesture.moved || !gesture.last) return;
+    var g = gesture;
+    stepResize(g, g.last.x - g.sx, g.last.y - g.sy, ev.type === 'keydown');
+    placeBox();
+  }
+  window.addEventListener('keydown', shiftChanged, true);
+  window.addEventListener('keyup', shiftChanged, true);
   function endGesture(g) {
+    hideSize();
     hideDrop();
     if (g && g.strip) { if (g.strip.base) g.strip.node.setAttribute('style', g.strip.base); else g.strip.node.removeAttribute('style'); g.strip = null; }
   }
@@ -504,19 +562,8 @@
       if (g.flow && g.flow.siblings.length && !ev.altKey) { g.slot = slotAt(g.flow, ev.clientX, ev.clientY); showDrop(g.flow, g.slot); }
       else { g.slot = null; hideDrop(); }
     } else {
-      var h = g.handle, w = g.r.width, hh = g.r.height;
-      if (h.indexOf('e') !== -1) w = g.r.width + ddx; if (h.indexOf('w') !== -1) w = g.r.width - ddx;
-      if (h.indexOf('s') !== -1) hh = g.r.height + ddy; if (h.indexOf('n') !== -1) hh = g.r.height - ddy;
-      var size = Geometry.resize(g.r.width, g.r.height, w - g.r.width, hh - g.r.height);
-      w = size.w; hh = size.h;
-      if (h.length === 2 || h === 'e' || h === 'w') { g.el.style.width = w + 'px'; g.el.style.maxWidth = 'none'; g.el.style.flex = '0 0 auto'; g.w = w; }
-      if (h.length === 2 || h === 'n' || h === 's') { g.el.style.height = hh + 'px'; g.h = hh; }
-      // keep the opposite edge where it was, whatever the page direction is
-      var nr = g.el.getBoundingClientRect(), ox = 0, oy = 0;
-      if (h.indexOf('e') !== -1) ox = g.r.left - nr.left; else if (h.indexOf('w') !== -1) ox = g.r.right - nr.right;
-      if (h.indexOf('s') !== -1) oy = g.r.top - nr.top; else if (h.indexOf('n') !== -1) oy = g.r.bottom - nr.bottom;
-      g.dx = Math.round(g.b.dx + ox); g.dy = Math.round(g.b.dy + oy);
-      g.el.style.transform = 'translate(' + g.dx + 'px,' + g.dy + 'px)';
+      g.last = { x: ev.clientX, y: ev.clientY };
+      stepResize(g, ddx, ddy, !!ev.shiftKey);
     }
     placeBox();
   }, true);
@@ -1057,7 +1104,7 @@
         if (!tool) throw new Error('أداة غير معروفة');
         var ei = p.elementId ? entryById(p.elementId) : null, inf = info(ei);
         if (tool.when && !tool.when(inf)) throw new Error('الأداة دي مش متاحة للعنصر ده.');
-        var out = await tool.run({ id: p.elementId || null, info: inf, at: p.at || null, src: typeof p.src === 'string' ? p.src : null, size: tool.sizes ? sizeArg(p.size) : null });
+        var out = await tool.run({ id: p.elementId || null, info: inf, at: p.at || null, src: typeof p.src === 'string' ? p.src : null, size: tool.sizes ? sizeArg(p.size, tool.id === 'size_preset' ? baseWidth(p.elementId || selectedId) : undefined) : null });
         return out === undefined ? null : out;
       }
       case 'element.nudge': {

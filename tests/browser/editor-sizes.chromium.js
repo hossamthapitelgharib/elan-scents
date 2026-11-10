@@ -68,7 +68,7 @@ test('the chooser lists the saved groups, automatic first, and a size picked bef
     });
     assert.equal(lay.first, 'تلقائي (المقاس الافتراضي)', 'automatic is the first choice');
     assert.equal(lay.firstClass, 'auto'); assert.ok(lay.focused, 'and has the focus, so Enter takes it');
-    assert.deepEqual(lay.groups, ['بانرات الويب (IAB)', 'سوشيال ميديا', 'شاشات ونسب شائعة', 'ورق الطباعة (96 نقطة/بوصة)']);
+    assert.deepEqual(lay.groups, ['نسب شائعة (أمثلة)', 'بانرات الويب (IAB)', 'سوشيال ميديا', 'شاشات وأجهزة', 'ورق الطباعة (96 نقطة/بوصة)']);
     assert.ok(lay.count >= 20, 'the saved sizes are listed: ' + lay.count);
     assert.equal(lay.rtl, 'rtl'); assert.ok(lay.inView, 'inside the window');
     await sizeButton(page, '300 × 250').click();
@@ -227,9 +227,9 @@ test('an own size is saved from the chooser (Enter works), listed first as «م�
     await menuItem(page, 'إنشاء كتلة نصية').click();
     await chooser(page).waitFor({ state: 'visible', timeout: 10000 });
     const groups = await page.evaluate(() => Array.from(document.querySelectorAll('#elanSizeDlg h4')).map((h) => h.textContent));
-    assert.equal(groups[0], 'مقاساتي'); assert.equal(groups.length, 5);
+    assert.equal(groups[0], 'مقاساتي'); assert.equal(groups.length, 6);
     await page.locator('#elanSizeDlg .cell button.del').last().click();
-    await page.waitForFunction((n) => (window.__x = 1) && document.querySelectorAll('#elanSizeDlg h4').length === n, mineBefore === 0 ? 4 : 5, { timeout: 10000 });
+    await page.waitForFunction((n) => (window.__x = 1) && document.querySelectorAll('#elanSizeDlg h4').length === n, mineBefore === 0 ? 5 : 6, { timeout: 10000 });
     assert.equal((await mineOf(frame)).length, mineBefore, 'deleted from the design too');
     await page.keyboard.press('Escape');
     await chooser(page).waitFor({ state: 'detached', timeout: 10000 });
@@ -259,5 +259,129 @@ test('the own-size form fits a phone window and saves there too', async () => {
     const id = await lastBlock(frame), s = await sizeOf(frame, id);
     assert.ok(s.w <= s.room && s.left >= 0 && s.right <= s.vw, 'fits the screen: ' + JSON.stringify(s));
     assert.ok(Math.abs(s.w / s.h - 320 / 180) < 0.2, 'with its shape: ' + JSON.stringify(s));
+  } finally { await context.close(); }
+});
+
+/* The corner handle (owner suggestion, 2026-11-09): a label beside the pointer shows the size being made, and Shift keeps the shape. */
+async function aimHandle(page, frame) {
+  await frame.evaluate(() => { document.querySelector('.eo-h').scrollIntoView({ block: 'center' }); });
+  let handle = null;
+  for (let i = 0; i < 40; i++) {   // the page scrolls smoothly: wait until the handle stops moving
+    const now = await frame.evaluate(() => { const r = document.querySelector('.eo-h').getBoundingClientRect(); return { x: r.left + 2, y: r.top + r.height / 2 }; });   // the inner part: at the right edge of a full-width element the preview clips the last pixels
+    if (handle && Math.abs(now.y - handle.y) < 0.5 && Math.abs(now.x - handle.x) < 0.5) { handle = now; break; }
+    handle = now; await page.waitForTimeout(150);
+  }
+  const box = await page.locator('iframe').first().boundingBox(), k = box.width / (await frame.evaluate(() => innerWidth));
+  return { x: (dx, dy) => box.x + (handle.x + dx) * k, y: (dx, dy) => box.y + (handle.y + dy) * k, k };
+}
+const labelOf = (frame) => frame.evaluate(() => {
+  const l = document.querySelector('.eo-size'), r = l.getBoundingClientRect();
+  return { text: l.textContent, shown: getComputedStyle(l).display !== 'none', inView: r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight };
+});
+
+test('dragging the corner shows the size being made beside the pointer, and Shift keeps the shape (also when pressed or let go mid-drag)', async () => {
+  const { context, page, frame } = await openEditor(LAPTOP);
+  try {
+    await openMenu(page, frame, null);
+    await menuItem(page, 'إنشاء كتلة نصية').click();
+    await chooser(page).waitFor({ state: 'visible', timeout: 10000 });
+    await sizeButton(page, '300 × 250').click();
+    await chooser(page).waitFor({ state: 'detached', timeout: 10000 });
+    await page.waitForTimeout(500);
+    const id = await lastBlock(frame);
+    await frame.evaluate(async (elementId) => { await window.ElanEditMode.execute('element.select', { elementId }); }, id);
+    await frame.evaluate((elementId) => { window.ElanDesignLayer.elements().find((e) => e.id === elementId).el.scrollIntoView({ block: 'center' }); }, id);
+    await page.waitForTimeout(900);
+    assert.equal((await labelOf(frame)).shown, false, 'no label before a drag');
+
+    // 1. free drag: the label reads the size, the sides move on their own
+    let aim = await aimHandle(page, frame);
+    await page.mouse.move(aim.x(0, 0), aim.y(0, 0)); await page.mouse.down();
+    await page.mouse.move(aim.x(60, 0), aim.y(60, 0), { steps: 8 });
+    await page.waitForTimeout(150);
+    let label = await labelOf(frame), s = await sizeOf(frame, id);
+    assert.ok(label.shown && label.inView, 'the label is shown inside the window: ' + JSON.stringify(label));
+    assert.ok(label.text.startsWith(s.w + ' × ' + s.h), 'it reads the real size: ' + label.text + ' vs ' + JSON.stringify(s));
+    assert.ok(s.w > 300 && Math.abs(s.h - 250) <= 1, 'free: wider, same height: ' + JSON.stringify(s));
+    await page.mouse.up(); await page.waitForTimeout(200);
+    assert.equal((await labelOf(frame)).shown, false, 'the label goes away when the mouse is let go');
+
+    // 2. Shift held for the whole drag: the shape of the start (here the free-dragged one) stays
+    const start = await sizeOf(frame, id), startRatio = start.w / start.h;
+    aim = await aimHandle(page, frame);
+    await page.mouse.move(aim.x(0, 0), aim.y(0, 0)); await page.keyboard.down('Shift'); await page.mouse.down();
+    await page.mouse.move(aim.x(-40, 6), aim.y(-40, 6), { steps: 8 });
+    await page.waitForTimeout(150);
+    label = await labelOf(frame); s = await sizeOf(frame, id);
+    assert.match(label.text, /نسبة ثابتة/); assert.equal(label.text.split(' •')[0], s.w + ' × ' + s.h);
+    assert.ok(s.w < start.w, 'smaller: ' + JSON.stringify(s));
+    assert.ok(Math.abs(s.w / s.h - startRatio) < 0.04, 'same shape ' + startRatio.toFixed(3) + ': ' + JSON.stringify(s));
+    await page.mouse.up(); await page.keyboard.up('Shift'); await page.waitForTimeout(300);
+    const saved = await sizeOf(frame, id);
+    assert.ok(Math.abs(saved.w / saved.h - startRatio) < 0.04, 'and the saved size has the same shape: ' + JSON.stringify(saved));
+
+    // 3. Shift pressed and let go in the middle of a drag, the pointer not moving: the element follows at once
+    const base = await sizeOf(frame, id);
+    aim = await aimHandle(page, frame);
+    await page.mouse.move(aim.x(0, 0), aim.y(0, 0)); await page.mouse.down();
+    await page.mouse.move(aim.x(70, 4), aim.y(70, 4), { steps: 8 });
+    await page.waitForTimeout(150);
+    const free = await sizeOf(frame, id);
+    assert.ok(Math.abs(free.h - (base.h + 4 / aim.k)) <= 2 || free.h <= base.h + 8, 'free so far: ' + JSON.stringify(free));
+    await page.keyboard.down('Shift'); await page.waitForTimeout(150);
+    label = await labelOf(frame); const locked = await sizeOf(frame, id);
+    assert.match(label.text, /نسبة ثابتة/, 'pressing Shift shows the lock');
+    assert.ok(Math.abs(locked.w / locked.h - base.w / base.h) < 0.04, 'the shape is the starting one at once: ' + JSON.stringify([base, locked]));
+    await page.keyboard.up('Shift'); await page.waitForTimeout(150);
+    const back = await sizeOf(frame, id);
+    assert.equal((await labelOf(frame)).text.includes('نسبة ثابتة'), false, 'letting Shift go removes the lock');
+    assert.deepEqual({ w: back.w, h: back.h }, { w: free.w, h: free.h }, 'and the free size is back');
+    await page.mouse.up(); await page.waitForTimeout(200);
+    assert.equal((await labelOf(frame)).shown, false);
+  } finally { await context.close(); }
+});
+
+test('common shapes (1:1, 4:3, 9:16, 16:9…) are the first group, each drawn as a little shape; one makes a new block and gives a chosen one its shape; the drag label names the shape', async () => {
+  const { context, page, frame } = await openEditor(LAPTOP);
+  try {
+    await openMenu(page, frame, null);
+    await menuItem(page, 'إنشاء كتلة نصية').click();
+    await chooser(page).waitFor({ state: 'visible', timeout: 10000 });
+    const grid = page.locator('#elanSizeDlg .grid').first();
+    const texts = await grid.locator('.dim').allTextContents();
+    ['1:1', '4:3', '9:16', '16:9', '3:2', '4:5'].forEach((n) => assert.ok(texts.includes(n), n + ' is offered: ' + texts.join(' ')));
+    const wide = grid.locator('button').filter({ has: page.locator('.dim', { hasText: /^16:9$/ }) });
+    const shape = await wide.locator('.shape').evaluate((e) => ({ w: parseFloat(e.style.width), h: parseFloat(e.style.height) }));
+    assert.ok(Math.abs(shape.w / shape.h - 16 / 9) < 0.2 && Math.max(shape.w, shape.h) === 28, 'a 16:9 drawing: ' + JSON.stringify(shape));
+    assert.ok(await page.locator('#elanSizeDlg .grid .shape').count() >= 30, 'and a drawing beside every size, not only the shapes');
+    await wide.click();
+    await chooser(page).waitFor({ state: 'detached', timeout: 10000 });
+    await page.waitForTimeout(500);
+    const id = await lastBlock(frame);
+    let s = await sizeOf(frame, id);
+    assert.ok(s.w <= s.room && Math.abs(s.h - s.w * 9 / 16) <= 1.5, 'a 16:9 block: ' + JSON.stringify(s));
+
+    // the drag label names the shape, and Shift keeps it
+    await frame.evaluate(async (elementId) => { await window.ElanEditMode.execute('element.select', { elementId }); }, id);
+    await frame.evaluate((elementId) => { window.ElanDesignLayer.elements().find((e) => e.id === elementId).el.scrollIntoView({ block: 'center' }); }, id);
+    await page.waitForTimeout(900);
+    const aim = await aimHandle(page, frame);
+    await page.mouse.move(aim.x(0, 0), aim.y(0, 0)); await page.keyboard.down('Shift'); await page.mouse.down();
+    await page.mouse.move(aim.x(-60, -3), aim.y(-60, -3), { steps: 8 });
+    await page.waitForTimeout(150);
+    const label = await labelOf(frame);
+    assert.match(label.text, /\u2022 16:9 \u2022 نسبة ثابتة$/, 'the label: ' + label.text);
+    await page.mouse.up(); await page.keyboard.up('Shift'); await page.waitForTimeout(300);
+
+    // a chosen element takes a shape too: same width, the height follows
+    s = await sizeOf(frame, id);
+    await openMenu(page, frame, id);
+    await menuItem(page, 'مقاس قياسي للعنصر').click();
+    await chooser(page).waitFor({ state: 'visible', timeout: 10000 });
+    await page.locator('#elanSizeDlg .grid').first().locator('button').filter({ has: page.locator('.dim', { hasText: /^1:1$/ }) }).click();
+    await chooser(page).waitFor({ state: 'detached', timeout: 10000 });
+    await page.waitForTimeout(500);
+    const sq = await sizeOf(frame, id);
+    assert.ok(Math.abs(sq.w - s.w) <= 1 && Math.abs(sq.h - sq.w) <= 1, 'a square with the width it had: ' + JSON.stringify([s, sq]));
   } finally { await context.close(); }
 });

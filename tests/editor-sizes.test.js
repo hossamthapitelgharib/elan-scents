@@ -50,7 +50,7 @@ test('the menu hands the groups to the host only for the tools that take a size'
   const b = await sizedEditor();
   const menu = plain(b.tools.menu(null)), by = (id) => menu.find((t) => t.id === id);
   ['create_text_block', 'create_banner', 'create_text', 'create_image'].forEach((id) => {
-    assert.ok(Array.isArray(by(id).sizes) && by(id).sizes.length === G.SIZE_GROUPS.length, id + ' offers the standard sizes');
+    assert.ok(Array.isArray(by(id).sizes) && by(id).sizes.length === G.SIZE_GROUPS.length + 1 && by(id).sizes[0].id === 'ratio', id + ' offers the common shapes first, then the standard sizes');
   });
   ['format', 'create_section', 'copy', 'archive', 'media'].forEach((id) => assert.equal(by(id).sizes, undefined, id + ' has no size list'));
   assert.equal(by('size_preset'), undefined, 'nothing is chosen on an empty page: no size entry');
@@ -143,11 +143,11 @@ test('the design file accepts the owner\'s own sizes and refuses what is not a s
 test('size.save keeps an own size, shows it first in the chooser and creates with it; size.remove takes it away; undo goes back', async () => {
   const b = await sizedEditor();
   const groupsOf = () => plain(b.tools.menu(null)).find((t) => t.id === 'create_text_block').sizes;
-  assert.notEqual(groupsOf()[0].id, 'mine', 'nothing saved yet: the standard sizes only');
+  assert.equal(groupsOf()[0].id, 'ratio', 'nothing saved yet: the common shapes come first');
   const saved = plain(await b.mode.execute('size.save', { w: 600, h: 400, name: 'بانر العروض' }));
   assert.equal(saved.groups[0].id, 'mine'); assert.equal(saved.groups[0].label, 'مقاساتي');
   assert.deepEqual(saved.groups[0].sizes, [{ w: 600, h: 400, label: 'بانر العروض', mine: true }]);
-  assert.equal(saved.groups.length, G.SIZE_GROUPS.length + 1);
+  assert.equal(saved.groups.length, G.SIZE_GROUPS.length + 2, 'mine, the common shapes, the standard sizes');
   assert.equal(groupsOf()[0].id, 'mine', 'the menu hands the host the same list');
   assert.deepEqual(plain(b.mode.state().design.mySizes), [{ w: 600, h: 400, name: 'بانر العروض' }], 'part of the design that is saved');
   assert.equal(ED.normalize(plain(b.mode.state().design), { strict: true }).ok, true);
@@ -162,7 +162,7 @@ test('size.save keeps an own size, shows it first in the chooser and creates wit
   const removed = plain(await b.mode.execute('size.remove', { w: 600, h: 400 }));
   assert.deepEqual(removed.groups[0].sizes.map((s) => s.w), [320]);
   const last = plain(await b.mode.execute('size.remove', { w: 320, h: 180 }));
-  assert.notEqual(last.groups[0].id, 'mine', 'the group is gone with its last size');
+  assert.equal(last.groups[0].id, 'ratio', 'the group is gone with its last size');
   assert.equal(plain(b.mode.state().design).mySizes, undefined);
   await b.mode.execute('history.undo', {});
   assert.deepEqual(plain(b.mode.state().design.mySizes).map((s) => s.w), [320], 'undo brings the removed size back');
@@ -187,4 +187,70 @@ test('the host may ask the page to save and remove an own size', () => {
   assert.match(media, /opts\.save\(\{ w: w, h: h, name: nBox\.value \}\)/);
   assert.match(media, /opts\.remove\(\{ w: size\.w, h: size\.h \}\)/);
   assert.match(host, /save:s=>runLive\('size\.save',s\),remove:s=>runLive\('size\.remove',s\)/);
+});
+
+/* Shapes (ratios) for an owner who does not think in pixels: 1:1, 4:3, 9:16 and the others are examples, listed first, drawn as little shapes in the chooser. */
+test('the common shapes include the ones the owner named, each with a name, and none is listed twice', () => {
+  const names = G.RATIOS.map((r) => r.w + ':' + r.h);
+  ['1:1', '4:3', '9:16', '16:9', '3:2', '4:5'].forEach((n) => assert.ok(names.includes(n), n + ' is there'));
+  assert.equal(new Set(names).size, names.length, 'listed once');
+  G.RATIOS.forEach((r) => { assert.ok(Number.isInteger(r.w) && Number.isInteger(r.h) && r.w >= 1 && r.h >= 1 && r.label, 'whole numbers and a name: ' + r.w + ':' + r.h); });
+  assert.ok(G.RATIOS.length >= 10, 'a good list of examples');
+});
+
+test('a shape takes a width and gives the size; a size is recognised as a shape when it is one', () => {
+  assert.deepEqual(G.sizeFromRatio(16, 9, 390), { w: 390, h: 219 });
+  assert.deepEqual(G.sizeFromRatio(9, 16, 360), { w: 360, h: 640 });
+  assert.deepEqual(G.sizeFromRatio(1, 1, 300), { w: 300, h: 300 });
+  assert.equal(G.sizeFromRatio(16, 9, 0), null, 'no width: nothing to make');
+  assert.equal(G.sizeFromRatio(0, 9, 300), null);
+  const tall = G.sizeFromRatio(1, 3, 3000); assert.ok(tall.h <= G.MAX_SIZE && Math.abs(tall.h / tall.w - 3) < 0.01, 'a tall shape at a huge width is scaled to stay inside the limits: ' + JSON.stringify(tall));
+  const flat = G.sizeFromRatio(21, 9, 40); assert.ok(flat.w >= G.MIN_WIDTH && flat.h >= G.MIN_HEIGHT, 'a flat one at a tiny width too: ' + JSON.stringify(flat));
+  assert.equal(G.ratioName(1080, 1080), '1:1'); assert.equal(G.ratioName(1920, 1080), '16:9'); assert.equal(G.ratioName(1080, 1920), '9:16');
+  assert.equal(G.ratioName(1024, 768), '4:3'); assert.equal(G.ratioName(390, 219), '16:9', 'a hand-rounded size still has its shape');
+  assert.equal(G.ratioName(360, 250), '', 'not a common shape');
+  assert.equal(G.ratioName(0, 10), '');
+});
+
+test('a shape chosen before creating makes a block at the room it has (up to 480) with the height the shape gives; one undo step', async () => {
+  const b = await sizedEditor();
+  const before = plain(b.mode.state().design).blocks.length;
+  const made = (await b.mode.execute('tool.run', { id: 'create_text_block', size: { ratio: [16, 9] } })).elementId;
+  const e = editOf(b, made);
+  assert.ok(e.w >= G.MIN_WIDTH && e.w <= 480, 'width: ' + e.w);
+  assert.equal(e.h, Math.round(e.w * 9 / 16), '16:9: ' + JSON.stringify(e));
+  const sq = (await b.mode.execute('tool.run', { id: 'create_text_block', size: { ratio: [1, 1] } })).elementId;
+  assert.equal(editOf(b, sq).w, editOf(b, sq).h, 'a square');
+  const tall = (await b.mode.execute('tool.run', { id: 'create_text_block', size: { ratio: [9, 16] } })).elementId;
+  assert.ok(editOf(b, tall).h > editOf(b, tall).w, 'a tall one');
+  await b.mode.execute('history.undo', {}); await b.mode.execute('history.undo', {}); await b.mode.execute('history.undo', {});
+  assert.equal(plain(b.mode.state().design).blocks.length, before, 'one undo step each');
+});
+
+test('a shape given to an element that exists keeps its width and changes only the height; "original size" still clears it', async () => {
+  const b = await sizedEditor();
+  const id = (await b.mode.execute('tool.run', { id: 'create_text_block', size: { w: 300, h: 250 } })).elementId;
+  await b.mode.execute('element.select', { elementId: id });
+  const before = { w: editOf(b, id).w, h: editOf(b, id).h };
+  const done = plain(await b.mode.execute('tool.run', { id: 'size_preset', elementId: id, size: { ratio: [1, 1] } }));
+  assert.equal(done.w, before.w, 'the width is kept: ' + JSON.stringify([before, done]));
+  assert.equal(done.h, before.w, 'and the height follows the shape: ' + JSON.stringify(done));
+  assert.deepEqual({ w: editOf(b, id).w, h: editOf(b, id).h }, { w: done.w, h: done.h }, 'saved');
+  await b.mode.execute('element.resize', { elementId: id, size: { ratio: [2, 1] } });
+  assert.equal(editOf(b, id).h * 2, editOf(b, id).w, '2:1 through element.resize too');
+  await b.mode.execute('tool.run', { id: 'size_preset', elementId: id });
+  assert.equal(editOf(b, id).w, undefined, 'the original size is back');
+});
+
+test('a shape that is not a shape is refused', async () => {
+  const b = await sizedEditor();
+  for (const bad of [{ ratio: [0, 9] }, { ratio: [16] }, { ratio: 'wide' }, { ratio: [500, 1] }, { ratio: null }]) {
+    await assert.rejects(b.mode.execute('tool.run', { id: 'create_text_block', size: bad }), /نسبة غير صالحة|مقاس غير صالح/);
+  }
+});
+
+test('the chooser draws a little shape with every size and takes a shape as an answer', () => {
+  const media = read('editor/editor-media.js');
+  assert.match(media, /className: 'shape'/); assert.match(media, /\{ ratio: \[ratio\[0\], ratio\[1\]\] \}/);
+  assert.match(media, /النسب هنا أمثلة/);
 });
