@@ -61,10 +61,10 @@ test('the welcome card comes before the slower account syncs, so a slow network 
   const i = core.indexOf("buildMenu();mailEvent(mode=='signup'?'registered':'login',d.access_token);");
   assert.ok(i > 0);
   const tail = core.slice(i, core.indexOf('}).catch(', i));
-  const order = ['else welcomeNotice()', 'await GuestIdentity.claim', 'await syncCartFromCloud', 'await syncFavsFromCloud', 'openStoreOrder(st)'].map((marker) => {
+  const order = ['else welcomeNotice()', 'await carryClaim', 'await GuestIdentity.claim', 'await syncCartFromCloud', 'await syncFavsFromCloud', 'openStoreOrder(st)'].map((marker) => {
     const at = tail.indexOf(marker); assert.ok(at >= 0, marker + ' is in the sign-in path'); return at;
   });
-  assert.deepEqual(order, [...order].sort((a, b) => a - b), 'welcome card, then claim and syncs, then the store order form');
+  assert.deepEqual(order, [...order].sort((a, b) => a - b), 'welcome card, then the carried lists, the guest claim and the syncs, then the store order form');
   assert.doesNotMatch(tail, /toast\(welcomeBackText/, 'the old toast is gone');
 });
 
@@ -78,7 +78,7 @@ test('signing in without waiting: the welcome card shows while the syncs are sti
     buildMenu() {}, adoptAccountLists() {}, mailEvent() {}, toast() { throw new Error('no toast'); }, welcomeNotice: () => notices.push('welcome'),
     sheetNotice: (kind) => notices.push(kind), signupDoneTitle: () => 'done', signupDoneText: () => 'signup',
     window: { GuestIdentity: { claim: () => new Promise(() => {}) } }, GuestIdentity: { claim: () => new Promise(() => {}) },
-    syncCartFromCloud: () => new Promise(() => {}), syncFavsFromCloud: () => new Promise(() => {}), openStoreOrder() { throw new Error('no store chosen'); }
+    carryClaim: () => new Promise(() => {}), syncCartFromCloud: () => new Promise(() => {}), syncFavsFromCloud: () => new Promise(() => {}), openStoreOrder() { throw new Error('no store chosen'); }
   });
   vm.runInContext('(async function(){' + path + '})()', context);
   await new Promise((resolve) => setImmediate(resolve));

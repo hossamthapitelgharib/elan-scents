@@ -19,12 +19,15 @@ const ORDER = {
 const FAV_SIZE = '3f2f7d1e-6a58-4a38-9d0c-0c1f7d3a9b11';
 let favRows = [], favWrites = [];
 let acctRow = null, acctWrites = [];   // the customer_details row the mocked database holds, and what the page wrote to it
+const STORE_PRODUCT = '8c1b2d3e-4f50-4a61-8b72-9c0d1e2f3a41', NEW_ID = '5d6e7f80-91a2-4b3c-8d4e-5f6071829304';
+let carry = null, tokenUser = null;     // what /api/signup-carry received and how it answers; the user a sign-in returns (null = the usual customer)
 let browser, server;
 test.before(async () => { server = await H.startServer(); browser = await pw.chromium.launch({ args: ['--no-sandbox'] }); });
 test.after(async () => { if (browser) await browser.close(); if (server) await server.stop(); });
 
 async function context({ session = null } = {}) {
   favRows = []; favWrites = []; acctRow = null; acctWrites = [];
+  carry = { calls: [], claimDelay: 0, claimAnswer: { ok: true, claimed: false, cart: 0, favs: 0 } }; tokenUser = null;
   const result = await H.openContext(browser, server, WINDOW);
   if (session) await result.context.addInitScript((value) => localStorage.setItem('elan_auth_session', JSON.stringify(value)), session);
   return result;
@@ -42,11 +45,18 @@ async function mockPage(page) {
   await page.route('https://nominatim.openstreetmap.org/reverse*', route => H.safeFulfill(route, { status: 200, contentType: 'application/json',
     body: JSON.stringify({ display_name: 'x', address: { house_number: '12', road: 'شارع التحرير', suburb: 'وسط البلد', city: 'القاهرة', state: 'محافظة القاهرة', country: 'مصر' } }) }));
   await page.route('https://www.google.com/maps*', route => H.safeFulfill(route, { status: 200, contentType: 'text/html', body: '<!doctype html><title>map</title><p>map</p>' }));
+  await page.route('**/api/signup-carry', async route => {
+    const request = route.request(), body = JSON.parse(request.postData() || '{}');
+    carry.calls.push({ method: request.method(), auth: request.headers().authorization || '', cookie: request.headers().cookie || '', body });
+    if (body.action === 'claim' && carry.claimDelay) await new Promise((resolve) => setTimeout(resolve, carry.claimDelay));
+    return H.safeFulfill(route, { status: 200, contentType: 'application/json', body: JSON.stringify(body.action === 'claim' ? carry.claimAnswer : { ok: true }) });
+  });
   await page.route('**/api/customer-cart', route => H.safeFulfill(route, { status: 200, contentType: 'application/json', body: '{"ok":true,"items":[]}' }));
   await page.route('**/api/request-store-order-cancellation', route => H.safeFulfill(route, { status: 200, contentType: 'application/json', body: '{"requestId":"request-1","duplicate":false}' }));
   await page.route('**/sbgdtuqfrnfeggkwqtrw.supabase.co/**', async route => {
     const request = route.request(), url = new URL(request.url());
-    if (url.pathname === '/auth/v1/token') return H.safeFulfill(route, { status: 200, contentType: 'application/json', body: JSON.stringify(CUSTOMER_SESSION) });
+    if (url.pathname === '/auth/v1/token') return H.safeFulfill(route, { status: 200, contentType: 'application/json', body: JSON.stringify(tokenUser ? { ...CUSTOMER_SESSION, user: tokenUser } : CUSTOMER_SESSION) });
+    if (url.pathname === '/auth/v1/signup') return H.safeFulfill(route, { status: 200, contentType: 'application/json', body: JSON.stringify({ id: NEW_ID, email: 'new@example.test', identities: [{ id: 'identity-1' }], confirmation_sent_at: '2026-11-10T10:00:00Z' }) });
     if (url.pathname === '/auth/v1/user') return H.safeFulfill(route, { status: 200, contentType: 'application/json', body: JSON.stringify(CUSTOMER_SESSION.user) });
     if (url.pathname.includes('/cart_items')) return H.safeFulfill(route, { status: 200, contentType: 'application/json', body: '[]' });
     if (url.pathname.includes('/rest/v1/favorites')) {
@@ -568,4 +578,105 @@ test('19. signing out in one tab makes another open tab reload as a visitor, wit
     const device = await first.evaluate(() => ({ auth: localStorage.getItem('elan_auth_session'), cart: localStorage.getItem('elan_cart'), favs: localStorage.getItem('elan_favs'), owner: localStorage.getItem('elan_cart_owner') }));
     assert.deepEqual(device, { auth: null, cart: null, favs: null, owner: null }, 'nothing of the account is written back to the device');
   } finally { await c.context.close(); }
+});
+
+// 20. the cart and hearts follow the account to the browser that confirms it (owner, 9 Nov 2026): he registered in one browser and the e-mail link opened in another.
+//     The registering browser leaves its lists for the new account (no session, no browser key); the confirming browser takes them BEFORE it reads the cart.
+async function signUpForm(page) {
+  await page.locator('#mb').click();
+  await page.locator('#menu [data-sheet="signup"]').click();
+  await page.locator('[data-auth-mode="signup"] input[name="name"]').fill('Test Buyer');
+  await page.locator('[data-auth-mode="signup"] input[name="email"]').fill('new@example.test');
+  await page.locator('[data-auth-mode="signup"] input[name="password"]').fill('a-test-password');
+  await page.locator('[data-auth-mode="signup"] button[type="submit"]').click();
+}
+test('20. browser A leaves its cart and hearts for the new account, and browser B takes them before it reads the cart', async () => {
+  const a = await context();
+  try {
+    await a.context.addInitScript(([size, sp]) => {
+      if (localStorage.getItem('__seeded')) return;
+      localStorage.setItem('__seeded', '1');
+      localStorage.setItem('elan_cart', JSON.stringify([{ sid: size, storeProductId: sp, q: 2 }]));
+      localStorage.setItem('elan_favs', JSON.stringify([size]));
+    }, [FAV_SIZE, STORE_PRODUCT]);
+    const page = await openPage(a, '/');
+    await signUpForm(page);
+    await page.waitForSelector('#sheet[data-kind="signupDone"]', { timeout: 8000 });
+    for (let i = 0; i < 40 && !carry.calls.length; i++) await page.waitForTimeout(100);
+    assert.equal(carry.calls.length, 1, 'one hand-over right after the sign-up');
+    const left = carry.calls[0];
+    assert.equal(left.method, 'POST');
+    assert.deepEqual(left.body, { action: 'stash', userId: NEW_ID, cart: [{ sid: FAV_SIZE, storeProductId: STORE_PRODUCT, q: 2 }], favs: [FAV_SIZE] });
+    assert.equal(left.auth, '', 'no token: the account has no session before it is confirmed');
+    assert.doesNotMatch(left.cookie, /elan_vk|elan_gid/, 'no visitor cookie travels with it');
+    assert.equal(await page.evaluate(() => localStorage.getItem('elan_auth_session')), null, 'nobody is signed in');
+  } finally { await a.context.close(); }
+
+  // browser B: empty device, the link opens here; the claim answer is slow on purpose
+  const b = await context();
+  try {
+    carry.claimDelay = 900; carry.claimAnswer = { ok: true, claimed: true, cart: 1, favs: 1 };
+    const order = [];
+    b.context.on('response', (response) => { if (new URL(response.url()).pathname === '/api/signup-carry') order.push('claim-answered'); });
+    b.context.on('request', (request) => {
+      const url = new URL(request.url());
+      if (url.pathname === '/api/signup-carry') order.push('claim');
+      else if (url.pathname.includes('/rest/v1/cart_items') && request.method() === 'GET') order.push('read-cart');
+      else if (url.pathname.includes('/rest/v1/favorites') && request.method() === 'GET') order.push('read-favs');
+    });
+    await openConfirmLink(b);
+    const claims = carry.calls.filter((call) => call.body.action === 'claim');
+    assert.equal(claims.length, 1, 'the confirming browser takes the lists once');
+    assert.equal(claims[0].auth, 'Bearer new-token', 'with the new account\'s own token');
+    assert.deepEqual(claims[0].body, { action: 'claim' }, 'it names no account: the token decides');
+    assert.ok(order.includes('read-cart') && order.includes('read-favs'));
+    assert.ok(order.indexOf('claim-answered') >= 0 && order.indexOf('claim-answered') < order.indexOf('read-cart') && order.indexOf('claim-answered') < order.indexOf('read-favs'), 'the claim is answered before the cart and hearts are read: ' + order.join(','));
+  } finally { await b.context.close(); }
+});
+
+test('20b. signing in takes the carried lists only for an account made in the last three days, and a failing claim never blocks the welcome', async () => {
+  const signIn = async (c) => {
+    const page = await openPage(c, '/');
+    await page.locator('#mb').click();
+    await page.locator('#menu [data-sheet="login"]').click();
+    await page.locator('[data-auth-mode="login"] input[name="email"]').fill('customer@example.test');
+    await page.locator('[data-auth-mode="login"] input[name="password"]').fill('correct-password');
+    await page.locator('[data-auth-mode="login"] button[type="submit"]').click();
+    await page.waitForSelector('#sheet[data-kind="welcome"] .auth-done', { timeout: 8000 });
+    await page.waitForTimeout(600);
+  };
+  const old = await context();
+  try {
+    tokenUser = { ...CUSTOMER_SESSION.user, created_at: '2026-01-01T00:00:00Z' };
+    await signIn(old);
+    assert.deepEqual(carry.calls, [], 'an old account never asks');
+  } finally { await old.context.close(); }
+  const unknown = await context();
+  try {
+    await signIn(unknown);
+    assert.deepEqual(carry.calls, [], 'an account whose age is not known never asks');
+  } finally { await unknown.context.close(); }
+  const young = await context();
+  try {
+    tokenUser = { ...CUSTOMER_SESSION.user, created_at: new Date(Date.now() - 3600 * 1000).toISOString() };
+    await signIn(young);
+    assert.equal(carry.calls.length, 1);
+    assert.equal(carry.calls[0].auth, 'Bearer ' + CUSTOMER_SESSION.access_token);
+    assert.deepEqual(carry.calls[0].body, { action: 'claim' });
+  } finally { await young.context.close(); }
+  const failing = await context();
+  try {
+    tokenUser = { ...CUSTOMER_SESSION.user, created_at: new Date().toISOString() };
+    const page = await failing.context.newPage();
+    await mockPage(page);
+    await page.route('**/api/signup-carry', (route) => H.safeFulfill(route, { status: 500, contentType: 'application/json', body: '{"ok":false}' }));
+    await page.goto(H.SITE + '/', { waitUntil: 'load' });
+    await page.locator('#mb').click();
+    await page.locator('#menu [data-sheet="login"]').click();
+    await page.locator('[data-auth-mode="login"] input[name="email"]').fill('customer@example.test');
+    await page.locator('[data-auth-mode="login"] input[name="password"]').fill('correct-password');
+    await page.locator('[data-auth-mode="login"] button[type="submit"]').click();
+    await page.waitForSelector('#sheet[data-kind="welcome"] .auth-done', { timeout: 8000 });
+    assert.ok(await page.evaluate(() => !!JSON.parse(localStorage.getItem('elan_auth_session') || 'null')), 'signed in although the hand-over failed');
+  } finally { await failing.context.close(); }
 });
