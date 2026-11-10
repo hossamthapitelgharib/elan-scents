@@ -118,3 +118,73 @@ test('the host dialog and its wiring are in the editor files the page loads', ()
   assert.match(mode, /id: 'size_preset'/);
   assert.match(read('edit-boot.js'), /editor-geometry\.js/, 'the page loads the list together with the editor code');
 });
+
+/* The owner's own sizes ("مقاساتي"): saved next to the standard ones, kept in the design file so they follow him to every device. */
+test('the design file accepts the owner\'s own sizes and refuses what is not a size', () => {
+  const base = { version: ED.VERSION, blocks: [], order: [] };
+  const ok = ED.normalize({ ...base, mySizes: [{ w: 600, h: 400, name: 'بانر العروض' }, { w: 1000, h: 500 }] }, { strict: true });
+  assert.equal(ok.ok, true);
+  assert.deepEqual(ok.design.mySizes, [{ w: 600, h: 400, name: 'بانر العروض' }, { w: 1000, h: 500 }]);
+  assert.equal(ED.isEmpty(ok.design), false, 'a design holding only saved sizes is not empty');
+  assert.equal(ED.serialize({ ...base, mySizes: [{ w: 40, h: 30 }, { w: 4000, h: 4000 }] }).includes('"mySizes"'), true);
+  const bad = [
+    [{ w: 39, h: 400 }], [{ w: 600, h: 29 }], [{ w: 4001, h: 400 }], [{ w: 600.5, h: 400 }], [{ w: '600', h: 400 }], [{}], ['600x400'],
+    [{ w: 600, h: 400 }, { w: 600, h: 400, name: 'تاني' }],
+    Array.from({ length: ED.MY_SIZES.count + 1 }, (_, i) => ({ w: 100 + i, h: 100 }))
+  ];
+  bad.forEach((list) => assert.equal(ED.normalize({ ...base, mySizes: list }, { strict: true }).ok, false, 'refused: ' + JSON.stringify(list).slice(0, 60)));
+  assert.equal(ED.normalize({ ...base, mySizes: 'big' }, { strict: true }).ok, false);
+  const lenient = ED.normalize({ ...base, mySizes: [{ w: 600, h: 400 }, { w: 5, h: 5 }, { w: 600, h: 400 }] });
+  assert.deepEqual(lenient.design.mySizes, [{ w: 600, h: 400 }], 'an older reader keeps the good ones and drops the rest');
+  const named = ED.normalize({ ...base, mySizes: [{ w: 600, h: 400, name: '  <b>x</b>\u0000' + 'ا'.repeat(80) }] }).design.mySizes[0].name;
+  assert.ok(named.length <= ED.MY_SIZES.name && !/\u0000/.test(named), 'the name is trimmed, cleaned and cut');
+});
+
+test('size.save keeps an own size, shows it first in the chooser and creates with it; size.remove takes it away; undo goes back', async () => {
+  const b = await sizedEditor();
+  const groupsOf = () => plain(b.tools.menu(null)).find((t) => t.id === 'create_text_block').sizes;
+  assert.notEqual(groupsOf()[0].id, 'mine', 'nothing saved yet: the standard sizes only');
+  const saved = plain(await b.mode.execute('size.save', { w: 600, h: 400, name: 'بانر العروض' }));
+  assert.equal(saved.groups[0].id, 'mine'); assert.equal(saved.groups[0].label, 'مقاساتي');
+  assert.deepEqual(saved.groups[0].sizes, [{ w: 600, h: 400, label: 'بانر العروض', mine: true }]);
+  assert.equal(saved.groups.length, G.SIZE_GROUPS.length + 1);
+  assert.equal(groupsOf()[0].id, 'mine', 'the menu hands the host the same list');
+  assert.deepEqual(plain(b.mode.state().design.mySizes), [{ w: 600, h: 400, name: 'بانر العروض' }], 'part of the design that is saved');
+  assert.equal(ED.normalize(plain(b.mode.state().design), { strict: true }).ok, true);
+  const made = (await b.mode.execute('tool.run', { id: 'create_text_block', size: { w: 600, h: 400 } })).elementId;
+  assert.deepEqual({ w: editOf(b, made).w, h: editOf(b, made).h }, { w: 600, h: 400 });
+  // the same size again changes its name instead of listing it twice
+  const renamed = plain(await b.mode.execute('size.save', { w: 600, h: 400, name: 'بانر الشتاء' }));
+  assert.deepEqual(renamed.groups[0].sizes.map((s) => s.label), ['بانر الشتاء']);
+  const second = plain(await b.mode.execute('size.save', { w: 320, h: 180 }));
+  assert.equal(second.groups[0].sizes.length, 2);
+  assert.equal(second.groups[0].sizes[1].label, '', 'a size without a name');
+  const removed = plain(await b.mode.execute('size.remove', { w: 600, h: 400 }));
+  assert.deepEqual(removed.groups[0].sizes.map((s) => s.w), [320]);
+  const last = plain(await b.mode.execute('size.remove', { w: 320, h: 180 }));
+  assert.notEqual(last.groups[0].id, 'mine', 'the group is gone with its last size');
+  assert.equal(plain(b.mode.state().design).mySizes, undefined);
+  await b.mode.execute('history.undo', {});
+  assert.deepEqual(plain(b.mode.state().design.mySizes).map((s) => s.w), [320], 'undo brings the removed size back');
+});
+
+test('size.save and size.remove refuse what makes no sense', async () => {
+  const b = await sizedEditor();
+  for (const bad of [{ w: 5, h: 5 }, { w: 99999, h: 100 }, { w: 'x', h: 100 }, {}, null]) {
+    await assert.rejects(b.mode.execute('size.save', bad), /مقاس غير صالح|اكتب العرض/);
+  }
+  await assert.rejects(b.mode.execute('size.remove', { w: 600, h: 400 }), /مش في مقاساتك/);
+  for (let i = 0; i < ED.MY_SIZES.count; i++) await b.mode.execute('size.save', { w: 100 + i, h: 100 });
+  await assert.rejects(b.mode.execute('size.save', { w: 900, h: 900 }), /للحد الأقصى/);
+  await b.mode.execute('size.save', { w: 100, h: 100, name: 'بدّل الاسم' });   // an existing size can still be renamed when the list is full
+  assert.equal(plain(b.mode.state().design.mySizes).length, ED.MY_SIZES.count);
+});
+
+test('the host may ask the page to save and remove an own size', () => {
+  const bridge = read('elan-host-bridge.js');
+  assert.match(bridge, /'size\.save'/); assert.match(bridge, /'size\.remove'/);
+  const media = read('editor/editor-media.js'), host = read('editor/elan-editor.html');
+  assert.match(media, /opts\.save\(\{ w: w, h: h, name: nBox\.value \}\)/);
+  assert.match(media, /opts\.remove\(\{ w: size\.w, h: size\.h \}\)/);
+  assert.match(host, /save:s=>runLive\('size\.save',s\),remove:s=>runLive\('size\.remove',s\)/);
+});

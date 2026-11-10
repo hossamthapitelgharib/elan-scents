@@ -177,3 +177,87 @@ test('on a phone a wide standard size is scaled to the screen keeping its shape,
     assert.deepEqual(Object.keys(saved), [await frame.evaluate(() => window.ElanEditMode.state().device)], 'saved for the phone size only: ' + JSON.stringify(saved));
   } finally { await context.close(); }
 });
+
+/* "مقاساتي" (owner, 2026-11-09): an own size is saved next to the standard ones, shown first the next time, usable at once, deletable, and kept in the design. */
+const addRow = (page) => page.locator('#elanSizeDlg details.mine-add');
+async function openAddRow(page) {
+  await page.locator('#elanSizeDlg details.mine-add summary').click();
+  await page.locator('#elanSizeDlg details.mine-add input').first().waitFor({ state: 'visible', timeout: 10000 });
+}
+const mineOf = (frame) => frame.evaluate(() => window.ElanEditMode.state().design.mySizes || []);
+
+test('an own size is saved from the chooser (Enter works), listed first as «مقاساتي», used to create a block, and can be deleted (laptop)', async () => {
+  const { context, page, frame } = await openEditor(LAPTOP);
+  try {
+    const before = await blockCount(frame), mineBefore = (await mineOf(frame)).length;
+    await openMenu(page, frame, null);
+    await menuItem(page, 'إنشاء كتلة نصية').click();
+    await chooser(page).waitFor({ state: 'visible', timeout: 10000 });
+    assert.ok(!(await addRow(page).evaluate((d) => d.open)), 'the add row is folded until asked for');
+    await openAddRow(page);
+    const inputs = page.locator('#elanSizeDlg details.mine-add input');
+    await inputs.nth(0).fill('360'); await inputs.nth(1).fill('240'); await inputs.nth(2).fill('بانر العروض');
+    await inputs.nth(2).press('Enter');
+    await page.waitForFunction(() => document.querySelector('#elanSizeDlg h4') && document.querySelector('#elanSizeDlg h4').textContent === 'مقاساتي', null, { timeout: 10000 });
+    assert.ok(await chooser(page).isVisible(), 'Enter saved the size and the window stayed open');
+    assert.equal(await blockCount(frame), before, 'saving a size created nothing');
+    const lay = await page.evaluate(() => {
+      const dlg = document.getElementById('elanSizeDlg'), r = dlg.getBoundingClientRect(), first = dlg.querySelector('h4 + .grid .cell');
+      return { first: first ? first.textContent.replace(/\s+/g, ' ').trim() : '', del: !!(first && first.querySelector('button.del')), status: dlg.querySelector('.msg').textContent, inView: r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight, cleared: Array.from(dlg.querySelectorAll('details.mine-add input')).every((i) => i.value === '') };
+    });
+    assert.match(lay.first, /360 × 240/); assert.match(lay.first, /بانر العروض/); assert.ok(lay.del, 'with a delete button'); assert.ok(lay.cleared, 'the fields are emptied for the next one');
+    assert.match(lay.status, /اتحفظ/); assert.ok(lay.inView, 'the window still fits the screen');
+    const mine = await mineOf(frame);
+    assert.equal(mine.length, mineBefore + 1); assert.deepEqual(mine[mine.length - 1], { w: 360, h: 240, name: 'بانر العروض' }, 'part of the design in the page');
+
+    // a wrong size is refused in the window without closing it
+    await inputs.nth(0).fill('10'); await inputs.nth(1).fill('10'); await inputs.nth(1).press('Enter');
+    await page.waitForTimeout(300);
+    assert.match(await page.locator('#elanSizeDlg .msg').textContent(), /40/); assert.equal((await mineOf(frame)).length, mineBefore + 1, 'nothing saved');
+
+    // the saved size makes a block of exactly that size (the preview is phone-wide, so a size that fits it)
+    await page.locator('#elanSizeDlg .cell button:not(.del)', { hasText: '360 × 240' }).click();
+    await chooser(page).waitFor({ state: 'detached', timeout: 10000 });
+    await page.waitForTimeout(500);
+    const id = await lastBlock(frame), s = await sizeOf(frame, id);
+    assert.deepEqual({ w: s.w, h: s.h }, { w: 360, h: 240 }, JSON.stringify(s));
+
+    // the next time the chooser opens it is there first, and a delete takes it away
+    await openMenu(page, frame, null);
+    await menuItem(page, 'إنشاء كتلة نصية').click();
+    await chooser(page).waitFor({ state: 'visible', timeout: 10000 });
+    const groups = await page.evaluate(() => Array.from(document.querySelectorAll('#elanSizeDlg h4')).map((h) => h.textContent));
+    assert.equal(groups[0], 'مقاساتي'); assert.equal(groups.length, 5);
+    await page.locator('#elanSizeDlg .cell button.del').last().click();
+    await page.waitForFunction((n) => (window.__x = 1) && document.querySelectorAll('#elanSizeDlg h4').length === n, mineBefore === 0 ? 4 : 5, { timeout: 10000 });
+    assert.equal((await mineOf(frame)).length, mineBefore, 'deleted from the design too');
+    await page.keyboard.press('Escape');
+    await chooser(page).waitFor({ state: 'detached', timeout: 10000 });
+  } finally { await context.close(); }
+});
+
+test('the own-size form fits a phone window and saves there too', async () => {
+  const { context, page, frame } = await openEditor(PHONE);
+  try {
+    await openMenu(page, frame, null);
+    await menuItem(page, 'إنشاء كتلة نصية').click();
+    await chooser(page).waitFor({ state: 'visible', timeout: 10000 });
+    await openAddRow(page);
+    const inputs = page.locator('#elanSizeDlg details.mine-add input');
+    await inputs.nth(0).fill('320'); await inputs.nth(1).fill('180');
+    await page.locator('#elanSizeDlg button.keep').click();
+    await page.waitForFunction(() => document.querySelector('#elanSizeDlg h4') && document.querySelector('#elanSizeDlg h4').textContent === 'مقاساتي', null, { timeout: 10000 });
+    const fit = await page.evaluate(() => {
+      const dlg = document.getElementById('elanSizeDlg'), r = dlg.getBoundingClientRect();
+      const out = Array.from(dlg.querySelectorAll('details.mine-add input, button.keep, .cell')).filter((e) => { const b = e.getBoundingClientRect(); return b.width && (b.left < r.left - 1 || b.right > r.right + 1); }).length;
+      return { inView: r.left >= 0 && r.right <= innerWidth, overflowing: out, scrollX: dlg.scrollWidth > dlg.clientWidth + 1 };
+    });
+    assert.ok(fit.inView, 'inside the phone window: ' + JSON.stringify(fit)); assert.equal(fit.overflowing, 0, 'nothing sticks out: ' + JSON.stringify(fit)); assert.ok(!fit.scrollX, 'no sideways scroll: ' + JSON.stringify(fit));
+    await page.locator('#elanSizeDlg .cell button:not(.del)').first().click();
+    await chooser(page).waitFor({ state: 'detached', timeout: 10000 });
+    await page.waitForTimeout(500);
+    const id = await lastBlock(frame), s = await sizeOf(frame, id);
+    assert.ok(s.w <= s.room && s.left >= 0 && s.right <= s.vw, 'fits the screen: ' + JSON.stringify(s));
+    assert.ok(Math.abs(s.w / s.h - 320 / 180) < 0.2, 'with its shape: ' + JSON.stringify(s));
+  } finally { await context.close(); }
+});

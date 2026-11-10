@@ -23,6 +23,28 @@
     if (!(w >= lo && w <= hi && h >= lh && h <= hi)) throw new Error('مقاس غير صالح.');
     return { w: w, h: h };
   }
+  /* The size groups the chooser shows: the owner's own saved sizes first (they travel with the design file), then the standard ones. */
+  function sizeGroups() {
+    var groups = (Geometry.SIZE_GROUPS || []).slice(), mine = work && work.mySizes || [];
+    if (mine.length) groups.unshift({ id: 'mine', label: 'مقاساتي', sizes: mine.map(function (m) { return { w: m.w, h: m.h, label: m.name || '', mine: true }; }) });
+    return groups;
+  }
+  function saveMySize(p) {
+    var size = sizeArg(p), name = typeof (p && p.name) === 'string' ? p.name.replace(/[\u0000-\u001F\u007F]/g, '').trim().slice(0, ED.MY_SIZES ? ED.MY_SIZES.name : 40) : '', limit = ED.MY_SIZES ? ED.MY_SIZES.count : 24;
+    if (!size) throw new Error('اكتب العرض والارتفاع.');
+    var mine = (work.mySizes || []).filter(function (m) { return !(m.w === size.w && m.h === size.h); });
+    if (mine.length >= limit) throw new Error('وصلت للحد الأقصى (' + limit + ' مقاس). احذف مقاسًا أولًا.');
+    mutate(function (d) { mine.push(name ? { w: size.w, h: size.h, name: name } : { w: size.w, h: size.h }); d.mySizes = mine; });
+    return { groups: sizeGroups() };
+  }
+  function removeMySize(p) {
+    var size = sizeArg(p);
+    if (!size) throw new Error('حدّد المقاس المراد حذفه.');
+    var mine = (work.mySizes || []).filter(function (m) { return !(m.w === size.w && m.h === size.h); });
+    if (mine.length === (work.mySizes || []).length) throw new Error('المقاس ده مش في مقاساتك.');
+    mutate(function (d) { if (mine.length) d.mySizes = mine; else delete d.mySizes; });
+    return { groups: sizeGroups() };
+  }
   /* The width an element can really use: the inside of the box it sits in (its padding left out). A new element has no box yet, so it is the one the page puts new blocks in. */
   function roomOf(box) {
     var inside = box && box.clientWidth;
@@ -946,7 +968,7 @@
   var TOOLS = [];
   function registerTool(t) { TOOLS = TOOLS.filter(function (x) { return x.id !== t.id; }).concat([t]); }
   function toolList(i) {
-    return TOOLS.filter(function (t) { return !t.show || t.show(i); }).map(function (t) { var d = { id: t.id, label: typeof t.label === 'function' ? t.label(i) : t.label, ui: t.ui || null, enabled: t.when ? !!t.when(i) : true }; if (t.sizes && Geometry.SIZE_GROUPS) d.sizes = Geometry.SIZE_GROUPS; return d; });
+    return TOOLS.filter(function (t) { return !t.show || t.show(i); }).map(function (t) { var d = { id: t.id, label: typeof t.label === 'function' ? t.label(i) : t.label, ui: t.ui || null, enabled: t.when ? !!t.when(i) : true }; if (t.sizes) d.sizes = sizeGroups(); return d; });
   }
   /* ---- default pages: one design for every product / brand / store page; a page that has its own edits keeps them ---- */
   var KIND_NAMES = { prod: 'كل صفحات المنتجات', brand: 'كل صفحات البراندات', store: 'كل صفحات المتاجر' };
@@ -1063,6 +1085,8 @@
         if (p.place) return beginPlacing('اضغط بزر الماوس الأيسر على المكان الذي يُضاف عنده العنصر', function (at) { putLibraryBlock(made, at); say('أُدرج العنصر في المعاينة فقط. اضغطي «حفظ» لنشره إلى المتجر.'); });
         return putLibraryBlock(made, null);
       }
+      case 'size.save': return saveMySize(p);
+      case 'size.remove': return removeMySize(p);
       case 'media.place': {
         var mediaSrc = String(p.src || '');
         if (!validBlock({ id: 'x-probe', type: 'image', src: mediaSrc, alt: {}, style: { align: 'center', size: 'md' } })) throw new Error('رابط الصورة أو الفيديو مش مسموح.');

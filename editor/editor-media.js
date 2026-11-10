@@ -20,7 +20,14 @@
     '#elanSizeDlg button:hover,#elanSizeDlg button:focus{background:#f6ecd4;outline:2px solid #c8962a;outline-offset:1px}',
     '#elanSizeDlg button.auto{display:block;width:100%;background:#f6ecd4;font-weight:700}',
     '#elanSizeDlg button .dim{display:block;font-weight:700;direction:ltr}#elanSizeDlg button .lbl{display:block;font-size:11.5px;color:#7d6a49}',
-    '#elanSizeDlg .foot{margin-top:14px;display:flex;justify-content:flex-start}#elanSizeDlg .foot button{padding:8px 18px}'
+    '#elanSizeDlg .foot{margin-top:14px;display:flex;justify-content:flex-start}#elanSizeDlg .foot button{padding:8px 18px}',
+    /* the owner's own sizes: the add row, the small delete mark on each saved size, the status line */
+    '#elanSizeDlg .mine-add{margin:10px 0 0;border:1px dashed #c6aa70;border-radius:9px;padding:6px 10px;background:#fff}#elanSizeDlg .mine-add summary{cursor:pointer;color:#87652d;font-weight:700}',
+    '#elanSizeDlg .row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}#elanSizeDlg .row label{display:block;font-size:12px;color:#7d6a49}#elanSizeDlg .row label:nth-child(3),#elanSizeDlg .row .keep{grid-column:1 / -1}',
+    '#elanSizeDlg .row input{box-sizing:border-box;width:100%;font:inherit;padding:7px;border:1px solid #d9c79c;border-radius:8px;margin-top:3px;background:#fffdf8;unicode-bidi:plaintext}',
+    '#elanSizeDlg .msg{font-size:12px;line-height:1.7;color:#7d6a49;min-height:1.7em;margin:8px 0 0}',
+    '#elanSizeDlg .cell{position:relative}#elanSizeDlg .cell>button:first-child{width:100%;height:100%}',
+    '#elanSizeDlg .del{position:absolute;top:3px;left:3px;width:22px;height:22px;padding:0;border-radius:50%;font-size:11px;line-height:1;background:#fff0f0;border-color:#e3b4b4;color:#8a2c2c}'
   ].join('\n');
   document.head.appendChild(css);
 
@@ -177,23 +184,59 @@
     opts = opts || {};
     return new Promise(function (resolve) {
       var old = document.getElementById('elanSizeDlg'); if (old) old.remove();
-      var dlg = el('dialog', '', { id: 'elanSizeDlg' }), done = false;
+      var dlg = el('dialog', '', { id: 'elanSizeDlg' }), done = false, holder = el('div', '', { className: 'groups' });
       function finish(value) { if (done) return; done = true; try { dlg.close(); } catch (_) { /* already closed */ } dlg.remove(); resolve(value); }
+      /* the list is drawn again whenever the owner's own sizes change (a size saved or deleted keeps the window open) */
+      function render(list) {
+        holder.textContent = '';
+        (list || []).forEach(function (group) {
+          holder.appendChild(el('h4', group.label));
+          var grid = el('div', '', { className: 'grid' });
+          group.sizes.forEach(function (size) {
+            var b = el('button', '', { type: 'button' }), dim = el('span', '', { className: 'dim' }), lbl = el('span', '', { className: 'lbl' });
+            dim.textContent = size.w + ' \u00d7 ' + size.h; nameInto(lbl, size.label);
+            b.append(dim, lbl); b.onclick = function () { finish({ w: size.w, h: size.h }); };
+            if (!(size.mine && opts.remove)) { grid.appendChild(b); return; }
+            var cell = el('div', '', { className: 'cell' }), del = el('button', '\u2715', { type: 'button', className: 'del', title: 'احذف المقاس ده من مقاساتي' });
+            del.setAttribute('aria-label', 'احذف المقاس ' + size.w + ' \u00d7 ' + size.h);
+            del.onclick = async function () {
+              var back = await opts.remove({ w: size.w, h: size.h });
+              if (back && back.groups) { render(back.groups); say('اتحذف المقاس.'); } else say('ما اتحذفش المقاس.');
+            };
+            cell.append(b, del); grid.appendChild(cell);
+          });
+          holder.appendChild(grid);
+        });
+      }
+      var msg = el('p', '', { className: 'msg' });
+      msg.setAttribute('role', 'status');
+      function say(text) { msg.textContent = text || ''; }
       dlg.appendChild(el('h3', opts.title || 'اختار المقاس'));
       dlg.appendChild(el('p', 'مقاسات قياسية عالمية. على الموبايل المقاس الأعرض من الشاشة بيتصغّر بنفس النسبة، وتقدر بعدها تعدّله بالسحب من مربع الركن.', { className: 'note' }));
       var auto = el('button', opts.auto || 'تلقائي (المقاس الافتراضي)', { type: 'button', className: 'auto' });
       auto.onclick = function () { finish(null); };
       dlg.appendChild(auto);
-      (groups || []).forEach(function (group) {
-        dlg.appendChild(el('h4', group.label));
-        var grid = el('div', '', { className: 'grid' });
-        group.sizes.forEach(function (size) {
-          var b = el('button', '', { type: 'button' }), dim = el('span', '', { className: 'dim' }), lbl = el('span', '', { className: 'lbl' });
-          dim.textContent = size.w + ' × ' + size.h; nameInto(lbl, size.label);
-          b.append(dim, lbl); b.onclick = function () { finish({ w: size.w, h: size.h }); }; grid.appendChild(b);
-        });
-        dlg.appendChild(grid);
-      });
+      if (opts.save) {
+        /* the owner's own sizes: kept with the design file, shown first in this list next time */
+        var more = el('details', '', { className: 'mine-add' }), row = el('div', '', { className: 'row' });
+        more.appendChild(el('summary', '+ احفظ مقاسًا خاصًا بيك'));
+        var field = function (label, props) { var l = el('label', label), i = el('input', '', props); l.appendChild(i); row.appendChild(l); return i; };
+        var wBox = field('العرض', { type: 'number', min: 40, max: 4000, step: 1, inputMode: 'numeric' });
+        var hBox = field('الارتفاع', { type: 'number', min: 30, max: 4000, step: 1, inputMode: 'numeric' });
+        var nBox = field('الاسم (اختياري)', { type: 'text', maxLength: 40 });
+        var keep = el('button', 'حفظ المقاس', { type: 'button', className: 'keep' });
+        async function save() {
+          var w = Math.round(Number(wBox.value)), h = Math.round(Number(hBox.value));
+          if (!(w >= 40 && w <= 4000 && h >= 30 && h <= 4000)) { say('اكتب عرض من 40 لـ4000 وارتفاع من 30 لـ4000.'); return; }
+          var back = await opts.save({ w: w, h: h, name: nBox.value });
+          if (back && back.groups) { render(back.groups); wBox.value = ''; hBox.value = ''; nBox.value = ''; say('اتحفظ في «مقاساتي». بيتثبّت مع التصميم لما تضغط حفظ.'); } else say('ما اتحفظش المقاس. اتأكد من العرض والارتفاع.');
+        }
+        keep.onclick = save;
+        [wBox, hBox, nBox].forEach(function (box) { box.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); save(); } }); });
+        row.appendChild(keep); more.appendChild(row); dlg.appendChild(more);
+      }
+      dlg.appendChild(msg);
+      dlg.appendChild(holder); render(groups);
       var foot = el('div', '', { className: 'foot' }), cancel = el('button', 'إلغاء', { type: 'button' });
       cancel.onclick = function () { finish(undefined); }; foot.appendChild(cancel); dlg.appendChild(foot);
       dlg.addEventListener('cancel', function (ev) { ev.preventDefault(); finish(undefined); });
