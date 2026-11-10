@@ -249,6 +249,8 @@ begin
   assert pg_temp.blocked(u_a, 'authenticated', $q$select 1 from public.platform_audit_log$q$), 'A cannot read the audit log';
   assert pg_temp.blocked(null, 'anon', $q$select 1 from public.guest_visitors$q$), 'a visitor cannot read other visitors';
   assert pg_temp.blocked(null, 'anon', $q$select 1 from public.customer_product_events$q$), 'a visitor cannot read customer activity';
+  assert pg_temp.blocked(u_a, 'authenticated', $q$select 1 from public.signup_carry$q$), 'A cannot read any carried list';
+  assert pg_temp.blocked(null, 'anon', $q$select 1 from public.signup_carry$q$), 'a visitor cannot read any carried list';
   assert (select quantity from public.cart_items where user_id = u_b) = 2, 'B''s cart is untouched';
   assert exists (select 1 from public.favorites where user_id = u_b), 'B''s favourites are untouched';
   assert (select address from public.customer_details where user_id = u_b) = 'victim secret address', 'B''s saved delivery details are untouched';
