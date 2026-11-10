@@ -1,5 +1,6 @@
 -- Real-database test for supabase/migrations/20261106080837_storefront_activity_from_customer_tables.sql, as changed by
--- 20261109060420_final_product_stats_table.sql (all-time figures, no 365-day window, read through the final table).
+-- 20261109060420_final_product_stats_table.sql (all-time figures, no 365-day window, read through the final table) and
+-- 20261110060252_product_stats_mean_of_customers_and_stores.sql (each figure is round((customers + the active stores) / 2)).
 -- Run AFTER the migrations, as the project owner, inside one transaction. Every fixture is synthetic
 -- (example.invalid user, one fixture perfume, fixture orders and events) and everything is rolled back at the end.
 --
@@ -99,9 +100,25 @@ begin
   perform private.refresh_product_stats();
 
   select views_count, search_count, sales_count into v_row from public.public_products where id = v_product;
-  if v_row.views_count is distinct from 109 then raise exception 'views_count expected 109 (5 + 100 guest, 4 registered, all time), got %', v_row.views_count; end if;
-  if v_row.search_count is distinct from 3 then raise exception 'search_count expected 3 (2 guest + 1 registered), got %', v_row.search_count; end if;
-  if v_row.sales_count is distinct from 5 then raise exception 'sales_count expected 5 (completed 2 + delivered 3; rejected and new excluded), got %', v_row.sales_count; end if;
+  -- no store has reported anything for this perfume yet, so the stores' half is 0: figure = round(customers / 2)
+  if v_row.views_count is distinct from 55 then raise exception 'views_count expected round(109 / 2) = 55 (customers 5 + 100 guest + 4 registered, all time), got %', v_row.views_count; end if;
+  if v_row.search_count is distinct from 2 then raise exception 'search_count expected round(3 / 2) = 2 (customers 2 guest + 1 registered), got %', v_row.search_count; end if;
+  if v_row.sales_count is distinct from 3 then raise exception 'sales_count expected round(5 / 2) = 3 (customers: completed 2 + delivered 3; rejected and new excluded), got %', v_row.sales_count; end if;
+  if (select views_source || '/' || search_source || '/' || sales_source from public.product_stats where product_id = v_product) is distinct from 'customers/customers/customers' then
+    raise exception 'with no store figure every source must be customers'; end if;
+
+  -- now the active store reports 91 views and 7 sold units for it: the two sides are averaged (and the source says so)
+  set local role service_role;
+  insert into public.store_catalog_most_viewed(store_product_id, store_id, product_size_id, views_count) values (v_offer, v_store, v_size, 91);
+  insert into public.store_catalog_best_sellers(store_product_id, store_id, product_size_id, units_sold) values (v_offer, v_store, v_size, 7);
+  reset role;
+  perform private.refresh_product_stats();
+  select views_count, search_count, sales_count into v_row from public.public_products where id = v_product;
+  if v_row.views_count is distinct from 100 then raise exception 'views_count expected (109 customers + 91 store) / 2 = 100, got %', v_row.views_count; end if;
+  if v_row.search_count is distinct from 2 then raise exception 'search_count must stay 2 (no store figure), got %', v_row.search_count; end if;
+  if v_row.sales_count is distinct from 6 then raise exception 'sales_count expected (5 customers + 7 store) / 2 = 6, got %', v_row.sales_count; end if;
+  if (select views_source || '/' || search_source || '/' || sales_source from public.product_stats where product_id = v_product) is distinct from 'combined/customers/combined' then
+    raise exception 'sources expected combined/customers/combined'; end if;
 
   -- a perfume nobody touched shows zeros, never null
   select views_count, search_count, sales_count into v_row from public.public_products where id = v_other_product;
@@ -112,8 +129,8 @@ begin
   -- the storefront's own role sees the same numbers and still cannot read any customer table
   set local role anon;
   select views_count, search_count, sales_count into v_row from public.public_products where id = v_product;
-  if v_row.views_count is distinct from 109 or v_row.search_count is distinct from 3 or v_row.sales_count is distinct from 5 then
-    raise exception 'anon sees %/%/% instead of 109/3/5', v_row.views_count, v_row.search_count, v_row.sales_count;
+  if v_row.views_count is distinct from 100 or v_row.search_count is distinct from 2 or v_row.sales_count is distinct from 6 then
+    raise exception 'anon sees %/%/% instead of 100/2/6', v_row.views_count, v_row.search_count, v_row.sales_count;
   end if;
   v_denied := false; begin perform 1 from public.customer_product_events limit 1; exception when insufficient_privilege then v_denied := true; end;
   if not v_denied then raise exception 'anon can read customer_product_events'; end if;

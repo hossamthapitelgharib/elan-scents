@@ -1,11 +1,13 @@
--- Real-database test for supabase/migrations/20261109060420_final_product_stats_table.sql
--- Run AFTER the migration, as the project owner, inside one transaction. Every fixture is synthetic (example.invalid users,
+-- Real-database test for supabase/migrations/20261109060420_final_product_stats_table.sql, as changed by
+-- 20261110060252_product_stats_mean_of_customers_and_stores.sql (the figures are the average of customers and stores).
+-- Run AFTER the migrations, as the project owner, inside one transaction. Every fixture is synthetic (example.invalid users,
 -- fixture stores / brand / perfumes) and everything is rolled back at the end.
 --
 -- Proves that public.product_stats is the FINAL, cumulative table:
 --   * request_count is gone; every figure says its source and the table refuses a figure without (or a source without) one;
 --   * the customers' figures are ALL TIME - a view from two years ago still counts;
---   * a stores' catalog figure is used only when the customers have none (never summed), inactive stores never count;
+--   * sales / views / searches = round((customers + the sum of the ACTIVE stores) / 2), the divisor always 2; a rating is the
+--     average of customers' reviews and stores' ratings weighted by their counts (from 3 together); inactive stores never count;
 --   * retention (purge_expired_guest_fingerprints) folds a deleted browser's views and searches into the anonymous archive, so
 --     the total does not drop; the archive is not readable by any client role; "forget me" leaves no trace on purpose;
 --   * registering (claim) neither loses nor doubles a guest's views;
@@ -35,8 +37,8 @@ declare
   v_tag text := replace(gen_random_uuid()::text, '-', '');
   v_brand uuid; sa uuid; sc uuid;
   u1 uuid := gen_random_uuid(); u2 uuid := gen_random_uuid(); u3 uuid := gen_random_uuid(); u_claim uuid := gen_random_uuid();
-  z1 uuid; z2 uuid; z3 uuid; z4 uuid; p1 uuid; p2 uuid; p3 uuid; p4 uuid;
-  o1 uuid; o2 uuid; o2c uuid; o4 uuid;
+  z1 uuid; z2 uuid; z3 uuid; z4 uuid; z5 uuid; p1 uuid; p2 uuid; p3 uuid; p4 uuid; p5 uuid;
+  o1 uuid; o2 uuid; o2c uuid; o4 uuid; o5a uuid; o5b uuid; o5c uuid; sb uuid;
   sid uuid := gen_random_uuid(); sid_guest uuid := gen_random_uuid(); v_guest uuid;
   fp_claim text := repeat('7', 64); an_claim text := repeat('8', 64);
   a record; n integer; v_denied boolean; v_archive bigint; v_changed integer;
@@ -50,10 +52,14 @@ begin
   insert into public.brands(name, slug, is_active) values ('Final stats brand ' || v_tag, 'fs-brand-' || v_tag, true) returning id into v_brand;
   z1 := pg_temp.fx_fs_size(v_brand, 'p1-' || v_tag); z2 := pg_temp.fx_fs_size(v_brand, 'p2-' || v_tag);
   z3 := pg_temp.fx_fs_size(v_brand, 'p3-' || v_tag); z4 := pg_temp.fx_fs_size(v_brand, 'p4-' || v_tag);
+  z5 := pg_temp.fx_fs_size(v_brand, 'p5-' || v_tag);
   select product_id into p1 from public.product_sizes where id = z1; select product_id into p2 from public.product_sizes where id = z2;
   select product_id into p3 from public.product_sizes where id = z3; select product_id into p4 from public.product_sizes where id = z4;
+  select product_id into p5 from public.product_sizes where id = z5;
   o1 := pg_temp.fx_fs_offer(sa, z1); o2 := pg_temp.fx_fs_offer(sa, z2); o2c := pg_temp.fx_fs_offer(sc, z2);
   perform pg_temp.fx_fs_offer(sa, z3); o4 := pg_temp.fx_fs_offer(sa, z4);
+  insert into public.stores(name, slug, status) values ('Final stats fixture B', 'fs-b-' || v_tag, 'active') returning id into sb;
+  o5a := pg_temp.fx_fs_offer(sa, z5); o5b := pg_temp.fx_fs_offer(sb, z5); o5c := pg_temp.fx_fs_offer(sc, z5);
 
   ---------------------------------------------------------------- 1. the shape of the table
   if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'product_stats' and column_name = 'request_count') then
@@ -82,7 +88,7 @@ begin
   insert into public.guest_product_analytics (visitor_hash, product_id, activity_date, event_type, event_count) values
     (repeat('b', 64), p1, current_date, 'view', 5),
     (repeat('c', 64), p1, current_date - 800, 'view', 100);                -- an old day of a browser that is still alive
-  -- the stores also report figures for P1 and P2; P1's are ignored (the customers have numbers), P2's are used
+  -- the stores also report figures for P1 and P2; both are averaged with the customers' (P2 has no customer figure, so its half is 0)
   set local role service_role;
   insert into public.store_catalog_most_viewed(store_product_id, store_id, product_size_id, views_count) values (o1, sa, z1, 5000), (o2, sa, z2, 40), (o2c, sc, z2, 9999);
   insert into public.store_catalog_best_sellers(store_product_id, store_id, product_size_id, units_sold) values (o2, sa, z2, 6), (o2c, sc, z2, 9999);
@@ -91,13 +97,13 @@ begin
   if v_changed < 2 then raise exception 'the first refresh must write the changed rows (wrote %)', v_changed; end if;
 
   select * into a from public.product_stats where product_id = p1;
-  if a.views_count <> 107 or a.views_source <> 'customers' then
-    raise exception 'P1 views: 5 + 100 guest + 2 registered (one from 2 years ago) = 107 from customers (the store 5000 must not be added), got % / %', a.views_count, a.views_source; end if;
-  if a.search_count <> 1 or a.search_source <> 'customers' then raise exception 'P1 searches: the 700-day-old search still counts, got % / %', a.search_count, a.search_source; end if;
+  if a.views_count <> 2554 or a.views_source <> 'combined' then
+    raise exception 'P1 views: customers 107 (5 + 100 guest + 2 registered, one from 2 years ago) and the store 5000 = round(5107 / 2) = 2554 combined, got % / %', a.views_count, a.views_source; end if;
+  if a.search_count <> 1 or a.search_source <> 'customers' then raise exception 'P1 searches: the 700-day-old search still counts (1 / 2 rounds up to 1), got % / %', a.search_count, a.search_source; end if;
   if a.sales_count <> 0 or a.sales_source is not null then raise exception 'P1 has no sales from anybody, got % / %', a.sales_count, a.sales_source; end if;
   select * into a from public.product_stats where product_id = p2;
-  if a.views_count <> 40 or a.views_source <> 'store_catalog' then raise exception 'P2 views come from the active store only (40), got % / %', a.views_count, a.views_source; end if;
-  if a.sales_count <> 6 or a.sales_source <> 'store_catalog' then raise exception 'P2 sales come from the active store only (6), got % / %', a.sales_count, a.sales_source; end if;
+  if a.views_count <> 20 or a.views_source <> 'store_catalog' then raise exception 'P2 views: the active store 40 (the inactive 9999 ignored) / 2 = 20, got % / %', a.views_count, a.views_source; end if;
+  if a.sales_count <> 3 or a.sales_source <> 'store_catalog' then raise exception 'P2 sales: the active store 6 / 2 = 3, got % / %', a.sales_count, a.sales_source; end if;
   select * into a from public.product_stats where product_id = p3;
   if a.views_count <> 0 or a.views_source is not null or a.sales_count <> 0 or a.search_count <> 0 or a.average_rating is not null or a.reviews_count <> 0 or a.rating_source is not null then
     raise exception 'an untouched perfume must be all zeros with no source, got %', a; end if;
@@ -107,16 +113,16 @@ begin
 
   -- the cards and the rankings read this table
   select views_count, sales_count, search_count into a from public.public_products where id = p2;
-  if a.views_count <> 40 or a.sales_count <> 6 then raise exception 'the card of P2 must show the final figures, got %', a; end if;
+  if a.views_count <> 20 or a.sales_count <> 3 then raise exception 'the card of P2 must show the final figures, got %', a; end if;
   select views_rank, views_source, sales_rank, sales_source into a from public.storefront_product_rankings where product_id = p2;
   if a.views_source <> 'store_catalog' or a.sales_source <> 'store_catalog' or a.views_rank is null then raise exception 'the ranking of P2 must read the final table: %', a; end if;
   if (select views_rank from public.storefront_product_rankings where product_id = p1) >= a.views_rank then
-    raise exception 'customers-sourced views (P1, 107) rank above stores-sourced views (P2, 40)'; end if;
+    raise exception 'P1 (final views 2554) must rank above P2 (20)'; end if;
 
   -- a hand-edited figure is written over by the next refresh
   update public.product_stats set views_count = 999999, views_source = 'customers' where product_id = p2;
   perform private.refresh_product_stats();
-  if (select views_count from public.product_stats where product_id = p2) <> 40 then raise exception 'a hand edit must be overwritten by the next refresh'; end if;
+  if (select views_count from public.product_stats where product_id = p2) <> 20 then raise exception 'a hand edit must be overwritten by the next refresh'; end if;
 
   ---------------------------------------------------------------- 3. retention keeps the total (P4)
   insert into public.guest_product_analytics (visitor_hash, product_id, activity_date, event_type, event_count, first_seen_at, last_seen_at) values
@@ -126,7 +132,7 @@ begin
     (repeat('f', 64), p4, current_date, 'view', 2, now(), now());                                                       -- an alive browser
   perform private.refresh_product_stats();
   select * into a from public.product_stats where product_id = p4;
-  if a.views_count <> 14 or a.search_count <> 3 then raise exception 'P4 before retention: 7+5+2 views and 3 searches, got % / %', a.views_count, a.search_count; end if;
+  if a.views_count <> 7 or a.search_count <> 2 then raise exception 'P4 before retention: (7+5+2) / 2 = 7 views and round(3 / 2) = 2 searches, got % / %', a.views_count, a.search_count; end if;
 
   perform public.purge_expired_guest_fingerprints();
   if exists (select 1 from public.guest_product_analytics where visitor_hash in (repeat('e', 64), repeat('d', 64))) then raise exception 'the idle browsers must be deleted'; end if;
@@ -137,8 +143,8 @@ begin
   if v_archive is distinct from 3 then raise exception 'the archive must hold 3 searches of P4, got %', v_archive; end if;
   perform private.refresh_product_stats();
   select * into a from public.product_stats where product_id = p4;
-  if a.views_count <> 14 or a.search_count <> 3 or a.views_source <> 'customers' then
-    raise exception 'retention must not lower the total: P4 views 14 / searches 3, got % / %', a.views_count, a.search_count; end if;
+  if a.views_count <> 7 or a.search_count <> 2 or a.views_source <> 'customers' then
+    raise exception 'retention must not lower the total: P4 views 7 / searches 2, got % / %', a.views_count, a.search_count; end if;
   perform public.purge_expired_guest_fingerprints();
   if (select event_count from private.product_activity_archive where product_id = p4 and event_type = 'view') <> 12 then raise exception 'a second purge must not fold anything twice'; end if;
   -- the archive holds only perfumes and counts, and no client role can read it
@@ -168,19 +174,19 @@ begin
     (sid_guest, v_guest, p3, 'view'), (sid_guest, v_guest, p3, 'view'), (sid_guest, v_guest, p3, 'view');
   insert into public.guest_product_analytics (visitor_hash, product_id, activity_date, event_type, event_count) values (an_claim, p3, current_date, 'view', 3);
   perform private.refresh_product_stats();
-  if (select views_count from public.product_stats where product_id = p3) <> 3 then raise exception 'P3: the guest''s 3 views before registering'; end if;
+  if (select views_count from public.product_stats where product_id = p3) <> 2 then raise exception 'P3: the guest''s 3 views before registering show as round(3 / 2) = 2'; end if;
   if not (public.claim_guest_browser_cart(fp_claim, an_claim, u_claim)->>'claimed')::boolean then raise exception 'the claim should succeed'; end if;
   perform private.refresh_product_stats();
-  if (select views_count from public.product_stats where product_id = p3) <> 3 then
-    raise exception 'registering must neither lose nor double the 3 views (got %)', (select views_count from public.product_stats where product_id = p3); end if;
+  if (select views_count from public.product_stats where product_id = p3) <> 2 then
+    raise exception 'registering must neither lose nor double the 3 views (still 2 after rounding, got %)', (select views_count from public.product_stats where product_id = p3); end if;
 
   -- "forget me" removes the counters and leaves nothing behind (a deliberate decrease)
   insert into public.guest_product_analytics (visitor_hash, product_id, activity_date, event_type, event_count) values (repeat('6', 64), p3, current_date, 'view', 4);
   perform private.refresh_product_stats();
-  if (select views_count from public.product_stats where product_id = p3) <> 7 then raise exception 'P3 before forgetting: 3 + 4'; end if;
+  if (select views_count from public.product_stats where product_id = p3) <> 4 then raise exception 'P3 before forgetting: round((3 + 4) / 2) = 4'; end if;
   perform public.forget_guest_browser(repeat('5', 64), repeat('6', 64));
   perform private.refresh_product_stats();
-  if (select views_count from public.product_stats where product_id = p3) <> 3 then raise exception 'a forgotten browser must leave the total (P3 should be 3 again)'; end if;
+  if (select views_count from public.product_stats where product_id = p3) <> 2 then raise exception 'a forgotten browser must leave the total (P3 should be 3 views = 2 again)'; end if;
   if exists (select 1 from private.product_activity_archive where product_id = p3) then raise exception 'a forgotten browser must not be folded into the archive'; end if;
 
   ---------------------------------------------------------------- 5. the rating follows the reviews at once
@@ -194,6 +200,49 @@ begin
   delete from public.reviews where user_id = u3 and product_id = p1;
   select average_rating, reviews_count, rating_source into a from public.product_stats where product_id = p1;
   if a.average_rating is not null or a.reviews_count <> 0 or a.rating_source is not null then raise exception 'back to two reviews: no rating (got %)', a; end if;
+
+  ---------------------------------------------------------------- 5b. the average of the customers and ALL the participating stores (P5)
+  insert into public.guest_product_analytics (visitor_hash, product_id, activity_date, event_type, event_count) values
+    (repeat('9', 64), p5, current_date, 'view', 6), (repeat('9', 64), p5, current_date, 'search', 4);
+  set local role service_role;
+  insert into public.store_catalog_most_viewed(store_product_id, store_id, product_size_id, views_count) values (o5a, sa, z5, 10), (o5b, sb, z5, 4), (o5c, sc, z5, 1000);
+  insert into public.store_catalog_most_searched(store_product_id, store_id, product_size_id, searches_count) values (o5a, sa, z5, 3), (o5b, sb, z5, 1);
+  insert into public.store_catalog_best_sellers(store_product_id, store_id, product_size_id, units_sold) values (o5a, sa, z5, 5), (o5b, sb, z5, 2), (o5c, sc, z5, 500);
+  reset role;
+  perform private.refresh_product_stats();
+  select * into a from public.product_stats where product_id = p5;
+  if a.views_count <> 10 or a.views_source <> 'combined' then
+    raise exception 'P5 views: customers 6 + stores 10 + 4 (the inactive 1000 ignored) = 20 / 2 = 10 combined, got % / %', a.views_count, a.views_source; end if;
+  if a.search_count <> 4 or a.search_source <> 'combined' then
+    raise exception 'P5 searches: customers 4 + stores 3 + 1 = 8 / 2 = 4 combined, got % / %', a.search_count, a.search_source; end if;
+  if a.sales_count <> 4 or a.sales_source <> 'store_catalog' then
+    raise exception 'P5 sales: no customer sale, stores 5 + 2 (the inactive 500 ignored) = 7 / 2 = 3.5 rounds up to 4, got % / %', a.sales_count, a.sales_source; end if;
+  -- the order is the order of the final figure: a perfume with customers' views does NOT jump above one with more final views
+  if not ((select views_rank from public.storefront_product_rankings where product_id = p2) < (select views_rank from public.storefront_product_rankings where product_id = p5)) then
+    raise exception 'P2 (final views 20, stores only) must rank above P5 (final views 10, with customers)'; end if;
+  -- the rating: every rating counts, weighted by how many stand behind it (customers 5,4; store A 3.00 x 2; store B 5.00 x 1; the inactive store ignored)
+  insert into public.reviews(user_id, product_id, rating, is_approved) values (u1, p5, 5, true), (u2, p5, 4, true);
+  set local role service_role;
+  insert into public.store_catalog_ratings(store_product_id, store_id, product_size_id, average_rating, ratings_count) values
+    (o5a, sa, z5, 3.00, 2), (o5b, sb, z5, 5.00, 1), (o5c, sc, z5, 1.00, 50);
+  reset role;
+  perform private.refresh_product_stats();
+  select average_rating, reviews_count, rating_source into a from public.product_stats where product_id = p5;
+  if a.average_rating is distinct from 4.00 or a.reviews_count <> 5 or a.rating_source <> 'combined' then
+    raise exception 'P5 rating: (5 + 4 + 3*2 + 5*1) / 5 = 4.00 from 5 ratings combined (not the 4.17 of a mean of the three averages), got % / % / %', a.average_rating, a.reviews_count, a.rating_source; end if;
+  -- a store-only rating needs 3 ratings too
+  set local role service_role;
+  insert into public.store_catalog_ratings(store_product_id, store_id, product_size_id, average_rating, ratings_count) values (o2, sa, z2, 5.00, 2);
+  reset role;
+  perform private.refresh_product_stats();
+  if (select average_rating from public.product_stats where product_id = p2) is not null then raise exception 'two store ratings are not a rating'; end if;
+  set local role service_role;
+  update public.store_catalog_ratings set ratings_count = 3 where store_product_id = o2;
+  reset role;
+  perform private.refresh_product_stats();
+  select average_rating, reviews_count, rating_source into a from public.product_stats where product_id = p2;
+  if a.average_rating is distinct from 5.00 or a.reviews_count <> 3 or a.rating_source <> 'store_catalog' then
+    raise exception 'P2 rating: three store ratings of 5.00 = 5.00 store_catalog, got % / % / %', a.average_rating, a.reviews_count, a.rating_source; end if;
 
   ---------------------------------------------------------------- 6. who can run the writers
   foreach n in array array[1, 2] loop

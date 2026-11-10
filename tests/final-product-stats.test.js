@@ -1,4 +1,6 @@
-// The final, cumulative figures table (migration 20261109060420_final_product_stats_table).
+// The final, cumulative figures table (migration 20261109060420_final_product_stats_table). NOTE: its "customers first, stores
+// only as a fallback" rule was replaced on 2026-11-09 by the average of both sides (20261110060252_product_stats_mean_of_customers_and_stores,
+// pinned in tests/product-stats-mean-of-customers-and-stores.test.js); this file keeps describing the migration file as it was applied.
 // The real-database behaviour is checked by tests/final-product-stats.test.sql; this file keeps the files that belong together
 // together and pins the rules that must not drift: figures are all-time (no window), the stores' figures are used only when the
 // customers have none and are never summed with them, retention folds a guest's views into the anonymous archive BEFORE

@@ -1,11 +1,14 @@
--- Real-database test for supabase/migrations/20261107135337_storefront_rankings_from_store_catalogs.sql
--- Run AFTER the migration, as the project owner, inside one transaction. Every fixture is synthetic (example.invalid users,
+-- Real-database test for supabase/migrations/20261107135337_storefront_rankings_from_store_catalogs.sql, as changed by
+-- 20261109060420_final_product_stats_table.sql (the rankings read the final table) and
+-- 20261110060252_product_stats_mean_of_customers_and_stores.sql (the final figure is the average of customers and stores).
+-- Run AFTER the migrations, as the project owner, inside one transaction. Every fixture is synthetic (example.invalid users,
 -- fixture stores / brand / perfumes, one fixture order) and everything is rolled back at the end.
 --
 -- Proves that the four Masterpieces rankings (most rated / best sellers / most viewed / most searched):
 --   * rank only perfumes the platform offers right now (an out-of-stock offer or an inactive store's offer never ranks);
---   * put the customers' real figures first and the stores' catalog figures after them, and say which source decided;
---   * add the figures of several stores, ignore inactive stores, and need at least 3 ratings (approved reviews / store ratings);
+--   * rank the FINAL figure, the average of the customers' real figures and the stores' catalog figures, and say which side(s)
+--     it came from (customers / store_catalog / combined); ties share a rank;
+--   * add the figures of several stores, ignore inactive stores, and need at least 3 ratings (approved reviews + store ratings);
 --   * leave the stores' tables writable only by the server (service_role): customers, store members and even the platform
 --     admin cannot insert, update or delete; a store's team reads only its own rows, the admin reads all, visitors nothing;
 --   * copy store_id / product_size_id from the offer, so a row can never claim another store's offer;
@@ -98,9 +101,9 @@ begin
     (o1a, sa, z1, 5), (o2a, sa, z2, 600), (o2b, sb, z2, 400), (o3b, sb, z3, 50), (o4c, sc, z4, 9999), (o7c, sc, z7, 5000);
   insert into public.store_catalog_most_searched(store_product_id, store_id, product_size_id, searches_count) values (o3b, sb, z3, 4);
   insert into public.store_catalog_ratings(store_product_id, store_id, product_size_id, average_rating, ratings_count) values
-    (o2a, sa, z2, 4.80, 5), (o2b, sb, z2, 5.00, 5),       -- P2: weighted 4.90 over 10 ratings
+    (o2a, sa, z2, 4.80, 5), (o2b, sb, z2, 5.00, 5),       -- P2: with the customers' (5,5) weighted 4.92 over 12 ratings
     (o3b, sb, z3, 5.00, 2),                                 -- P3: only 2 ratings -> does not qualify
-    (o1a, sa, z1, 1.00, 50);                                -- P1: a bad store rating never beats the customers' own
+    (o1a, sa, z1, 1.00, 50);                                -- P1: a bad store rating weighs 50 ratings against the customers' 3
   reset role;
 
   -- the trigger copied store_id / product_size_id from the offer
@@ -123,29 +126,31 @@ begin
   select count(*) into n from private.fn_storefront_product_rankings() where product_id in (p5, p6, p7);
   if n <> 0 then raise exception 'perfumes that are not offered right now (out of stock / inactive store) or have no figure must not be ranked (% rows)', n; end if;
 
-  -- SALES: P4 (customers: 2 real units) above every store-only figure; P2 (4+3=7) and P3 (7) tie; P1 (store 3) last
-  if d.sales_source is distinct from 'customers' or b.sales_source is distinct from 'store_catalog' or c.sales_source is distinct from 'store_catalog' then
-    raise exception 'sales sources wrong: P4 %, P2 %, P3 %', d.sales_source, b.sales_source, c.sales_source; end if;
-  if not (d.sales_rank < b.sales_rank and b.sales_rank = c.sales_rank and b.sales_rank < a.sales_rank) then
-    raise exception 'sales ranks wrong: P4 %, P2 %, P3 %, P1 %', d.sales_rank, b.sales_rank, c.sales_rank, a.sales_rank; end if;
+  -- SALES (final = round((customers + stores) / 2)): P2 and P3 store 7 -> 4 and tie; P4 customers 2 + store 1 -> 2 combined;
+  -- P1 store 3 -> 2 (the same total 3 as P4, so the same rank)
+  if d.sales_source is distinct from 'combined' or b.sales_source is distinct from 'store_catalog' or c.sales_source is distinct from 'store_catalog'
+     or a.sales_source is distinct from 'store_catalog' then
+    raise exception 'sales sources wrong: P4 %, P2 %, P3 %, P1 %', d.sales_source, b.sales_source, c.sales_source, a.sales_source; end if;
+  if not (b.sales_rank = c.sales_rank and b.sales_rank < d.sales_rank and d.sales_rank = a.sales_rank) then
+    raise exception 'sales ranks wrong: P2 %, P3 %, P4 %, P1 %', b.sales_rank, c.sales_rank, d.sales_rank, a.sales_rank; end if;
 
-  -- VIEWS: P1 (3 real views) above the store-only P2 (600+400) and P3 (50); the inactive store's 9999 for P4 does not count
-  if a.views_source is distinct from 'customers' or b.views_source is distinct from 'store_catalog' or c.views_source is distinct from 'store_catalog' then
+  -- VIEWS: P2 (stores 600+400 -> 500) above P3 (50 -> 25) above P1 (customers 3 + store 5 -> 4 combined); the inactive store's 9999 for P4 does not count
+  if a.views_source is distinct from 'combined' or b.views_source is distinct from 'store_catalog' or c.views_source is distinct from 'store_catalog' then
     raise exception 'views sources wrong: P1 %, P2 %, P3 %', a.views_source, b.views_source, c.views_source; end if;
-  if not (a.views_rank < b.views_rank and b.views_rank < c.views_rank) then
-    raise exception 'views ranks wrong: P1 %, P2 %, P3 %', a.views_rank, b.views_rank, c.views_rank; end if;
+  if not (b.views_rank < c.views_rank and c.views_rank < a.views_rank) then
+    raise exception 'views ranks wrong: P2 %, P3 %, P1 %', b.views_rank, c.views_rank, a.views_rank; end if;
   if d.views_rank is not null then raise exception 'views of an inactive store must be ignored (P4 rank %)', d.views_rank; end if;
 
   -- SEARCHES: only P3 has a (store) figure
   if c.searches_rank is null or c.searches_source is distinct from 'store_catalog' or a.searches_rank is not null or b.searches_rank is not null or d.searches_rank is not null then
     raise exception 'searches wrong: P3 % (%), P1 %, P2 %, P4 %', c.searches_rank, c.searches_source, a.searches_rank, b.searches_rank, d.searches_rank; end if;
 
-  -- RATING: P1 (customers 4.67 from 3 approved) above P4 (customers 3.00) above P2 (stores' weighted 4.90, even if higher); P3 (2 ratings) none
-  if a.rating_source is distinct from 'customers' or d.rating_source is distinct from 'customers' or b.rating_source is distinct from 'store_catalog' then
+  -- RATING: P2 (customers' 5,5 + stores' 4.80 x 5 and 5.00 x 5 = 4.92 over 12) above P4 (customers 3.00) above P1 (customers 4,5,5 + a store's 1.00 x 50 = 1.21 over 53); P3 (2 ratings) none
+  if a.rating_source is distinct from 'combined' or d.rating_source is distinct from 'customers' or b.rating_source is distinct from 'combined' then
     raise exception 'rating sources wrong: P1 %, P4 %, P2 %', a.rating_source, d.rating_source, b.rating_source; end if;
-  if not (a.rating_rank < d.rating_rank and d.rating_rank < b.rating_rank) then
-    raise exception 'rating ranks wrong: P1 %, P4 %, P2 % (customers first, then stores)', a.rating_rank, d.rating_rank, b.rating_rank; end if;
-  if c.rating_rank is not null then raise exception 'a store rating from fewer than 3 ratings must not qualify (P3 rank %)', c.rating_rank; end if;
+  if not (b.rating_rank < d.rating_rank and d.rating_rank < a.rating_rank) then
+    raise exception 'rating ranks wrong: P2 %, P4 %, P1 % (best final rating first)', b.rating_rank, d.rating_rank, a.rating_rank; end if;
+  if c.rating_rank is not null then raise exception 'a rating from fewer than 3 ratings must not qualify (P3 rank %)', c.rating_rank; end if;
 
   ---------------------------------------------------------------- what the storefront (anon) sees
   set local role anon;
