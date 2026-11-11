@@ -1,14 +1,15 @@
 -- Real-database test for supabase/migrations/20261108061117_storefront_ratings_single_source.sql (as changed by
 -- 20261109060420_final_product_stats_table.sql: the card and the ranking read the final table public.product_stats, and by
--- 20261110060252_product_stats_mean_of_customers_and_stores.sql: the rating averages customers' and stores' ratings together).
+-- 20261110060252_product_stats_mean_of_customers_and_stores.sql and 20261111122138_product_rating_participants_mean.sql: the
+-- rating is the mean of the participants' own averages and the count is round(all ratings / 2); no minimum to show them).
 -- Run AFTER the migrations, as the project owner, inside one transaction. Every fixture is synthetic (example.invalid users,
 -- fixture stores / brand / perfumes) and everything is rolled back at the end.
 --
 -- Proves that a perfume's rating has ONE source:
 --   * public.public_products.average_rating / reviews_count equal what private.fn_product_rating_sources() says, and that is
---     what the "most rated" ranking uses: every approved customer review and every rating of the active stores, weighted by how
---     many ratings stand behind each, from 3 together; fewer than 3 (or an unapproved review, or an inactive store) gives NULL -
---     never a rating built from one or two votes;
+--     what the "most rated" ranking uses: the customers' approved reviews and each active store's ratings are participants, the
+--     stars are the mean of their averages and the count is round(all ratings / 2); an unapproved review or an inactive store
+--     counts for nothing; only the ranking asks for 3 ratings at one participant and stars >= 3.00;
 --   * the three columns nothing can back (request_count, distinctiveness_score, catalog_bestseller) are gone, so a
 --     store-editable "bestseller" flag decides nothing about the storefront;
 --   * public_products is still a security_invoker view that visitors read and nobody writes.
@@ -62,13 +63,13 @@ begin
   o1 := pg_temp.fx_rt_offer(sa, z1); o2a := pg_temp.fx_rt_offer(sa, z2); o2b := pg_temp.fx_rt_offer(sb, z2); o3 := pg_temp.fx_rt_offer(sb, z3);
   o4 := pg_temp.fx_rt_offer(sa, z4); o5 := pg_temp.fx_rt_offer(sb, z5); o6 := pg_temp.fx_rt_offer(sa, z6); o7 := pg_temp.fx_rt_offer(sa, z7);
 
-  -- P1: 3 approved (5,5,4) + 1 unapproved (1)  -> customers 4.67 over 3
-  -- P2: 2 approved reviews (5,5) + its stores report 4.80x5 + 5.00x5 -> combined (10 + 24 + 25) / 12 = 4.92 over 12
-  -- P3: 2 store ratings only -> no rating
-  -- P4: 3 approved (3,3,3) -> customers 3.00 over 3
-  -- P5: 3 store ratings at 4.00 -> store catalog 4.00 over 3 (the boundary), plus an inactive store's 5.00 x 50 that must not count
+  -- P1: 3 approved (5,5,4) + 1 unapproved (1)  -> customers 4.67 stars, count round(3 / 2) = 2
+  -- P2: 2 approved reviews (5,5) + its stores report 4.80x5 + 5.00x5 -> combined: (5.00 + 4.80 + 5.00) / 3 = 4.93 stars, round(12 / 2) = 6
+  -- P3: 2 store ratings only -> shown (5.00 stars, count 1) but not ranked: no participant has 3
+  -- P4: 3 approved (3,3,3) -> customers 3.00 stars, count 2 (exactly 3.00 is ranked)
+  -- P5: 3 store ratings at 4.00 -> store catalog 4.00 stars, count 2, plus an inactive store's 5.00 x 50 that must not count
   -- P6: nothing, but its offer carries the store-editable "bestseller" flag
-  -- P7: one approved five-star review only -> no rating (the old card showed five stars)
+  -- P7: one approved five-star review only -> shown (5.00 stars, count 1) but not ranked
   insert into public.reviews(user_id, product_id, rating, is_approved) values
     (u1, p1, 5, true), (u2, p1, 5, true), (u3, p1, 4, true), (u4, p1, 1, false),
     (u1, p2, 5, true), (u2, p2, 5, true),
@@ -84,30 +85,36 @@ begin
 
   ---------------------------------------------------------------- 1. the one function
   select * into a from private.fn_product_rating_sources() where product_id = p1;
-  if a.average_rating is distinct from 4.67 or a.ratings_count <> 3 or a.rating_source <> 'customers' then
-    raise exception 'P1 must be 4.67 over 3 customer reviews (the unapproved 1 does not count), got % / % / %', a.average_rating, a.ratings_count, a.rating_source;
+  if a.average_rating is distinct from 4.67 or a.ratings_count <> 2 or a.top_source_count <> 3 or a.rating_source <> 'customers' then
+    raise exception 'P1 must be 4.67 stars, count 2, biggest participant 3 (the unapproved 1 does not count), got % / % / % / %', a.average_rating, a.ratings_count, a.top_source_count, a.rating_source;
   end if;
   select * into a from private.fn_product_rating_sources() where product_id = p2;
-  if a.average_rating is distinct from 4.92 or a.ratings_count <> 12 or a.rating_source <> 'combined' then
-    raise exception 'P2 must be 4.92 over 12 ratings (2 customer reviews + 10 store ratings, weighted), got % / % / %', a.average_rating, a.ratings_count, a.rating_source;
+  if a.average_rating is distinct from 4.93 or a.ratings_count <> 6 or a.top_source_count <> 5 or a.rating_source <> 'combined' then
+    raise exception 'P2 must be 4.93 stars (mean of 5.00, 4.80, 5.00), count round(12 / 2) = 6, biggest participant 5, got % / % / % / %', a.average_rating, a.ratings_count, a.top_source_count, a.rating_source;
   end if;
   select * into a from private.fn_product_rating_sources() where product_id = p4;
-  if a.average_rating is distinct from 3.00 or a.ratings_count <> 3 or a.rating_source <> 'customers' then raise exception 'P4 must be 3.00 over 3 customer reviews'; end if;
+  if a.average_rating is distinct from 3.00 or a.ratings_count <> 2 or a.rating_source <> 'customers' then raise exception 'P4 must be 3.00 stars, count 2, from customers'; end if;
   select * into a from private.fn_product_rating_sources() where product_id = p5;
-  if a.average_rating is distinct from 4.00 or a.ratings_count <> 3 or a.rating_source <> 'store_catalog' then
-    raise exception 'P5 must be 4.00 over 3 (the inactive store does not count), got % / %', a.average_rating, a.ratings_count;
+  if a.average_rating is distinct from 4.00 or a.ratings_count <> 2 or a.top_source_count <> 3 or a.rating_source <> 'store_catalog' then
+    raise exception 'P5 must be 4.00 stars, count 2 (the inactive store does not count), got % / %', a.average_rating, a.ratings_count;
   end if;
-  select count(*) into n from private.fn_product_rating_sources() where product_id in (p3, p6, p7);
-  if n <> 0 then raise exception 'perfumes with fewer than 3 ratings must have none (got % rows)', n; end if;
+  select * into a from private.fn_product_rating_sources() where product_id = p3;
+  if a.average_rating is distinct from 5.00 or a.ratings_count <> 1 or a.top_source_count <> 2 then raise exception 'P3 (two store ratings) is shown: 5.00 stars, count 1, got % / %', a.average_rating, a.ratings_count; end if;
+  select * into a from private.fn_product_rating_sources() where product_id = p7;
+  if a.average_rating is distinct from 5.00 or a.ratings_count <> 1 or a.top_source_count <> 1 or a.rating_source <> 'customers' then raise exception 'P7 (one review) is shown: 5.00 stars, count 1, got % / %', a.average_rating, a.ratings_count; end if;
+  select count(*) into n from private.fn_product_rating_sources() where product_id = p6;
+  if n <> 0 then raise exception 'a perfume nobody rated has no row (got %)', n; end if;
 
   ---------------------------------------------------------------- 2. the card reads the same function
   set local role anon;
   select average_rating, reviews_count into a from public.public_products where id = p1;
-  if a.average_rating is distinct from 4.67 or a.reviews_count is distinct from 3 then raise exception 'P1 on the card: % / %', a.average_rating, a.reviews_count; end if;
+  if a.average_rating is distinct from 4.67 or a.reviews_count is distinct from 2 then raise exception 'P1 on the card: % / %', a.average_rating, a.reviews_count; end if;
   select average_rating, reviews_count into a from public.public_products where id = p2;
-  if a.average_rating is distinct from 4.92 or a.reviews_count is distinct from 12 then raise exception 'P2 on the card: % / %', a.average_rating, a.reviews_count; end if;
-  select count(*) into n from public.public_products where id in (p3, p6, p7) and average_rating is null and reviews_count is null;
-  if n <> 3 then raise exception 'P3 / P6 / P7 must be listed with no rating (got % of 3)', n; end if;
+  if a.average_rating is distinct from 4.93 or a.reviews_count is distinct from 6 then raise exception 'P2 on the card: % / %', a.average_rating, a.reviews_count; end if;
+  select count(*) into n from public.public_products where id in (p3, p7) and average_rating = 5.00 and reviews_count = 1;
+  if n <> 2 then raise exception 'P3 and P7 show their 5.00 stars and count 1 on the card, outside the ranking too (got % of 2)', n; end if;
+  select count(*) into n from public.public_products where id = p6 and average_rating is null and reviews_count is null;
+  if n <> 1 then raise exception 'P6 (nobody rated it) must be listed with no rating'; end if;
   reset role;
 
   ---------------------------------------------------------------- 3. the ranking uses the same figures: the best rating first, no matter which side it came from
@@ -118,14 +125,16 @@ begin
          (select rating_rank from public.storefront_product_rankings where product_id = p5) as r5,
          r.rating_source as s1
     into a from public.storefront_product_rankings r where r.product_id = p1;
-  if not (a.r2 < a.r1 and a.r1 < a.r5 and a.r5 < a.r4) then raise exception 'order must be P2 (4.92 combined), P1 (4.67 customers), P5 (4.00 stores), P4 (3.00 customers): %', a; end if;
+  if not (a.r2 < a.r1 and a.r1 < a.r5 and a.r5 < a.r4) then raise exception 'order must be P2 (4.93 combined), P1 (4.67 customers), P5 (4.00 stores), P4 (3.00 customers): %', a; end if;
   if a.s1 <> 'customers' then raise exception 'P1 source must be customers'; end if;
   if (select rating_source from public.storefront_product_rankings where product_id = p2) <> 'combined' then raise exception 'P2 source must be combined'; end if;
   if (select rating_source from public.storefront_product_rankings where product_id = p5) <> 'store_catalog' then raise exception 'P5 source must be store_catalog'; end if;
-  -- a rank exists exactly where the card shows a rating
+  -- every rank sits on a perfume whose card shows a rating (the other way round is not required: a rating needs no rank to be shown)
   select count(*) into n from public.storefront_product_rankings k join public.public_products pp on pp.id = k.product_id
-   where (k.rating_rank is not null) <> (pp.average_rating is not null);
-  if n <> 0 then raise exception 'the card and the ranking disagree for % perfumes', n; end if;
+   where k.rating_rank is not null and pp.average_rating is null;
+  if n <> 0 then raise exception 'a ranked perfume without a rating on its card for % perfumes', n; end if;
+  if exists (select 1 from public.storefront_product_rankings where product_id in (p3, p7) and (rating_rank is not null or rating_source is not null)) then
+    raise exception 'P3 (nobody has 3 ratings) and P7 (one review) must not be ranked'; end if;
   -- the store-editable flag changes nothing
   if exists (select 1 from public.storefront_product_rankings where product_id = p6) then raise exception 'a bestseller flag must not rank a perfume'; end if;
 
@@ -153,11 +162,13 @@ begin
   select count(*) into v_stats_after from public.product_stats;
   if v_stats_after < v_stats_before then raise exception 'product_stats must keep its rows'; end if;
   select average_rating, reviews_count, rating_source into a from public.product_stats where product_id = p1;
-  if a.average_rating is distinct from 4.67 or a.reviews_count <> 3 or a.rating_source <> 'customers' then raise exception 'product_stats P1: %', a; end if;
+  if a.average_rating is distinct from 4.67 or a.reviews_count <> 2 or a.rating_source <> 'customers' then raise exception 'product_stats P1: %', a; end if;
   select average_rating, reviews_count, rating_source into a from public.product_stats where product_id = p2;
-  if a.average_rating is distinct from 4.92 or a.reviews_count <> 12 or a.rating_source <> 'combined' then raise exception 'product_stats P2: %', a; end if;
-  select count(*) into n from public.product_stats where product_id in (p3, p6, p7) and average_rating is null and reviews_count = 0 and rating_source is null;
-  if n <> 3 then raise exception 'product_stats must hold no rating for P3 / P6 / P7 (got % of 3)', n; end if;
+  if a.average_rating is distinct from 4.93 or a.reviews_count <> 6 or a.rating_source <> 'combined' then raise exception 'product_stats P2: %', a; end if;
+  select count(*) into n from public.product_stats where product_id in (p3, p7) and average_rating = 5.00 and reviews_count = 1 and rating_top_source_count > 0;
+  if n <> 2 then raise exception 'product_stats must hold the 5.00 / 1 ratings of P3 and P7 (got % of 2)', n; end if;
+  select count(*) into n from public.product_stats where product_id = p6 and average_rating is null and reviews_count = 0 and rating_top_source_count = 0 and rating_source is null;
+  if n <> 1 then raise exception 'product_stats must hold no rating for P6'; end if;
 end
 $fixture$;
 

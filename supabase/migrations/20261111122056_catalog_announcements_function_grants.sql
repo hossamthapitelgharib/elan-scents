@@ -1,0 +1,1 @@
+grant execute on function private.fn_catalog_coming_soon_announcements() to anon, authenticated, service_role;

@@ -1,5 +1,7 @@
 -- Real-database test for supabase/migrations/20261109060420_final_product_stats_table.sql, as changed by
--- 20261110060252_product_stats_mean_of_customers_and_stores.sql (the figures are the average of customers and stores).
+-- 20261110060252_product_stats_mean_of_customers_and_stores.sql (the figures are the average of customers and stores) and
+-- 20261111122138_product_rating_participants_mean.sql (the rating is the mean of the participants; the full rating rules are in
+-- tests/product-rating-participants.test.sql).
 -- Run AFTER the migrations, as the project owner, inside one transaction. Every fixture is synthetic (example.invalid users,
 -- fixture stores / brand / perfumes) and everything is rolled back at the end.
 --
@@ -7,11 +9,11 @@
 --   * request_count is gone; every figure says its source and the table refuses a figure without (or a source without) one;
 --   * the customers' figures are ALL TIME - a view from two years ago still counts;
 --   * sales / views / searches = round((customers + the sum of the ACTIVE stores) / 2), the divisor always 2; a rating is the
---     average of customers' reviews and stores' ratings weighted by their counts (from 3 together); inactive stores never count;
+--     mean of the participants' averages (customers, each active store) with the count round(all ratings / 2); inactive stores never count;
 --   * retention (purge_expired_guest_fingerprints) folds a deleted browser's views and searches into the anonymous archive, so
 --     the total does not drop; the archive is not readable by any client role; "forget me" leaves no trace on purpose;
 --   * registering (claim) neither loses nor doubles a guest's views;
---   * a review changes the perfume's rating in the table at once, and the "at least 3 ratings" rule holds;
+--   * a review changes the perfume's rating in the table at once (no minimum number of ratings to show it);
 --   * a hand-edited figure is overwritten by the next refresh; nothing is written when nothing changed.
 begin;
 
@@ -192,14 +194,14 @@ begin
   ---------------------------------------------------------------- 5. the rating follows the reviews at once
   insert into public.reviews(user_id, product_id, rating, is_approved) values (u1, p1, 5, true), (u2, p1, 4, true);
   select average_rating, reviews_count, rating_source into a from public.product_stats where product_id = p1;
-  if a.average_rating is not null or a.reviews_count <> 0 then raise exception 'two reviews are not a rating (got % / %)', a.average_rating, a.reviews_count; end if;
+  if a.average_rating is distinct from 4.50 or a.reviews_count <> 1 or a.rating_source <> 'customers' then raise exception 'two reviews (5,4) are a rating at once: 4.50 stars, count round(2 / 2) = 1 (got % / % / %)', a.average_rating, a.reviews_count, a.rating_source; end if;
   insert into public.reviews(user_id, product_id, rating, is_approved) values (u3, p1, 3, true), (u_claim, p1, 1, false);
   select average_rating, reviews_count, rating_source into a from public.product_stats where product_id = p1;
-  if a.average_rating is distinct from 4.00 or a.reviews_count <> 3 or a.rating_source <> 'customers' then
-    raise exception 'three approved reviews (5,4,3) = 4.00 immediately, the unapproved one ignored; got % / % / %', a.average_rating, a.reviews_count, a.rating_source; end if;
-  delete from public.reviews where user_id = u3 and product_id = p1;
+  if a.average_rating is distinct from 4.00 or a.reviews_count <> 2 or a.rating_source <> 'customers' then
+    raise exception 'three approved reviews (5,4,3) = 4.00 stars, count round(3 / 2) = 2 immediately, the unapproved one ignored; got % / % / %', a.average_rating, a.reviews_count, a.rating_source; end if;
+  delete from public.reviews where product_id = p1;
   select average_rating, reviews_count, rating_source into a from public.product_stats where product_id = p1;
-  if a.average_rating is not null or a.reviews_count <> 0 or a.rating_source is not null then raise exception 'back to two reviews: no rating (got %)', a; end if;
+  if a.average_rating is not null or a.reviews_count <> 0 or a.rating_source is not null then raise exception 'no reviews left: no rating (got %)', a; end if;
 
   ---------------------------------------------------------------- 5b. the average of the customers and ALL the participating stores (P5)
   insert into public.guest_product_analytics (visitor_hash, product_id, activity_date, event_type, event_count) values
@@ -220,7 +222,7 @@ begin
   -- the order is the order of the final figure: a perfume with customers' views does NOT jump above one with more final views
   if not ((select views_rank from public.storefront_product_rankings where product_id = p2) < (select views_rank from public.storefront_product_rankings where product_id = p5)) then
     raise exception 'P2 (final views 20, stores only) must rank above P5 (final views 10, with customers)'; end if;
-  -- the rating: every rating counts, weighted by how many stand behind it (customers 5,4; store A 3.00 x 2; store B 5.00 x 1; the inactive store ignored)
+  -- the rating: the mean of the participants' averages (customers 5,4 = 4.50; store A 3.00 x 2; store B 5.00 x 1; the inactive store ignored)
   insert into public.reviews(user_id, product_id, rating, is_approved) values (u1, p5, 5, true), (u2, p5, 4, true);
   set local role service_role;
   insert into public.store_catalog_ratings(store_product_id, store_id, product_size_id, average_rating, ratings_count) values
@@ -228,21 +230,23 @@ begin
   reset role;
   perform private.refresh_product_stats();
   select average_rating, reviews_count, rating_source into a from public.product_stats where product_id = p5;
-  if a.average_rating is distinct from 4.00 or a.reviews_count <> 5 or a.rating_source <> 'combined' then
-    raise exception 'P5 rating: (5 + 4 + 3*2 + 5*1) / 5 = 4.00 from 5 ratings combined (not the 4.17 of a mean of the three averages), got % / % / %', a.average_rating, a.reviews_count, a.rating_source; end if;
-  -- a store-only rating needs 3 ratings too
+  if a.average_rating is distinct from 4.17 or a.reviews_count <> 3 or a.rating_source <> 'combined' then
+    raise exception 'P5 rating: (4.50 + 3.00 + 5.00) / 3 = 4.17 stars, round((2 + 2 + 1) / 2) = 3 ratings, combined, got % / % / %', a.average_rating, a.reviews_count, a.rating_source; end if;
+  -- a store-only rating shows with any number of ratings
   set local role service_role;
   insert into public.store_catalog_ratings(store_product_id, store_id, product_size_id, average_rating, ratings_count) values (o2, sa, z2, 5.00, 2);
   reset role;
   perform private.refresh_product_stats();
-  if (select average_rating from public.product_stats where product_id = p2) is not null then raise exception 'two store ratings are not a rating'; end if;
+  select average_rating, reviews_count, rating_source into a from public.product_stats where product_id = p2;
+  if a.average_rating is distinct from 5.00 or a.reviews_count <> 1 or a.rating_source <> 'store_catalog' then
+    raise exception 'P2 rating: two store ratings of 5.00 show at once, 5.00 stars / count 1 / store_catalog, got % / % / %', a.average_rating, a.reviews_count, a.rating_source; end if;
   set local role service_role;
   update public.store_catalog_ratings set ratings_count = 3 where store_product_id = o2;
   reset role;
   perform private.refresh_product_stats();
   select average_rating, reviews_count, rating_source into a from public.product_stats where product_id = p2;
-  if a.average_rating is distinct from 5.00 or a.reviews_count <> 3 or a.rating_source <> 'store_catalog' then
-    raise exception 'P2 rating: three store ratings of 5.00 = 5.00 store_catalog, got % / % / %', a.average_rating, a.reviews_count, a.rating_source; end if;
+  if a.average_rating is distinct from 5.00 or a.reviews_count <> 2 or a.rating_source <> 'store_catalog' then
+    raise exception 'P2 rating: three store ratings of 5.00 = 5.00 stars, round(3 / 2) = 2, store_catalog, got % / % / %', a.average_rating, a.reviews_count, a.rating_source; end if;
 
   ---------------------------------------------------------------- 6. who can run the writers
   foreach n in array array[1, 2] loop

@@ -58,5 +58,5 @@ test('public_products keeps its safety and loses the columns nothing can back', 
 test('the storefront no longer reads what the view no longer has', () => {
   const core = read('app-core.js');
   const select = core.match(/ga\('public_products\?select=([^']*)'/)[1];
-  assert.equal(select, 'id,name,brand_name,sales_count,views_count,search_count,average_rating,short_description,official_description,composition,gender&order=id.asc');
+  assert.equal(select, 'id,name,brand_name,sales_count,views_count,search_count,average_rating,reviews_count,short_description,official_description,composition,gender&order=id.asc');
 });

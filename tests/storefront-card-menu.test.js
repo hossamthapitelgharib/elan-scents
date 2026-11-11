@@ -40,7 +40,7 @@ function harness({ lang = 'ar', auth = null, perfumes = [] } = {}) {
   context.D = texts;
   const code = [
     oneLine('var XBTN='), oneLine('var LOGO='), oneLine('var LB='), oneLine('en:{home:'),
-    oneLine('var CARTSVG='), oneLine('var CARTADD='), oneLine('var PHB='), oneLine('function inCart'), oneLine('function cartMarks'), oneLine('function cartBadge'), oneLine('var SP_BY_ID='), oneLine('function ratingHTML'), oneLine('function byId'), oneLine('function nmOf'), oneLine('function sec('), oneLine('function T()'),
+    oneLine('var CARTSVG='), oneLine('var CARTADD='), oneLine('var PHB='), oneLine('function inCart'), oneLine('function cartMarks'), oneLine('function cartBadge'), oneLine('var SP_BY_ID='), oneLine('function ratingCount'), oneLine('function ratingHTML'), oneLine('function rateMini'), oneLine('function byId'), oneLine('function nmOf'), oneLine('function sec('), oneLine('function T()'),
     oneLine('function taxNote'), oneLine('function globalOffer('), oneLine('function best('), oneLine('function closeSheet'),
     between('var FAVS=[]', '\nvar SP_BY_ID='), oneLine('function authUserId'), oneLine('function authHeaders'), between('/* Favourites follow the account', 'async function pushCartToCloud'), between('function prodView', '\nfunction strip('), oneLine('function strip('),
     between('var MENU_ORDER=', 'function logoutNow'), oneLine('function mailEvent'), oneLine('function logoutNow'),

@@ -1,6 +1,8 @@
 -- Real-database test for supabase/migrations/20261107135337_storefront_rankings_from_store_catalogs.sql, as changed by
 -- 20261109060420_final_product_stats_table.sql (the rankings read the final table) and
--- 20261110060252_product_stats_mean_of_customers_and_stores.sql (the final figure is the average of customers and stores).
+-- 20261110060252_product_stats_mean_of_customers_and_stores.sql (the final figure is the average of customers and stores) and
+-- 20261111122138_product_rating_participants_mean.sql (the rating is the mean of the participants; «الأكثر تقييمًا» needs
+-- >= 3 ratings at one participant and stars >= 3.00).
 -- Run AFTER the migrations, as the project owner, inside one transaction. Every fixture is synthetic (example.invalid users,
 -- fixture stores / brand / perfumes, one fixture order) and everything is rolled back at the end.
 --
@@ -8,7 +10,8 @@
 --   * rank only perfumes the platform offers right now (an out-of-stock offer or an inactive store's offer never ranks);
 --   * rank the FINAL figure, the average of the customers' real figures and the stores' catalog figures, and say which side(s)
 --     it came from (customers / store_catalog / combined); ties share a rank;
---   * add the figures of several stores, ignore inactive stores, and need at least 3 ratings (approved reviews + store ratings);
+--   * add the figures of several stores, ignore inactive stores, and rank a rating only with >= 3 ratings at ONE participant and
+--     stars >= 3.00 (the full rating rules are in tests/product-rating-participants.test.sql);
 --   * leave the stores' tables writable only by the server (service_role): customers, store members and even the platform
 --     admin cannot insert, update or delete; a store's team reads only its own rows, the admin reads all, visitors nothing;
 --   * copy store_id / product_size_id from the offer, so a row can never claim another store's offer;
@@ -101,9 +104,9 @@ begin
     (o1a, sa, z1, 5), (o2a, sa, z2, 600), (o2b, sb, z2, 400), (o3b, sb, z3, 50), (o4c, sc, z4, 9999), (o7c, sc, z7, 5000);
   insert into public.store_catalog_most_searched(store_product_id, store_id, product_size_id, searches_count) values (o3b, sb, z3, 4);
   insert into public.store_catalog_ratings(store_product_id, store_id, product_size_id, average_rating, ratings_count) values
-    (o2a, sa, z2, 4.80, 5), (o2b, sb, z2, 5.00, 5),       -- P2: with the customers' (5,5) weighted 4.92 over 12 ratings
-    (o3b, sb, z3, 5.00, 2),                                 -- P3: only 2 ratings -> does not qualify
-    (o1a, sa, z1, 1.00, 50);                                -- P1: a bad store rating weighs 50 ratings against the customers' 3
+    (o2a, sa, z2, 4.80, 5), (o2b, sb, z2, 5.00, 5),       -- P2: with the customers' (5,5) the mean of 5.00, 4.80, 5.00 = 4.93 stars, 6 ratings
+    (o3b, sb, z3, 5.00, 2),                                 -- P3: only 2 ratings at its one participant -> shown, but not ranked
+    (o1a, sa, z1, 1.00, 50);                                -- P1: customers 4.67 and a store's 1.00 -> 2.83 stars, below 3.00 -> not ranked
   reset role;
 
   -- the trigger copied store_id / product_size_id from the offer
@@ -145,12 +148,16 @@ begin
   if c.searches_rank is null or c.searches_source is distinct from 'store_catalog' or a.searches_rank is not null or b.searches_rank is not null or d.searches_rank is not null then
     raise exception 'searches wrong: P3 % (%), P1 %, P2 %, P4 %', c.searches_rank, c.searches_source, a.searches_rank, b.searches_rank, d.searches_rank; end if;
 
-  -- RATING: P2 (customers' 5,5 + stores' 4.80 x 5 and 5.00 x 5 = 4.92 over 12) above P4 (customers 3.00) above P1 (customers 4,5,5 + a store's 1.00 x 50 = 1.21 over 53); P3 (2 ratings) none
-  if a.rating_source is distinct from 'combined' or d.rating_source is distinct from 'customers' or b.rating_source is distinct from 'combined' then
-    raise exception 'rating sources wrong: P1 %, P4 %, P2 %', a.rating_source, d.rating_source, b.rating_source; end if;
-  if not (b.rating_rank < d.rating_rank and d.rating_rank < a.rating_rank) then
-    raise exception 'rating ranks wrong: P2 %, P4 %, P1 % (best final rating first)', b.rating_rank, d.rating_rank, a.rating_rank; end if;
-  if c.rating_rank is not null then raise exception 'a rating from fewer than 3 ratings must not qualify (P3 rank %)', c.rating_rank; end if;
+  -- RATING: P2 (mean of customers 5.00, store A 4.80, store B 5.00 = 4.93 stars; store A alone has 5 ratings) above P4 (customers 3.00 x 3: exactly 3.00 qualifies);
+  -- P1 (customers 4.67 and a store's 1.00 = 2.83 stars) is below 3.00 and P3 (5.00 stars, but only 2 ratings at its one participant) has too few: neither is ranked
+  if d.rating_source is distinct from 'customers' or b.rating_source is distinct from 'combined' then
+    raise exception 'rating sources wrong: P4 %, P2 %', d.rating_source, b.rating_source; end if;
+  if not (b.rating_rank < d.rating_rank) then
+    raise exception 'rating ranks wrong: P2 %, P4 % (best final stars first)', b.rating_rank, d.rating_rank; end if;
+  if a.rating_rank is not null or a.rating_source is not null then raise exception 'stars below 3.00 must not qualify (P1 rank %)', a.rating_rank; end if;
+  if c.rating_rank is not null then raise exception 'a rating with fewer than 3 ratings at its biggest participant must not qualify (P3 rank %)', c.rating_rank; end if;
+  select average_rating, reviews_count into e from public.product_stats where product_id = p1;
+  if e.average_rating is distinct from 2.83 or e.reviews_count <> 27 then raise exception 'P1 still shows 2.83 stars and 27 ratings, got %', e; end if;
 
   ---------------------------------------------------------------- what the storefront (anon) sees
   set local role anon;

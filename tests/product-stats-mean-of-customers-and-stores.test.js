@@ -22,7 +22,8 @@ test('the migration has its rollback and the real-database tests that cover it',
   }
   const sqlTest = read('tests', 'final-product-stats.test.sql');
   assert.match(sqlTest, /combined/);
-  assert.match(sqlTest, /\(5 \+ 4 \+ 3\*2 \+ 5\*1\) \/ 5 = 4\.00/, 'the weighted rating is checked with numbers that differ from a mean of averages');
+  // The pooled-average rating this migration introduced was replaced by the participants' mean (20261111122138_product_rating_participants_mean);
+  // tests/product-rating-participants.test.js pins that rule, and final-product-stats.test.sql now checks it.
   assert.match(sqlTest, /^begin;/m);
   assert.match(sqlTest, /rollback;\s*$/, 'the test leaves no row behind');
 });
