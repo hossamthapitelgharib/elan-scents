@@ -19,16 +19,12 @@
     '#elanSizeDlg button{font:inherit;cursor:pointer;border:1px solid #d9c79c;background:#fff;color:#4a3a1a;border-radius:9px;padding:8px 6px;line-height:1.5;unicode-bidi:plaintext;text-align:center}',
     '#elanSizeDlg button:hover,#elanSizeDlg button:focus{background:#f6ecd4;outline:2px solid #c8962a;outline-offset:1px}',
     '#elanSizeDlg button.auto{display:block;width:100%;background:#f6ecd4;font-weight:700}',
-    '#elanSizeDlg button .pic{display:flex;align-items:center;justify-content:center;height:32px}#elanSizeDlg button .shape{display:block;box-sizing:border-box;border:1.5px solid #c8962a;background:#fff4d6;border-radius:2px}',
+    '.shapeBtn .pic{display:flex;align-items:center;justify-content:center;height:32px}.shapeBtn .shape{display:block;box-sizing:border-box;border:1.5px solid #c8962a;background:#fff4d6;border-radius:2px}',
+    '.ratioField{margin:10px 0 4px;text-align:right}.ratioField .ratioHead{font-size:13px;font-weight:700;color:#87652d;margin-bottom:6px}',
+    '.ratioField .ratioRow{display:flex;flex-wrap:wrap;gap:5px}.ratioField button{font:inherit;cursor:pointer;border:1px solid #d9c79c;background:#fff;color:#4a3a1a;border-radius:8px;padding:3px 6px;line-height:1.3;min-width:54px;text-align:center}',
+    '.ratioField button.on{background:#f6ecd4;outline:2px solid #c8962a;outline-offset:0}.ratioField .dim{display:block;font-size:12px;font-weight:700;direction:ltr}.ratioField .lbl{display:none}.ratioField .pic{height:30px}',
     '#elanSizeDlg button .dim{display:block;font-weight:700;direction:ltr}#elanSizeDlg button .lbl{display:block;font-size:11.5px;color:#7d6a49}',
     '#elanSizeDlg .foot{margin-top:14px;display:flex;justify-content:flex-start}#elanSizeDlg .foot button{padding:8px 18px}',
-    /* the owner's own sizes: the add row, the small delete mark on each saved size, the status line */
-    '#elanSizeDlg .mine-add{margin:10px 0 0;border:1px dashed #c6aa70;border-radius:9px;padding:6px 10px;background:#fff}#elanSizeDlg .mine-add summary{cursor:pointer;color:#87652d;font-weight:700}',
-    '#elanSizeDlg .row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}#elanSizeDlg .row label{display:block;font-size:12px;color:#7d6a49}#elanSizeDlg .row label:nth-child(3),#elanSizeDlg .row .keep{grid-column:1 / -1}',
-    '#elanSizeDlg .row input{box-sizing:border-box;width:100%;font:inherit;padding:7px;border:1px solid #d9c79c;border-radius:8px;margin-top:3px;background:#fffdf8;unicode-bidi:plaintext}',
-    '#elanSizeDlg .msg{font-size:12px;line-height:1.7;color:#7d6a49;min-height:1.7em;margin:8px 0 0}',
-    '#elanSizeDlg .cell{position:relative}#elanSizeDlg .cell>button:first-child{width:100%;height:100%}',
-    '#elanSizeDlg .del{position:absolute;top:3px;left:3px;width:22px;height:22px;padding:0;border-radius:50%;font-size:11px;line-height:1;background:#fff0f0;border-color:#e3b4b4;color:#8a2c2c}'
   ].join('\n');
   document.head.appendChild(css);
 
@@ -104,9 +100,11 @@
     opts = opts || {};
     return new Promise(function (resolve) {
       var dlg = el('dialog', '', { id: 'elanMediaDlg' }), done = false;
-      function finish(v) { if (done) return; done = true; try { dlg.close(); } catch (_) { /* closed */ } dlg.remove(); resolve(v || null); }
+      var ratioField = null;
+      function finish(v) { if (done) return; done = true; if (ratioField) opts.size = ratioField.get() || undefined; try { dlg.close(); } catch (_) { /* closed */ } dlg.remove(); resolve(v || null); }
       dlg.addEventListener('cancel', function () { finish(null); }); dlg.addEventListener('close', function () { finish(null); });
       dlg.appendChild(el('h3', 'مصدر الصورة أو الفيديو'));
+      if (opts.ratios && window.elanRatioField) { ratioField = window.elanRatioField(opts.ratios, opts.ratioLabel); dlg.appendChild(ratioField.node); }
       var note = el('p', '', { className: 'note' });
       function source(label, fn) { var b = el('button', label); b.type = 'button'; b.style.cssText = 'display:block;width:100%;margin:9px 0'; b.onclick = fn; dlg.appendChild(b); return b; }
       source('من مكتبة سابابيس', function () { showLibrary(); });
@@ -179,71 +177,34 @@
     var url = await window.elanPickMedia();
     if (url && typeof runLive === 'function') runLive('element.setMedia', { elementId: element && element.id, src: url });
   };
-  /* The standard sizes, chosen in the editor window (the groups come from the page's own list, see ElanEditorGeometry.SIZE_GROUPS).
-     Gives back { w, h } for a size, null for "automatic", and undefined when the owner closes it without choosing. */
+  /* The dimensions (common shapes: 1:1, 4:3, 16:9, 9:16…, shown as examples) chosen in the editor window; the list comes from the page's own list
+     (ElanEditorGeometry.RATIOS). A little drawing with the shape of each one, so nobody has to read numbers. */
+  function shapeCell(size, onPick) {
+    var ratio = Array.isArray(size.ratio) ? size.ratio : [size.w, size.h];
+    var b = el('button', '', { type: 'button', className: 'shapeBtn' }), dim = el('span', '', { className: 'dim' }), lbl = el('span', '', { className: 'lbl' });
+    dim.textContent = ratio[0] + ':' + ratio[1]; nameInto(lbl, size.label);
+    var longest = Math.max(ratio[0], ratio[1]), shape = el('span', '', { className: 'shape' }), pic = el('span', '', { className: 'pic' });
+    shape.style.width = Math.max(4, Math.round(28 * ratio[0] / longest)) + 'px'; shape.style.height = Math.max(4, Math.round(28 * ratio[1] / longest)) + 'px';
+    shape.setAttribute('aria-hidden', 'true'); pic.appendChild(shape);
+    b.append(pic, dim, lbl); b.onclick = function () { onPick({ ratio: [ratio[0], ratio[1]] }); };
+    return b;
+  }
   window.elanPickSize = function (groups, opts) {
     opts = opts || {};
     return new Promise(function (resolve) {
       var old = document.getElementById('elanSizeDlg'); if (old) old.remove();
-      var dlg = el('dialog', '', { id: 'elanSizeDlg' }), done = false, holder = el('div', '', { className: 'groups' });
+      var dlg = el('dialog', '', { id: 'elanSizeDlg' }), done = false;
       function finish(value) { if (done) return; done = true; try { dlg.close(); } catch (_) { /* already closed */ } dlg.remove(); resolve(value); }
-      /* the list is drawn again whenever the owner's own sizes change (a size saved or deleted keeps the window open) */
-      function render(list) {
-        holder.textContent = '';
-        (list || []).forEach(function (group) {
-          holder.appendChild(el('h4', group.label));
-          var grid = el('div', '', { className: 'grid' });
-          group.sizes.forEach(function (size) {
-            var b = el('button', '', { type: 'button' }), dim = el('span', '', { className: 'dim' }), lbl = el('span', '', { className: 'lbl' });
-            var ratio = Array.isArray(size.ratio) ? size.ratio : null, sw = ratio ? ratio[0] : size.w, sh = ratio ? ratio[1] : size.h;
-            dim.textContent = ratio ? ratio[0] + ':' + ratio[1] : size.w + ' \u00d7 ' + size.h; nameInto(lbl, size.label);
-            /* a little drawing with the shape of the size, for whoever does not read pixels: its longer side is always 28 */
-            var longest = Math.max(sw, sh), shape = el('span', '', { className: 'shape' });
-            shape.style.width = Math.max(4, Math.round(28 * sw / longest)) + 'px'; shape.style.height = Math.max(4, Math.round(28 * sh / longest)) + 'px';
-            shape.setAttribute('aria-hidden', 'true');
-            var pic = el('span', '', { className: 'pic' }); pic.appendChild(shape);
-            b.append(pic, dim, lbl); b.onclick = function () { finish(ratio ? { ratio: [ratio[0], ratio[1]] } : { w: size.w, h: size.h }); };
-            if (!(size.mine && opts.remove)) { grid.appendChild(b); return; }
-            var cell = el('div', '', { className: 'cell' }), del = el('button', '\u2715', { type: 'button', className: 'del', title: 'احذف المقاس ده من مقاساتي' });
-            del.setAttribute('aria-label', 'احذف المقاس ' + size.w + ' \u00d7 ' + size.h);
-            del.onclick = async function () {
-              var back = await opts.remove({ w: size.w, h: size.h });
-              if (back && back.groups) { render(back.groups); say('اتحذف المقاس.'); } else say('ما اتحذفش المقاس.');
-            };
-            cell.append(b, del); grid.appendChild(cell);
-          });
-          holder.appendChild(grid);
-        });
-      }
-      var msg = el('p', '', { className: 'msg' });
-      msg.setAttribute('role', 'status');
-      function say(text) { msg.textContent = text || ''; }
-      dlg.appendChild(el('h3', opts.title || 'اختار المقاس'));
-      dlg.appendChild(el('p', 'اختار شكل جاهز: نسبة (مربع 1:1، عريض 16:9، طولي 9:16…) أو مقاس معروف. النسب هنا أمثلة، وتقدر بعدها تعدّل أي عنصر بالسحب من مربع الركن. على الموبايل المقاس الأعرض من الشاشة بيتصغّر بنفس النسبة.', { className: 'note' }));
+      dlg.appendChild(el('h3', opts.title || 'أبعاد العنصر'));
+      dlg.appendChild(el('p', 'اختار شكل العنصر. دي أمثلة للأبعاد الشائعة، وتقدر بعدها تكبّر أو تصغّر أي عنصر بالسحب من مربع الركن.', { className: 'note' }));
       var auto = el('button', opts.auto || 'تلقائي (المقاس الافتراضي)', { type: 'button', className: 'auto' });
       auto.onclick = function () { finish(null); };
       dlg.appendChild(auto);
-      if (opts.save) {
-        /* the owner's own sizes: kept with the design file, shown first in this list next time */
-        var more = el('details', '', { className: 'mine-add' }), row = el('div', '', { className: 'row' });
-        more.appendChild(el('summary', '+ احفظ مقاسًا خاصًا بيك'));
-        var field = function (label, props) { var l = el('label', label), i = el('input', '', props); l.appendChild(i); row.appendChild(l); return i; };
-        var wBox = field('العرض', { type: 'number', min: 40, max: 4000, step: 1, inputMode: 'numeric' });
-        var hBox = field('الارتفاع', { type: 'number', min: 30, max: 4000, step: 1, inputMode: 'numeric' });
-        var nBox = field('الاسم (اختياري)', { type: 'text', maxLength: 40 });
-        var keep = el('button', 'حفظ المقاس', { type: 'button', className: 'keep' });
-        async function save() {
-          var w = Math.round(Number(wBox.value)), h = Math.round(Number(hBox.value));
-          if (!(w >= 40 && w <= 4000 && h >= 30 && h <= 4000)) { say('اكتب عرض من 40 لـ4000 وارتفاع من 30 لـ4000.'); return; }
-          var back = await opts.save({ w: w, h: h, name: nBox.value });
-          if (back && back.groups) { render(back.groups); wBox.value = ''; hBox.value = ''; nBox.value = ''; say('اتحفظ في «مقاساتي». بيتثبّت مع التصميم لما تضغط حفظ.'); } else say('ما اتحفظش المقاس. اتأكد من العرض والارتفاع.');
-        }
-        keep.onclick = save;
-        [wBox, hBox, nBox].forEach(function (box) { box.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); save(); } }); });
-        row.appendChild(keep); more.appendChild(row); dlg.appendChild(more);
-      }
-      dlg.appendChild(msg);
-      dlg.appendChild(holder); render(groups);
+      (groups || []).forEach(function (group) {
+        var grid = el('div', '', { className: 'grid' });
+        group.sizes.forEach(function (size) { grid.appendChild(shapeCell(size, finish)); });
+        dlg.appendChild(grid);
+      });
       var foot = el('div', '', { className: 'foot' }), cancel = el('button', 'إلغاء', { type: 'button' });
       cancel.onclick = function () { finish(undefined); }; foot.appendChild(cancel); dlg.appendChild(foot);
       dlg.addEventListener('cancel', function (ev) { ev.preventDefault(); finish(undefined); });
@@ -251,10 +212,27 @@
       document.body.appendChild(dlg); dlg.showModal(); auto.focus();
     });
   };
-  // Menu tool: create something (a banner or an image) with an image, at the pointer.
-  window.elanLiveMediaNew = async function (tool, at, size) {
-    var url = await window.elanPickMedia({ optional: tool.id === 'create_banner' });
+  /* The same choice as a field inside a panel that already exists (the section panel, the picture panel…): «أبعاد السيكشن» with automatic first, then the shapes.
+     get() answers null (automatic) or { ratio: [a, b] }. */
+  window.elanRatioField = function (groups, label) {
+    var box = el('div', '', { className: 'ratioField' }), chosen = null, buttons = [];
+    var head = el('div', label || 'أبعاد العنصر', { className: 'ratioHead' }), row = el('div', '', { className: 'ratioRow' });
+    function mark() { buttons.forEach(function (x) { x.btn.setAttribute('aria-pressed', x.value === chosen ? 'true' : 'false'); x.btn.classList.toggle('on', x.value === chosen); }); }
+    function add(btn, value) { buttons.push({ btn: btn, value: value }); btn.onclick = function () { chosen = value; mark(); }; row.appendChild(btn); }
+    add(el('button', 'تلقائي', { type: 'button', className: 'ratioAuto' }), null);
+    (groups || []).forEach(function (group) { group.sizes.forEach(function (size) {
+      var value = { ratio: Array.isArray(size.ratio) ? size.ratio.slice() : [size.w, size.h] }, b = shapeCell(size, function () {});
+      b.onclick = null; add(b, value);
+    }); });
+    box.append(head, row); mark();
+    return { node: box, get: function () { return chosen ? { ratio: chosen.ratio.slice() } : null; } };
+  };
+
+  // Menu tool: create something (a banner or an image) with an image, at the pointer. The dimensions are chosen inside the picture panel.
+  window.elanLiveMediaNew = async function (tool, at) {
+    var holder = { optional: tool.id === 'create_banner', ratios: tool.sizes, ratioLabel: tool.id === 'create_banner' ? 'أبعاد البانر' : 'أبعاد الصورة' };
+    var url = await window.elanPickMedia(holder);
     if (!url && tool.id !== 'create_banner') return;
-    if (typeof runLive === 'function') runLive('tool.run', { id: tool.id, at: at, src: url || undefined, size: size || undefined });
+    if (typeof runLive === 'function') runLive('tool.run', { id: tool.id, at: at, src: url || undefined, size: holder.size || undefined });
   };
 })();

@@ -45,7 +45,7 @@ test('live editor loads and uses the tested geometry with direct pointer draggin
   assert.ok(boot.indexOf('/editor/editor-geometry.js') < boot.indexOf('/edit-mode.js'));
   assert.match(editMode, /var e, mode = 'move'/);
   assert.match(editMode, /Geometry\.move\(g\.r, g\.b/);
-  assert.match(editMode, /Geometry\.resize\(g\.r\.width, g\.r\.height/);
+  assert.match(editMode, /Geometry\.snapStep\(/);
   assert.doesNotMatch(editMode, /registerTool\(\{ id: 'move'/);
   assert.ok(editMode.includes(String.raw`replace(/\r\n?/g, '\n')`));
 });

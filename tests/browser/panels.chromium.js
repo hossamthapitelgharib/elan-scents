@@ -32,6 +32,7 @@ async function openEditor(size, cloud) {
     if (action === 'perfumes') return json({ ok: true, rows: F.PERFUMES });
     if (action === 'library' && lib.fail) return json({ ok: false, error: 'سابابيس لا يردّ' });
     if (action === 'library') return json({ ok: true, library: { media: lib.media, archive: lib.archive, savedElements: lib.savedElements, revision: REVISION } });
+    if (action === 'section.create' && lib.createOk) return json({ ok: true, ref: body.section && body.section.element_id });
     if (action === 'library.delete') {
       deleted.push({ kind: body.kind, id: body.id });
       const list = { archive: 'archive', saved: 'savedElements', media: 'media' }[body.kind];
@@ -86,11 +87,15 @@ async function chooseTool(page, frame, re) {
   assert.ok(at >= 0, 'the menu has ' + re + ': ' + labels.join(' | '));
   await page.locator('#menu > *').nth(at).click();
   await page.waitForTimeout(900);
-  /* creating a picture or a banner first asks for a standard size: Enter takes the first choice, "automatic" */
+  /* a text asks for its dimensions in a window of its own: Enter takes the first choice, "automatic" (the panels carry the field inside them) */
   if (await page.locator('#elanSizeDlg').count()) { await page.keyboard.press('Enter'); await page.waitForTimeout(900); }
 }
 const closeDialogs = (page) => page.evaluate(() => document.querySelectorAll('dialog[open]').forEach((d) => d.close()));
-const shape = (page, selector) => page.evaluate(F.describePanel, { selector, props: F.PROPS });
+/* the «أبعاد السيكشن / البانر / الصورة…» field is the owner's addition (2026-11-10) and is not in the original panels: they are measured without it (it has its own tests below) */
+const shape = async (page, selector) => {
+  await page.evaluate((sel) => document.querySelectorAll(sel + ' .ratioField').forEach((n) => n.remove()), selector);
+  return page.evaluate(F.describePanel, { selector, props: F.PROPS });
+};
 const isAi = (e) => /الذكاء الاصطناعي/.test(e.text);
 /* The original's row under the library window's «إغلاق» (load from the cloud, sync, the AI button and the connection line) was removed
    on the owner's order: none of it did anything the window does not already do by itself. */
@@ -517,3 +522,88 @@ for (const width of [390, 411]) {
     } finally { await context.close(); }
   });
 }
+
+/* Dimensions inside the creation panels (owner, 2026-11-10): a thing that has a panel of its own gets «أبعاد …» as a field in it, not a window before it. */
+const chip = (box, ratio) => box.locator('button').filter({ has: box.page().locator('.dim', { hasText: new RegExp('^' + ratio + '$') }) });
+const dimsOf = (box) => box.locator('.dim').allTextContents();
+const lastBlockInfo = (frame) => frame.evaluate(() => { const st = window.ElanEditMode.state(), b = st.design.blocks[st.design.blocks.length - 1]; const e = ((st.design.edits || {})[st.device] || {})[b.id] || {}; return { id: b.id, type: b.type, w: e.w, h: e.h }; });
+
+test('the section panel has «أبعاد السيكشن» (automatic first, then the shapes) and the section is created with the shape chosen', async () => {
+  const { context, page, frame, calls, errors } = await openEditor(null, { media: [], archive: [], savedElements: [], createOk: true });
+  try {
+    await chooseTool(page, frame, /إنشاء سيكشن/);
+    assert.equal(await page.locator('#elanSizeDlg').count(), 0, 'no separate window before the panel');
+    const field = page.locator('dialog.sectionPanelClean .ratioField');
+    assert.equal((await field.locator('.ratioHead').textContent()).trim(), 'أبعاد السيكشن');
+    const dims = await dimsOf(field);
+    ['1:1', '4:3', '9:16', '16:9'].forEach((n) => assert.ok(dims.includes(n), n + ' is there: ' + dims.join(' ')));
+    assert.equal(await field.locator('button.ratioAuto').getAttribute('aria-pressed'), 'true', 'automatic is the default');
+    assert.ok(await page.evaluate(() => { const d = document.querySelector('dialog.sectionPanelClean'); const r = d.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth && r.bottom <= innerHeight; }), 'the panel still fits the window');
+    const before = await frame.evaluate(() => window.ElanEditMode.state().design.blocks.length);
+    await chip(field, '1:1').click();
+    assert.equal(await chip(field, '1:1').getAttribute('aria-pressed'), 'true'); assert.equal(await field.locator('button.ratioAuto').getAttribute('aria-pressed'), 'false');
+    await page.evaluate(() => { const s = document.querySelector('dialog.sectionPanelClean fieldset select'); s.value = 'automatic'; s.dispatchEvent(new Event('change')); });
+    await page.locator('dialog.sectionPanelClean .sectionGrid input').nth(0).fill('عروض الأسبوع');
+    const purpose = page.locator('dialog.sectionPanelClean .sectionGrid input').nth(1);
+    await purpose.fill('عروض'); await purpose.press('Enter'); await page.waitForTimeout(1200);
+    assert.ok(calls.includes('section.create'), 'the section was sent to be created: ' + calls.join(','));
+    assert.equal(await frame.evaluate(() => window.ElanEditMode.state().design.blocks.length), before + 1, 'and put on the page');
+    const made = await lastBlockInfo(frame);
+    assert.ok(made.w > 0 && made.w === made.h, 'a square section: ' + JSON.stringify(made));
+    assert.deepEqual(errors, []);
+  } finally { await context.close(); }
+});
+
+test('with automatic left as it is, the section is created as before: no fixed size', async () => {
+  const { context, page, frame, errors } = await openEditor(null, { media: [], archive: [], savedElements: [], createOk: true });
+  try {
+    await chooseTool(page, frame, /إنشاء سيكشن/);
+    await page.evaluate(() => { const s = document.querySelector('dialog.sectionPanelClean fieldset select'); s.value = 'automatic'; s.dispatchEvent(new Event('change')); });
+    await page.locator('dialog.sectionPanelClean .sectionGrid input').nth(0).fill('عروض الأسبوع');
+    const purpose = page.locator('dialog.sectionPanelClean .sectionGrid input').nth(1);
+    await purpose.fill('عروض'); await purpose.press('Enter'); await page.waitForTimeout(1200);
+    const made = await lastBlockInfo(frame);
+    assert.equal(made.w, undefined); assert.equal(made.h, undefined);
+    assert.deepEqual(errors, []);
+  } finally { await context.close(); }
+});
+
+test('the card panels have their own dimensions field: «أبعاد كارت البراند», «أبعاد كارت المتجر», «أبعاد كروت العطور»', async () => {
+  const { context, page, frame, errors } = await openEditor();
+  try {
+    for (const [tool, selector, head] of [[/إنشاء كارت براند/, 'dialog[open]', 'أبعاد كارت البراند'], [/إنشاء كارت متجر/, 'dialog[open]', 'أبعاد كارت المتجر'], [/إنشاء كارت عطر/, 'dialog.sectionPanelClean[open]', 'أبعاد كروت العطور']]) {
+      await chooseTool(page, frame, tool);
+      const field = page.locator(selector + ' .ratioField');
+      assert.equal((await field.locator('.ratioHead').textContent()).trim(), head);
+      assert.equal(await field.locator('button.ratioAuto').getAttribute('aria-pressed'), 'true');
+      assert.ok((await dimsOf(field)).includes('16:9'));
+      await closeDialogs(page);
+    }
+    assert.deepEqual(errors, []);
+  } finally { await context.close(); }
+});
+
+test('the picture panel has «أبعاد الصورة» (and «أبعاد البانر» for a banner); a picture chosen from the library is created with the shape picked', async () => {
+  const { context, page, frame, errors } = await openEditor();
+  try {
+    await chooseTool(page, frame, /إنشاء بانر/);
+    await page.waitForSelector('#elanMediaDlg[open]');
+    assert.equal((await page.locator('#elanMediaDlg .ratioField .ratioHead').textContent()).trim(), 'أبعاد البانر');
+    await closeDialogs(page);
+    await chooseTool(page, frame, /إنشاء صورة أو فيديو/);
+    await page.waitForSelector('#elanMediaDlg[open]');
+    const field = page.locator('#elanMediaDlg .ratioField');
+    assert.equal((await field.locator('.ratioHead').textContent()).trim(), 'أبعاد الصورة');
+    // a picture the page accepts (a file of the site's own media storage), as the library would list it
+    await page.context().route('**/api/editor-media*', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, items: [{ kind: 'image', url: 'https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/a1b2.webp', title: 'صورة أولى' }] }) }));
+    const before = await frame.evaluate(() => window.ElanEditMode.state().design.blocks.length);
+    await chip(field, '4:3').click();
+    await page.locator('#elanMediaDlg button', { hasText: 'من مكتبة سابابيس' }).click(); await page.waitForTimeout(700);
+    assert.equal(await page.locator('#elanMediaDlg .ratioField').count(), 1, 'the field stays while the library is shown');
+    await page.locator('#elanMediaDlg button[data-kind="image"]').first().click(); await page.waitForTimeout(1000);
+    assert.equal(await frame.evaluate(() => window.ElanEditMode.state().design.blocks.length), before + 1, 'the picture was created');
+    const made = await lastBlockInfo(frame);
+    assert.ok(made.w > 0 && Math.abs(made.h - made.w * 3 / 4) <= 1, 'in 4:3: ' + JSON.stringify(made));
+    assert.deepEqual(errors, []);
+  } finally { await context.close(); }
+});

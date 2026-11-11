@@ -40,11 +40,11 @@ async function measure(size, label) {
       const timeIt = async (fn) => { const t = now(); await fn(); return now() - t; };
       const creates = [];
       for (let i = 0; i < count; i++) {
-        creates.push(await timeIt(async () => { const made = await mode.execute('tool.run', { id: 'create_text_block', size: { w: 300, h: 120 } }); ids.push(made.elementId); }));
+        creates.push(await timeIt(async () => { const made = await mode.execute('tool.run', { id: 'create_text_block', size: { ratio: [5, 2] } }); ids.push(made.elementId); }));
       }
       const last = ids[ids.length - 1];
       const nudge = await timeIt(() => mode.execute('element.move', { elementId: last, dx: 12, dy: 8 }));
-      const resize = await timeIt(() => mode.execute('element.resize', { elementId: last, size: { w: 336, h: 280 } }));
+      const resize = await timeIt(() => mode.execute('element.resize', { elementId: last, size: { ratio: [4, 5] } }));
       const undo = await timeIt(() => mode.execute('history.undo', {}));
       return { creates, nudge, resize, undo, blocks: mode.state().design.blocks.length, painted: window.ElanDesignLayer.elements().length };
     }, BUDGET.blocks);

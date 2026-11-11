@@ -49,7 +49,6 @@
   /* The owner's own sizes, kept next to the standard ones in the editor's size chooser (the standard list lives in editor/editor-geometry.js).
      They travel with the design file so they follow the owner to every device; the storefront never reads them. The smallest size is the one the editor
      itself accepts for an element (ElanEditorGeometry.MIN_WIDTH/MIN_HEIGHT). */
-  var MY_SIZES = { count: 24, name: 40, minW: 40, minH: 30, max: 4000 };
 
   function isObj(x) { return x !== null && typeof x === 'object' && !Array.isArray(x); }
   function has(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }
@@ -229,25 +228,6 @@
     return out;
   }
 
-  function mySizesOf(raw, errors) {
-    var out = [], seen = {};
-    if (!Array.isArray(raw)) { errors.push('mySizes must be an array'); return out; }
-    if (raw.length > MY_SIZES.count) errors.push('too many saved sizes');
-    raw.slice(0, MY_SIZES.count).forEach(function (item, i) {
-      var where = 'mySizes[' + i + ']';
-      if (!isObj(item)) { errors.push(where + ': not an object'); return; }
-      var w = item.w, h = item.h;
-      if (!(typeof w === 'number' && typeof h === 'number' && w === Math.round(w) && h === Math.round(h) &&
-        w >= MY_SIZES.minW && w <= MY_SIZES.max && h >= MY_SIZES.minH && h <= MY_SIZES.max)) { errors.push(where + ': size out of range'); return; }
-      var key = w + 'x' + h;
-      if (seen[key]) { errors.push(where + ': duplicate size'); return; }
-      seen[key] = true;
-      var name = str(item.name, MY_SIZES.name);
-      out.push(name ? { w: w, h: h, name: name } : { w: w, h: h });
-    });
-    return out;
-  }
-
   function cardOrderOf(raw, errors, where) {
     var out = {};
     if (!isObj(raw)) { errors.push(where + ': not an object'); return out; }
@@ -384,10 +364,6 @@
       var cards = cardOrderOf(input.cardOrder, errors, 'cardOrder');
       if (Object.keys(cards).length) design.cardOrder = cards;
     }
-    if (input.mySizes !== undefined) {
-      var mine = mySizesOf(input.mySizes, errors);
-      if (mine.length) design.mySizes = mine;
-    }
 
     var ok = isObj(input) && input.version === VERSION && (!strict || errors.length === 0);
     return { ok: ok, design: design, errors: errors };
@@ -396,7 +372,7 @@
   function isEmpty(design) {
     return !design || (!Object.keys(design.sections || {}).length && !(design.blocks || []).length &&
       !(design.order || []).length && !Object.keys(design.texts || {}).length && !Object.keys(design.pages || {}).length &&
-      !Object.keys(design.edits || {}).length && !Object.keys(design.cardOrder || {}).length && !(design.mySizes || []).length);
+      !Object.keys(design.edits || {}).length && !Object.keys(design.cardOrder || {}).length);
   }
 
   /* Canonical text that gets committed. Throws if it would be unsafe to commit. */
@@ -443,7 +419,7 @@
   }
 
   return {
-    VERSION: VERSION, BUILTIN: BUILTIN, TEXT_KEYS: TEXT_KEYS, LIMITS: LIMITS, MY_SIZES: MY_SIZES, isVideoUrl: isVideoUrl,
+    VERSION: VERSION, BUILTIN: BUILTIN, TEXT_KEYS: TEXT_KEYS, LIMITS: LIMITS, isVideoUrl: isVideoUrl,
     DEVICES: DEVICES, FONTS: FONTS, DEVICE_FONTS: DEVICE_FONTS, LOCAL_FONTS: LOCAL_FONTS, WEB_FONTS: WEB_FONTS, EFFECTS: EFFECTS, BREAKPOINTS: BREAKPOINTS, EDIT_ID_RE: EDIT_ID_RE,
     normalize: normalize, isEmpty: isEmpty, serialize: serialize, plan: plan, applyTexts: applyTexts,
     deviceOf: deviceOf, editFor: editFor,

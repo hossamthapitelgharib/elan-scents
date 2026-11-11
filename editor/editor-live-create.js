@@ -92,10 +92,10 @@
 
   var KINDS = { section: 1, brand: 1, store: 1, perfume: 1, occasion: 1, note: 1 };
   var NAME_KINDS = {
-    brand: { key: 'brand', title: 'إنشاء كارت براند', label: 'اسم البراند', required: 'اكتب اسم البراند', done: 'تم إنشاء كارت البراند.' },
-    store: { key: 'store', title: 'إنشاء كارت متجر', label: 'اسم المتجر', required: 'اكتب اسم المتجر', done: 'تم إنشاء كارت المتجر.' },
-    occasion: { key: 'occ', title: 'إنشاء كارت مناسبة', label: 'اسم المناسبة', required: 'اكتب الاسم', done: 'تم إنشاء كارت المناسبة.' },
-    note: { key: 'note', title: 'إنشاء كارت نوتة عطرية', label: 'اسم النوتة العطرية', required: 'اكتب الاسم', done: 'تم إنشاء كارت النوتة.' }
+    brand: { key: 'brand', title: 'إنشاء كارت براند', dim: 'أبعاد كارت البراند', label: 'اسم البراند', required: 'اكتب اسم البراند', done: 'تم إنشاء كارت البراند.' },
+    store: { key: 'store', title: 'إنشاء كارت متجر', dim: 'أبعاد كارت المتجر', label: 'اسم المتجر', required: 'اكتب اسم المتجر', done: 'تم إنشاء كارت المتجر.' },
+    occasion: { key: 'occ', title: 'إنشاء كارت مناسبة', dim: 'أبعاد كارت المناسبة', label: 'اسم المناسبة', required: 'اكتب الاسم', done: 'تم إنشاء كارت المناسبة.' },
+    note: { key: 'note', title: 'إنشاء كارت نوتة عطرية', dim: 'أبعاد كارت النوتة', label: 'اسم النوتة العطرية', required: 'اكتب الاسم', done: 'تم إنشاء كارت النوتة.' }
   };
   var EMPTY_PICKS = 'أضف عطرًا من القائمة أولًا، أو اختر فلاتر لها نتائج في الوضع التلقائي.';
 
@@ -132,14 +132,14 @@
   function rid() { var a = new Uint8Array(5); root.crypto.getRandomValues(a); return Array.prototype.map.call(a, function (b) { return (b % 36).toString(36); }).join(''); }
 
   /* Create the central section first, then the block that references it, inside the platform page through the bridge. */
-  function commit(kind, section, at) {
+  function commit(kind, section, at, size) {
     var live = root.elanLiveEditorBridge;
     if (!live || typeof live.request !== 'function' || !live.getState().connected) return Promise.reject(new Error('وضع التحرير غير جاهز.'));
     var elementId = 'x-' + rid();
     section.element_id = elementId;
     return data('section.create', { section: section }).then(function (j) {
       if (!j.ref || j.ref !== elementId) throw new Error('لم يتم تأكيد إنشاء القسم المركزي.');
-      return live.request('element.create', { kind: 'smart', ref: j.ref, semanticKind: kind, at: at || null });
+      return live.request('element.create', { kind: 'smart', ref: j.ref, semanticKind: kind, at: at || null, size: size || undefined });
     });
   }
 
@@ -235,8 +235,9 @@
   }
 
   /* ---------- name-only panels: brand, store, occasion, note (the original's 380px panel) ---------- */
-  function openName(kind, at) {
+  function openName(kind, at, ratios) {
     var spec = NAME_KINDS[kind];
+    var field = ratios && root.elanRatioField ? root.elanRatioField(ratios, spec.dim) : null;      // «أبعاد كارت البراند»: automatic, or one of the common shapes
     var dlg = h('dialog', { style: 'width:380px;max-width:92vw;padding:22px;background:#fffdf8;border:1px solid #c6aa70;border-radius:14px' });
     var title = h('h3', { text: spec.title, style: 'margin:0 0 18px;color:#87652d' });
     var input = h('input', { type: 'text', autocomplete: 'off', maxlength: '120', style: 'display:block;width:100%;margin-top:8px;padding:10px;background:white' });
@@ -244,7 +245,7 @@
     var create = h('button', { text: 'إنشاء', style: 'flex:1;background:#29251e;color:#f0dfb9' });
     var cancel = h('button', { text: 'إلغاء', style: 'flex:1' });
     var actions = h('div', { style: 'display:flex;gap:10px;margin-top:18px' }, [create, cancel]);
-    dlg.append(title, label, actions);
+    dlg.append(title, label); if (field) dlg.appendChild(field.node); dlg.appendChild(actions);
     function fail(text) { failure(dlg, actions, text); }
     input.addEventListener('input', function () { input.setCustomValidity(''); fail(''); });
     input.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); create.click(); } });
@@ -256,7 +257,7 @@
       data('catalog.create', { kind: kind, name: value }).then(function (catalog) {
         if (!catalog.record || !catalog.record.id || !catalog.record.name) throw new Error('لم يتم تأكيد مطابقة أو إنشاء سجل الكتالوج.');
         var filters = {}; filters[spec.key] = String(catalog.record.name);
-        return commit(kind, { name: String(catalog.record.name), purpose: kind, selection_mode: 'auto', filters: filters, product_size_ids: [], timer: { mode: 'none' } }, at);
+        return commit(kind, { name: String(catalog.record.name), purpose: kind, selection_mode: 'auto', filters: filters, product_size_ids: [], timer: { mode: 'none' } }, at, field && field.get());
       }).then(function () { closePanel(); toast(spec.done + ' اضغط حفظ لنشرها.'); })
         .catch(function (e) { fail((e && e.message) || 'تعذر الإنشاء.'); create.disabled = cancel.disabled = false; create.textContent = 'إنشاء'; });
     };
@@ -264,8 +265,9 @@
   }
 
   /* ---------- section and perfume-card panel (the original's .sectionPanelClean dialog) ---------- */
-  function openSection(kind, at) {
+  function openSection(kind, at, ratios) {
     var perfume = kind === 'perfume';
+    var field = ratios && root.elanRatioField ? root.elanRatioField(ratios, perfume ? 'أبعاد كروت العطور' : 'أبعاد السيكشن') : null;      // automatic, or one of the common shapes
     var picks = [], results = [], serial = 0;
 
     var nameInput = h('input', { type: 'text', autocomplete: 'off', maxlength: '120' });
@@ -310,8 +312,7 @@
     var cancel = h('button', { text: 'إلغاء' });
     var actions = h('div', { class: 'actions' }, [save, cancel]);
     var dlg = h('dialog', { class: 'sectionPanelClean', style: 'width:760px;max-height:90vh' }, [
-      h('h3', { text: perfume ? 'إنشاء كارت عطر' : 'إنشاء سيكشن' }), basics, content, timerBox, actions
-    ]);
+      h('h3', { text: perfume ? 'إنشاء كارت عطر' : 'إنشاء سيكشن' }), basics, content, timerBox].concat(field ? [field.node] : [], [actions]));
 
     function fail(text) { failure(dlg, actions, text); }
     function currentFilters() {
@@ -434,7 +435,7 @@
       var check = perfume && mode.value === 'automatic'
         ? data('perfumes', { filters: model.filters.provider }).then(function (j) { if (!validRows(j.rows) || !j.rows.length) throw new Error(EMPTY_PICKS); })
         : Promise.resolve();
-      check.then(function () { return commit(kind, body, at); })
+      check.then(function () { return commit(kind, body, at, field && field.get()); })
         .then(function () { closePanel(); toast((perfume ? 'تم إنشاء كروت العطور.' : 'تم إنشاء السيكشن.') + ' اضغط حفظ لنشره.'); })
         .catch(function (e) {
           fail((e && e.message) || 'تعذر الإنشاء.');
@@ -448,16 +449,16 @@
     loadOptions();
   }
 
-  function open(kind, at) {
+  function open(kind, at, ratios) {
     if (!KINDS[kind]) throw new Error('نوع إنشاء غير مدعوم: ' + kind);
-    if (NAME_KINDS[kind]) openName(kind, at); else openSection(kind, at);
+    if (NAME_KINDS[kind]) openName(kind, at, ratios); else openSection(kind, at, ratios);
   }
 
   /* The host menu calls this for the tools whose ui is "create" (ids create_section, create_brand, ...). */
   root.elanLiveCreate = function (tool, at) {
     var match = /^create_(section|brand|store|perfume|occasion|note)$/.exec(tool && tool.id || '');
     if (!match) throw new Error('أداة إنشاء غير معروفة.');
-    open(match[1], at);
+    open(match[1], at, tool && tool.sizes);
   };
   root.elanLiveCreatePanels = { open: open, close: closePanel, helpers: helpers };
 })(typeof window !== 'undefined' ? window : null);

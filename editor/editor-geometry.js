@@ -30,20 +30,6 @@
     };
   }
 
-  /* The same as resize(), but the shape of the element does not change (the owner holds Shift while dragging the corner): the side that was
-     pulled further, in proportion to its own size, decides, and the other side follows. The result stays inside the limits with the same shape,
-     so a tiny or huge drag shrinks or stops the whole element rather than squashing one side. */
-  function resizeKeepingShape(width, height, deltaX, deltaY) {
-    var w0 = Number(width) || 0, h0 = Number(height) || 0;
-    if (!(w0 > 0 && h0 > 0)) return resize(width, height, deltaX, deltaY);
-    var sx = (w0 + (Number(deltaX) || 0)) / w0, sy = (h0 + (Number(deltaY) || 0)) / h0;
-    var scale = Math.abs(sx - 1) >= Math.abs(sy - 1) ? sx : sy;
-    var lowest = Math.max(MIN_WIDTH / w0, MIN_HEIGHT / h0), highest = Math.min(MAX_SIZE / w0, MAX_SIZE / h0);
-    if (lowest > highest) return resize(width, height, deltaX, deltaY);   // a shape too long to keep inside both limits: fall back to the free rule
-    scale = Math.max(lowest, Math.min(highest, scale));
-    return { w: Math.max(MIN_WIDTH, Math.min(MAX_SIZE, Math.round(w0 * scale))), h: Math.max(MIN_HEIGHT, Math.min(MAX_SIZE, Math.round(h0 * scale))) };
-  }
-
   /* Common shapes (width:height) for an owner who thinks in shapes and not in pixels. They are examples, not a closed list: the editor shows them first,
      and an element can also be dragged to any other shape. A ratio has no size of its own, so choosing one needs a width (see sizeFromRatio). */
   var RATIOS = [
@@ -76,31 +62,36 @@
     return found;
   }
 
-  /* The standard sizes (in pixels) an element can be given instead of a random one: the IAB web-banner set, the usual social-media
-     sizes, the common screen ratios and print paper at 96 ppi. Every entry is inside the limits the design file accepts (see design-schema.js);
-     tests/editor-sizes.test.js checks that. The editor shows them grouped, the first choice always being "automatic" (no fixed size). */
-  var SIZE_GROUPS = [
-    { id: 'web', label: 'بانرات الويب (IAB)', sizes: [
-      { w: 728, h: 90, label: 'ليدربورد' }, { w: 970, h: 250, label: 'بيلبورد' }, { w: 970, h: 90, label: 'ليدربورد كبير' }, { w: 468, h: 60, label: 'بانر كلاسيكي' },
-      { w: 300, h: 250, label: 'مستطيل متوسط' }, { w: 336, h: 280, label: 'مستطيل كبير' }, { w: 300, h: 600, label: 'نصف صفحة' }, { w: 160, h: 600, label: 'ناطحة سحاب عريضة' },
-      { w: 320, h: 50, label: 'بانر موبايل' }, { w: 320, h: 100, label: 'بانر موبايل كبير' }
-    ] },
-    { id: 'social', label: 'سوشيال ميديا', sizes: [
-      { w: 1080, h: 1080, label: 'بوست مربع 1:1' }, { w: 1080, h: 1350, label: 'بوست طولي 4:5' }, { w: 1080, h: 1920, label: 'ستوري / ريلز 9:16' },
-      { w: 1200, h: 630, label: 'مشاركة رابط (Open Graph)' }, { w: 1280, h: 720, label: 'صورة يوتيوب المصغّرة' }, { w: 820, h: 312, label: 'غلاف فيسبوك' },
-      { w: 1500, h: 500, label: 'غلاف X' }, { w: 1584, h: 396, label: 'غلاف لينكدإن' },
-      { w: 1000, h: 1500, label: 'بن بنترست 2:3' }, { w: 1080, h: 566, label: 'بوست أفقي إنستجرام' }, { w: 2560, h: 1440, label: 'غلاف قناة يوتيوب' }, { w: 400, h: 400, label: 'صورة بروفايل' }
-    ] },
-    { id: 'screen', label: 'شاشات وأجهزة', sizes: [
-      { w: 1920, h: 1080, label: 'Full HD 16:9' }, { w: 1600, h: 900, label: '16:9' }, { w: 3840, h: 2160, label: '4K 16:9' },
-      { w: 1024, h: 768, label: '4:3' }, { w: 1200, h: 800, label: '3:2' }, { w: 1000, h: 1000, label: 'مربع 1:1' },
-      { w: 1366, h: 768, label: 'شاشة لابتوب' }, { w: 820, h: 1180, label: 'تابلت (آيباد)' }, { w: 390, h: 844, label: 'موبايل (آيفون)' }, { w: 360, h: 800, label: 'موبايل (أندرويد)' }
-    ] },
-    { id: 'print', label: 'ورق الطباعة (96 نقطة/بوصة)', sizes: [
-      { w: 794, h: 1123, label: 'A4' }, { w: 559, h: 794, label: 'A5' }, { w: 397, h: 559, label: 'A6' }, { w: 1123, h: 1587, label: 'A3' },
-      { w: 1123, h: 794, label: 'A4 عرضي' }, { w: 816, h: 1056, label: 'ليتر (Letter)' }, { w: 336, h: 192, label: 'كارت أعمال' }
-    ] }
+  /* The saved relative sizes an element steps through when it is dragged bigger or smaller: a share of the width it has room for (the page, or the box it sits in).
+     No pixel numbers: «نص العرض» is half of the room whatever the screen. The element keeps its own shape (length to width) on every step. */
+  var STEPS = [
+    { pct: 10, name: '10% من العرض' }, { pct: 15, name: '15% من العرض' }, { pct: 20, name: '20% من العرض' }, { pct: 25, name: 'ربع العرض' },
+    { pct: 33, name: 'تلت العرض' }, { pct: 40, name: '40% من العرض' }, { pct: 50, name: 'نص العرض' }, { pct: 60, name: '60% من العرض' },
+    { pct: 67, name: 'تلتين العرض' }, { pct: 75, name: 'تلات أرباع العرض' }, { pct: 80, name: '80% من العرض' }, { pct: 90, name: '90% من العرض' }, { pct: 100, name: 'العرض كامل' }
   ];
+
+  /* The steps for a room of this width, smallest first, each with the width it means in pixels; the ones narrower than an element may be are left out. */
+  function widthSteps(room) {
+    var r = Number(room) || 0, out = [];
+    if (!(r > 0)) return out;
+    STEPS.forEach(function (st) {
+      var w = Math.round(r * st.pct / 100);
+      if (w >= MIN_WIDTH && w <= MAX_SIZE && (!out.length || out[out.length - 1].w !== w)) out.push({ pct: st.pct, name: st.name, w: w });
+    });
+    return out;
+  }
+
+  /* Where a drag of the corner lands: `want` is the width the pointer asks for; the answer is the saved size nearest to it (never a free size), with the height the
+     element's own shape (startW x startH) gives. Pulling on past a step moves on to the next one (or back to the one before), so every step can be reached. */
+  function snapStep(startW, startH, room, want) {
+    var steps = widthSteps(room), w0 = Number(startW) || 0, h0 = Number(startH) || 0, target = Number(want) || 0;
+    if (!steps.length || !(w0 > 0 && h0 > 0)) return null;
+    var best = steps[0];
+    steps.forEach(function (st) { if (Math.abs(st.w - target) < Math.abs(best.w - target)) best = st; });
+    var size = sizeFromRatio(w0, h0, best.w);
+    if (!size) return null;
+    return { w: size.w, h: size.h, pct: best.pct, name: best.name };
+  }
 
   /* The size to really use: when it is wider than the room the element has (a phone, a narrow card), it is scaled down to that width
      keeping its shape, so a 728x90 banner stays an 8:1 strip on a 360px screen. Always inside the limits of a saved size. */
@@ -163,5 +154,5 @@
     return [].concat.apply([], groups);
   }
 
-  return { move: move, resize: resize, resizeKeepingShape: resizeKeepingShape, RATIOS: RATIOS, sizeFromRatio: sizeFromRatio, ratioName: ratioName, SIZE_GROUPS: SIZE_GROUPS, fitSize: fitSize, dropSlot: dropSlot, reorder: reorder, reorderSticky: reorderSticky, MIN_WIDTH: MIN_WIDTH, MIN_HEIGHT: MIN_HEIGHT, MAX_SIZE: MAX_SIZE };
+  return { move: move, resize: resize, RATIOS: RATIOS, sizeFromRatio: sizeFromRatio, ratioName: ratioName, STEPS: STEPS, widthSteps: widthSteps, snapStep: snapStep, fitSize: fitSize, dropSlot: dropSlot, reorder: reorder, reorderSticky: reorderSticky, MIN_WIDTH: MIN_WIDTH, MIN_HEIGHT: MIN_HEIGHT, MAX_SIZE: MAX_SIZE };
 });

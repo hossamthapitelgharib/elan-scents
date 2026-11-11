@@ -15,42 +15,18 @@
   var SECTIONS_NAMES = { section: 1 };
 
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
-  /* A standard size chosen in the editor ({w, h}, pixels): refused unless it is inside the limits of a saved size; scaled down (same shape) to the room
-     the element has when it is wider than that, so on a phone a 728x90 banner is a full-width strip and never wider than the screen. */
+  /* The dimensions chosen in the editor: a common shape ({ ratio: [16, 9] }), turned into a size at a width (the width an element has now, or a new element's usual one).
+     Anything else is refused before anything is created. The size is scaled down (same shape) to the room the element has when it is wider than that. */
   function sizeArg(v, width) {
     if (v === undefined || v === null) return null;
-    if (v && v.ratio !== undefined) {   // a common shape ("16:9") instead of pixels: it takes the width the element has (or a new element's usual width)
-      var a = Math.round(+(v.ratio && v.ratio[0])), b = Math.round(+(v.ratio && v.ratio[1]));
-      var made = a >= 1 && a <= 100 && b >= 1 && b <= 100 && Geometry.sizeFromRatio ? Geometry.sizeFromRatio(a, b, width || baseWidth(null)) : null;
-      if (!made) throw new Error('نسبة غير صالحة.');
-      return made;
-    }
-    var w = Math.round(+(v && v.w)), h = Math.round(+(v && v.h)), lo = Geometry.MIN_WIDTH || 40, lh = Geometry.MIN_HEIGHT || 30, hi = Geometry.MAX_SIZE || 4000;
-    if (!(w >= lo && w <= hi && h >= lh && h <= hi)) throw new Error('مقاس غير صالح.');
-    return { w: w, h: h };
+    var a = Math.round(+(v && v.ratio && v.ratio[0])), b = Math.round(+(v && v.ratio && v.ratio[1]));
+    var made = a >= 1 && a <= 100 && b >= 1 && b <= 100 && Geometry.sizeFromRatio ? Geometry.sizeFromRatio(a, b, width || baseWidth(null)) : null;
+    if (!made) throw new Error('أبعاد غير صالحة.');
+    return made;
   }
-  /* The size groups the chooser shows: the owner's own saved sizes first (they travel with the design file), then the standard ones. */
+  /* What the chooser shows: the common shapes (ratios) only, as examples. No pixel sizes: the owner does not read them (2026-11-10). */
   function sizeGroups() {
-    var groups = (Geometry.SIZE_GROUPS || []).slice(), mine = work && work.mySizes || [];
-    if (Geometry.RATIOS) groups.unshift({ id: 'ratio', label: 'نسب شائعة (أمثلة)', sizes: Geometry.RATIOS.map(function (r) { return { ratio: [r.w, r.h], label: r.label }; }) });
-    if (mine.length) groups.unshift({ id: 'mine', label: 'مقاساتي', sizes: mine.map(function (m) { return { w: m.w, h: m.h, label: m.name || '', mine: true }; }) });
-    return groups;
-  }
-  function saveMySize(p) {
-    var size = sizeArg(p), name = typeof (p && p.name) === 'string' ? p.name.replace(/[\u0000-\u001F\u007F]/g, '').trim().slice(0, ED.MY_SIZES ? ED.MY_SIZES.name : 40) : '', limit = ED.MY_SIZES ? ED.MY_SIZES.count : 24;
-    if (!size) throw new Error('اكتب العرض والارتفاع.');
-    var mine = (work.mySizes || []).filter(function (m) { return !(m.w === size.w && m.h === size.h); });
-    if (mine.length >= limit) throw new Error('وصلت للحد الأقصى (' + limit + ' مقاس). احذف مقاسًا أولًا.');
-    mutate(function (d) { mine.push(name ? { w: size.w, h: size.h, name: name } : { w: size.w, h: size.h }); d.mySizes = mine; });
-    return { groups: sizeGroups() };
-  }
-  function removeMySize(p) {
-    var size = sizeArg(p);
-    if (!size) throw new Error('حدّد المقاس المراد حذفه.');
-    var mine = (work.mySizes || []).filter(function (m) { return !(m.w === size.w && m.h === size.h); });
-    if (mine.length === (work.mySizes || []).length) throw new Error('المقاس ده مش في مقاساتك.');
-    mutate(function (d) { if (mine.length) d.mySizes = mine; else delete d.mySizes; });
-    return { groups: sizeGroups() };
+    return Geometry.RATIOS ? [{ id: 'ratio', label: 'أبعاد شائعة (أمثلة)', sizes: Geometry.RATIOS.map(function (r) { return { ratio: [r.w, r.h], label: r.label }; }) }] : [];
   }
   /* The width an element can really use: the inside of the box it sits in (its padding left out). A new element has no box yet, so it is the one the page puts new blocks in. */
   function roomOf(box) {
@@ -70,6 +46,8 @@
   /* The width a common shape is made at: an element that exists keeps the width it has now (only its height follows the shape); a new one takes the room
      it has, up to 480 pixels, so on a phone it is a full-width block. */
   function baseWidth(id) {
+    var saved = id && work && work.edits && work.edits[device()] && work.edits[device()][id];   // a width it was already given on this screen size wins over what is drawn
+    if (saved && saved.w) return saved.w;
     var e = id && entryById(id), w = e && e.el && e.el.getBoundingClientRect().width;
     return w ? Math.round(w) : Math.min(480, roomFor(null));
   }
@@ -198,7 +176,7 @@
     '.eo-place{position:fixed;top:10px;left:50%;transform:translateX(-50%);background:#29251c;color:#fff;border:1px solid #c8962a;padding:9px 16px;border-radius:9px;font-size:13px;display:none;max-width:92vw;text-align:center;pointer-events:none}' +
     'html.eo-placing,html.eo-placing *{cursor:crosshair !important}' +
     '[contenteditable]{outline:2px dashed #c8962a;outline-offset:2px}' +
-    '</style><div class="eo-drop"></div><div class="eo-place"></div><div class="eo-box"><span class="eo-tag"></span><i class="eo-h" data-h="se" title="اسحب لتغيير الحجم. Shift لتثبيت النسبة"></i></div><div class="eo-size"></div><div class="eo-msg"></div>' +
+    '</style><div class="eo-drop"></div><div class="eo-place"></div><div class="eo-box"><span class="eo-tag"></span><i class="eo-h" data-h="se" title="اسحب لتكبير أو تصغير العنصر"></i></div><div class="eo-size"></div><div class="eo-msg"></div>' +
     '<div class="eo-dlg"><div><b class="eo-dt"></b><input type="text" class="eo-di" dir="ltr"><p class="eo-dh" style="margin:0 0 8px;color:#7a6a52"></p><button class="eo-ok">تأكيد</button><button class="eo-no">إلغاء</button></div></div>';
   document.body.appendChild(root);
 
@@ -404,30 +382,30 @@
     });
     say('اتنقل العنصر، وباقي العناصر اتزاحت تلقائي. (Alt مع السحب = تحريك حر)');
   }
-  /* One step of dragging a corner or an edge handle: the size follows the pointer (Shift keeps the shape), the opposite edge stays where it was,
-     and a small label beside the pointer tells the owner the size he is making. Also run when Shift is pressed or let go in the middle of a drag. */
-  function stepResize(g, ddx, ddy, keepShape) {
-    var h = g.handle, w = g.r.width, hh = g.r.height;
-    if (h.indexOf('e') !== -1) w = g.r.width + ddx; if (h.indexOf('w') !== -1) w = g.r.width - ddx;
-    if (h.indexOf('s') !== -1) hh = g.r.height + ddy; if (h.indexOf('n') !== -1) hh = g.r.height - ddy;
-    var locked = !!keepShape && h.length === 2;                 // only a corner has two sides to keep in shape
-    var size = locked ? Geometry.resizeKeepingShape(g.r.width, g.r.height, w - g.r.width, hh - g.r.height) : Geometry.resize(g.r.width, g.r.height, w - g.r.width, hh - g.r.height);
-    w = size.w; hh = size.h;
-    if (h.length === 2 || h === 'e' || h === 'w') { g.el.style.width = w + 'px'; g.el.style.maxWidth = 'none'; g.el.style.flex = '0 0 auto'; g.w = w; }
-    if (h.length === 2 || h === 'n' || h === 's') { g.el.style.height = hh + 'px'; g.h = hh; }
-    // keep the opposite edge where it was, whatever the page direction is
+  /* Dragging the corner makes the element bigger or smaller by saved relative sizes only (a share of the room it has: «نص العرض», «ربع العرض»…), never a free size,
+     and the element keeps its own shape (length to width). It rests on the saved size nearest to the pointer, so pulling on goes to the next size and pulling back to
+     the one before; the size is written beside the pointer, and the opposite edge stays where it was, whatever the page direction is. */
+  function stepResize(g, ddx, ddy) {
+    var h = g.handle, w0 = g.r.width, h0 = g.r.height;
+    var sx = h.indexOf('e') !== -1 ? (w0 + ddx) / w0 : h.indexOf('w') !== -1 ? (w0 - ddx) / w0 : null;
+    var sy = h.indexOf('s') !== -1 ? (h0 + ddy) / h0 : h.indexOf('n') !== -1 ? (h0 - ddy) / h0 : null;
+    var scale = sx === null ? sy : sy === null ? sx : (Math.abs(sx - 1) >= Math.abs(sy - 1) ? sx : sy);   // the side pulled further (in proportion to itself) decides
+    var step = Geometry.snapStep && w0 > 0 && h0 > 0 ? Geometry.snapStep(w0, h0, roomFor(g.id), w0 * scale) : null;
+    var size = step || Geometry.resize(w0, h0, 0, 0);                                                     // no saved sizes to step through: the element stays as it is
+    g.el.style.width = size.w + 'px'; g.el.style.maxWidth = 'none'; g.el.style.flex = '0 0 auto'; g.w = size.w;
+    g.el.style.height = size.h + 'px'; g.h = size.h;
     var nr = g.el.getBoundingClientRect(), ox = 0, oy = 0;
     if (h.indexOf('e') !== -1) ox = g.r.left - nr.left; else if (h.indexOf('w') !== -1) ox = g.r.right - nr.right;
     if (h.indexOf('s') !== -1) oy = g.r.top - nr.top; else if (h.indexOf('n') !== -1) oy = g.r.bottom - nr.bottom;
     g.dx = Math.round(g.b.dx + ox); g.dy = Math.round(g.b.dy + oy);
     g.el.style.transform = 'translate(' + g.dx + 'px,' + g.dy + 'px)';
-    showSize(g, Math.round(nr.width), Math.round(nr.height), locked);
+    showSize(g, step, Math.round(nr.width), Math.round(nr.height));
   }
-  /* the label shows the size the element really has on the page (what a chosen standard size would be called), kept inside the window */
-  function showSize(g, w, h, locked) {
+  /* the label beside the pointer: the saved size reached («نص العرض») and, when the element's shape is a common one, its name («16:9»); kept inside the window */
+  function showSize(g, step, w, h) {
     var at = g.last || { x: g.sx, y: g.sy };
     var shape = Geometry.ratioName ? Geometry.ratioName(w, h) : '';
-    sizeEl.textContent = w + ' \u00d7 ' + h + (shape ? ' \u2022 ' + shape : '') + (locked ? ' \u2022 نسبة ثابتة' : '');
+    sizeEl.textContent = (step ? step.name : w + ' \u00d7 ' + h) + (shape ? ' \u2022 ' + shape : '');
     sizeEl.style.display = 'block';
     var bw = sizeEl.offsetWidth, bh = sizeEl.offsetHeight, vw = window.innerWidth, vh = window.innerHeight;
     var left = at.x + 16, top = at.y + 20;
@@ -436,14 +414,6 @@
     sizeEl.style.left = Math.max(4, left) + 'px'; sizeEl.style.top = Math.max(4, top) + 'px';
   }
   function hideSize() { sizeEl.style.display = 'none'; }
-  function shiftChanged(ev) {
-    if (ev.key !== 'Shift' || !gesture || gesture.mode !== 'resize' || !gesture.moved || !gesture.last) return;
-    var g = gesture;
-    stepResize(g, g.last.x - g.sx, g.last.y - g.sy, ev.type === 'keydown');
-    placeBox();
-  }
-  window.addEventListener('keydown', shiftChanged, true);
-  window.addEventListener('keyup', shiftChanged, true);
   function endGesture(g) {
     hideSize();
     hideDrop();
@@ -563,7 +533,7 @@
       else { g.slot = null; hideDrop(); }
     } else {
       g.last = { x: ev.clientX, y: ev.clientY };
-      stepResize(g, ddx, ddy, !!ev.shiftKey);
+      stepResize(g, ddx, ddy);
     }
     placeBox();
   }, true);
@@ -1015,7 +985,7 @@
   var TOOLS = [];
   function registerTool(t) { TOOLS = TOOLS.filter(function (x) { return x.id !== t.id; }).concat([t]); }
   function toolList(i) {
-    return TOOLS.filter(function (t) { return !t.show || t.show(i); }).map(function (t) { var d = { id: t.id, label: typeof t.label === 'function' ? t.label(i) : t.label, ui: t.ui || null, enabled: t.when ? !!t.when(i) : true }; if (t.sizes) d.sizes = sizeGroups(); return d; });
+    return TOOLS.filter(function (t) { return !t.show || t.show(i); }).map(function (t) { var d = { id: t.id, label: typeof t.label === 'function' ? t.label(i) : t.label, ui: t.ui || null, enabled: t.when ? !!t.when(i) : true }; if (t.sizes) { d.sizes = sizeGroups(); d.sizeUi = t.sizeUi || 'dialog'; } return d; });
   }
   /* ---- default pages: one design for every product / brand / store page; a page that has its own edits keeps them ---- */
   var KIND_NAMES = { prod: 'كل صفحات المنتجات', brand: 'كل صفحات البراندات', store: 'كل صفحات المتاجر' };
@@ -1037,9 +1007,9 @@
   function has(i) { return !!i; }
   function hasText(i) { return !!(i && i.canText); }
   registerTool({ id: 'format', label: 'تنسيق النص: الخط • اللون • الحجم • 3D', ui: 'format', when: has });
-  [['create_section', 'إنشاء سيكشن'], ['create_brand', 'إنشاء كارت براند'], ['create_store', 'إنشاء كارت متجر'], ['create_perfume', 'إنشاء كارت عطر'], ['create_occasion', 'إنشاء مناسبة'], ['create_note', 'إنشاء نوتة عطر']].forEach(function (x) { registerTool({ id: x[0], label: x[1], ui: 'create', run: function (c) { return createSmart(x[0].replace('create_', ''), c); } }); });
+  [['create_section', 'إنشاء سيكشن'], ['create_brand', 'إنشاء كارت براند'], ['create_store', 'إنشاء كارت متجر'], ['create_perfume', 'إنشاء كارت عطر'], ['create_occasion', 'إنشاء مناسبة'], ['create_note', 'إنشاء نوتة عطر']].forEach(function (x) { registerTool({ id: x[0], label: x[1], ui: 'create', sizes: true, sizeUi: 'panel', run: function (c) { return createSmart(x[0].replace('create_', ''), c); } }); });
   registerTool({ id: 'create_text_block', label: 'إنشاء كتلة نصية', sizes: true, run: function (c) { return createBlock('text_block', { at: c.at, size: c.size }); } });
-  registerTool({ id: 'create_banner', label: 'إنشاء بانر صورة أو فيديو', ui: 'media_new', sizes: true, run: function (c) { return createBlock('banner', { at: c.at, image: c.src, size: c.size }); } });
+  registerTool({ id: 'create_banner', label: 'إنشاء بانر صورة أو فيديو', ui: 'media_new', sizes: true, sizeUi: 'panel', run: function (c) { return createBlock('banner', { at: c.at, image: c.src, size: c.size }); } });
   registerTool({ id: 'create_text', label: 'إنشاء نص', sizes: true, run: function (c) { return createBlock('text', { at: c.at, float: true, text: 'اكتب نصك هنا', size: c.size }); } });
   registerTool({ id: 'media', label: 'رفع صورة أو فيديو داخل العناصر أو الهيرو', ui: 'media', when: function (i) { return !!i && ['text', 'text_block'].indexOf(i.type) === -1; }, run: function (c) { return mediaPrompt(c.id).then(function (src) { setMedia(c.id, src); return null; }); } });
   registerTool({ id: 'media_delete', label: 'حذف ميديا الكارت أو الهيرو إلى الأرشيف', when: function (i) { return !!i && !!i.hasMedia; }, run: deleteMedia });
@@ -1050,9 +1020,9 @@
   function notBar(i) { return has(i) && i.kind !== 'top-bar'; }
   registerTool({ id: 'library_save', label: 'حفظ العنصر في المكتبة', when: notBar, run: saveToLibrary });
   registerTool({ id: 'library_download', label: 'تنزيل العنصر للمكتبة كملف', when: notBar, run: downloadFromLibrary });
-  registerTool({ id: 'create_image', label: 'إنشاء صورة أو فيديو', ui: 'media_new', sizes: true, run: function (c) { if (!c.src) throw new Error('اختاري صورة أو فيديو الأول.'); return createBlock('image', { at: c.at, src: c.src, size: c.size }); } });
+  registerTool({ id: 'create_image', label: 'إنشاء صورة أو فيديو', ui: 'media_new', sizes: true, sizeUi: 'panel', run: function (c) { if (!c.src) throw new Error('اختاري صورة أو فيديو الأول.'); return createBlock('image', { at: c.at, src: c.src, size: c.size }); } });
   /* A standard size for the selected element (the free drag handle stays as it is): the host shows the saved groups, this applies the choice on the current screen size only. */
-  registerTool({ id: 'size_preset', label: 'مقاس قياسي للعنصر…', ui: 'size', sizes: true, show: function (i) { return !!i; }, when: function (i) { return !!i && i.kind !== 'top-bar'; }, run: function (c) { return c.size ? applySize(c.id, c.size) : clearSize(c.id); } });
+  registerTool({ id: 'size_preset', label: 'أبعاد العناصر', ui: 'size', sizes: true, show: function (i) { return !!i; }, when: function (i) { return !!i && i.kind !== 'top-bar'; }, run: function (c) { return c.size ? applySize(c.id, c.size) : clearSize(c.id); } });
   registerTool({ id: 'open', label: 'دخول لصفحة', when: function (i) { return !!(i && i.dynamic); }, run: function (c) { enterPage(entryById(c.id)); return null; } });
   /* Back / home are not in the mouse menu any more: the editor header has the «صفحة سابقة» button for them. The tools stay registered
      (the button runs go_back through tool.run) but show:false keeps them out of the menu. */
@@ -1104,7 +1074,7 @@
         if (!tool) throw new Error('أداة غير معروفة');
         var ei = p.elementId ? entryById(p.elementId) : null, inf = info(ei);
         if (tool.when && !tool.when(inf)) throw new Error('الأداة دي مش متاحة للعنصر ده.');
-        var out = await tool.run({ id: p.elementId || null, info: inf, at: p.at || null, src: typeof p.src === 'string' ? p.src : null, size: tool.sizes ? sizeArg(p.size, tool.id === 'size_preset' ? baseWidth(p.elementId || selectedId) : undefined) : null });
+        var out = await tool.run({ id: p.elementId || null, info: inf, at: p.at || null, src: typeof p.src === 'string' ? p.src : null, size: tool.sizes && p.size !== undefined ? p.size : null });
         return out === undefined ? null : out;
       }
       case 'element.nudge': {
@@ -1132,8 +1102,6 @@
         if (p.place) return beginPlacing('اضغط بزر الماوس الأيسر على المكان الذي يُضاف عنده العنصر', function (at) { putLibraryBlock(made, at); say('أُدرج العنصر في المعاينة فقط. اضغطي «حفظ» لنشره إلى المتجر.'); });
         return putLibraryBlock(made, null);
       }
-      case 'size.save': return saveMySize(p);
-      case 'size.remove': return removeMySize(p);
       case 'media.place': {
         var mediaSrc = String(p.src || '');
         if (!validBlock({ id: 'x-probe', type: 'image', src: mediaSrc, alt: {}, style: { align: 'center', size: 'md' } })) throw new Error('رابط الصورة أو الفيديو مش مسموح.');
