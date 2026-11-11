@@ -12,6 +12,8 @@ const GOLDEN_IDS = ['format', 'create_section', 'create_brand', 'create_store', 
 const EXTRA_IDS = ['create_image', 'size_preset', 'open', 'go_back', 'go_home'];   // size_preset: standard sizes, shown only when an element is chosen
 const SCOPE_IDS = ['scope_toggle', 'scope_reset'];   // default pages: they show only on a product, brand or store page
 const flags = (rows) => rows.map((r) => r.startsWith('[ok]'));
+/* The right-click menu order the owner asked for (2026-11-11): text first, then pictures and videos, the banner, the section, the perfume card, the brand, the store, then the rest. */
+const OWNER_ORDER = ['edit_text', 'format', 'create_text_block', 'create_text', 'media', 'media_delete', 'create_image', 'create_banner', 'create_section', 'create_perfume', 'create_brand', 'create_store'];
 
 async function liveEditor() {
   const b = designBrowser(), events = [];
@@ -46,13 +48,32 @@ test('the menu keeps the original editor tools in the original order, new ones a
   // contextual extras only appear where they make sense
   stack(b);
   const idsOn = (el) => plain(b.tools.menu(el).map((t) => t.id));
-  assert.deepEqual(idsOn(null).slice(17), ['create_image', 'open'], 'an empty page: "دخول لصفحة" is listed (the owner asked for it in the menu) but no back / home');
-  assert.deepEqual(idsOn({ dynamic: true }).slice(17), ['create_image', 'size_preset', 'open']);
+  /* the menu SHOWS them in the owner's order (see the next test); the registered order above stays the original editor's */
+  const after = (ids) => ids.slice(OWNER_ORDER.length);
+  assert.deepEqual(after(idsOn(null)), ['create_occasion', 'create_note', 'copy', 'archive', 'library_save', 'library_download', 'open'], 'an empty page: "دخول لصفحة" is listed (the owner asked for it in the menu) but no back / home');
+  assert.deepEqual(after(idsOn({ dynamic: true })), ['create_occasion', 'create_note', 'copy', 'archive', 'library_save', 'library_download', 'size_preset', 'open']);
   const open = (el) => plain(b.tools.menu(el).find((t) => t.id === 'open'));
   assert.equal(open(null).label, 'دخول لصفحة');
   assert.equal(open(null).enabled, false, 'nothing to enter on an empty area');
   assert.equal(open({ dynamic: false }).enabled, false, 'a plain element has no page of its own');
   assert.equal(open({ dynamic: true }).enabled, true, 'a card, brand or store opens its page');
+});
+
+test('the menu shows text items first, then picture and video, banner, section, perfume card, brand, store, and the rest after them (owner, 2026-11-11)', async () => {
+  const b = await liveEditor(); const els = stack(b);
+  const card = els.find((e) => e.kind === 'card');
+  const ids = (el) => plain(b.tools.menu(el).map((t) => t.id));
+  for (const el of [null, menuFor(b, card.id) && b.mode.state().selected]) {
+    const got = ids(el);
+    assert.deepEqual(got.slice(0, OWNER_ORDER.length), OWNER_ORDER, 'the first twelve are the owner\'s order');
+    const rest = got.slice(OWNER_ORDER.length), registered = plain(b.tools.list().map((t) => t.id)).filter((id) => !OWNER_ORDER.includes(id) && rest.includes(id));
+    assert.deepEqual(rest, registered, 'the rest keep the order they were registered in');
+  }
+  const labels = plain(b.tools.menu(null).map((t) => t.label));
+  assert.match(labels[0], /تعديل النص/); assert.match(labels[1], /تنسيق النص/);
+  assert.match(labels[4], /رفع صورة/); assert.match(labels[6], /إنشاء صورة/); assert.match(labels[7], /بانر/);
+  assert.match(labels[8], /سيكشن/); assert.match(labels[9], /كارت عطر/); assert.match(labels[10], /براند/); assert.match(labels[11], /متجر/);
+  assert.equal(plain(b.tools.list().map((t) => t.id)).slice(0, 17).join(), GOLDEN_IDS.join(), 'the registered (original) order is untouched');
 });
 
 test('the mouse menu has no back / home entries even on an inner page: the header button replaced them, and still runs go_back', async () => {

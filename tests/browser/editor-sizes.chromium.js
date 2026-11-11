@@ -186,10 +186,10 @@ test('the corner handle goes by saved relative sizes only: it rests on one (name
     const labelOf = () => frame.evaluate(() => { const l = document.querySelector('.eo-size'), r = l.getBoundingClientRect(); return { text: l.textContent, shown: getComputedStyle(l).display !== 'none', inView: r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight }; });
     assert.equal((await labelOf()).shown, false, 'no label before a drag');
 
-    const aim = await (async () => {   // the page scrolls smoothly: wait until the handle stops moving; aim at its inner part (the preview clips the last pixels of a full-width element)
+    const aim = await (async () => {   // the page scrolls smoothly: wait until the handle stops moving; the handle sits on the corner that moves (bottom-left on an Arabic page) and is pulled inside the screen for a full-width element
       let handle = null;
       for (let i = 0; i < 40; i++) {
-        const now = await frame.evaluate(() => { const r = document.querySelector('.eo-h').getBoundingClientRect(); return { x: r.left + 2, y: r.top + r.height / 2 }; });
+        const now = await frame.evaluate(() => { const r = document.querySelector('.eo-h').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
         if (handle && Math.abs(now.y - handle.y) < 0.5 && Math.abs(now.x - handle.x) < 0.5) { handle = now; break; }
         handle = now; await page.waitForTimeout(150);
       }
@@ -202,8 +202,8 @@ test('the corner handle goes by saved relative sizes only: it rests on one (name
     let at = 0;
     for (const target of [-30, -70, -110, -150, -190, -230, -190, -150, -110, -70, -30, 0]) {
       const dir = target < at ? -1 : 1;
-      for (let x = at; dir < 0 ? x > target : x < target; x += dir * 5) await page.mouse.move(aim.x(x), aim.y(Math.round(x * start.h / start.w)));
-      await page.mouse.move(aim.x(target), aim.y(Math.round(target * start.h / start.w))); at = target;
+      for (let x = at; dir < 0 ? x > target : x < target; x += dir * 5) await page.mouse.move(aim.x(-x), aim.y(Math.round(x * start.h / start.w)));   // up and to the right = smaller
+      await page.mouse.move(aim.x(-target), aim.y(Math.round(target * start.h / start.w))); at = target;
       await page.waitForTimeout(120);
       const label = await labelOf(), s = await sizeOf(frame, id);
       seen.push({ at: target, label: label.text, w: s.w, h: s.h, shown: label.shown, inView: label.inView });

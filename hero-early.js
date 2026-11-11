@@ -110,6 +110,8 @@
     if (img.complete && img.naturalWidth > 0) settle(mine);
   }
 
+  /* The hero picture's own pixels (the editor's «نفس شكل الصورة» makes the hero that shape), or null while it is not in yet. */
+  fit.size = function () { return held && held.naturalWidth > 0 ? { w: held.naturalWidth, h: held.naturalHeight } : null; };
   window.ElanHeroFit = fit;
 
   // Until the design file answers, a hero picture is assumed (the page waits instead of flashing a bare hero).

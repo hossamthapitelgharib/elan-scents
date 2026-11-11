@@ -19,6 +19,7 @@
     '#elanSizeDlg button{font:inherit;cursor:pointer;border:1px solid #d9c79c;background:#fff;color:#4a3a1a;border-radius:9px;padding:8px 6px;line-height:1.5;unicode-bidi:plaintext;text-align:center}',
     '#elanSizeDlg button:hover,#elanSizeDlg button:focus{background:#f6ecd4;outline:2px solid #c8962a;outline-offset:1px}',
     '#elanSizeDlg button.auto{display:block;width:100%;background:#f6ecd4;font-weight:700}',
+    '#elanSizeDlg .grid button.same{grid-column:1/-1;background:#f6ecd4;font-weight:700}#elanSizeDlg .grid button.same .pic{display:none}',
     '.shapeBtn .pic{display:flex;align-items:center;justify-content:center;height:32px}.shapeBtn .shape{display:block;box-sizing:border-box;border:1.5px solid #c8962a;background:#fff4d6;border-radius:2px}',
     '.ratioField{margin:10px 0 4px;text-align:right}.ratioField .ratioHead{font-size:13px;font-weight:700;color:#87652d;margin-bottom:6px}',
     '.ratioField .ratioRow{display:flex;flex-wrap:wrap;gap:5px}.ratioField button{font:inherit;cursor:pointer;border:1px solid #d9c79c;background:#fff;color:#4a3a1a;border-radius:8px;padding:3px 6px;line-height:1.3;min-width:54px;text-align:center}',
@@ -182,11 +183,13 @@
   function shapeCell(size, onPick) {
     var ratio = Array.isArray(size.ratio) ? size.ratio : [size.w, size.h];
     var b = el('button', '', { type: 'button', className: 'shapeBtn' }), dim = el('span', '', { className: 'dim' }), lbl = el('span', '', { className: 'lbl' });
-    dim.textContent = ratio[0] + ':' + ratio[1]; nameInto(lbl, size.label);
+    /* «نفس شكل الصورة / الفيديو»: the shape the element's own picture or video has. It has no ratio to read (the numbers are the picture's own pixels), so the words are what is shown. */
+    dim.textContent = size.media ? size.label : ratio[0] + ':' + ratio[1]; if (!size.media) nameInto(lbl, size.label);
     var longest = Math.max(ratio[0], ratio[1]), shape = el('span', '', { className: 'shape' }), pic = el('span', '', { className: 'pic' });
     shape.style.width = Math.max(4, Math.round(28 * ratio[0] / longest)) + 'px'; shape.style.height = Math.max(4, Math.round(28 * ratio[1] / longest)) + 'px';
     shape.setAttribute('aria-hidden', 'true'); pic.appendChild(shape);
-    b.append(pic, dim, lbl); b.onclick = function () { onPick({ ratio: [ratio[0], ratio[1]] }); };
+    if (size.media) b.classList.add('same');
+    b.append(pic, dim, lbl); b.onclick = function () { onPick(size.media ? { media: true } : { ratio: [ratio[0], ratio[1]] }); };
     return b;
   }
   window.elanPickSize = function (groups, opts) {

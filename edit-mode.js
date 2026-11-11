@@ -17,16 +17,27 @@
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
   /* The dimensions chosen in the editor: a common shape ({ ratio: [16, 9] }), turned into a size at a width (the width an element has now, or a new element's usual one).
      Anything else is refused before anything is created. The size is scaled down (same shape) to the room the element has when it is wider than that. */
-  function sizeArg(v, width) {
+  function sizeArg(v, width, id) {
     if (v === undefined || v === null) return null;
+    /* «نفس شكل الصورة / الفيديو»: the shape the element's own picture or video has (its pixels, read when it is applied). */
+    if (v && v.media) {
+      var own = id && layer.mediaSize ? layer.mediaSize(entryById(id)) : null, fromMedia = own && Geometry.sizeFromRatio ? Geometry.sizeFromRatio(own.w, own.h, width || baseWidth(id)) : null;
+      if (!fromMedia) throw new Error('العنصر ده مفيهوش صورة أو فيديو ظاهر.');
+      return fromMedia;
+    }
     var a = Math.round(+(v && v.ratio && v.ratio[0])), b = Math.round(+(v && v.ratio && v.ratio[1]));
     var made = a >= 1 && a <= 100 && b >= 1 && b <= 100 && Geometry.sizeFromRatio ? Geometry.sizeFromRatio(a, b, width || baseWidth(null)) : null;
     if (!made) throw new Error('أبعاد غير صالحة.');
     return made;
   }
-  /* What the chooser shows: the common shapes (ratios) only, as examples. No pixel sizes: the owner does not read them (2026-11-10). */
-  function sizeGroups() {
-    return Geometry.RATIOS ? [{ id: 'ratio', label: 'أبعاد شائعة (أمثلة)', sizes: Geometry.RATIOS.map(function (r) { return { ratio: [r.w, r.h], label: r.label }; }) }] : [];
+  /* What the chooser shows: the common shapes (ratios) only, as examples. No pixel sizes: the owner does not read them (2026-11-10). An element that has a picture or a video
+     also gets «نفس شكل الصورة / الفيديو» first: the one shape that shows the whole picture with nothing left over around it (2026-11-11). */
+  function sizeGroups(about) {
+    if (!Geometry.RATIOS) return [];
+    var sizes = Geometry.RATIOS.map(function (r) { return { ratio: [r.w, r.h], label: r.label }; });
+    var own = about && about.id && layer.mediaSize ? layer.mediaSize(entryById(about.id)) : null;
+    if (own) sizes.unshift({ media: true, ratio: [own.w, own.h], label: own.video || about.type === 'video' ? 'نفس شكل الفيديو' : 'نفس شكل الصورة' });
+    return [{ id: 'ratio', label: 'أبعاد شائعة (أمثلة)', sizes: sizes }];
   }
   /* The width an element can really use: the inside of the box it sits in (its padding left out). A new element has no box yet, so it is the one the page puts new blocks in. */
   function roomOf(box) {
@@ -57,7 +68,7 @@
     return null;
   }
   function applySize(id, size) {
-    var s = fitFor(sizeArg(size, baseWidth(id)), id);
+    var s = fitFor(sizeArg(size, baseWidth(id), id), id);
     mutate(function () { var t = edit(device(), id); t.w = s.w; t.h = s.h; });
     return { w: s.w, h: s.h };
   }
@@ -183,6 +194,7 @@
   var tagEl = root.querySelector('.eo-tag');
   var dropEl = root.querySelector('.eo-drop');
   var sizeEl = root.querySelector('.eo-size');
+  var handleEl = root.querySelector('.eo-h');
   var box = root.querySelector('.eo-box'), msgEl = root.querySelector('.eo-msg'), dlg = root.querySelector('.eo-dlg');
 
   var msgTimer = null;
@@ -210,6 +222,13 @@
     box.style.left = r.left + 'px'; box.style.top = r.top + 'px'; box.style.width = r.width + 'px'; box.style.height = r.height + 'px';
     tagEl.textContent = e.name || e.id;
     tagEl.style.top = r.top < 30 ? '2px' : '-24px';
+    /* the element grows towards the end of its line, so that is the corner to pull: left on an Arabic page, right on an English one */
+    var rtl = true; try { rtl = getComputedStyle(e.el).direction !== 'ltr'; } catch (_) { /* the usual page direction */ }
+    handleEl.setAttribute('data-h', rtl ? 'sw' : 'se');
+    /* straddling the corner, but pulled inside it when the element reaches the edge of the screen (a full-width element would have half of it cut off) */
+    var edge = rtl ? (r.left < 10 ? '3px' : '-6px') : (document.documentElement.clientWidth - r.right < 10 ? '3px' : '-6px');
+    handleEl.style.left = rtl ? edge : 'auto'; handleEl.style.right = rtl ? 'auto' : edge; handleEl.style.cursor = rtl ? 'nesw-resize' : 'nwse-resize';
+    handleEl.style.bottom = r.bottom > window.innerHeight - 10 ? '3px' : '-6px';
   }
   function rgbToHex(c) {
     var m = /rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(c || '');
@@ -384,7 +403,21 @@
   }
   /* Dragging the corner makes the element bigger or smaller by saved relative sizes only (a share of the room it has: «نص العرض», «ربع العرض»…), never a free size,
      and the element keeps its own shape (length to width). It rests on the saved size nearest to the pointer, so pulling on goes to the next size and pulling back to
-     the one before; the size is written beside the pointer, and the opposite edge stays where it was, whatever the page direction is. */
+     the one before; the size is written beside the pointer. The element stays where the page put it (the corner on the page's start side and the top do not move), it grows
+     towards the end of the line and downwards, and everything around it moves aside by itself as the page lays it out again: the others make room, nothing is covered.
+     The handle sits on the corner that moves (bottom-left on an Arabic page, bottom-right on an English one). */
+  /* The size is written straight onto the element while the corner moves (the page lays everything else out again by itself, and its picture or video follows). */
+  function sizeNow(g, w, h) {
+    var en = entryById(g.id);
+    if (en && layer.liveSize) { layer.liveSize(en, w, h); return; }
+    g.el.style.width = w + 'px'; g.el.style.maxWidth = 'none'; g.el.style.flex = '0 0 auto'; g.el.style.height = h + 'px';
+  }
+  /* What the drag wrote onto the element is taken off again; the saved size (mutate → repaint) is what stays. */
+  function dropLive(g) {
+    var en = entryById(g.id);
+    if (en && layer.endLive) layer.endLive(en);
+    if (g.styleAttr === null || g.styleAttr === undefined) g.el.removeAttribute('style'); else g.el.setAttribute('style', g.styleAttr);
+  }
   function stepResize(g, ddx, ddy) {
     var h = g.handle, w0 = g.r.width, h0 = g.r.height;
     var sx = h.indexOf('e') !== -1 ? (w0 + ddx) / w0 : h.indexOf('w') !== -1 ? (w0 - ddx) / w0 : null;
@@ -392,13 +425,8 @@
     var scale = sx === null ? sy : sy === null ? sx : (Math.abs(sx - 1) >= Math.abs(sy - 1) ? sx : sy);   // the side pulled further (in proportion to itself) decides
     var step = Geometry.snapStep && w0 > 0 && h0 > 0 ? Geometry.snapStep(w0, h0, roomFor(g.id), w0 * scale) : null;
     var size = step || Geometry.resize(w0, h0, 0, 0);                                                     // no saved sizes to step through: the element stays as it is
-    g.el.style.width = size.w + 'px'; g.el.style.maxWidth = 'none'; g.el.style.flex = '0 0 auto'; g.w = size.w;
-    g.el.style.height = size.h + 'px'; g.h = size.h;
-    var nr = g.el.getBoundingClientRect(), ox = 0, oy = 0;
-    if (h.indexOf('e') !== -1) ox = g.r.left - nr.left; else if (h.indexOf('w') !== -1) ox = g.r.right - nr.right;
-    if (h.indexOf('s') !== -1) oy = g.r.top - nr.top; else if (h.indexOf('n') !== -1) oy = g.r.bottom - nr.bottom;
-    g.dx = Math.round(g.b.dx + ox); g.dy = Math.round(g.b.dy + oy);
-    g.el.style.transform = 'translate(' + g.dx + 'px,' + g.dy + 'px)';
+    sizeNow(g, size.w, size.h); g.w = size.w; g.h = size.h;
+    var nr = g.el.getBoundingClientRect();
     showSize(g, step, Math.round(nr.width), Math.round(nr.height));
   }
   /* the label beside the pointer: the saved size reached («نص العرض») and, when the element's shape is a common one, its name («16:9»); kept inside the window */
@@ -550,6 +578,7 @@
       if (drop) { commitFlow(g, drop); return; }
     }
     endGesture(g);
+    if (g.mode === 'resize') dropLive(g);
     mutate(function () {
       var e = edit(device(), g.id);
       if (g.dx) e.dx = g.dx; else delete e.dx;
@@ -563,6 +592,7 @@
     if (touchPress && touchPress.pointerId === ev.pointerId) { clearTimeout(touchPress.timer); touchPress = null; }
     if (gesture) {
       var cg = gesture; endGesture(cg);
+      if (cg.moved && cg.mode === 'resize') dropLive(cg);
       // The browser took the finger for a scroll. Put the element back as it was; a full repaint would re-render the page and throw the scrolled strip back to its start.
       if (cg.moved) { if (cg.touch && cg.el.isConnected) { if (cg.styleAttr === null) cg.el.removeAttribute('style'); else cg.el.setAttribute('style', cg.styleAttr); placeBox(); } else repaint(); }
     }
@@ -984,8 +1014,15 @@
   /* ---------- tools: the editor's menu is built from this list, so a new capability = one new register() call ---------- */
   var TOOLS = [];
   function registerTool(t) { TOOLS = TOOLS.filter(function (x) { return x.id !== t.id; }).concat([t]); }
+  /* The order of the right-click menu (owner, 2026-11-11): what belongs to text first (edit, format, new text block, new text), then pictures and videos
+     (upload, delete, new picture), then the banner, the section, the perfume card, the brand and the store; everything else follows in the order it was registered
+     (the registered order itself stays the original editor's: tests/fixtures/elan-original-tools-golden.json). */
+  var MENU_ORDER = ['edit_text', 'format', 'create_text_block', 'create_text', 'media', 'media_delete', 'create_image', 'create_banner', 'create_section', 'create_perfume', 'create_brand', 'create_store'];
+  function menuRank(t, at) { var k = MENU_ORDER.indexOf(t.id); return (k === -1 ? MENU_ORDER.length : k) * 1000 + at; }
   function toolList(i) {
-    return TOOLS.filter(function (t) { return !t.show || t.show(i); }).map(function (t) { var d = { id: t.id, label: typeof t.label === 'function' ? t.label(i) : t.label, ui: t.ui || null, enabled: t.when ? !!t.when(i) : true }; if (t.sizes) { d.sizes = sizeGroups(); d.sizeUi = t.sizeUi || 'dialog'; } return d; });
+    return TOOLS.filter(function (t) { return !t.show || t.show(i); }).map(function (t, at) { return { t: t, rank: menuRank(t, at) }; })
+      .sort(function (a, b) { return a.rank - b.rank; })
+      .map(function (x) { var t = x.t, d = { id: t.id, label: typeof t.label === 'function' ? t.label(i) : t.label, ui: t.ui || null, enabled: t.when ? !!t.when(i) : true }; if (t.sizes) { d.sizes = sizeGroups(i); d.sizeUi = t.sizeUi || 'dialog'; } return d; });
   }
   /* ---- default pages: one design for every product / brand / store page; a page that has its own edits keeps them ---- */
   var KIND_NAMES = { prod: 'كل صفحات المنتجات', brand: 'كل صفحات البراندات', store: 'كل صفحات المتاجر' };

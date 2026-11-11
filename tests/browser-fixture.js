@@ -20,6 +20,7 @@ class Style {
     this.values[name] = String(value); this.priorities[name] = priority === 'important' ? 'important' : '';
   }
   removeProperty(name) { const old = this.values[name] || ''; delete this.values[name]; delete this.priorities[name]; return old; }
+  getPropertyValue(name) { return this.values[name] || ''; }
   getPropertyPriority(name) { return this.priorities[name] || ''; }
 }
 function style() {
