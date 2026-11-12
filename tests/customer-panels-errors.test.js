@@ -138,7 +138,7 @@ test('my orders: a cancelled order is closed (archive, "cancelled" label), not l
   const { context, nodes } = load(['portal.js', 'account.js'], ACCOUNT_IDS);
   vm.runInContext('renderAccount', context)([cancelledSession]);
   assert.doesNotMatch(nodes.get('#activeOrders').innerHTML, /TEST-CANCELLED-1/);
-  assert.match(nodes.get('#activeOrders').innerHTML, /لا توجد طلبات حالية/);
+  assert.match(nodes.get('#activeOrders').innerHTML, /لا توجد طلبات جارية/);
   assert.doesNotMatch(nodes.get('#recentOrders').innerHTML, /TEST-CANCELLED-1/);
   assert.match(vm.runInContext('badgeA', context)('cancelled'), /أُلغي الطلب/);
   assert.equal(vm.runInContext('terminalA', context).has('cancelled'), true);

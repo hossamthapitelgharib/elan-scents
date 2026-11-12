@@ -167,9 +167,19 @@ test('6. signed-in account page renders active order, shipping area and order co
   try {
     const page = await openPage(c, '/account.html');
     await page.waitForSelector('#app:not([hidden])');
-    assert.match(await page.locator('#ordersCount').innerText(), /1/);
+    assert.match(await page.locator('#ordersCount').innerText(), /واحد/);
+    assert.match(await page.locator('#ordersHeadline').innerText(), /عندك طلب واحد/);
     assert.match(await page.locator('#activeOrders').innerText(), /ELN-TEST-0001/);
-    assert.match(await page.locator('#activeOrders').innerText(), /لم يسجل المتجر بيانات الشحن بعد/);
+    // An order the store has not confirmed yet: its sentence, the four steps with the second one "now", its total, and no empty shipping box.
+    assert.match(await page.locator('#activeOrders .acct-order h3').first().innerText(), /المتجر يراجع طلبك/);
+    assert.equal(await page.locator('#activeOrders .acct-steps li').count(), 4);
+    assert.match(await page.locator('#activeOrders .acct-steps li.current').innerText(), /أكّد المتجر/);
+    assert.match(await page.locator('#activeOrders .acct-total').innerText(), /150\s*ج\.م/);
+    assert.equal(await page.locator('#activeOrders .shipment-box').count(), 0);
+    // The page is styled by its own sheet (the gold wordmark and the card), and the cart link sits in the top bar, not over the content.
+    assert.equal(await page.locator('link[href^="/account.css"]').count(), 1);
+    assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('#cartShortcut')).position), 'static');
+    assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.acct-order')).borderRadius !== '0px'), true);
   } finally { await c.context.close(); }
 });
 
@@ -679,4 +689,62 @@ test('20b. signing in takes the carried lists only for an account made in the la
     await page.waitForSelector('#sheet[data-kind="welcome"] .auth-done', { timeout: 8000 });
     assert.ok(await page.evaluate(() => !!JSON.parse(localStorage.getItem('elan_auth_session') || 'null')), 'signed in although the hand-over failed');
   } finally { await failing.context.close(); }
+});
+
+test('21. the orders page shows every state in the shop\'s own look on a phone: steps for what is open, a compact row with "order again" for what is over, and nothing wider than the screen', async () => {
+  const c = await context({ session: CUSTOMER_SESSION });
+  try {
+    const item = (name, q, price) => ({ product_name: name, brand_name: 'Test Brand', size_label: '100 ml', product_size_id: FAV_SIZE, quantity: q, unit_price: price, line_total: price * q, currency: 'EGP' });
+    const order = (id, no, status, extra = {}) => ({ id, tracking_number: no, status, subtotal: 3450, shipping_amount: 60, total_amount: 3510, currency: 'EGP', created_at: '2026-10-28T10:00:00Z', stores: { name: 'Test Store' }, store_order_request_items: [item('Test Perfume', 1, 3450)], store_shipments: [], store_order_cart_restorations: [], store_order_cancellation_requests: [], ...extra });
+    const orders = [
+      order('o1', 'ELN-TEST-AAAA', 'shipped', { store_order_request_items: [item('One', 2, 1000), item('Two', 1, 500), item('Three', 1, 400), item('Four', 1, 300), item('Five', 1, 200)],
+        store_shipments: [{ carrier_name: 'Test Carrier', tracking_code: 'TC-1', shipping_status: 'in_transit', estimated_delivery_at: '2026-12-20T00:00:00Z', updated_at: '2026-11-10T08:00:00Z' }] }),
+      order('o2', 'ELN-TEST-BBBB', 'processing'),
+      order('o3', 'ELN-TEST-CCCC', 'delivered', { store_shipments: [{ carrier_name: 'Test Carrier', tracking_code: 'TC-2', shipping_status: 'delivered', delivery_verified_at: '2026-11-02T10:00:00Z', updated_at: '2026-11-02T10:00:00Z' }] }),
+      order('o4', 'ELN-TEST-DDDD', 'store_cancelled')
+    ];
+    const page = await c.context.newPage();
+    await mockPage(page);
+    await page.route('**/api/customer-orders*', route => H.safeFulfill(route, { status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, sessions: [{ id: 's1', store_order_requests: orders }], pagination: { total: 4, hasMore: false } }) }));
+    await page.goto(H.SITE + '/account.html', { waitUntil: 'load' });
+    await page.waitForSelector('#app:not([hidden]) .acct-order');
+    assert.match(await page.locator('#ordersHeadline').innerText(), /عندك طلبان قيد المتابعة/);
+    assert.deepEqual(await page.locator('#stats .acct-stat').allInnerTexts().then(list => list.map(text => text.replace(/\s+/g, ' ').trim())), ['2 جارية', '1 وصلت', '1 ملغاة']);
+
+    // shipped: three steps done, the last one "now"; the shipment box and only the first three items (the rest is behind "details")
+    const shipped = page.locator('#activeOrders .acct-order').nth(0);
+    assert.deepEqual(await shipped.locator('.acct-steps li').evaluateAll(list => list.map(li => li.className)), ['done', 'done', 'done', 'current']);
+    assert.equal(await shipped.locator('.shipment-box').count(), 1);
+    assert.equal(await shipped.locator('.acct-items li:not(.more)').count(), 3);
+    assert.match(await shipped.locator('.acct-items .more').innerText(), /منتجان آخران/);
+    // processing without a shipment yet: the shipping box says what to expect
+    assert.match(await page.locator('#activeOrders .acct-order').nth(1).locator('.shipment-empty').innerText(), /يجهّز طلبك/);
+    // an order that is over is a compact row, "order again" is visible, the shipping box is behind "details" (closed)
+    const past = page.locator('#recentOrders .acct-order.is-past').first();
+    assert.equal(await past.locator('.order-reorder').isVisible(), true);
+    assert.equal(await past.locator('.shipment-box').isVisible(), false);
+    await past.locator('summary').click();
+    assert.equal(await past.locator('.shipment-box').isVisible(), true);
+    // a cancelled order is not in the recent list; it is found through the search below
+    assert.equal(await page.locator('#recentOrders').innerText().then(text => text.includes('ELN-TEST-DDDD')), false);
+
+    // the look: the wordmark in gold, the order cards rounded and white, nothing wider than the phone
+    assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.acct-mark b')).fontFamily.includes('Playfair')), true);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, 'no horizontal scrolling');
+    assert.equal(await page.evaluate(() => document.fonts.check("16px 'IBM Plex Sans Arabic'")), true);
+  } finally { await c.context.close(); }
+});
+
+test('21b. the sign-in state of the orders page is centred in the same look, and the page never overflows', async () => {
+  const c = await context();
+  try {
+    const page = await openPage(c, '/account.html');
+    await page.waitForSelector('#login:not([hidden])');
+    assert.equal(await page.locator('#app').isHidden(), true);
+    assert.equal(await page.locator('#portalNotifications').isHidden(), true, 'the bell is for a signed-in customer');
+    assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.acct-h1')).textAlign), 'center');
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
+    const box = await page.locator('#loginForm').boundingBox();
+    assert.ok(box.width > 250 && box.width <= 390, 'the form fits the phone');
+  } finally { await c.context.close(); }
 });

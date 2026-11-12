@@ -4,28 +4,37 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>طلباتي · Élan Scents</title>
-  <link rel="stylesheet" href="/fonts.css?v=20261112-02">
-<link rel="stylesheet" href="/portal.css?v=20261112-02">
-<link rel="stylesheet" href="/consent.css?v=20261112-02">
+  <link rel="stylesheet" href="/fonts.css?v=20261112-03">
+<link rel="stylesheet" href="/portal.css?v=20261112-03">
+<link rel="stylesheet" href="/consent.css?v=20261112-03">
+<link rel="stylesheet" href="/account.css?v=20261112-03">
 </head>
-<body>
-  <header>
-    <div><small>Élan Scents</small><h1>طلباتي</h1></div>
-    <button id="logout" class="ghost" hidden>تسجيل الخروج</button>
+<body class="acct">
+  <header class="acct-top">
+    <a class="acct-brand" href="/" aria-label="Élan Scents، العودة إلى المتجر">
+      <span class="acct-mark"><b>Élan</b><span>Scents</span></span>
+      <small>THE HOME OF GULF FRAGRANCES</small>
+    </a>
+    <nav class="acct-nav" aria-label="روابط سريعة">
+      <a id="cartShortcut" class="cart-shortcut" href="/"><span>السلة</span><b>0</b></a>
+      <a class="acct-shop" href="/">المتجر</a>
+      <button id="logout" class="ghost" hidden>تسجيل الخروج</button>
+    </nav>
   </header>
-  <main>
-    <section id="login" class="panel">
-      <h2>تسجيل الدخول</h2>
-      <p>تابع حالة طلباتك الحالية وارجع إلى طلباتك السابقة وقتما تريد.</p>
+  <main class="acct-main">
+    <h1 class="acct-h1">طلباتي</h1>
+    <section id="login" class="panel acct-login">
+      <h2>أهلًا بعودتك</h2>
+      <p class="acct-login-lead">سجّل دخولك لتتابع طلباتك خطوة بخطوة، من لحظة الطلب حتى يصلك.</p>
       <form id="loginForm">
-        <input name="email" type="email" placeholder="البريد الإلكتروني" required>
-        <input name="password" type="password" placeholder="كلمة المرور" required>
+        <input name="email" type="email" placeholder="البريد الإلكتروني" autocomplete="email" aria-label="البريد الإلكتروني" required>
+        <input name="password" type="password" placeholder="كلمة المرور" autocomplete="current-password" aria-label="كلمة المرور" required>
         <button class="primary">دخول</button>
       </form>
-      <p class="auth-links"><a href="#" id="forgotLink">نسيت كلمة المرور؟</a> · ليس لديك حساب؟ <a href="/">أنشئ حسابًا من المتجر</a></p>
+      <p class="auth-links"><a href="#" id="forgotLink">نسيت كلمة المرور؟</a><span>ليس لديك حساب؟ <a href="/">أنشئ حسابًا من المتجر</a></span></p>
       <form id="resetForm" class="reset-form" hidden>
         <p class="muted">اكتب بريدك الإلكتروني وسنرسل إليه رابطًا لاختيار كلمة مرور جديدة.</p>
-        <input name="email" type="email" placeholder="البريد الإلكتروني" autocomplete="email" maxlength="254" required>
+        <input name="email" type="email" placeholder="البريد الإلكتروني" autocomplete="email" aria-label="البريد الإلكتروني" maxlength="254" required>
         <button class="primary">أرسل رابط الاستعادة</button>
       </form>
       <form id="newPasswordForm" class="reset-form" hidden>
@@ -38,41 +47,44 @@
     </section>
     <section id="app" hidden>
       <p id="appMessage" class="platform-error" role="alert" hidden></p>
-      <div class="orders-welcome">
-        <div><span class="eyebrow">مساحة مختصرة</span><h2>كل طلباتك في مكان واحد</h2><p>الحالة الحالية أولًا، والطلبات السابقة عند الحاجة.</p></div>
-        <span class="orders-count" id="ordersCount"></span>
+      <div class="acct-summary">
+        <p id="ordersHeadline" class="acct-headline" aria-live="polite"></p>
+        <div class="acct-summary-row">
+          <span class="acct-chip" id="ordersCount"></span>
+          <div id="stats" class="acct-stats"></div>
+        </div>
+        <div class="acct-refresh-row"><button id="refreshOrders" class="ghost" type="button">تحديث</button><small id="lastUpdated" class="muted"></small></div>
       </div>
-      <div class="orders-tools"><button id="refreshOrders" class="ghost" type="button">تحديث الآن</button><small id="lastUpdated" class="muted"></small></div>
-      <div id="stats" class="stats orders-stats"></div>
-      <section class="orders-section" aria-labelledby="activeTitle">
-        <div class="section-heading"><h2 id="activeTitle">طلباتك الحالية</h2><span>تحتاج متابعة أو لم تُستلم بعد</span></div>
+      <section class="orders-section acct-block" aria-labelledby="activeTitle">
+        <div class="section-heading"><h2 id="activeTitle">طلباتك الجارية</h2></div>
         <div id="activeOrders" class="compact-orders"></div>
       </section>
-      <section class="orders-section" aria-labelledby="recentTitle">
-        <div class="section-heading"><h2 id="recentTitle">آخر الطلبات المكتملة</h2><span>آخر 5 طلبات</span></div>
+      <section class="orders-section acct-block" aria-labelledby="recentTitle">
+        <div class="section-heading"><h2 id="recentTitle">طلبات وصلتك</h2><span>آخر 5 طلبات</span></div>
         <div id="recentOrders" class="compact-orders"></div>
-        <button id="loadMoreOrders" class="ghost" type="button" hidden>تحميل طلبات أقدم</button>
+        <button id="loadMoreOrders" class="ghost" type="button" hidden>عرض طلبات أقدم</button>
       </section>
-      <section class="orders-archive" aria-labelledby="archiveTitle">
-        <div class="section-heading"><h2 id="archiveTitle">البحث في الطلبات السابقة</h2><span>لا تُحذف الطلبات القديمة</span></div>
+      <section class="orders-archive acct-block acct-archive" aria-labelledby="archiveTitle">
+        <div class="section-heading"><h2 id="archiveTitle">طلباتك السابقة</h2><span>الملغاة والأقدم، ولا يُحذف منها شيء</span></div>
         <form id="archiveForm" class="archive-form">
-          <input id="archiveSearch" type="search" placeholder="رقم التتبع">
-          <select id="archiveYear"><option value="">كل السنوات</option></select>
+          <input id="archiveSearch" type="search" placeholder="ابحث برقم الطلب" aria-label="رقم الطلب">
+          <select id="archiveYear" aria-label="السنة"><option value="">كل السنوات</option></select>
           <button class="ghost" type="submit">بحث</button>
         </form>
         <div id="archiveOrders" class="compact-orders" hidden></div>
-        <button id="loadMoreArchive" class="ghost" type="button" hidden>تحميل نتائج إضافية</button>
+        <button id="loadMoreArchive" class="ghost" type="button" hidden>عرض نتائج أكثر</button>
       </section>
     </section>
   </main>
-  <p class="privacy-links"><a href="/privacy.html">سياسة الخصوصية</a></p>
-  <a id="cartShortcut" class="cart-shortcut" href="/"><span>سلة Élan Scents</span><b>0</b></a>
-  <script src="/auth-session.js?v=20261112-02"></script>
-  <script src="/portal.js?v=20261112-02"></script>
-  <script src="/turnstile.js?v=20261112-02"></script>
-  <script src="/pw-eye.js?v=20261112-02" defer></script>
-  <script src="/consent.js?v=20261112-02"></script>
-  <script src="/guest-identity.js?v=20261112-02"></script>
-  <script src="/account.js?v=20261112-02"></script>
+  <footer class="acct-foot">
+    <p class="privacy-links"><a href="/privacy.html">سياسة الخصوصية</a></p>
+  </footer>
+  <script src="/auth-session.js?v=20261112-03"></script>
+  <script src="/portal.js?v=20261112-03"></script>
+  <script src="/turnstile.js?v=20261112-03"></script>
+  <script src="/pw-eye.js?v=20261112-03" defer></script>
+  <script src="/consent.js?v=20261112-03"></script>
+  <script src="/guest-identity.js?v=20261112-03"></script>
+  <script src="/account.js?v=20261112-03"></script>
 </body>
 </html>

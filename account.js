@@ -1,6 +1,9 @@
 const escA = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[c]));
-const statusA = { awaiting_store_confirmation: ['بانتظار المتجر', 'gold'], store_confirmed: ['تم تأكيد الطلب', 'green'], processing: ['قيد التجهيز', 'blue'], shipped: ['تم الشحن', 'blue'], delivered: ['تم التسليم', 'green'], completed: ['تم التسليم', 'green'], store_rejected: ['أُلغي الطلب', 'red'], cancelled: ['أُلغي الطلب', 'red'], store_cancelled: ['أُلغي الطلب وأُعيدت المنتجات', 'red'], restored: ['عادت المنتجات إلى السلة', 'green'], needs_review: ['قيد المراجعة', 'orange'] };
+const statusA = { awaiting_store_confirmation: ['بانتظار تأكيد المتجر', 'gold'], store_confirmed: ['أكّد المتجر الطلب', 'green'], processing: ['قيد التجهيز', 'blue'], shipped: ['في الطريق إليك', 'blue'], delivered: ['تم التسليم', 'green'], completed: ['تم التسليم', 'green'], store_rejected: ['أُلغي الطلب', 'red'], cancelled: ['أُلغي الطلب', 'red'], store_cancelled: ['أُلغي الطلب وأُعيدت المنتجات', 'red'], restored: ['عادت المنتجات إلى السلة', 'green'], needs_review: ['قيد المراجعة', 'orange'] };
 const shippingA = { preparing: ['قيد التجهيز', 'gold'], handed_to_carrier: ['تم تسليمها لشركة الشحن', 'blue'], in_transit: ['في الطريق', 'blue'], out_for_delivery: ['خرجت للتسليم', 'blue'], delivered: ['تم التسليم', 'green'], delayed: ['متأخرة', 'orange'], returned: ['مرتجعة', 'red'], cancelled: ['ملغاة', 'red'] };
+// The sentence at the top of an order that is still being followed, and the four steps under it (the order's whole life in one glance).
+const headlineA = { awaiting_store_confirmation: 'المتجر يراجع طلبك', store_confirmed: 'أكّد المتجر طلبك', processing: 'المتجر يجهّز طلبك', shipped: 'طلبك في الطريق إليك', needs_review: 'طلبك قيد المراجعة' };
+const stepsA = ['تم الطلب', 'أكّد المتجر', 'خرج للشحن', 'وصل إليك'];
 const terminalA = new Set(['completed', 'delivered', 'store_cancelled', 'store_rejected', 'cancelled', 'restored', 'closed']);
 // Errors go where the person can see them: the login box before sign-in, the orders page after it
 // (the login box is hidden once the orders are shown, so an error written there is never seen).
@@ -13,7 +16,12 @@ function showMessage(error) {
 }
 const badgeA = status => { const value = statusA[status] || ['قيد المتابعة', 'muted']; return `<span class="badge ${value[1]}">${value[0]}</span>`; };
 const shippingBadgeA = status => { const value = shippingA[status] || ['غير مسجل', 'muted']; return `<span class="badge ${value[1]}">${value[0]}</span>`; };
-const moneyA = (amount, currency = 'EGP') => `${Number(amount || 0).toFixed(2)} ${escA(currency)}`;
+// Money reads "3,450 ج.م" (digits as everywhere in the shop, the pound written out; a fraction only when there is one).
+const numA = amount => { const n = Number(amount); return (Number.isFinite(n) ? n : 0).toLocaleString('en-US', { maximumFractionDigits: 2 }); };
+const currencyA = currency => (!currency || currency === 'EGP' ? 'ج.م' : String(currency));
+const moneyA = (amount, currency = 'EGP') => `${numA(amount)} ${escA(currencyA(currency))}`;
+// Arabic counts: one, two, 3-10 plural, 11 and more singular accusative.
+const countA = (n, one, two, few, many) => (n === 1 ? one : n === 2 ? two : n >= 3 && n <= 10 ? `${n} ${few}` : `${n} ${many}`);
 const stateA = request => { const restoration = (request.store_order_cart_restorations || [])[0]; if (restoration && restoration.status === 'restored') return 'restored'; return request.status || 'awaiting_store_confirmation'; };
 const shipmentA = request => (request.store_shipments || [])[0] || null;
 // Cancellation is a REQUEST to the store. What the customer sees is derived from the order itself: the request is
@@ -27,11 +35,14 @@ function cancelLine(request) {
     if (cancelEndedA.has(state)) return `<div class="cancel-box cancel-accepted" role="status"><b>طلب الإلغاء</b><span>وافق المتجر وأُلغي الطلب.</span></div>`;
     return `<div class="cancel-box cancel-declined" role="status"><b>طلب الإلغاء</b><span>أكمل المتجر تنفيذ الطلب قبل أن يصله طلب الإلغاء، فلم يُلغَ. للاستفسار تواصل مع المتجر.</span></div>`;
   }
-  if (state === 'awaiting_store_confirmation') return `<div class="cancel-box"><span>تستطيع طلب الإلغاء ما دام المتجر لم يؤكد الطلب.</span><button class="ghost order-cancel" type="button" data-cancel="${escA(request.id)}">طلب إلغاء الطلب</button></div>`;
+  if (state === 'awaiting_store_confirmation') return `<div class="cancel-box"><span>يمكنك طلب الإلغاء قبل أن يؤكد المتجر طلبك.</span><button class="ghost order-cancel" type="button" data-cancel="${escA(request.id)}">اطلب إلغاء الطلب</button></div>`;
   return '';
 }
-const dateA = value => { try { return new Date(value).toLocaleDateString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric' }); } catch (_) { return ''; } };
-const dateTimeA = value => { try { return new Date(value).toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' }); } catch (_) { return ''; } };
+// Dates and times with the digits the rest of the shop uses (1, 2, 3); the year only when it is not this year.
+const LATN = 'ar-EG-u-nu-latn';
+const dateOptA = date => (date.getFullYear() === new Date().getFullYear() ? { day: 'numeric', month: 'long' } : { day: 'numeric', month: 'long', year: 'numeric' });
+const dateA = value => { try { const date = new Date(value); return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString(LATN, dateOptA(date)); } catch (_) { return ''; } };
+const dateTimeA = value => { try { const date = new Date(value); return Number.isNaN(date.getTime()) ? '' : date.toLocaleString(LATN, { ...dateOptA(date), hour: 'numeric', minute: '2-digit' }); } catch (_) { return ''; } };
 const PAGE_SIZE = 100;
 let guestCartClaimed = false;
 let resettingPassword = false;
@@ -47,14 +58,27 @@ let archiveQuery = {};
 let archiveLoading = false;
 
 function cartSnapshot() { try { return JSON.parse(localStorage.getItem('elan_cart') || '[]').reduce((total, item) => total + (Number(item.q) || 0), 0); } catch (_) { return 0; } }
-function updateCartShortcut(restored = 0) { const element = document.querySelector('#cartShortcut'); if (!element) return; element.querySelector('b').textContent = cartSnapshot(); element.classList.toggle('has-restored', restored > 0); element.querySelector('span').textContent = restored ? `السلة · ${restored} مسترجع` : 'سلة Élan Scents'; }
+function updateCartShortcut(restored = 0) { const element = document.querySelector('#cartShortcut'); if (!element) return; element.querySelector('b').textContent = cartSnapshot(); element.classList.toggle('has-restored', restored > 0); element.querySelector('span').textContent = restored ? 'السلة · عادت منتجاتك' : 'السلة'; }
+// Which of the four steps have happened: placed (always), confirmed by the store, handed to shipping, delivered. The first one that has not is "now".
+function stageA(request) {
+  const state = stateA(request), shipment = shipmentA(request), shipping = shipment && shipment.shipping_status;
+  const delivered = state === 'delivered' || state === 'completed' || shipping === 'delivered';
+  const shipped = delivered || state === 'shipped' || ['handed_to_carrier', 'in_transit', 'out_for_delivery', 'delayed'].includes(shipping);
+  return [true, shipped || state === 'store_confirmed' || state === 'processing', shipped, delivered];
+}
+function trackerA(request) {
+  const done = stageA(request), current = done.indexOf(false);
+  return `<ol class="acct-steps" aria-label="مراحل الطلب">${stepsA.map((label, index) => `<li class="${done[index] ? 'done' : index === current ? 'current' : 'todo'}"${index === current ? ' aria-current="step"' : ''}><span class="dot" aria-hidden="true">${done[index] ? '✓' : ''}</span>${label}</li>`).join('')}</ol>`;
+}
+// The shipping box. With no shipment recorded it says what to expect, and only while the order is at a stage where shipping is the next thing.
+const noShipmentA = { store_confirmed: 'المتجر يجهّز طلبك. ستظهر بيانات الشحن هنا فور تسليمه لشركة الشحن.', processing: 'المتجر يجهّز طلبك. ستظهر بيانات الشحن هنا فور تسليمه لشركة الشحن.', shipped: 'خرج طلبك من المتجر. ستظهر بيانات شركة الشحن هنا قريبًا.' };
 function shipmentLine(request) {
   const shipment = shipmentA(request);
-  if (!shipment) return '<div class="shipment-box shipment-empty"><b>الشحن</b><span>لم يسجل المتجر بيانات الشحن بعد.</span></div>';
+  if (!shipment) { const text = noShipmentA[stateA(request)]; return text ? `<div class="shipment-box shipment-empty"><span>${text}</span></div>` : ''; }
   const deliveryVerification = shipment.shipping_status === 'delivered'
     ? shipment.delivery_verified_at ? `أكدت المنصة التسليم من شركة الشحن في ${dateTimeA(shipment.delivery_verified_at)}.` : 'أبلغ المتجر عن التسليم؛ جارٍ تحقق المنصة من بيانات شركة الشحن.'
     : '';
-  return `<div class="shipment-box"><div class="shipment-head"><div><small>شحن المتجر</small><strong>${escA(shipment.carrier_name || 'شركة الشحن غير محددة')}</strong></div>${shippingBadgeA(shipment.shipping_status)}</div><div class="shipment-meta"><span>رقم التتبع</span><b dir="ltr">${escA(shipment.tracking_code || 'لم يحدد بعد')}</b></div>${shipment.estimated_delivery_at ? `<div class="shipment-meta"><span>التسليم المتوقع</span><b>${dateA(shipment.estimated_delivery_at)}</b></div>` : ''}${deliveryVerification ? `<p class="shipment-note">${escA(deliveryVerification)}</p>` : ''}${shipment.status_note ? `<p class="shipment-note">${escA(shipment.status_note)}</p>` : ''}<small class="shipment-updated">آخر تحديث: ${dateTimeA(shipment.updated_at)}</small></div>`;
+  return `<div class="shipment-box"><div class="shipment-head"><div><small>شركة الشحن</small><strong>${escA(shipment.carrier_name || 'لم تُحدَّد بعد')}</strong></div>${shippingBadgeA(shipment.shipping_status)}</div><div class="shipment-meta"><span>رقم تتبع الشحنة</span><b dir="ltr">${escA(shipment.tracking_code || 'لم يُضَف بعد')}</b></div>${shipment.estimated_delivery_at ? `<div class="shipment-meta"><span>موعد التسليم المتوقع</span><b>${dateA(shipment.estimated_delivery_at)}</b></div>` : ''}${deliveryVerification ? `<p class="shipment-note">${escA(deliveryVerification)}</p>` : ''}${shipment.status_note ? `<p class="shipment-note">${escA(shipment.status_note)}</p>` : ''}<small class="shipment-updated">آخر تحديث: ${dateTimeA(shipment.updated_at)}</small></div>`;
 }
 function itemLine(item) {
   const label = [item.brand_name, item.product_name, item.size_label].filter(Boolean).map(escA).join(' · ');
@@ -62,12 +86,33 @@ function itemLine(item) {
   const platformNo = item.platform_order_number ? ` <small class="muted" dir="ltr">${escA(item.platform_order_number)}</small>` : '';
   return `<div><span>${label} × ${Number(item.quantity) || 0}${unit}${platformNo}</span><b>${moneyA(item.line_total, item.currency)}</b></div>`;
 }
+// What was ordered, as a short list (the first three); the rest is in the details.
+function itemsPreviewA(items) {
+  if (!items.length) return '';
+  const rest = items.length - 3;
+  const rows = items.slice(0, 3).map(item => { const meta = [item.brand_name, item.size_label].filter(Boolean).map(escA).join(' · '); return `<li><span><b>${escA(item.product_name || 'منتج')}</b>${meta ? ` · ${meta}` : ''}</span><em>× ${Number(item.quantity) || 0}</em></li>`; }).join('');
+  return `<ul class="acct-items">${rows}${rest > 0 ? `<li class="more">و${rest === 1 ? 'منتج آخر' : rest === 2 ? 'منتجان آخران' : `${rest} منتجات أخرى`} في التفاصيل</li>` : ''}</ul>`;
+}
+// The opened "details": prices line by line, the totals, who sold it and the numbers to quote. `lead` is anything that belongs on top (the shipping box of a finished order).
+function detailsA(request, items, lead = '', reorder = '') {
+  const total = request.total_amount ?? request.subtotal;
+  const shipping = request.shipping_amount == null ? '' : `<div><span>الشحن</span><b>${moneyA(request.shipping_amount, request.currency)}</b></div>`;
+  return `<details class="acct-more"><summary>تفاصيل الطلب</summary>${lead}<div class="order-detail">${items.map(itemLine).join('')}<hr><div><span>المنتجات</span><b>${moneyA(request.subtotal, request.currency)}</b></div>${shipping}<div class="sum"><span>الإجمالي</span><b>${moneyA(total, request.currency)}</b></div><hr><div><span>المتجر</span><b>${escA(request.stores && request.stores.name || '—')}</b></div><div><span>رقم الطلب</span><b dir="ltr">${escA(request.tracking_number)}</b></div>${request.merchant_order_number ? `<div><span>رقم طلب المتجر</span><b dir="ltr">${escA(request.merchant_order_number)}</b></div>` : ''}${request.merchant_invoice_number ? `<div><span>رقم فاتورة المتجر</span><b dir="ltr">${escA(request.merchant_invoice_number)}</b></div>` : ''}<div><span>وقت الطلب</span><b>${dateTimeA(request.created_at)}</b></div>${reorder}</div></details>`;
+}
+const totalBoxA = request => `<div class="acct-total"><small>الإجمالي</small><b>${numA(request.total_amount ?? request.subtotal)}<i>${escA(currencyA(request.currency))}</i></b></div>`;
 function requestLine(request) {
   const state = stateA(request), items = request.store_order_request_items || [];
-  const names = items.slice(0, 2).map(item => `${escA(item.product_name)}${Number(item.quantity) > 1 ? ` × ${item.quantity}` : ''}`).join('، ');
-  const shipping = request.shipping_amount == null ? '' : `<div><span>الشحن</span><b>${moneyA(request.shipping_amount, request.currency)}</b></div>`;
+  const store = escA(request.stores && request.stores.name || 'متجر'), number = `<span class="num">${escA(request.tracking_number)}</span>`;
   const canReorder = items.some(item => /^[0-9a-f-]{36}$/i.test(String(item.product_size_id || '')));
-  return `<article class="compact-order"><div class="compact-order-main"><div><span class="order-store">${escA(request.stores && request.stores.name || 'متجر')}</span><h3>${escA(request.tracking_number)}</h3><p>${names || 'تفاصيل المنتجات متاحة داخل الطلب'}${items.length > 2 ? ` <span class="muted">+${items.length - 2} أخرى</span>` : ''}</p></div><div class="compact-order-side">${badgeA(state)}<strong>${moneyA(request.total_amount ?? request.subtotal, request.currency)}</strong></div></div>${shipmentLine(request)}${cancelLine(request)}<div class="compact-order-foot"><span>${dateA(request.created_at)}</span><details><summary>التفاصيل</summary><div class="order-detail">${items.map(itemLine).join('')}<hr><div><span>المجموع الفرعي</span><b>${moneyA(request.subtotal, request.currency)}</b></div>${shipping}<div><span>الإجمالي</span><b>${moneyA(request.total_amount ?? request.subtotal, request.currency)}</b></div><hr><div><span>المتجر</span><b>${escA(request.stores && request.stores.name || '—')}</b></div><div><span>رقم التتبع الموحد</span><b dir="ltr">${escA(request.tracking_number)}</b></div>${request.merchant_order_number ? `<div><span>رقم طلب المتجر</span><b dir="ltr">${escA(request.merchant_order_number)}</b></div>` : ''}${request.merchant_invoice_number ? `<div><span>رقم فاتورة المتجر</span><b dir="ltr">${escA(request.merchant_invoice_number)}</b></div>` : ''}<div><span>وقت الطلب</span><b>${dateTimeA(request.created_at)}</b></div>${canReorder ? `<button class="ghost order-reorder" type="button" data-reorder="${escA(request.id)}">اطلب مرة أخرى</button>` : ''}</div></details></div></article>`;
+  const reorder = canReorder ? `<button class="ghost order-reorder" type="button" data-reorder="${escA(request.id)}">اطلب مرة أخرى</button>` : '';
+  if (terminalA.has(state)) {
+    // Over (delivered, cancelled ...): one compact row, "order again" within reach, everything else behind "details".
+    const names = items.slice(0, 2).map(item => `${escA(item.product_name)}${Number(item.quantity) > 1 ? ` × ${item.quantity}` : ''}`).join('، ');
+    const more = items.length > 2 ? ` <span class="muted">+${items.length - 2} أخرى</span>` : '';
+    return `<article class="acct-order is-past" data-state="${escA(state)}"><div class="acct-order-top"><div class="acct-order-title"><h3>${names || 'تفاصيل المنتجات داخل الطلب'}${more}</h3><p class="acct-sub">من ${store} · ${number} · ${dateA(request.created_at)}</p></div><div class="acct-side">${badgeA(state)}${totalBoxA(request)}</div></div>${cancelLine(request)}<div class="acct-past-actions">${reorder}${detailsA(request, items, shipmentLine(request))}</div></article>`;
+  }
+  // Still being followed: what is happening now (the sentence, the four steps, the shipment), then what was ordered.
+  return `<article class="acct-order is-active" data-state="${escA(state)}"><div class="acct-order-top"><div class="acct-order-title"><h3>${headlineA[state] || 'طلبك قيد المتابعة'}</h3><p class="acct-sub">من ${store} · ${number}</p></div>${totalBoxA(request)}</div>${trackerA(request)}${shipmentLine(request)}${itemsPreviewA(items)}${cancelLine(request)}<div class="acct-order-foot"><span>تاريخ الطلب: ${dateA(request.created_at)}</span>${detailsA(request, items, '', reorder)}</div></article>`;
 }
 function flatten(sessions) { return sessions.flatMap(session => (session.store_order_requests || []).map(request => ({ ...request, session }))); }
 function mergeSessions(newer, older) {
@@ -83,15 +128,25 @@ function fillYears() {
   select.innerHTML = '<option value="">كل السنوات</option>' + years.map(year => `<option value="${year}">${year}</option>`).join('');
   select.dataset.yearsReady = '1';
 }
+// The sentence at the top of the page: what the customer most wants to know first.
+function headlineTextA(requests, active, completed) {
+  if (!requests.length) return 'لم تطلب شيئًا بعد. عطورك القادمة ستظهر هنا.';
+  if (!active.length) return completed.length ? 'وصلتك كل طلباتك. نتمنى أن تنال العطور إعجابك.' : 'لا توجد طلبات جارية الآن.';
+  if (active.length === 1) return stateA(active[0]) === 'shipped' ? 'طلبك في الطريق إليك.' : 'عندك طلب واحد قيد المتابعة.';
+  return `عندك ${countA(active.length, '', 'طلبان', 'طلبات', 'طلبًا')} قيد المتابعة.`;
+}
 function renderAccount(sessions) {
   const requests = flatten(sessions);
   const active = requests.filter(request => !terminalA.has(stateA(request)));
   const completed = requests.filter(request => ['completed', 'delivered'].includes(stateA(request))).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
   const restored = requests.filter(request => stateA(request) === 'restored').length;
-  document.querySelector('#ordersCount').textContent = `${requests.length} طلب`;
-  document.querySelector('#stats').innerHTML = [['قيد المتابعة', active.length, 'orange'], ['تم التسليم', completed.length, 'green'], ['مسترجعة', restored, 'blue']].map(item => `<div class="stat ${item[2]}"><small>${item[0]}</small><b>${item[1]}</b></div>`).join('');
-  renderList(document.querySelector('#activeOrders'), active, 'لا توجد طلبات حالية تحتاج متابعة');
-  renderList(document.querySelector('#recentOrders'), completed.slice(0, 5), 'لا توجد طلبات مكتملة بعد');
+  const cancelled = requests.filter(request => cancelEndedA.has(stateA(request))).length;
+  document.querySelector('#ordersCount').textContent = requests.length ? countA(requests.length, 'طلب واحد', 'طلبان', 'طلبات', 'طلبًا') : '';
+  const headline = document.querySelector('#ordersHeadline');
+  if (headline) headline.textContent = headlineTextA(requests, active, completed);
+  document.querySelector('#stats').innerHTML = [['جارية', active.length, 'gold'], ['وصلت', completed.length, 'green'], ['ملغاة', cancelled, 'grey']].filter(item => item[1] > 0).map(item => `<span class="acct-stat ${item[2]}"><b>${item[1]}</b> ${item[0]}</span>`).join('');
+  renderList(document.querySelector('#activeOrders'), active, 'لا توجد طلبات جارية الآن.<a href="/">تصفّح العطور</a>');
+  renderList(document.querySelector('#recentOrders'), completed.slice(0, 5), 'لم تصلك طلبات بعد.');
   fillYears();
   updateCartShortcut(restored);
   window.__customerSessions = sessions;
@@ -113,7 +168,7 @@ async function loadArchive(event, append = false) {
   if (!append) {
     archiveQuery = { q: document.querySelector('#archiveSearch').value.trim(), year: document.querySelector('#archiveYear').value };
     archiveSessions = []; archiveOffset = 0; archiveTotal = null;
-    const box = document.querySelector('#archiveOrders'); box.hidden = false; box.innerHTML = '<div class="muted">جارٍ البحث…</div>';
+    const box = document.querySelector('#archiveOrders'); box.hidden = false; box.innerHTML = '<div class="empty">جارٍ البحث…</div>';
     document.querySelector('#loadMoreArchive').hidden = true;
   }
   archiveLoading = true;
@@ -124,7 +179,7 @@ async function loadArchive(event, append = false) {
     archiveOffset += page.sessions.length;
     archiveTotal = page.total;
     const requests = flatten(archiveSessions).filter(request => terminalA.has(stateA(request)));
-    const box = document.querySelector('#archiveOrders'); box.hidden = false; renderList(box, requests, 'لا توجد طلبات مطابقة للبحث');
+    const box = document.querySelector('#archiveOrders'); box.hidden = false; renderList(box, requests, 'لا توجد طلبات مطابقة. جرّب رقم الطلب كما وصلك.');
     more.hidden = archiveTotal !== null ? archiveSessions.length >= archiveTotal : !page.hasMore;
     showMessage('');
   } catch (error) {
@@ -155,7 +210,7 @@ async function loadAccount(append = false, quiet = false) {
     renderAccount(accountSessions);
     showMessage('');
     const stamp = document.querySelector('#lastUpdated');
-    if (stamp) stamp.textContent = `آخر تحديث: ${new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}`;
+    if (stamp) stamp.textContent = `آخر تحديث: ${new Date().toLocaleTimeString(LATN, { hour: '2-digit', minute: '2-digit' })}`;
   } finally { more.disabled = false; accountLoading = false; }
 }
 
@@ -198,7 +253,7 @@ async function cancelOrder(requestId, button) {
   if (!request || stateA(request) !== 'awaiting_store_confirmation' || cancelAskedA(request)) return;
   const session = Portal.session();
   if (!session || !session.access_token) { showMessage('انتهت جلسة الدخول، سجّل الدخول من جديد.'); return; }
-  const reason = window.prompt('سبب طلب الإلغاء (اختياري). سيصل الطلب إلى المتجر، ولا يُلغى الطلب إلا إذا وافق المتجر.', '');
+  const reason = window.prompt('ما سبب طلب الإلغاء؟ (اختياري)\nسيصل طلبك إلى المتجر، ولن يُلغى إلا إذا وافق عليه.', '');
   if (reason === null) return;
   cancelling = true; if (button) button.disabled = true;
   try {
