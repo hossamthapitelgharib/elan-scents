@@ -26,6 +26,7 @@ function order(overrides = {}) {
     subtotal: 100, total_amount: 100, currency: 'EGP', reconciliation_status: 'pending', stores: { name: 'متجر' }, store_order_request_items: [], store_shipments: [], store_order_cancellation_requests: [], ...overrides
   };
 }
+const defaultRoutes = { 'GET /api/store-payment-methods': json(200, { ok: true, storeId: 's1', methods: [] }) };
 function boot(routes) {
   const nodes = new Map();
   const get = selector => { if (!nodes.has(selector)) nodes.set(selector, makeNode()); return nodes.get(selector); };
@@ -40,7 +41,7 @@ function boot(routes) {
     fetch: async (url, options = {}) => {
       const call = { url: String(url), method: options.method || 'GET', headers: options.headers || {}, body: options.body ? JSON.parse(options.body) : null };
       calls.push(call);
-      const route = routes[`${call.method} ${call.url.split('?')[0]}`];
+      const route = routes[`${call.method} ${call.url.split('?')[0]}`] || defaultRoutes[`${call.method} ${call.url.split('?')[0]}`];
       if (!route) throw new Error(`unexpected fetch ${call.method} ${call.url}`);
       return typeof route === 'function' ? route(call) : route;
     }
@@ -68,15 +69,102 @@ test('an account with no linked store sees a clear notice instead of an empty li
   assert.equal(page2.get('#noStoreNotice').hidden, true);
 });
 
-test('the shipment form appears only after the store confirmed and never for rejected or cancelled orders', async () => {
+test('the shipment form appears only after the store confirmed AND the payment is recorded, never for rejected or cancelled orders', async () => {
   const statuses = ['awaiting_store_confirmation', 'store_confirmed', 'processing', 'shipped', 'delivered', 'store_rejected', 'store_cancelled', 'cancelled'];
-  const page = boot({ 'GET /api/store-dashboard-orders': list(statuses.map((status, index) => order({ id: `o${index}`, status }))) });
+  const page = boot({ 'GET /api/store-dashboard-orders': list(statuses.map((status, index) => order({ id: `o${index}`, status, payment_status: 'paid' }))) });
   await tick();
   const html = page.get('#orders').innerHTML;
   for (const [index, status] of statuses.entries()) {
     const shown = html.includes(`data-shipment-form="o${index}"`);
     assert.equal(shown, ['store_confirmed', 'processing', 'shipped', 'delivered'].includes(status), status);
   }
+  // the same confirmed order without a recorded payment gets no shipment form, and says why
+  const unpaid = boot({ 'GET /api/store-dashboard-orders': list([order({ id: 'u1', status: 'store_confirmed', payment_status: 'not_started', payable_amount: 130 })]) });
+  await tick();
+  const unpaidHtml = unpaid.get('#orders').innerHTML;
+  assert.doesNotMatch(unpaidHtml, /data-shipment-form="u1"/);
+  assert.match(unpaidHtml, /لا يمكن تجهيز الطلب أو شحنه قبل أن يسجّل العميل الدفع/);
+  assert.match(unpaidHtml, /بانتظار اختيار العميل لطريقة الدفع/);
+});
+
+test('processing and shipping buttons wait for a recorded payment, rejecting does not', async () => {
+  const unpaid = boot({ 'GET /api/store-dashboard-orders': list([order({ id: 'p1', status: 'store_confirmed', payment_status: 'awaiting_payment' })]) });
+  await tick();
+  const unpaidHtml = unpaid.get('#orders').innerHTML;
+  assert.doesNotMatch(unpaidHtml, /data-status="processing"/);
+  assert.doesNotMatch(unpaidHtml, /data-status="shipped"/);
+  const paid = boot({ 'GET /api/store-dashboard-orders': list([order({ id: 'p2', status: 'store_confirmed', payment_status: 'cod_selected' })]) });
+  await tick();
+  assert.match(paid.get('#orders').innerHTML, /data-status="processing"/);
+});
+
+test('the payment box shows the frozen amount, the method, the reference and the time, escaped', async () => {
+  const page = boot({ 'GET /api/store-dashboard-orders': list([order({
+    id: 'q1', status: 'processing', payment_status: 'paid', payable_amount: 1250.5, payment_method: 'card', payment_reference: 'PAY-<b>1</b>', paid_at: '2026-11-12T10:00:00Z'
+  })]) });
+  await tick();
+  const html = page.get('#orders').innerHTML;
+  assert.match(html, /تم الدفع/);
+  assert.match(html, /بطاقة/);
+  assert.match(html, /PAY-&lt;b&gt;1&lt;\/b&gt;/, 'the payment reference is escaped');
+  assert.doesNotMatch(html, /PAY-<b>1/);
+});
+
+test('the shipment events of an order are listed with their source', async () => {
+  const page = boot({ 'GET /api/store-dashboard-orders': list([order({
+    id: 'e1', status: 'shipped', payment_status: 'paid',
+    store_shipment_events: [{ id: 'ev1', shipping_status: 'in_transit', occurred_at: '2026-11-12T10:00:00Z', carrier_name: 'ناقل <i>x</i>', tracking_code: 'WB-1', source: 'merchant_api', note: null }]
+  })]) });
+  await tick();
+  const html = page.get('#orders').innerHTML;
+  assert.match(html, /سجل أحداث الشحن/);
+  assert.match(html, /WB-1/);
+  assert.match(html, /واجهة المتجر/);
+  assert.doesNotMatch(html, /<i>x<\/i>/, 'the carrier name is escaped');
+});
+
+test('the store manages its payment methods: the list loads, a cash on delivery method is added without a page, a card needs one, a method is switched off not deleted', async () => {
+  const methods = [{ id: 'm1', kind: 'cod', mode: 'none', provider: 'merchant', label_ar: 'الدفع عند الاستلام', label_en: null, redirect_url: null, enabled: true, sort_order: 0 }];
+  const posts = [];
+  const page = boot({
+    'GET /api/store-dashboard-orders': list([]),
+    'GET /api/store-payment-methods': () => json(200, { ok: true, storeId: 's1', methods }),
+    'POST /api/store-payment-methods': call => { posts.push(call.body); return json(200, { ok: true }); }
+  });
+  await tick();
+  assert.match(page.get('#paymentMethodsList').innerHTML, /الدفع عند الاستلام/);
+  // add a card method
+  const form = { __entries: [['kind', 'card'], ['labelAr', 'بطاقة بنكية'], ['provider', 'acme'], ['redirectUrl', 'https://pay.example.com/checkout']], reset() {} };
+  page.get('#paymentMethodForm').listeners.submit({ preventDefault() {}, target: form });
+  await tick();
+  assert.equal(posts.length, 1);
+  assert.deepEqual({ kind: posts[0].kind, mode: posts[0].mode, redirectUrl: posts[0].redirectUrl, storeId: posts[0].storeId }, { kind: 'card', mode: 'redirect', redirectUrl: 'https://pay.example.com/checkout', storeId: 's1' });
+  // a cash on delivery method never sends a page address
+  const cod = { __entries: [['kind', 'cod'], ['labelAr', 'عند الاستلام'], ['provider', ''], ['redirectUrl', 'https://ignored.example.com']], reset() {} };
+  page.get('#paymentMethodForm').listeners.submit({ preventDefault() {}, target: cod });
+  await tick();
+  assert.equal(posts[1].mode, 'none');
+  assert.equal('redirectUrl' in posts[1], false);
+  // switching off posts enabled:false with the same id (nothing is deleted)
+  const button = { dataset: { methodToggle: 'm1' }, disabled: false };
+  page.get('#paymentMethods').listeners.click({ target: { closest: selector => (selector === '[data-method-toggle]' ? button : null) } });
+  await tick();
+  assert.equal(posts[2].id, 'm1');
+  assert.equal(posts[2].enabled, false);
+});
+
+test('a refused payment method shows an Arabic message, not the raw code', async () => {
+  const page = boot({
+    'GET /api/store-dashboard-orders': list([]),
+    'POST /api/store-payment-methods': () => json(422, { ok: false, error: 'invalid_payment_page' })
+  });
+  await tick();
+  page.get('#paymentMethodForm').listeners.submit({ preventDefault() {}, target: { __entries: [['kind', 'card'], ['labelAr', 'بطاقة'], ['redirectUrl', 'http://x']], reset() {} } });
+  await tick();
+  const box = page.get('#paymentMethodsError');
+  assert.equal(box.hidden, false);
+  assert.match(box.textContent, /https/);
+  assert.doesNotMatch(box.textContent, /invalid_payment_page/);
 });
 
 test('the reconciliation state is Arabic', async () => {

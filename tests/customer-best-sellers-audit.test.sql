@@ -12,6 +12,8 @@
 --   request 5: 1 unit of size A, completed + pending       -> excluded as review (not yet reconciled)
 -- Expected: 1 net unit in 1 purchase; reversed 4; cancelled 7; in progress 4; review 1; registered 17 = 1 + 4 + 7 + 4 + 1.
 begin;
+-- The live database may already hold real or test orders, so every audit count is compared as a difference from a baseline taken first.
+create function pg_temp.d(a jsonb, b jsonb, k text) returns integer language sql as $f$ select (a->>k)::integer - coalesce((b->>k)::integer, 0) $f$;
 do $audit_fixture$
 declare
   v_user_id uuid := gen_random_uuid();
@@ -33,6 +35,7 @@ declare
   v_result jsonb;
   v_product_row jsonb;
   v_audit jsonb;
+  v_base jsonb;
   v_sum numeric;
   v_name text := 'Audit fixture ' || gen_random_uuid()::text;
   v_brand text := 'Fixture brand ' || gen_random_uuid()::text;
@@ -46,6 +49,7 @@ begin
   insert into auth.users (id, aud, role, email, encrypted_password, raw_app_meta_data, raw_user_meta_data, email_confirmed_at, created_at, updated_at)
   values (v_user_id, 'authenticated', 'authenticated', 'fixture-' || v_user_id::text || '@example.invalid', '', '{}'::jsonb, '{"full_name":"best-seller-fixture"}'::jsonb, now(), now(), now());
   perform set_config('request.jwt.claim.sub', v_user_id::text, true);
+  v_base := public.platform_registered_customer_best_sellers('all',100,0)->'audit';
 
   insert into public.brands(name, slug, is_active) values (v_brand, v_slug || '-brand', true) returning id into v_brand_id;
   insert into public.products(brand_id, name, slug, short_description, official_description, gender, notes_source, content_source, status, is_active)
@@ -67,7 +71,8 @@ begin
     'customer',jsonb_build_object('name','Synthetic Test','phone','0000000000','address','Rollback fixture'),
     'items',jsonb_build_array(jsonb_build_object('productSizeId',v_size_2,'storeProductId',v_offer_2,'quantity',3,'unitPrice',v_price_2,'total',v_price_2*3)));
   v_request_2 := (public.create_store_order_request(v_payload)->>'id')::uuid;
-  update public.store_order_requests set status='delivered', reconciliation_status='pending' where id=v_request_2;
+  perform set_config('elan.pay_write', 'on', true);
+  update public.store_order_requests set status = 'delivered', payment_status = 'cod_selected', payment_method = 'cod', reconciliation_status = 'pending' where id = v_request_2;
 
   v_payload := jsonb_build_object('storeId',v_store_id,'trackingNumber','AUDIT-' || replace(gen_random_uuid()::text,'-',''),
     'customer',jsonb_build_object('name','Synthetic Test','phone','0000000000','address','Rollback fixture'),
@@ -86,7 +91,7 @@ begin
   if v_product_row is null then raise exception 'STEP1 fixture perfume missing from ranking'; end if;
   if (v_product_row->>'unitsSold')::numeric <> 5 or (v_product_row->>'purchases')::numeric <> 2 then raise exception 'STEP1 expected 5 units in 2 purchases, got %', v_product_row; end if;
   v_audit := v_result->'audit';
-  if (v_audit->>'eligibleUnits')::integer <> 5 or (v_audit->>'rankedUnits')::integer <> 5 or (v_audit->>'excludedCancelledUnits')::integer <> 7 or (v_audit->>'excludedInProgressUnits')::integer <> 4 then
+  if pg_temp.d(v_audit,v_base,'eligibleUnits') <> 5 or pg_temp.d(v_audit,v_base,'rankedUnits') <> 5 or pg_temp.d(v_audit,v_base,'excludedCancelledUnits') <> 7 or pg_temp.d(v_audit,v_base,'excludedInProgressUnits') <> 4 then
     raise exception 'STEP1 audit wrong: %', v_audit; end if;
 
   -- Returns: 1 of 2 units returned on request 1, all 3 units refunded on request 2 (a fully returned line);
@@ -105,9 +110,9 @@ begin
   select item into v_product_row from jsonb_array_elements(v_result->'records') as e(item) where item->'product'->>'id'=v_product_id::text limit 1;
   if (v_product_row->>'unitsSold')::numeric <> 1 or (v_product_row->>'purchases')::numeric <> 1 then raise exception 'STEP2 expected 1 net unit in 1 purchase, got %', v_product_row; end if;
   v_audit := v_result->'audit';
-  if (v_audit->>'eligibleUnits')::integer <> 1 or (v_audit->>'reversedUnits')::integer <> 4 or (v_audit->>'excludedCancelledUnits')::integer <> 7
-     or (v_audit->>'excludedInProgressUnits')::integer <> 4 or (v_audit->>'excludedReviewOrMismatchUnits')::integer <> 1
-     or (v_audit->>'excludedOtherUnits')::integer <> 0 or (v_audit->>'ownerConflictUnits')::integer <> 0 or (v_audit->>'registeredUnits')::integer <> 17 then
+  if pg_temp.d(v_audit,v_base,'eligibleUnits') <> 1 or pg_temp.d(v_audit,v_base,'reversedUnits') <> 4 or pg_temp.d(v_audit,v_base,'excludedCancelledUnits') <> 7
+     or pg_temp.d(v_audit,v_base,'excludedInProgressUnits') <> 4 or pg_temp.d(v_audit,v_base,'excludedReviewOrMismatchUnits') <> 1
+     or pg_temp.d(v_audit,v_base,'excludedOtherUnits') <> 0 or pg_temp.d(v_audit,v_base,'ownerConflictUnits') <> 0 or pg_temp.d(v_audit,v_base,'registeredUnits') <> 17 then
     raise exception 'STEP2 audit wrong: %', v_audit; end if;
 
   -- The audit identity: every registered unit is in exactly one bucket.

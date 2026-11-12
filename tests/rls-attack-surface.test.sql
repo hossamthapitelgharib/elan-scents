@@ -245,6 +245,19 @@ begin
   assert pg_temp.blocked(u_a, 'authenticated', $q$select 1 from public.store_order_requests$q$), 'A cannot read store order requests';
   assert pg_temp.blocked(u_sx, 'authenticated', $q$select 1 from public.store_order_requests$q$), 'a store admin reads orders only through the checked API';
   assert pg_temp.blocked(u_a, 'authenticated', $q$select 1 from public.store_integrations$q$), 'A cannot read store integration secrets';
+  -- Phase 2 (payment, merchant notices, shipping): these tables are server-only. Neither a customer, a store admin nor a visitor can
+  -- read or write them through the data API; the platform's first notice, the payments and the shipment events are reached only through the checked APIs.
+  for v_bad in select unnest(array['store_payment_methods', 'order_payments', 'order_payment_events', 'platform_order_notices', 'store_shipment_events'])
+  loop
+    assert pg_temp.blocked(u_a, 'authenticated', format('select 1 from public.%I', v_bad)), 'A cannot read ' || v_bad;
+    assert pg_temp.blocked(u_sx, 'authenticated', format('select 1 from public.%I', v_bad)), 'a store admin cannot read ' || v_bad || ' through the data API';
+    assert pg_temp.blocked(null, 'anon', format('select 1 from public.%I', v_bad)), 'a visitor cannot read ' || v_bad;
+    assert pg_temp.blocked(u_a, 'authenticated', format('delete from public.%I', v_bad)), 'A cannot delete from ' || v_bad;
+    assert pg_temp.blocked(u_sx, 'authenticated', format('update public.%I set id = id', v_bad)), 'a store admin cannot change ' || v_bad;
+  end loop;
+  v_bad := null;
+  assert pg_temp.blocked(u_sx, 'authenticated', $q$update public.store_order_requests set payment_status = 'paid', paid_at = now()$q$), 'a store admin cannot mark an order paid';
+  assert pg_temp.blocked(u_a, 'authenticated', $q$update public.store_order_requests set payment_status = 'paid', paid_at = now()$q$), 'a customer cannot mark an order paid';
   assert pg_temp.blocked(u_sx, 'authenticated', $q$select 1 from public.store_integrations$q$), 'a store admin cannot read integration secrets through the data API';
   assert pg_temp.blocked(u_a, 'authenticated', $q$select 1 from public.platform_audit_log$q$), 'A cannot read the audit log';
   assert pg_temp.blocked(null, 'anon', $q$select 1 from public.guest_visitors$q$), 'a visitor cannot read other visitors';
@@ -270,6 +283,11 @@ begin
   where n.nspname = 'public' and p.prokind = 'f' and has_function_privilege('anon', p.oid, 'execute');
   assert v_bad is null, 'a visitor may call no public function, found: ' || coalesce(v_bad, '');
   assert not has_function_privilege('anon', 'public.place_store_order(jsonb)', 'execute'), 'a visitor cannot place an order';
+  assert not has_function_privilege('authenticated', 'public.select_order_payment_server(uuid,uuid,uuid,text)', 'execute')
+     and not has_function_privilege('authenticated', 'public.record_payment_event(uuid,jsonb)', 'execute')
+     and not has_function_privilege('authenticated', 'public.record_shipment_event(uuid,jsonb)', 'execute')
+     and not has_function_privilege('authenticated', 'public.merchant_review_order(uuid,jsonb)', 'execute'), 'the Phase 2 payment, merchant and shipment functions are closed to a customer token';
+  assert has_function_privilege('service_role', 'public.select_order_payment_server(uuid,uuid,uuid,text)', 'execute'), 'the server keeps the payment-choice function';
   assert pg_temp.attack(null, 'anon', $q$select public.place_store_order('{}'::jsonb)$q$) like 'err:%', 'a visitor calling place_store_order is refused';
   assert not has_function_privilege('authenticated', 'public.confirm_store_order_purchase(uuid)', 'execute') and not has_function_privilege('anon', 'public.confirm_store_order_purchase(uuid)', 'execute'), 'neither a visitor nor a customer token can confirm a purchase directly';
   assert pg_temp.blocked(u_a, 'authenticated', $q$update public.store_order_commissions set commission_amount = 0$q$), 'a customer cannot change the legacy commission ledger';

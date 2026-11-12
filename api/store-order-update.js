@@ -53,7 +53,15 @@ module.exports = async function storeOrderUpdate(req, res) {
     // while the order still has that status. Two concurrent updates can no longer both pass the check.
     const patchParams = new URLSearchParams({ id: `eq.${target[0].id}`, status: `eq.${target[0].status}`, select: 'id' });
     const response = await fetch(`${context.supabaseUrl}/rest/v1/store_order_requests?${patchParams}`, { method: 'PATCH', headers: { apikey: context.serviceRoleKey, Authorization: `Bearer ${context.serviceRoleKey}`, 'Content-Type': 'application/json', Prefer: 'return=representation' }, body: JSON.stringify(patch) });
-    if (!response.ok) return reply(res, 502, { ok: false, error: 'supabase_update_failed' });
+    if (!response.ok) {
+      // The database's own rules answer first: an order is not approved without a payment method, and is not processed or shipped before it is paid.
+      const failure = await response.json().catch(() => null);
+      const message = `${failure && failure.message || ''}`;
+      if (/Configure a payment method before approving/i.test(message)) return reply(res, 409, { ok: false, error: 'payment_method_required' });
+      if (/Payment is required before processing or shipping/i.test(message)) return reply(res, 409, { ok: false, error: 'payment_required' });
+      if (/The approved payment terms are fixed/i.test(message)) return reply(res, 409, { ok: false, error: 'payment_terms_fixed' });
+      return reply(res, 502, { ok: false, error: 'supabase_update_failed' });
+    }
     const updated = await response.json().catch(() => null);
     if (!Array.isArray(updated) || updated.length === 0) return reply(res, 409, { ok: false, error: 'order_status_changed', from: target[0].status });
     // The status is already saved at this point, so a failed notification is reported, not turned into an error.

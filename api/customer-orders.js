@@ -1,5 +1,5 @@
 const { getContext, requireRoles } = require('./_auth');
-const ORDER_SELECT = 'id,created_at,store_order_requests(id,tracking_number,status,created_at,subtotal,shipping_amount,total_amount,currency,merchant_order_number,merchant_invoice_number,stores(name),store_order_request_items(product_name,brand_name,size_label,product_size_id,quantity,unit_price,line_total,currency,platform_order_number),store_order_cart_restorations(status),store_order_cancellation_requests(created_at),store_shipments(carrier_name,tracking_code,shipping_status,estimated_delivery_at,delivered_at,delivery_verified_at,status_note,updated_at))';
+const ORDER_SELECT = 'id,created_at,store_order_requests(id,tracking_number,status,created_at,subtotal,shipping_amount,total_amount,currency,merchant_order_number,merchant_invoice_number,approved_at,payable_amount,payment_status,payment_method,payment_provider,paid_at,payment_options,failure_reason,sale_proven_at,stores(name),store_order_request_items(product_name,brand_name,size_label,product_size_id,quantity,unit_price,line_total,currency,platform_order_number),store_order_cart_restorations(status),store_order_cancellation_requests(created_at),store_shipments(carrier_name,tracking_code,shipping_status,estimated_delivery_at,delivered_at,delivery_verified_at,status_note,updated_at),store_shipment_events(shipping_status,carrier_name,tracking_code,occurred_at,source,note))';
 function reply(res, status, body) {
   res.setHeader('Cache-Control', 'no-store');
   return res.status(status).setHeader('Content-Type', 'application/json').json(body);
@@ -24,7 +24,13 @@ function sanitizeSessions(rows) {
   return rows.map(session => {
     const safeSession = pick(session, ['id', 'created_at']);
     safeSession.store_order_requests = (Array.isArray(session.store_order_requests) ? session.store_order_requests : []).map(request => {
-      const safeRequest = pick(request, ['id', 'tracking_number', 'status', 'created_at', 'subtotal', 'shipping_amount', 'total_amount', 'currency', 'merchant_order_number', 'merchant_invoice_number']);
+      const safeRequest = pick(request, ['id', 'tracking_number', 'status', 'created_at', 'subtotal', 'shipping_amount', 'total_amount', 'currency', 'merchant_order_number', 'merchant_invoice_number', 'approved_at', 'payable_amount', 'payment_status', 'payment_method', 'payment_provider', 'paid_at', 'sale_proven_at']);
+      // The merchant's reason is the customer's to read only when the store turned the order down.
+      if (request.status === 'store_rejected' && request.failure_reason) safeRequest.rejection_reason = String(request.failure_reason).slice(0, 500);
+      // What the customer may pick, as frozen at approval: the choice and its labels (the payment page address comes back with the choice itself).
+      safeRequest.payment_options = (Array.isArray(request.payment_options) ? request.payment_options : []).map(option => pick(option, ['id', 'kind', 'mode', 'provider', 'labelAr', 'labelEn']));
+      safeRequest.store_shipment_events = (Array.isArray(request.store_shipment_events) ? request.store_shipment_events : []).map(event => pick(event, ['shipping_status', 'carrier_name', 'tracking_code', 'occurred_at', 'source', 'note']))
+        .sort((a, b) => String(a.occurred_at).localeCompare(String(b.occurred_at)));
       safeRequest.stores = request.stores && typeof request.stores === 'object' ? pick(request.stores, ['name']) : null;
       safeRequest.store_order_request_items = (Array.isArray(request.store_order_request_items) ? request.store_order_request_items : []).map(item => pick(item, ['product_name', 'brand_name', 'size_label', 'product_size_id', 'quantity', 'unit_price', 'line_total', 'currency', 'platform_order_number']));
       // One request per order at most; PostgREST answers an object for this one-to-one link, an array elsewhere: the page always gets a list.

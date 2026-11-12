@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>لوحة المتجر · Élan Scents</title>
-  <link rel="stylesheet" href="/fonts.css?v=20261113-02">
-  <link rel="stylesheet" href="/portal.css?v=20261113-02">
+  <link rel="stylesheet" href="/fonts.css?v=20261113-03">
+  <link rel="stylesheet" href="/portal.css?v=20261113-03">
 </head>
 <body>
   <header>
@@ -26,6 +26,19 @@
     <section id="app" hidden>
       <p id="noStoreNotice" class="panel" role="status" hidden>هذا الحساب غير مرتبط بأي متجر بعد، فلا توجد طلبات لعرضها. اطلب من إدارة المنصة ربطه بمتجرك ثم أعد تحميل الصفحة.</p>
       <div id="stats" class="stats"></div>
+      <section id="paymentMethods" class="panel" aria-labelledby="paymentMethodsTitle">
+        <h2 id="paymentMethodsTitle">طرق الدفع</h2>
+        <p class="muted">هذه الطرق هي ما يختار منه العميل بعد أن تؤكّد طلبه. الدفع بالبطاقة يتم في صفحة الدفع الخاصة بمتجرك أو بمزوّد الدفع (لا نحفظ أي بيانات بطاقة)، ونتيجته تصلنا منك موقّعةً عبر واجهة المتجر. الدفع عند الاستلام يمرّ على نفس دورة الشحن والتسليم. لا يمكن تأكيد الطلبات قبل إضافة طريقة واحدة على الأقل.</p>
+        <p id="paymentMethodsError" class="platform-error" role="alert" hidden></p>
+        <div id="paymentMethodsList" class="stack"></div>
+        <form id="paymentMethodForm" class="shipment-form" autocomplete="off">
+          <label>النوع<select name="kind"><option value="cod">الدفع عند الاستلام</option><option value="card">بطاقة (صفحة دفع)</option><option value="other">طريقة أخرى (صفحة دفع)</option></select></label>
+          <label>الاسم الذي يراه العميل<input name="labelAr" maxlength="80" required placeholder="مثال: الدفع عند الاستلام"></label>
+          <label>المزوّد (اختياري)<input name="provider" maxlength="60" placeholder="merchant"></label>
+          <label class="shipment-note-field">عنوان صفحة الدفع (https)<input name="redirectUrl" dir="ltr" maxlength="500" placeholder="https://pay.example.com/checkout"></label>
+          <button class="primary" type="submit">إضافة طريقة دفع</button>
+        </form>
+      </section>
       <form id="orderFilters" class="platform-filters" aria-label="تصفية الطلبات">
         <select name="status" aria-label="حالة الطلب">
           <option value="">كل الحالات</option>
@@ -48,10 +61,10 @@
       <button id="loadMoreOrders" class="ghost" type="button" hidden>تحميل المزيد من الطلبات</button>
     </section>
   </main>
-  <script src="/auth-session.js?v=20261113-02"></script>
-  <script src="/portal.js?v=20261113-02"></script>
-  <script src="/turnstile.js?v=20261113-02"></script>
-  <script src="/pw-eye.js?v=20261113-02" defer></script>
-  <script src="/store-dashboard.js?v=20261113-02"></script>
+  <script src="/auth-session.js?v=20261113-03"></script>
+  <script src="/portal.js?v=20261113-03"></script>
+  <script src="/turnstile.js?v=20261113-03"></script>
+  <script src="/pw-eye.js?v=20261113-03" defer></script>
+  <script src="/store-dashboard.js?v=20261113-03"></script>
 </body>
 </html>

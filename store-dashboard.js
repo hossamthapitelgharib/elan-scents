@@ -11,6 +11,26 @@ const reconS = { pending: 'بانتظار المطابقة', matched: 'مطاب�
 const shippableS = new Set(['store_confirmed', 'processing', 'shipped', 'delivered', 'needs_review', 'completed']);
 const stateS = { orders: [], offset: 0, limit: 50, total: null, hasMore: false, busy: false, linked: null, filters: { status: '', q: '' } };
 const shipmentOf = order => (order.store_shipments || [])[0] || {};
+// ---- phase 2: payment and the shipment timeline ---------------------------------------------------------------------------
+const payLabelS = { not_started: 'بانتظار اختيار العميل لطريقة الدفع', awaiting_payment: 'بانتظار نتيجة الدفع من مزوّد الدفع', paid: 'تم الدفع', cod_selected: 'الدفع عند الاستلام', failed: 'تعذر الدفع' };
+const payKindS = { card: 'بطاقة', cod: 'الدفع عند الاستلام', other: 'طريقة أخرى' };
+const sourceS = { merchant_api: 'واجهة المتجر', merchant_notice: 'إشعار المتجر', store_dashboard: 'لوحة المتجر', platform_admin: 'المنصة' };
+const paymentDoneS = order => ['paid', 'cod_selected'].includes(order.payment_status);
+function paymentBoxS(order) {
+  if (['awaiting_store_confirmation', 'store_rejected', 'store_cancelled', 'cancelled', 'restored'].includes(order.status)) return '';
+  const status = order.payment_status || 'not_started';
+  const amount = order.payable_amount != null ? `<br>المبلغ المعتمد: <b>${moneyS(order.payable_amount, order.currency)}</b>` : '';
+  const reference = order.payment_reference ? `<br>مرجع الدفع: <span dir="ltr">${escS(order.payment_reference)}</span>` : '';
+  const paid = order.paid_at ? `<br>وقت الدفع: ${escS(new Date(order.paid_at).toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' }))}` : '';
+  const method = order.payment_method ? `<br>الطريقة: ${escS(payKindS[order.payment_method] || order.payment_method)}` : '';
+  const gate = paymentDoneS(order) ? '' : '<br><b>لا يمكن تجهيز الطلب أو شحنه قبل أن يسجّل العميل الدفع أو يختار الدفع عند الاستلام.</b>';
+  return `<section class="shipment-box store-shipment-box" aria-label="الدفع"><div class="shipment-head"><div><small>الدفع</small><strong>${escS(payLabelS[status] || status)}</strong></div></div><p class="shipment-note">${amount.replace(/^<br>/, '')}${method}${reference}${paid}${gate}</p></section>`;
+}
+function shipmentEventsS(order) {
+  const events = order.store_shipment_events || [];
+  if (!events.length) return '';
+  return `<section class="shipment-box" aria-label="سجل الشحن"><div class="shipment-head"><div><small>سجل أحداث الشحن</small></div></div><ol class="shipment-log">${events.map(event => `<li>${shipmentBadgeS(event.shipping_status)} <span>${escS(new Date(event.occurred_at).toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' }))}${event.carrier_name ? ` · ${escS(event.carrier_name)}` : ''}${event.tracking_code ? ` · <bdi dir="ltr">${escS(event.tracking_code)}</bdi>` : ''} · <small class="muted">${escS(sourceS[event.source] || '')}</small>${event.note ? `<small>${escS(event.note)}</small>` : ''}</span></li>`).join('')}</ol></section>`;
+}
 function shipmentForm(order) {
   const shipment = shipmentOf(order);
   return `<section class="shipment-box store-shipment-box"><div class="shipment-head"><div><small>شحن هذا المتجر فقط</small><strong>${shipmentBadgeS(shipment.shipping_status)}</strong></div><span class="shipment-scope">لا يوجد ربط آلي بشركات الشحن</span></div><form data-shipment-form="${escS(order.id)}" class="shipment-form"><label>شركة الشحن<input name="carrierName" value="${escS(shipment.carrier_name || '')}" maxlength="120" placeholder="مثال: Aramex أو شحن المتجر"></label><label>رقم التتبع<input name="trackingCode" dir="ltr" value="${escS(shipment.tracking_code || '')}" maxlength="160" placeholder="يُدخل يدويًا من المتجر"></label><label>حالة الشحن<select name="shippingStatus">${Object.entries(shippingLabels).map(([key, label]) => `<option value="${key}"${shipment.shipping_status === key ? ' selected' : ''}>${label}</option>`).join('')}</select></label><label>التسليم المتوقع<input name="estimatedDeliveryAt" type="date" value="${shipment.estimated_delivery_at ? String(shipment.estimated_delivery_at).slice(0, 10) : ''}"></label><label class="shipment-note-field">ملاحظة للعميل<textarea name="statusNote" maxlength="500" rows="2" placeholder="اختياري">${escS(shipment.status_note || '')}</textarea></label><button class="action" type="submit">حفظ تحديث الشحن</button></form></section>`;
@@ -42,9 +62,10 @@ function cancelNoticeS(order) {
   return `<div class="cancel-box cancel-declined" role="status"><b>طلب إلغاء من العميل</b><span>طلب العميل الإلغاء قبل التأكيد، ومضى الطلب في التنفيذ.${reason}</span></div>`;
 }
 function renderStore(order) {
-  const actions = (nextS[order.status] || []).map(status => `<button class="action" data-update="${escS(order.id)}" data-status="${status}">${labelS[status]}</button>`).join('');
+  // Processing and shipping wait for a recorded payment (the database refuses them otherwise); rejecting stays possible.
+  const actions = (nextS[order.status] || []).filter(status => paymentDoneS(order) || !['processing', 'shipped', 'delivered'].includes(status)).map(status => `<button class="action" data-update="${escS(order.id)}" data-status="${status}">${labelS[status]}</button>`).join('');
   const items = (order.store_order_request_items || []).map(item => `<div class="item"><span>${escS(item.product_name)}${item.brand_name ? ` · ${escS(item.brand_name)}` : ''}${item.size_label ? ` · ${escS(item.size_label)}` : ''} × ${Number(item.quantity || 0).toLocaleString('ar-EG')}<small>سعر الوحدة: ${moneyS(item.unit_price, item.currency)}${item.platform_order_number ? ` · رقم البند: <span dir="ltr">${escS(item.platform_order_number)}</span>` : ''}</small></span><b>${moneyS(item.line_total, item.currency)}</b></div>`).join('');
-  return `<article class="order"><h3>${escS(order.customer_name || 'عميل')} · <span dir="ltr">${escS(order.tracking_number || '—')}</span></h3><div class="meta"><span>طلب جديد عبر Élan Scents</span><span>${escS(order.stores && order.stores.name || '')}</span>${badgeS(order.status)}<span>المطابقة: ${escS(reconS[order.reconciliation_status] || '—')}</span></div><div class="grid"><div><b>بيانات التسليم الضرورية لهذا الطلب</b><p>الاسم: ${escS(order.customer_name || '—')}<br>الهاتف: ${escS(order.customer_phone || '—')}${order.customer_email ? `<br>البريد: <span dir="ltr">${escS(order.customer_email)}</span>` : ''}<br>العنوان: ${escS(order.customer_address || '—')}${order.customer_notes ? `<br>ملاحظات: ${escS(order.customer_notes)}` : ''}</p><p class="meta">رقم تتبع Élan Scents: <span dir="ltr">${escS(order.tracking_number || '—')}</span>${order.merchant_order_number ? `<br>رقم طلب المتجر: <span dir="ltr">${escS(order.merchant_order_number)}</span>` : ''}${order.merchant_invoice_number ? `<br>رقم الفاتورة: <span dir="ltr">${escS(order.merchant_invoice_number)}</span>` : ''}</p></div><div><b>المنتجات</b>${items || '<p class="meta">لا توجد بنود محفوظة.</p>'}<p><b>الإجمالي: ${moneyS(order.total_amount ?? order.subtotal, order.currency)}</b></p></div></div>${cancelNoticeS(order)}${shippableS.has(order.status) ? shipmentForm(order) : ''}${actions ? `<div class="actions">${actions}</div>` : '<p class="meta">لا توجد خطوة متاحة لهذا الطلب الآن.</p>'}</article>`;
+  return `<article class="order"><h3>${escS(order.customer_name || 'عميل')} · <span dir="ltr">${escS(order.tracking_number || '—')}</span></h3><div class="meta"><span>طلب جديد عبر Élan Scents</span><span>${escS(order.stores && order.stores.name || '')}</span>${badgeS(order.status)}<span>المطابقة: ${escS(reconS[order.reconciliation_status] || '—')}</span></div><div class="grid"><div><b>بيانات التسليم الضرورية لهذا الطلب</b><p>الاسم: ${escS(order.customer_name || '—')}<br>الهاتف: ${escS(order.customer_phone || '—')}${order.customer_email ? `<br>البريد: <span dir="ltr">${escS(order.customer_email)}</span>` : ''}<br>العنوان: ${escS(order.customer_address || '—')}${order.customer_notes ? `<br>ملاحظات: ${escS(order.customer_notes)}` : ''}</p><p class="meta">رقم تتبع Élan Scents: <span dir="ltr">${escS(order.tracking_number || '—')}</span>${order.merchant_order_number ? `<br>رقم طلب المتجر: <span dir="ltr">${escS(order.merchant_order_number)}</span>` : ''}${order.merchant_invoice_number ? `<br>رقم الفاتورة: <span dir="ltr">${escS(order.merchant_invoice_number)}</span>` : ''}</p></div><div><b>المنتجات</b>${items || '<p class="meta">لا توجد بنود محفوظة.</p>'}<p><b>الإجمالي: ${moneyS(order.total_amount ?? order.subtotal, order.currency)}</b></p></div></div>${cancelNoticeS(order)}${paymentBoxS(order)}${shippableS.has(order.status) && paymentDoneS(order) ? shipmentForm(order) : ''}${shipmentEventsS(order)}${actions ? `<div class="actions">${actions}</div>` : '<p class="meta">لا توجد خطوة متاحة لهذا الطلب الآن.</p>'}</article>`;
 }
 function renderOrders() {
   const container = document.querySelector('#orders');
@@ -83,6 +104,7 @@ async function loadStore(append = false) {
     stateS.hasMore = Boolean(data.pagination && data.pagination.hasMore);
     renderOrders();
     document.querySelector('#noStoreNotice').hidden = stateS.linked !== 0;
+    if (!append) loadMethods();
   } catch (cause) {
     error.textContent = Portal.errorText(cause, 'تعذر تحميل طلبات المتجر.');
     error.hidden = false;
@@ -150,6 +172,66 @@ async function updateShipment(form) {
     button.disabled = false;
   }
 }
+// ---- phase 2: the store's payment methods ----------------------------------------------------------------------------------
+// The methods a customer chooses from after the store approves an order. A card is paid on the store's own (or its provider's) page:
+// only the page address and the public labels are kept here, never a card number, a key or a secret.
+const methodsS = { storeId: null, rows: [] };
+function showMethodsError(message) {
+  const box = document.querySelector('#paymentMethodsError');
+  box.textContent = message || '';
+  box.hidden = !message;
+}
+function renderMethods() {
+  const list = document.querySelector('#paymentMethodsList');
+  if (!methodsS.rows.length) { list.innerHTML = '<p class="muted">لم تُضف أي طريقة دفع بعد. أضف طريقة واحدة على الأقل لتتمكّن من تأكيد الطلبات.</p>'; return; }
+  list.innerHTML = methodsS.rows.map(row => `<div class="shipment-box store-shipment-box"><div class="shipment-head"><div><small>${escS(payKindS[row.kind] || row.kind)}${row.provider && row.provider !== 'merchant' ? ` · ${escS(row.provider)}` : ''}</small><strong>${escS(row.label_ar)}</strong></div><span class="badge ${row.enabled ? 'green' : 'muted'}">${row.enabled ? 'مفعّلة' : 'متوقفة'}</span></div>${row.redirect_url ? `<p class="shipment-note" dir="ltr">${escS(row.redirect_url)}</p>` : ''}<button class="ghost" type="button" data-method-toggle="${escS(row.id)}">${row.enabled ? 'إيقاف' : 'تفعيل'}</button></div>`).join('');
+}
+async function loadMethods() {
+  if (!Portal.session()) return;
+  try {
+    const params = methodsS.storeId ? `?storeId=${encodeURIComponent(methodsS.storeId)}` : '';
+    const response = await fetch(`/api/store-payment-methods${params}`, { headers: Portal.auth() });
+    const data = await response.json().catch(() => null);
+    if (!response.ok || !data) throw new Error(data && data.error || 'payment_methods_failed');
+    methodsS.storeId = data.storeId;
+    methodsS.rows = Array.isArray(data.methods) ? data.methods : [];
+    showMethodsError('');
+    renderMethods();
+  } catch (error) {
+    // A platform admin (or an account with several stores) names the store first; nothing is shown as an error then.
+    if (!(error && error.message === 'store_required')) showMethodsError(Portal.errorText(error, 'تعذر تحميل طرق الدفع.'));
+    document.querySelector('#paymentMethods').hidden = Boolean(error && error.message === 'store_required');
+  }
+}
+async function saveMethod(body) {
+  showMethodsError('');
+  try {
+    const response = await fetch('/api/store-payment-methods', { method: 'POST', headers: { ...Portal.auth(), 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, storeId: methodsS.storeId || undefined }) });
+    const data = await response.json().catch(() => null);
+    if (!response.ok || !data) throw new Error(data && data.error || 'payment_method_save_failed');
+    await loadMethods();
+    return true;
+  } catch (error) {
+    showMethodsError(Portal.errorText(error, 'تعذر حفظ طريقة الدفع.'));
+    return false;
+  }
+}
+document.querySelector('#paymentMethodForm').addEventListener('submit', async event => {
+  event.preventDefault();
+  const form = event.target;
+  const body = Object.fromEntries(new FormData(form));
+  if (body.kind === 'cod') { body.mode = 'none'; delete body.redirectUrl; } else body.mode = 'redirect';
+  if (await saveMethod(body)) form.reset();
+});
+document.querySelector('#paymentMethods').addEventListener('click', async event => {
+  const button = event.target.closest('[data-method-toggle]');
+  if (!button) return;
+  const row = methodsS.rows.find(item => item.id === button.dataset.methodToggle);
+  if (!row) return;
+  button.disabled = true;
+  await saveMethod({ id: row.id, kind: row.kind, mode: row.mode, provider: row.provider, labelAr: row.label_ar, labelEn: row.label_en || undefined, redirectUrl: row.redirect_url || undefined, enabled: !row.enabled, sortOrder: row.sort_order });
+  button.disabled = false;
+});
 document.querySelector('#loadMoreOrders').addEventListener('click', () => loadStore(true));
 document.querySelector('#refreshOrders').addEventListener('click', () => loadStore());
 document.querySelector('#orderFilters').addEventListener('submit', event => {

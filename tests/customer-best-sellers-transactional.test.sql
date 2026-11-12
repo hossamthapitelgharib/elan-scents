@@ -22,6 +22,7 @@ declare
   v_units numeric;
   v_purchases numeric;
   v_audit jsonb;
+  v_base jsonb;
   v_name text := 'Best seller fixture ' || gen_random_uuid()::text;
   v_brand text := 'Fixture brand ' || gen_random_uuid()::text;
   v_slug text := 'fixture-' || replace(gen_random_uuid()::text,'-','');
@@ -40,6 +41,8 @@ begin
     '{"full_name":"best-seller-fixture"}'::jsonb, now(), now(), now()
   );
   perform set_config('request.jwt.claim.sub', v_user_id::text, true);
+  -- The live database may already hold real or test orders, so the audit is compared as a difference from this baseline.
+  v_base := public.platform_registered_customer_best_sellers('all',100,0)->'audit';
 
   insert into public.brands(name, slug, is_active)
   values (v_brand, v_slug || '-brand', true) returning id into v_brand_id;
@@ -80,7 +83,8 @@ begin
     ))
   );
   v_request_2 := (public.create_store_order_request(v_payload)->>'id')::uuid;
-  update public.store_order_requests set status='delivered', reconciliation_status='pending' where id=v_request_2;
+  perform set_config('elan.pay_write', 'on', true);
+  update public.store_order_requests set status = 'delivered', payment_status = 'cod_selected', payment_method = 'cod', reconciliation_status = 'pending' where id = v_request_2;
 
   v_payload := jsonb_build_object(
     'storeId',v_store_id,
@@ -127,11 +131,11 @@ begin
     raise exception 'best-seller report did not aggregate and break down both sizes';
   end if;
   v_audit := v_result->'audit';
-  if (v_audit->>'eligibleUnits')::integer <> 5
-     or (v_audit->>'rankedUnits')::integer <> 5
-     or (v_audit->>'excludedCancelledUnits')::integer <> 7
-     or (v_audit->>'excludedInProgressUnits')::integer <> 4 then
-    raise exception 'sales eligibility audit counts were not correct: %',v_audit;
+  if (v_audit->>'eligibleUnits')::integer - (v_base->>'eligibleUnits')::integer <> 5
+     or (v_audit->>'rankedUnits')::integer - (v_base->>'rankedUnits')::integer <> 5
+     or (v_audit->>'excludedCancelledUnits')::integer - (v_base->>'excludedCancelledUnits')::integer <> 7
+     or (v_audit->>'excludedInProgressUnits')::integer - (v_base->>'excludedInProgressUnits')::integer <> 4 then
+    raise exception 'sales eligibility audit counts were not correct: % (baseline %)',v_audit,v_base;
   end if;
 end;
 $best_seller_fixture$;

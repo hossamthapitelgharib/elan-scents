@@ -4,11 +4,12 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 const STORE_ACCOUNT_PAGE = 500;
 const MAX_OFFSET = 1000000;
 const STATUSES = new Set(['awaiting_store_confirmation', 'store_confirmed', 'processing', 'shipped', 'delivered', 'store_rejected', 'store_cancelled', 'needs_review', 'completed', 'cancelled']);
-const ORDER_SELECT = 'id,store_id,tracking_number,checkout_tracking_number,customer_name,customer_phone,customer_email,customer_address,customer_notes,status,subtotal,shipping_amount,total_amount,currency,reconciliation_status,merchant_order_number,merchant_invoice_number,created_at,updated_at,stores(name),store_order_request_items(id,request_id,product_name,brand_name,size_label,quantity,unit_price,line_total,currency,platform_order_number,created_at),store_order_notifications(id,request_id,tracking_number,event_type,store_status,match_status,received_at),store_order_cancellation_requests(request_id,reason,created_at),store_shipments(id,request_id,carrier_name,tracking_code,shipping_status,status_note,estimated_delivery_at,delivered_at,created_at,updated_at)';
-const ORDER_FIELDS = ['id', 'store_id', 'tracking_number', 'checkout_tracking_number', 'customer_name', 'customer_phone', 'customer_email', 'customer_address', 'customer_notes', 'status', 'subtotal', 'shipping_amount', 'total_amount', 'currency', 'reconciliation_status', 'merchant_order_number', 'merchant_invoice_number', 'created_at', 'updated_at'];
+const ORDER_SELECT = 'id,store_id,tracking_number,checkout_tracking_number,customer_name,customer_phone,customer_email,customer_address,customer_notes,status,subtotal,shipping_amount,total_amount,currency,reconciliation_status,merchant_order_number,merchant_invoice_number,approved_at,payable_amount,payment_status,payment_method,payment_provider,payment_reference,paid_at,sale_proven_at,created_at,updated_at,stores(name),store_order_request_items(id,request_id,product_name,brand_name,size_label,quantity,unit_price,line_total,currency,platform_order_number,created_at),store_order_notifications(id,request_id,tracking_number,event_type,store_status,match_status,received_at),store_order_cancellation_requests(request_id,reason,created_at),store_shipments(id,request_id,carrier_name,tracking_code,shipping_status,status_note,estimated_delivery_at,delivered_at,created_at,updated_at),store_shipment_events(id,request_id,shipping_status,carrier_name,tracking_code,occurred_at,source,note)';
+const ORDER_FIELDS = ['id', 'store_id', 'tracking_number', 'checkout_tracking_number', 'customer_name', 'customer_phone', 'customer_email', 'customer_address', 'customer_notes', 'status', 'subtotal', 'shipping_amount', 'total_amount', 'currency', 'reconciliation_status', 'merchant_order_number', 'merchant_invoice_number', 'approved_at', 'payable_amount', 'payment_status', 'payment_method', 'payment_provider', 'payment_reference', 'paid_at', 'sale_proven_at', 'created_at', 'updated_at'];
 const ITEM_FIELDS = ['id', 'request_id', 'product_name', 'brand_name', 'size_label', 'quantity', 'unit_price', 'line_total', 'currency', 'platform_order_number', 'created_at'];
 const NOTIFICATION_FIELDS = ['id', 'request_id', 'tracking_number', 'event_type', 'store_status', 'match_status', 'received_at'];
 const CANCELLATION_FIELDS = ['request_id', 'reason', 'created_at'];
+const SHIPMENT_EVENT_FIELDS = ['id', 'request_id', 'shipping_status', 'carrier_name', 'tracking_code', 'occurred_at', 'source', 'note'];
 const SHIPMENT_FIELDS = ['id', 'request_id', 'carrier_name', 'tracking_code', 'shipping_status', 'status_note', 'estimated_delivery_at', 'delivered_at', 'created_at', 'updated_at'];
 
 function reply(res, status, body) {
@@ -48,6 +49,7 @@ function sanitizeOrders(rows) {
     const cancellation = order.store_order_cancellation_requests;
     safe.store_order_cancellation_requests = (Array.isArray(cancellation) ? cancellation : cancellation && typeof cancellation === 'object' ? [cancellation] : []).map(item => pick(item, CANCELLATION_FIELDS));
     safe.store_shipments = (Array.isArray(order.store_shipments) ? order.store_shipments : []).map(item => pick(item, SHIPMENT_FIELDS));
+    safe.store_shipment_events = (Array.isArray(order.store_shipment_events) ? order.store_shipment_events : []).map(item => pick(item, SHIPMENT_EVENT_FIELDS)).sort((a, b) => String(a.occurred_at).localeCompare(String(b.occurred_at)));
     return safe;
   });
 }

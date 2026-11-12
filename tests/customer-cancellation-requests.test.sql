@@ -116,6 +116,10 @@ begin
 
   -- 6. Once the store has moved on, a new request is refused; an old request still answers (the page derives
   --    "declined" from the order status).
+  -- (Since phase 2 a store must offer a payment method before it approves an order.)
+  insert into public.store_payment_methods (store_id, kind, mode, provider, label_ar)
+  select distinct store_id, 'cod', 'none', 'merchant', 'الدفع عند الاستلام' from public.store_order_requests where id in (v_o1, v_o2)
+  on conflict do nothing;
   update public.store_order_requests set status = 'store_confirmed' where id in (v_o1, v_o2);
   begin
     perform public.request_store_order_cancellation_server(v_o2, 'too late', v_uid);

@@ -29,6 +29,9 @@ begin
   SELECT sp.* INTO v_sp
   FROM public.store_products sp
   JOIN public.stores s ON s.id = sp.store_id AND s.status = 'active'
+  -- only a line the platform really offers can be ordered (place_store_order checks the same view)
+  JOIN public.catalog_platform_offers po ON po.store_product_id = sp.id AND po.store_id = sp.store_id
+       AND po.product_size_id = sp.product_size_id AND po.price = sp.price AND po.currency = sp.currency
   WHERE sp.is_available
   ORDER BY sp.created_at
   LIMIT 1;
@@ -75,6 +78,16 @@ begin
   v_units := COALESCE((SELECT units_sold FROM public.registered_customer_best_sellers WHERE product_id = v_product_id), 0);
   ASSERT v_units = v_before_units, 'unconfirmed store request must not count as a sale';
 
+  -- (phase 2) The store offers cash on delivery and approves, the customer chooses it: the platform's first notice exists, and only then
+  -- can the merchant's own notice match it.
+  INSERT INTO public.store_payment_methods (store_id, kind, mode, provider, label_ar)
+  VALUES (v_sp.store_id, 'cod', 'none', 'merchant', 'الدفع عند الاستلام') ON CONFLICT DO NOTHING;
+  PERFORM public.merchant_review_order(v_sp.store_id, jsonb_build_object('trackingNumber', v_tracking, 'decision', 'approve', 'shipping', 0));
+  PERFORM public.select_order_payment_server(v_request_id, v_uid,
+    (SELECT (o->>'id')::uuid FROM public.store_order_requests r, jsonb_array_elements(r.payment_options) o WHERE r.id = v_request_id AND o->>'kind' = 'cod' LIMIT 1),
+    'bestseller-pay-key-1');
+  ASSERT (SELECT count(*) FROM public.platform_order_notices WHERE request_id = v_request_id) = 1, 'the first platform notice exists before the merchant reports';
+
   SELECT id INTO v_request_item_id
   FROM public.store_order_request_items
   WHERE request_id = v_request_id
@@ -98,7 +111,8 @@ begin
       'total', v_total,
       'currency', v_sp.currency
     )),
-    'storeOrderReference', 'MERCHANT-' || v_tracking,
+    'merchantOrderNumber', 'MERCHANT-' || v_tracking,
+    'merchantInvoiceNumber', 'INVOICE-' || v_tracking,
     'idempotencyKey', 'idempotent-' || v_tracking
   );
   v_result := public.receive_store_order_notification(v_notification);

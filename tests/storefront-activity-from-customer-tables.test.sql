@@ -60,7 +60,8 @@ begin
   v_payload := jsonb_set(v_payload, '{items,0,quantity}', '3'::jsonb);
   v_payload := jsonb_set(v_payload, '{items,0,total}', to_jsonb(v_price * 3));
   v_request := (public.create_store_order_request(v_payload)->>'id')::uuid;
-  update public.store_order_requests set status = 'delivered', reconciliation_status = 'pending' where id = v_request;
+  perform set_config('elan.pay_write', 'on', true);
+  update public.store_order_requests set status = 'delivered', payment_status = 'cod_selected', payment_method = 'cod', reconciliation_status = 'pending' where id = v_request;
 
   v_payload := jsonb_set(v_payload, '{trackingNumber}', to_jsonb('ACTIVITY-' || replace(gen_random_uuid()::text, '-', '')));
   v_payload := jsonb_set(v_payload, '{items,0,quantity}', '7'::jsonb);

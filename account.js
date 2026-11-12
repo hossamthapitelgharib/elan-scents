@@ -89,6 +89,82 @@ function shipmentLine(request) {
     : '';
   return `<div class="shipment-box"><div class="shipment-head"><div><small>شركة الشحن</small><strong>${escA(shipment.carrier_name || 'لم تُحدَّد بعد')}</strong></div>${shippingBadgeA(shipment.shipping_status)}</div><div class="shipment-meta"><span>رقم تتبع الشحنة</span><b dir="ltr">${escA(shipment.tracking_code || 'لم يُضَف بعد')}</b></div>${shipment.estimated_delivery_at ? `<div class="shipment-meta"><span>موعد التسليم المتوقع</span><b>${dateA(shipment.estimated_delivery_at)}</b></div>` : ''}${deliveryVerification ? `<p class="shipment-note">${escA(deliveryVerification)}</p>` : ''}${shipment.status_note ? `<p class="shipment-note">${escA(shipment.status_note)}</p>` : ''}<small class="shipment-updated">آخر تحديث: ${dateTimeA(shipment.updated_at)}</small></div>`;
 }
+// ---- phase 2: payment, the store's reason and the shipping timeline -------------------------------------------------------
+// The customer chooses how to pay only after the store approved the order; the choices and the amount are the terms frozen at approval
+// (api/customer-orders). A card choice sends the customer to the merchant's payment page, but the page proves nothing: the order is paid
+// only when the merchant's signed payment event reaches the platform, and «طلباتي» then shows it.
+const payStatusA = { not_started: ['بانتظار اختيار طريقة الدفع', 'gold'], awaiting_payment: ['بانتظار نتيجة الدفع', 'gold'], paid: ['تم الدفع', 'green'], cod_selected: ['الدفع عند الاستلام', 'blue'], failed: ['تعذر الدفع', 'orange'] };
+const payKindA = { card: 'بطاقة', cod: 'الدفع عند الاستلام', other: 'طريقة أخرى' };
+const eventSourceA = { merchant_api: 'من المتجر', merchant_notice: 'من المتجر', store_dashboard: 'من المتجر', platform_admin: 'من المنصة' };
+const payKeysA = new Map();
+let paying = false;
+function canChoosePayment(request) {
+  return stateA(request) === 'store_confirmed' && ['not_started', 'awaiting_payment', 'failed'].includes(request.payment_status || 'not_started') && (request.payment_options || []).length > 0;
+}
+function rejectionLine(request) {
+  if (stateA(request) !== 'store_rejected' || !request.rejection_reason) return '';
+  return `<div class="cancel-box cancel-accepted" role="status"><b>سبب رفض المتجر</b><span>${escA(request.rejection_reason)}</span></div>`;
+}
+function paymentLine(request) {
+  const status = request.payment_status || 'not_started', amount = request.payable_amount ?? request.total_amount;
+  if (status === 'paid') {
+    return `<div class="pay-box pay-done" role="status"><b>الدفع</b><span>تم دفع ${moneyA(amount, request.currency)}${request.payment_method ? ` (${escA(payKindA[request.payment_method] || request.payment_method)})` : ''}${request.paid_at ? ` في ${dateTimeA(request.paid_at)}` : ''}.</span></div>`;
+  }
+  if (status === 'cod_selected') {
+    return `<div class="pay-box pay-done" role="status"><b>الدفع عند الاستلام</b><span>تدفع ${moneyA(amount, request.currency)} للمندوب عند التسليم.</span></div>`;
+  }
+  if (!canChoosePayment(request)) return '';
+  const note = status === 'awaiting_payment' ? 'بانتظار نتيجة الدفع من المتجر. إن لم تُكمل الدفع يمكنك المحاولة من جديد.' : status === 'failed' ? 'تعذر الدفع. اختر طريقة الدفع من جديد.' : 'أكّد المتجر طلبك. اختر طريقة الدفع لإكمال الطلب.';
+  const buttons = request.payment_options.map(option => `<button class="ghost order-pay" type="button" data-pay-request="${escA(request.id)}" data-pay-method="${escA(option.id)}">${escA(option.labelAr || payKindA[option.kind] || 'ادفع')}</button>`).join('');
+  return `<div class="pay-box" role="status"><div><b>المبلغ المستحق ${moneyA(amount, request.currency)}</b><span>${note}</span></div><div class="pay-actions">${buttons}</div></div>`;
+}
+function timelineLine(request) {
+  const events = request.store_shipment_events || [];
+  if (!events.length) return '';
+  return `<hr><div class="order-timeline"><b>تتبع الشحن</b><ol>${events.map(event => { const value = shippingA[event.shipping_status] || [escA(event.shipping_status), 'muted']; return `<li><span class="badge ${value[1]}">${value[0]}</span><span>${dateTimeA(event.occurred_at)}${event.carrier_name ? ` · ${escA(event.carrier_name)}` : ''}${event.tracking_code ? ` · <bdi dir="ltr">${escA(event.tracking_code)}</bdi>` : ''}${event.note ? `<small>${escA(event.note)}</small>` : ''}<small class="muted">${escA(eventSourceA[event.source] || '')}</small></span></li>`; }).join('')}</ol></div>`;
+}
+function paymentRows(request) {
+  const status = request.payment_status || 'not_started';
+  if (!request.approved_at && status === 'not_started') return '';
+  const value = payStatusA[status] || payStatusA.not_started;
+  return `<div><span>حالة الدفع</span><b>${value[0]}</b></div>`;
+}
+const payErrors = {
+  order_not_approved: 'المتجر لم يؤكد الطلب بعد، لا يمكن الدفع الآن.',
+  payment_already_settled: 'سُجّل الدفع لهذا الطلب بالفعل.',
+  payment_method_not_offered: 'طريقة الدفع هذه غير متاحة لهذا الطلب.',
+  order_not_found: 'لم نجد هذا الطلب، حدّث الصفحة وحاول مرة أخرى.',
+  order_no_amount: 'لا يوجد مبلغ مستحق لهذا الطلب.',
+  unauthorized: 'انتهت جلسة الدخول، سجّل الدخول من جديد.'
+};
+async function payOrder(requestId, methodId, button) {
+  if (paying) return;
+  const request = flatten([...accountSessions, ...archiveSessions]).find(item => String(item.id) === String(requestId));
+  if (!request || !canChoosePayment(request)) return;
+  const option = (request.payment_options || []).find(item => String(item.id) === String(methodId));
+  if (!option) return;
+  const session = Portal.session();
+  if (!session || !session.access_token) { showMessage('انتهت جلسة الدخول، سجّل الدخول من جديد.'); return; }
+  // One retry key per order and method for as long as the page is open: a double tap or a retry after a lost answer is the same choice.
+  const keyName = `${request.id}:${option.id}`;
+  if (!payKeysA.has(keyName)) payKeysA.set(keyName, (window.crypto && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}-pay`).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64).padEnd(8, 'x'));
+  paying = true; if (button) button.disabled = true;
+  try {
+    const response = await fetch('/api/customer-order-payment', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requestId: request.id, methodId: option.id, idempotencyKey: payKeysA.get(keyName) })
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payErrors[data.error] || 'تعذر تنفيذ اختيار طريقة الدفع، حاول مرة أخرى.');
+    if (data.paymentUrl) { location.assign(data.paymentUrl); return; }
+    if (option.kind !== 'cod') throw new Error('صفحة الدفع لدى المتجر غير متاحة الآن، حاول لاحقًا أو اختر طريقة أخرى.');
+    await loadAccount();
+  } catch (error) {
+    await loadAccount().catch(() => {});
+    showMessage(error);
+  } finally { paying = false; if (button) button.disabled = false; }
+}
 function itemLine(item) {
   const label = [item.brand_name, item.product_name, item.size_label].filter(Boolean).map(escA).join(' · ');
   const unit = item.unit_price != null && Number(item.quantity) > 1 ? ` <small class="muted">(${moneyA(item.unit_price, item.currency)} للواحدة)</small>` : '';
@@ -106,7 +182,7 @@ function itemsPreviewA(items) {
 function detailsA(request, items, lead = '', reorder = '') {
   const total = request.total_amount ?? request.subtotal;
   const shipping = request.shipping_amount == null ? '' : `<div><span>الشحن</span><b>${moneyA(request.shipping_amount, request.currency)}</b></div>`;
-  return `<details class="acct-more"><summary>تفاصيل الطلب</summary>${lead}<div class="order-detail">${items.map(itemLine).join('')}<hr><div><span>المنتجات</span><b>${moneyA(request.subtotal, request.currency)}</b></div>${shipping}<div class="sum"><span>الإجمالي</span><b>${moneyA(total, request.currency)}</b></div><hr><div><span>المتجر</span><b>${escA(request.stores && request.stores.name || '—')}</b></div><div><span>رقم الطلب</span><b dir="ltr">${escA(request.tracking_number)}</b></div>${request.merchant_order_number ? `<div><span>رقم طلب المتجر</span><b dir="ltr">${escA(request.merchant_order_number)}</b></div>` : ''}${request.merchant_invoice_number ? `<div><span>رقم فاتورة المتجر</span><b dir="ltr">${escA(request.merchant_invoice_number)}</b></div>` : ''}<div><span>وقت الطلب</span><b>${dateTimeA(request.created_at)}</b></div>${reorder}</div></details>`;
+  return `<details class="acct-more"><summary>تفاصيل الطلب</summary>${lead}<div class="order-detail">${items.map(itemLine).join('')}<hr><div><span>المنتجات</span><b>${moneyA(request.subtotal, request.currency)}</b></div>${shipping}<div class="sum"><span>الإجمالي</span><b>${moneyA(total, request.currency)}</b></div>${paymentRows(request)}${timelineLine(request)}<hr><div><span>المتجر</span><b>${escA(request.stores && request.stores.name || '—')}</b></div><div><span>رقم الطلب</span><b dir="ltr">${escA(request.tracking_number)}</b></div>${request.merchant_order_number ? `<div><span>رقم طلب المتجر</span><b dir="ltr">${escA(request.merchant_order_number)}</b></div>` : ''}${request.merchant_invoice_number ? `<div><span>رقم فاتورة المتجر</span><b dir="ltr">${escA(request.merchant_invoice_number)}</b></div>` : ''}<div><span>وقت الطلب</span><b>${dateTimeA(request.created_at)}</b></div>${reorder}</div></details>`;
 }
 const totalBoxA = request => `<div class="acct-total"><small>الإجمالي</small><b>${numA(request.total_amount ?? request.subtotal)}<i>${escA(currencyA(request.currency))}</i></b></div>`;
 function requestLine(request) {
@@ -118,10 +194,10 @@ function requestLine(request) {
     // Over (delivered, cancelled ...): one compact row, "order again" within reach, everything else behind "details".
     const names = items.slice(0, 2).map(item => `${escA(item.product_name)}${Number(item.quantity) > 1 ? ` × ${item.quantity}` : ''}`).join('، ');
     const more = items.length > 2 ? ` <span class="muted">+${items.length - 2} أخرى</span>` : '';
-    return `<article class="acct-order is-past" data-id="${escA(request.id)}" data-state="${escA(state)}"><div class="acct-order-top"><div class="acct-order-title"><h3>${names || 'تفاصيل المنتجات داخل الطلب'}${more}</h3><p class="acct-sub">من ${store} · ${number} · ${dateA(request.created_at)}</p></div><div class="acct-side">${badgeA(state)}${totalBoxA(request)}</div></div>${cancelLine(request)}<div class="acct-past-actions">${reorder}${detailsA(request, items, shipmentLine(request))}</div></article>`;
+    return `<article class="acct-order is-past" data-id="${escA(request.id)}" data-state="${escA(state)}"><div class="acct-order-top"><div class="acct-order-title"><h3>${names || 'تفاصيل المنتجات داخل الطلب'}${more}</h3><p class="acct-sub">من ${store} · ${number} · ${dateA(request.created_at)}</p></div><div class="acct-side">${badgeA(state)}${totalBoxA(request)}</div></div>${rejectionLine(request)}${cancelLine(request)}<div class="acct-past-actions">${reorder}${detailsA(request, items, shipmentLine(request))}</div></article>`;
   }
   // Still being followed: what is happening now (the sentence, the four steps, the shipment), then what was ordered.
-  return `<article class="acct-order is-active" data-id="${escA(request.id)}" data-state="${escA(state)}"><div class="acct-order-top"><div class="acct-order-title"><h3>${headlineA[state] || 'طلبك قيد المتابعة'}</h3><p class="acct-sub">من ${store} · ${number}</p></div>${totalBoxA(request)}</div>${trackerA(request)}${shipmentLine(request)}${itemsPreviewA(items)}${cancelLine(request)}<div class="acct-order-foot"><span>تاريخ الطلب: ${dateA(request.created_at)}</span>${detailsA(request, items, '', reorder)}</div></article>`;
+  return `<article class="acct-order is-active" data-id="${escA(request.id)}" data-state="${escA(state)}"><div class="acct-order-top"><div class="acct-order-title"><h3>${headlineA[state] || 'طلبك قيد المتابعة'}</h3><p class="acct-sub">من ${store} · ${number}</p></div>${totalBoxA(request)}</div>${trackerA(request)}${paymentLine(request)}${shipmentLine(request)}${itemsPreviewA(items)}${cancelLine(request)}<div class="acct-order-foot"><span>تاريخ الطلب: ${dateA(request.created_at)}</span>${detailsA(request, items, '', reorder)}</div></article>`;
 }
 function flatten(sessions) { return sessions.flatMap(session => (session.store_order_requests || []).map(request => ({ ...request, session }))); }
 function mergeSessions(newer, older) {
@@ -354,6 +430,7 @@ document.querySelector('#refreshOrders').addEventListener('click', async event =
   try { await loadAccount(); } catch (error) { showMessage(error); } finally { button.disabled = false; }
 });
 document.addEventListener('click', event => { const button = event.target.closest('[data-reorder]'); if (button) reorder(button.dataset.reorder); });
+document.addEventListener('click', event => { const button = event.target.closest('[data-pay-method]'); if (button) payOrder(button.dataset.payRequest, button.dataset.payMethod, button); });
 document.addEventListener('click', event => { const button = event.target.closest('[data-cancel]'); if (button) openCancel(button.dataset.cancel); });
 document.addEventListener('click', event => { const button = event.target.closest('[data-cancel-send]'); if (button) cancelOrder(button.dataset.cancelSend, button); });
 document.addEventListener('click', event => { if (event.target.closest('[data-cancel-back]')) closeCancel(); });

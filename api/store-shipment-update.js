@@ -98,6 +98,7 @@ module.exports = async function storeShipmentUpdate(req, res) {
     });
     const saved = await saveResponse.json();
     if (!saveResponse.ok) {
+      if (/Payment is required before shipping/i.test(`${saved && saved.message || ''}`)) return reply(res, 409, { ok: false, error: 'payment_required' });
       console.error('store-shipment-update: save failed', saved && saved.code, saved && saved.message);
       return reply(res, 502, { ok: false, error: 'shipment_save_failed' });
     }

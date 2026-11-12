@@ -52,12 +52,22 @@ begin
   assert v_platform_number = v_tracking || '-01', 'platform generates the line-level order number';
   assert not exists (select 1 from public.commissions where store_order_request_item_id in (select id from public.store_order_request_items where request_id=v_request limit 1) limit 1), 'no commission accrues before a matched merchant completion notice';
 
+  -- (phase 2) The store offers cash on delivery and approves, the customer chooses it, and only then may the order ship and the
+  -- merchant's own notice match the platform's first notice.
+  insert into public.store_payment_methods (store_id, kind, mode, provider, label_ar)
+  values (v_store, 'cod', 'none', 'merchant', 'الدفع عند الاستلام') on conflict do nothing;
+  update public.store_order_requests set status = 'store_confirmed' where id = v_request;
+  perform public.select_order_payment_server(v_request, v_user,
+    (select (o->>'id')::uuid from public.store_order_requests r, jsonb_array_elements(r.payment_options) o
+      where r.id = v_request and o->>'kind' = 'cod' limit 1), 'commission-pay-key-1');
+  assert exists (select 1 from public.platform_order_notices where request_id = v_request), 'the platform first notice exists before the merchant reports';
+
   insert into public.store_shipments(request_id,store_id,carrier_name,tracking_code,shipping_status)
   values(v_request,v_store,'Synthetic carrier','TEST-SHIP-001','in_transit');
 
   v_result := public.receive_store_order_notification(jsonb_build_object(
     'trackingNumber',v_tracking,'idempotencyKey','commission-test-' || replace(v_request::text,'-',''),
-    'status','completed','storeOrderReference','MERCHANT-ORDER-TEST','subtotal',200,'shipping',80,'total',280,'currency','EGP',
+    'status','completed','merchantOrderNumber','MERCHANT-ORDER-TEST','merchantInvoiceNumber','INVOICE-TEST','subtotal',200,'shipping',80,'total',280,'currency','EGP',
     'customer',jsonb_build_object('id',v_user,'name','Synthetic Commission Test','phone','+201000000000','email','commission-test@example.invalid','address','Synthetic address for rollback test'),
     'items',jsonb_build_array(jsonb_build_object('productSizeId',v_product_size,'quantity',2,'unitPrice',100,'total',200,'currency','EGP',
       'platformOrderNumber',v_platform_number,'merchantOrderReference','MERCHANT-LINE-TEST')),
