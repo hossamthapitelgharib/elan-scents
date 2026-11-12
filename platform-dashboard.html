@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>لوحة Élan Scents</title>
-  <link rel="stylesheet" href="/fonts.css?v=20261111-02">
-  <link rel="stylesheet" href="/portal.css?v=20261111-02">
+  <link rel="stylesheet" href="/fonts.css?v=20261112-01">
+  <link rel="stylesheet" href="/portal.css?v=20261112-01">
 </head>
 <body>
   <header>
@@ -42,6 +42,12 @@
         <div id="platformSettlementBoard" class="platform-settlement-board"></div>
         <button id="platformSettlementMore" class="ghost" type="button" hidden>عرض المزيد</button>
       </section>
+      <section class="panel platform-rankings" aria-labelledby="platformRankingsTitle">
+        <div class="platform-store-overview-head"><div><small>All-time rankings</small><h2 id="platformRankingsTitle">ترتيب العطور لكل الأوقات</h2><p>أرقام تراكمية منذ بدء التسجيل بلا نافذة زمنية، من الجدول النهائي لكل عطر. أمام كل رقم مصدره: العملاء، أو المتاجر، أو العملاء والمتاجر معًا. المتعادلان يتشاركان الرتبة.</p></div></div>
+        <p id="platformRankingsError" class="platform-error" role="alert" hidden></p>
+        <div id="platformRankingTabs" class="platform-ranking-tabs" role="tablist" aria-label="نوع الترتيب"></div>
+        <div id="platformRankingList" class="platform-ranking-list"></div>
+      </section>
       <section class="panel customer-overview" aria-labelledby="customerOverviewTitle">
         <div><small>Customer overview</small><h2 id="customerOverviewTitle">ملخص العملاء</h2><p>تعرض هذه الصفحة أعدادًا إجمالية فقط. تفاصيل الزوار والعملاء المسجلين وسلالهم وأنشطتهم متاحة في لوحة العملاء الإدارية.</p></div>
         <a class="primary" href="/customers-dashboard.html">فتح لوحة العملاء</a>
@@ -62,10 +68,10 @@
       </section>
     </section>
   </main>
-  <script src="/auth-session.js?v=20261111-02"></script>
-  <script src="/portal.js?v=20261111-02"></script>
-  <script src="/turnstile.js?v=20261111-02"></script>
-  <script src="/pw-eye.js?v=20261111-02" defer></script>
-  <script src="/platform-dashboard.js?v=20261111-02"></script>
+  <script src="/auth-session.js?v=20261112-01"></script>
+  <script src="/portal.js?v=20261112-01"></script>
+  <script src="/turnstile.js?v=20261112-01"></script>
+  <script src="/pw-eye.js?v=20261112-01" defer></script>
+  <script src="/platform-dashboard.js?v=20261112-01"></script>
 </body>
 </html>

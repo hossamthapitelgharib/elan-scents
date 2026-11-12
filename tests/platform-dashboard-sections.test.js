@@ -9,7 +9,7 @@ const portalSource = fs.readFileSync(path.join(root, 'portal.js'), 'utf8');
 const source = fs.readFileSync(path.join(root, 'platform-dashboard.js'), 'utf8');
 const html = fs.readFileSync(path.join(root, 'platform-dashboard.html'), 'utf8');
 
-const IDS = ['#loginForm', '#login', '#app', '#logout', '#refresh', '#message', '#stats', '#platformError', '#platformStoreError', '#platformStoreStats', '#platformAuditError', '#platformAuditList', '#platformAuditMore', '#platformSettlementsRefresh', '#platformSettlementError', '#platformSettlementStats', '#platformSettlementBoard', '#platformSettlementMore'];
+const IDS = ['#loginForm', '#login', '#app', '#logout', '#refresh', '#message', '#stats', '#platformError', '#platformStoreError', '#platformStoreStats', '#platformAuditError', '#platformAuditList', '#platformAuditMore', '#platformSettlementsRefresh', '#platformSettlementError', '#platformSettlementStats', '#platformSettlementBoard', '#platformSettlementMore', '#platformRankingsError', '#platformRankingTabs', '#platformRankingList'];
 function makeNode() {
   return { hidden: false, disabled: false, value: '', textContent: '', innerHTML: '', listeners: {}, addEventListener(type, callback) { this.listeners[type] = callback; } };
 }
@@ -56,6 +56,12 @@ const ENTRY = {
   id: 'e1', createdAt: '2026-10-30T10:00:00Z', action: 'store_account_linked', targetType: 'store_account', targetId: 'a1',
   actorEmail: 'owner@example.invalid', storeId: 's1', storeName: 'Store A', subjectEmail: 'staff@example.invalid', detail: { previousRole: 'customer' }
 };
+const RANKINGS = { ok: true, scope: 'all_time', limit: 20, hasMore: { sales: false, views: false, searches: false, rating: true }, rankings: {
+  sales: [{ rank: 1, productId: 'p1', name: 'عطر <b>ألف</b>', brand: 'ماركة', value: 1250, source: 'combined' }, { rank: 2, productId: 'p2', name: 'عطر باء', brand: 'ماركة', value: 40, source: 'customers' }, { rank: 2, productId: 'p3', name: 'عطر جيم', brand: null, value: 40, source: 'store_catalog' }],
+  views: [{ rank: 1, productId: 'p2', name: 'عطر باء', brand: 'ماركة', value: 9, source: 'store_catalog' }],
+  searches: [],
+  rating: [{ rank: 1, productId: 'p1', name: 'عطر ألف', brand: 'ماركة', value: 4, count: 305, source: 'combined', inStorefrontRanking: true }, { rank: 2, productId: 'p4', name: 'عطر دال', brand: 'ماركة', value: 2.67, count: 320, source: 'store_catalog', inStorefrontRanking: false }]
+} };
 function baseRoutes(extra = {}) {
   return {
     'GET /api/platform-order-summary': json(200, { ok: true, counts: { orders: 70, completed: 18, open: 47, cancelled: 3, needsReview: 2 } }),
@@ -67,6 +73,7 @@ function baseRoutes(extra = {}) {
     ] }),
     'GET /api/platform-audit-log': json(200, { ok: true, entries: [ENTRY], limit: 20, offset: 0, hasMore: false }),
     'GET /api/platform-commission-settlement': json(200, { ok: true, settlements: [], hasMore: false }),
+    'GET /api/platform-product-rankings': json(200, RANKINGS),
     ...extra
   };
 }
@@ -80,7 +87,7 @@ async function start(routes, options) {
 
 test('every section loads with the admin token, and the cards count the right things', async () => {
   const page = await start(baseRoutes());
-  assert.deepEqual(page.calls.map(call => call.key).sort(), ['GET /api/platform-audit-log', 'GET /api/platform-commission-settlement', 'GET /api/platform-customer-summary', 'GET /api/platform-order-summary', 'GET /api/platform-stores']);
+  assert.deepEqual(page.calls.map(call => call.key).sort(), ['GET /api/platform-audit-log', 'GET /api/platform-commission-settlement', 'GET /api/platform-customer-summary', 'GET /api/platform-order-summary', 'GET /api/platform-product-rankings', 'GET /api/platform-stores']);
   assert.ok(page.calls.every(call => call.headers.Authorization === 'Bearer admin-token'));
   const stats = page.nodes.get('#stats').innerHTML;
   for (const text of ['طلبات المتاجر', 'مكتملة', 'مفتوحة', 'مرفوضة أو ملغاة', 'تحتاج مراجعة', 'عملاء مسجلون', 'الزوار']) assert.ok(stats.includes(text), text);
@@ -238,13 +245,13 @@ test('the refresh button reloads every section', async () => {
   const before = page.calls.length;
   await page.nodes.get('#refresh').listeners.click();
   await settle();
-  assert.equal(page.calls.length, before + 5);
+  assert.equal(page.calls.length, before + 6);
 });
 
 test('opening the page with a saved session loads it by itself; without one it only shows the sign-in card', async () => {
   const withSession = boot(baseRoutes());
   await settle();
-  assert.equal(withSession.calls.length, 5, 'loaded without a click');
+  assert.equal(withSession.calls.length, 6, 'loaded without a click');
   const without = boot(baseRoutes(), { session: false });
   await settle();
   assert.equal(without.calls.length, 0);
@@ -252,7 +259,7 @@ test('opening the page with a saved session loads it by itself; without one it o
 });
 
 test('the page has the sections, the buttons and no inline script or handler', () => {
-  for (const id of ['refresh', 'platformAuditList', 'platformAuditMore', 'platformAuditError', 'platformStoreStats', 'platformSettlementBoard', 'platformSettlementStats', 'platformSettlementError', 'stats', 'logout']) assert.match(html, new RegExp(`id="${id}"`), id);
+  for (const id of ['refresh', 'platformAuditList', 'platformAuditMore', 'platformAuditError', 'platformStoreStats', 'platformSettlementBoard', 'platformSettlementStats', 'platformSettlementError', 'platformRankingsError', 'platformRankingTabs', 'platformRankingList', 'stats', 'logout']) assert.match(html, new RegExp(`id="${id}"`), id);
   assert.doesNotMatch(html, /<script(?![^>]*\bsrc=)/i, 'no inline script');
   assert.doesNotMatch(html, /\son[a-z]+=/i, 'no inline handler');
   for (const name of ['auditRowMarkup', 'statMarkup']) {
@@ -277,4 +284,44 @@ test('every error code the platform admin APIs can answer has an Arabic sentence
   vm.runInContext(portalSource, context);
   const missing = [...codes].filter(code => !vm.runInContext('Portal.errorMessages', context)[code]);
   assert.deepEqual(missing, [], `no Arabic message for: ${missing.join(', ')}`);
+});
+
+test('all-time rankings: four tabs, rank and source on every row, ties share a rank, database text is escaped', async () => {
+  const page = await start(baseRoutes());
+  assert.ok(page.calls.some(call => call.key === 'GET /api/platform-product-rankings'));
+  const tabs = page.nodes.get('#platformRankingTabs').innerHTML;
+  for (const text of ['الأكثر مبيعًا', 'الأكثر مشاهدة', 'الأكثر بحثًا', 'الأكثر تقييمًا']) assert.ok(tabs.includes(text), text);
+  assert.match(tabs, /platform-ranking-tab active"[^>]*data-ranking-tab="sales"/, 'sales is the first tab');
+  const list = page.nodes.get('#platformRankingList').innerHTML;
+  assert.match(list, new RegExp(`platform-ranking-rank">${(1).toLocaleString('ar-EG')}<`));
+  assert.equal((list.match(new RegExp(`platform-ranking-rank">${(2).toLocaleString('ar-EG')}<`, 'g')) || []).length, 2, 'two perfumes tie on rank 2');
+  assert.ok(list.includes('المصدر: العملاء والمتاجر معًا') && list.includes('المصدر: العملاء<') && list.includes('المصدر: المتاجر<'));
+  assert.ok(!list.includes('<b>ألف</b>') && list.includes('&lt;b&gt;ألف&lt;/b&gt;'), 'a perfume name from the database is escaped');
+  assert.ok(list.includes(`${(1250).toLocaleString('ar-EG')}`));
+});
+
+test('all-time rankings: choosing a tab shows that list; rating shows two-decimal stars, the count and whether the storefront ranks it', async () => {
+  const page = await start(baseRoutes());
+  const before = page.calls.length;
+  page.nodes.get('#platformRankingTabs').listeners.click({ target: { closest: () => ({ dataset: { rankingTab: 'rating' } }) } });
+  const list = page.nodes.get('#platformRankingList').innerHTML;
+  assert.ok(list.includes('4.00 ★') && list.includes('2.67 ★'));
+  assert.ok(list.includes(`(${(305).toLocaleString('ar-EG')} تقييم)`));
+  assert.ok(list.includes('ضمن «الأكثر تقييمًا» في المتجر') && list.includes('خارج فلتر المتجر'));
+  assert.ok(list.includes('يوجد المزيد'), 'a cut list says there is more');
+  assert.match(page.nodes.get('#platformRankingTabs').innerHTML, /platform-ranking-tab active"[^>]*data-ranking-tab="rating"/);
+  assert.equal(page.calls.length, before, 'switching tabs reads nothing again');
+  page.nodes.get('#platformRankingTabs').listeners.click({ target: { closest: () => ({ dataset: { rankingTab: 'searches' } }) } });
+  assert.ok(page.nodes.get('#platformRankingList').innerHTML.includes('لا توجد أرقام بعد'));
+  page.nodes.get('#platformRankingTabs').listeners.click({ target: { closest: () => ({ dataset: { rankingTab: '__proto__' } }) } });
+  assert.match(page.nodes.get('#platformRankingTabs').innerHTML, /platform-ranking-tab active"[^>]*data-ranking-tab="searches"/, 'an unknown tab is ignored');
+});
+
+test('all-time rankings: a failed read shows its own message and leaves the other sections alone', async () => {
+  const page = await start(baseRoutes({ 'GET /api/platform-product-rankings': json(502, { ok: false, error: 'product_rankings_unavailable' }) }));
+  assert.equal(page.nodes.get('#platformRankingsError').hidden, false);
+  assert.match(page.nodes.get('#platformRankingsError').textContent, /ترتيب العطور/);
+  assert.equal(page.nodes.get('#platformRankingList').innerHTML, '');
+  assert.match(page.nodes.get('#stats').innerHTML, /طلبات المتاجر/, 'the cards still load');
+  assert.equal(page.nodes.get('#app').hidden, false);
 });

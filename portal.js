@@ -113,6 +113,8 @@ Portal.errorMessages = {
   invalid_store_id: 'المتجر المطلوب غير صحيح.',
   request_failed: 'تعذر تحميل البيانات، حاول مرة أخرى.',
   order_summary_unavailable: 'تعذر تحميل ملخص الطلبات الآن، حاول بعد قليل.',
+  product_rankings_unavailable: 'تعذر تحميل ترتيب العطور الآن، حاول بعد قليل.',
+  invalid_limit: 'عدد الصفوف المطلوب غير صحيح.',
   customer_summary_unavailable: 'تعذر تحميل ملخص العملاء الآن، حاول بعد قليل.',
   store_data_unavailable: 'تعذر تحميل بيانات المتاجر الآن، حاول بعد قليل.',
   store_summary_incomplete: 'ملخص المتاجر غير مكتمل الآن، حدّث الصفحة بعد قليل.',

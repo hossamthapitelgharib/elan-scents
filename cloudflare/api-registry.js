@@ -25,6 +25,7 @@ module.exports = {
     'platform-customer-summary': () => require('../api/platform-customer-summary.js'),
     'platform-customers': () => require('../api/platform-customers.js'),
     'platform-order-summary': () => require('../api/platform-order-summary.js'),
+    'platform-product-rankings': () => require('../api/platform-product-rankings.js'),
     'platform-store-accounts': () => require('../api/platform-store-accounts.js'),
     'platform-store-detail': () => require('../api/platform-store-detail.js'),
     'platform-store-terms': () => require('../api/platform-store-terms.js'),

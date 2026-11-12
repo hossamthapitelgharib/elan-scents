@@ -2,7 +2,7 @@ const AUDIT_PAGE = 20;
 const SETTLEMENT_PAGE = 100;
 /* The registered-customers card follows new sign-ups without a page reload: it re-reads the (cheap) count this often while the tab is visible. */
 const LIVE_COUNT_MS = 20000;
-const state = { auditOffset: 0, auditHasMore: false, auditBusy: false, settlements: [], settlementOffset: 0, settlementHasMore: false, settlementBusy: false, settlementMutationBusy: false, orders: null, liveTimer: null, countBusy: false };
+const state = { rankings: null, rankingTab: 'sales', auditOffset: 0, auditHasMore: false, auditBusy: false, settlements: [], settlementOffset: 0, settlementHasMore: false, settlementBusy: false, settlementMutationBusy: false, orders: null, liveTimer: null, countBusy: false };
 
 /* The page may be opened with the API codes only; Portal.errorText turns each into a sentence (and keeps an unknown code in brackets). */
 function errorTextP(error, fallback) {
@@ -98,6 +98,40 @@ function renderSettlements(result, append = false) {
   }).join('');
   more.hidden = !state.settlementHasMore;
   error.hidden = true;
+}
+
+/* All-time perfume rankings (/api/platform-product-rankings): four lists over the cumulative product_stats, each row with its source. */
+const RANKING_TABS = [['sales', 'الأكثر مبيعًا'], ['views', 'الأكثر مشاهدة'], ['searches', 'الأكثر بحثًا'], ['rating', 'الأكثر تقييمًا']];
+const SOURCE_LABELS = { customers: 'العملاء', store_catalog: 'المتاجر', combined: 'العملاء والمتاجر معًا' };
+const RANKING_UNITS = { sales: 'مبيعات', views: 'مشاهدة', searches: 'بحث' };
+function rankingRowMarkup(key, item) {
+  const source = SOURCE_LABELS[item.source] || 'مصدر غير معروف';
+  const value = key === 'rating'
+    ? `${escP(Number(item.value).toFixed(2))} ★ <small>(${escP(numberP(item.count))} تقييم)</small>`
+    : `${escP(numberP(item.value))} <small>${escP(RANKING_UNITS[key])}</small>`;
+  const badge = key === 'rating' ? `<span class="platform-ranking-badge${item.inStorefrontRanking ? ' in' : ''}">${item.inStorefrontRanking ? 'ضمن «الأكثر تقييمًا» في المتجر' : 'خارج فلتر المتجر'}</span>` : '';
+  return `<article class="platform-ranking-row"><span class="platform-ranking-rank">${escP(numberP(item.rank))}</span><div class="platform-ranking-name"><b>${escP(item.name || 'عطر بلا اسم')}</b><small>${escP(item.brand || '—')}</small></div><div class="platform-ranking-value"><b>${value}</b><small>المصدر: ${escP(source)}</small>${badge}</div></article>`;
+}
+function renderRankings(result) {
+  const error = $('#platformRankingsError');
+  const tabs = $('#platformRankingTabs');
+  const list = $('#platformRankingList');
+  if (!error || !tabs || !list) return;
+  if (result && result.status === 'fulfilled') state.rankings = result.value;
+  else if (result) {
+    error.textContent = errorTextP(result.reason, 'تعذر تحميل ترتيب العطور.');
+    error.hidden = false;
+    if (!state.rankings) { tabs.innerHTML = ''; list.innerHTML = ''; return; }
+  }
+  if (!state.rankings) return;
+  if (result && result.status === 'fulfilled') error.hidden = true;
+  const rankings = state.rankings.rankings || {};
+  tabs.innerHTML = RANKING_TABS.map(tab => `<button class="ghost platform-ranking-tab${state.rankingTab === tab[0] ? ' active' : ''}" type="button" role="tab" aria-selected="${state.rankingTab === tab[0]}" data-ranking-tab="${escP(tab[0])}">${escP(tab[1])}</button>`).join('');
+  const items = Array.isArray(rankings[state.rankingTab]) ? rankings[state.rankingTab] : [];
+  const more = state.rankings.hasMore && state.rankings.hasMore[state.rankingTab];
+  list.innerHTML = items.length
+    ? items.map(item => rankingRowMarkup(state.rankingTab, item)).join('') + (more ? `<p class="platform-ranking-empty">يوجد المزيد بعد أول ${escP(numberP(items.length))}.</p>` : '')
+    : '<p class="platform-ranking-empty">لا توجد أرقام بعد لهذا الترتيب.</p>';
 }
 
 function renderStats(orders, customers) {
@@ -237,7 +271,8 @@ async function loadPlatform() {
     request('/api/platform-customer-summary'),
     request('/api/platform-stores'),
     request(`/api/platform-audit-log?limit=${AUDIT_PAGE}&offset=0`),
-    request(`/api/platform-commission-settlement?limit=${SETTLEMENT_PAGE}&offset=0`)
+    request(`/api/platform-commission-settlement?limit=${SETTLEMENT_PAGE}&offset=0`),
+    request('/api/platform-product-rankings')
   ]);
   $('#refresh').disabled = false;
   const refused = settled.find(result => result.status === 'rejected' && (result.reason.status === 401 || result.reason.status === 403));
@@ -247,6 +282,7 @@ async function loadPlatform() {
   renderStores(settled[2]);
   renderAudit(settled[3], false);
   renderSettlements(settled[4], false);
+  renderRankings(settled[5]);
   startLiveCount();
 }
 
@@ -280,6 +316,13 @@ $('#loginForm').addEventListener('submit', async event => {
   catch (error) { reportError(error); }
 });
 $('#refresh').addEventListener('click', () => loadPlatform().catch(reportError));
+const rankingTabs = $('#platformRankingTabs');
+if (rankingTabs) rankingTabs.addEventListener('click', event => {
+  const button = event.target.closest && event.target.closest('[data-ranking-tab]');
+  if (!button || !RANKING_TABS.some(tab => tab[0] === button.dataset.rankingTab)) return;
+  state.rankingTab = button.dataset.rankingTab;
+  renderRankings(null);
+});
 $('#platformAuditMore').addEventListener('click', () => loadMoreAudit().catch(reportError));
 const settlementRefreshButton = $('#platformSettlementsRefresh');
 if (settlementRefreshButton) settlementRefreshButton.addEventListener('click', () => loadMoreSettlements(false).catch(reportError));
