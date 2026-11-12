@@ -35,8 +35,14 @@ function cancelLine(request) {
     if (cancelEndedA.has(state)) return `<div class="cancel-box cancel-accepted" role="status"><b>طلب الإلغاء</b><span>وافق المتجر وأُلغي الطلب.</span></div>`;
     return `<div class="cancel-box cancel-declined" role="status"><b>طلب الإلغاء</b><span>أكمل المتجر تنفيذ الطلب قبل أن يصله طلب الإلغاء، فلم يُلغَ. للاستفسار تواصل مع المتجر.</span></div>`;
   }
+  if (state === 'awaiting_store_confirmation' && cancelDraft && String(cancelDraft.id) === String(request.id)) return cancelFormA(request);
   if (state === 'awaiting_store_confirmation') return `<div class="cancel-box"><span>يمكنك طلب الإلغاء قبل أن يؤكد المتجر طلبك.</span><button class="ghost order-cancel" type="button" data-cancel="${escA(request.id)}">اطلب إلغاء الطلب</button></div>`;
   return '';
+}
+// The cancellation box opened inside the card: an optional reason, send, or go back. What is typed survives the page refreshing itself (cancelDraft).
+function cancelFormA(request) {
+  const id = escA(request.id);
+  return `<div class="cancel-box cancel-open"><label for="cancelReason"><b>ما سبب طلب الإلغاء؟</b> <small>اختياري</small></label><textarea id="cancelReason" data-cancel-reason maxlength="500" rows="3" placeholder="مثال: غيّرت رأيي، أو اخترت المقاس الخطأ">${escA(cancelDraft.text)}</textarea><p class="cancel-note">سيصل طلبك إلى المتجر، ولن يُلغى إلا إذا وافق عليه.</p>${cancelDraft.error ? `<p class="cancel-error" role="alert">${escA(cancelDraft.error)}</p>` : ''}<div class="cancel-actions"><button class="ghost order-cancel" type="button" data-cancel-send="${id}">إرسال طلب الإلغاء</button><button class="ghost" type="button" data-cancel-back="${id}">تراجع</button></div></div>`;
 }
 // Dates and times with the digits the rest of the shop uses (1, 2, 3); the year only when it is not this year.
 const LATN = 'ar-EG-u-nu-latn';
@@ -56,6 +62,9 @@ let archiveOffset = 0;
 let archiveTotal = null;
 let archiveQuery = {};
 let archiveLoading = false;
+let recentShown = 5;          // how many finished orders the list shows; "show older orders" adds five more
+let accountHasMore = false;   // the server has older orders than the ones read so far
+let cancelDraft = null;       // { id, text, error }: the order whose cancellation box is open on the page, and what was typed in it
 
 function cartSnapshot() { try { return JSON.parse(localStorage.getItem('elan_cart') || '[]').reduce((total, item) => total + (Number(item.q) || 0), 0); } catch (_) { return 0; } }
 function updateCartShortcut(restored = 0) { const element = document.querySelector('#cartShortcut'); if (!element) return; element.querySelector('b').textContent = cartSnapshot(); element.classList.toggle('has-restored', restored > 0); element.querySelector('span').textContent = restored ? 'السلة · عادت منتجاتك' : 'السلة'; }
@@ -109,17 +118,22 @@ function requestLine(request) {
     // Over (delivered, cancelled ...): one compact row, "order again" within reach, everything else behind "details".
     const names = items.slice(0, 2).map(item => `${escA(item.product_name)}${Number(item.quantity) > 1 ? ` × ${item.quantity}` : ''}`).join('، ');
     const more = items.length > 2 ? ` <span class="muted">+${items.length - 2} أخرى</span>` : '';
-    return `<article class="acct-order is-past" data-state="${escA(state)}"><div class="acct-order-top"><div class="acct-order-title"><h3>${names || 'تفاصيل المنتجات داخل الطلب'}${more}</h3><p class="acct-sub">من ${store} · ${number} · ${dateA(request.created_at)}</p></div><div class="acct-side">${badgeA(state)}${totalBoxA(request)}</div></div>${cancelLine(request)}<div class="acct-past-actions">${reorder}${detailsA(request, items, shipmentLine(request))}</div></article>`;
+    return `<article class="acct-order is-past" data-id="${escA(request.id)}" data-state="${escA(state)}"><div class="acct-order-top"><div class="acct-order-title"><h3>${names || 'تفاصيل المنتجات داخل الطلب'}${more}</h3><p class="acct-sub">من ${store} · ${number} · ${dateA(request.created_at)}</p></div><div class="acct-side">${badgeA(state)}${totalBoxA(request)}</div></div>${cancelLine(request)}<div class="acct-past-actions">${reorder}${detailsA(request, items, shipmentLine(request))}</div></article>`;
   }
   // Still being followed: what is happening now (the sentence, the four steps, the shipment), then what was ordered.
-  return `<article class="acct-order is-active" data-state="${escA(state)}"><div class="acct-order-top"><div class="acct-order-title"><h3>${headlineA[state] || 'طلبك قيد المتابعة'}</h3><p class="acct-sub">من ${store} · ${number}</p></div>${totalBoxA(request)}</div>${trackerA(request)}${shipmentLine(request)}${itemsPreviewA(items)}${cancelLine(request)}<div class="acct-order-foot"><span>تاريخ الطلب: ${dateA(request.created_at)}</span>${detailsA(request, items, '', reorder)}</div></article>`;
+  return `<article class="acct-order is-active" data-id="${escA(request.id)}" data-state="${escA(state)}"><div class="acct-order-top"><div class="acct-order-title"><h3>${headlineA[state] || 'طلبك قيد المتابعة'}</h3><p class="acct-sub">من ${store} · ${number}</p></div>${totalBoxA(request)}</div>${trackerA(request)}${shipmentLine(request)}${itemsPreviewA(items)}${cancelLine(request)}<div class="acct-order-foot"><span>تاريخ الطلب: ${dateA(request.created_at)}</span>${detailsA(request, items, '', reorder)}</div></article>`;
 }
 function flatten(sessions) { return sessions.flatMap(session => (session.store_order_requests || []).map(request => ({ ...request, session }))); }
 function mergeSessions(newer, older) {
   const seen = new Set();
   return [...newer, ...older].filter(session => { const key = String(session.id || session.tracking_number || ''); if (!key || seen.has(key)) return false; seen.add(key); return true; });
 }
-function renderList(element, requests, empty) { element.innerHTML = requests.length ? requests.map(requestLine).join('') : `<div class="empty">${empty}</div>`; }
+function renderList(element, requests, empty) {
+  // The page refreshes itself every minute: a card whose details the customer opened must not snap shut under their finger.
+  const open = typeof element.querySelectorAll === 'function' ? [...element.querySelectorAll('.acct-order[data-id] details[open]')].map(node => node.closest('.acct-order').dataset.id) : [];
+  element.innerHTML = requests.length ? requests.map(requestLine).join('') : `<div class="empty">${empty}</div>`;
+  if (open.length && typeof element.querySelectorAll === 'function') element.querySelectorAll('.acct-order[data-id]').forEach(node => { if (open.includes(node.dataset.id)) { const details = node.querySelector('details'); if (details) details.open = true; } });
+}
 function fillYears() {
   const select = document.querySelector('#archiveYear');
   if (select.dataset.yearsReady) return;
@@ -129,16 +143,19 @@ function fillYears() {
   select.dataset.yearsReady = '1';
 }
 // The sentence at the top of the page: what the customer most wants to know first.
-function headlineTextA(requests, active, completed) {
+function headlineTextA(requests, active, delivered) {
   if (!requests.length) return 'لم تطلب شيئًا بعد. عطورك القادمة ستظهر هنا.';
-  if (!active.length) return completed.length ? 'وصلتك كل طلباتك. نتمنى أن تنال العطور إعجابك.' : 'لا توجد طلبات جارية الآن.';
+  // "everything reached you" is said only when that is true: a cancelled order among them keeps the plain sentence.
+  if (!active.length) return delivered.length === requests.length ? 'وصلتك كل طلباتك. نتمنى أن تنال العطور إعجابك.' : 'لا توجد طلبات جارية الآن.';
   if (active.length === 1) return stateA(active[0]) === 'shipped' ? 'طلبك في الطريق إليك.' : 'عندك طلب واحد قيد المتابعة.';
   return `عندك ${countA(active.length, '', 'طلبان', 'طلبات', 'طلبًا')} قيد المتابعة.`;
 }
 function renderAccount(sessions) {
   const requests = flatten(sessions);
   const active = requests.filter(request => !terminalA.has(stateA(request)));
-  const completed = requests.filter(request => ['completed', 'delivered'].includes(stateA(request))).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  const past = requests.filter(request => terminalA.has(stateA(request))).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  const completed = past.filter(request => ['completed', 'delivered'].includes(stateA(request)));
+  if (cancelDraft && !requests.some(request => String(request.id) === String(cancelDraft.id) && stateA(request) === 'awaiting_store_confirmation' && !cancelAskedA(request))) cancelDraft = null;   // the order moved on: its box is gone
   const restored = requests.filter(request => stateA(request) === 'restored').length;
   const cancelled = requests.filter(request => cancelEndedA.has(stateA(request))).length;
   document.querySelector('#ordersCount').textContent = requests.length ? countA(requests.length, 'طلب واحد', 'طلبان', 'طلبات', 'طلبًا') : '';
@@ -146,7 +163,9 @@ function renderAccount(sessions) {
   if (headline) headline.textContent = headlineTextA(requests, active, completed);
   document.querySelector('#stats').innerHTML = [['جارية', active.length, 'gold'], ['وصلت', completed.length, 'green'], ['ملغاة', cancelled, 'grey']].filter(item => item[1] > 0).map(item => `<span class="acct-stat ${item[2]}"><b>${item[1]}</b> ${item[0]}</span>`).join('');
   renderList(document.querySelector('#activeOrders'), active, 'لا توجد طلبات جارية الآن.<a href="/">تصفّح العطور</a>');
-  renderList(document.querySelector('#recentOrders'), completed.slice(0, 5), 'لم تصلك طلبات بعد.');
+  renderList(document.querySelector('#recentOrders'), past.slice(0, recentShown), 'لا توجد طلبات سابقة بعد.');
+  const more = document.querySelector('#loadMoreOrders');
+  if (more) more.hidden = !(past.length > recentShown || accountHasMore);
   fillYears();
   updateCartShortcut(restored);
   window.__customerSessions = sessions;
@@ -191,6 +210,7 @@ async function loadArchive(event, append = false) {
 async function loadAccount(append = false, quiet = false) {
   const session = Portal.session();
   if (!session || accountLoading || resettingPassword) return;
+  if (quiet && cancelDraft) return;   // someone is typing a reason: the automatic refresh waits
   if (!guestCartClaimed && window.GuestIdentity) { try { await GuestIdentity.claim(session.access_token); guestCartClaimed = true; } catch (_) {} }
   accountLoading = true;
   const offset = append ? accountOffset : 0;
@@ -203,7 +223,7 @@ async function loadAccount(append = false, quiet = false) {
     else accountOffset = Math.max(accountOffset, page.sessions.length);
     accountTotal = page.total;
     const hasMore = accountTotal !== null ? accountSessions.length < accountTotal : page.hasMore;
-    more.hidden = !hasMore;
+    accountHasMore = hasMore;
     document.querySelector('#login').hidden = true;
     document.querySelector('#app').hidden = false;
     document.querySelector('#logout').hidden = false;
@@ -247,14 +267,27 @@ const cancelErrors = [
   ['Authentication required', 'انتهت جلسة الدخول، سجّل الدخول من جديد.'],
   ['JWT', 'انتهت جلسة الدخول، سجّل الدخول من جديد.']
 ];
-async function cancelOrder(requestId, button) {
-  if (cancelling) return;
-  const request = flatten([...accountSessions, ...archiveSessions]).find(item => String(item.id) === String(requestId));
-  if (!request || stateA(request) !== 'awaiting_store_confirmation' || cancelAskedA(request)) return;
+const requestById = id => flatten([...accountSessions, ...archiveSessions]).find(item => String(item.id) === String(id));
+const cancellableA = request => !!request && stateA(request) === 'awaiting_store_confirmation' && !cancelAskedA(request);
+// "Ask to cancel" opens the box inside the card (no browser dialog); nothing is sent until the customer presses send.
+function openCancel(requestId) {
+  const request = requestById(requestId);
+  if (!cancellableA(request)) return;
   const session = Portal.session();
   if (!session || !session.access_token) { showMessage('انتهت جلسة الدخول، سجّل الدخول من جديد.'); return; }
-  const reason = window.prompt('ما سبب طلب الإلغاء؟ (اختياري)\nسيصل طلبك إلى المتجر، ولن يُلغى إلا إذا وافق عليه.', '');
-  if (reason === null) return;
+  cancelDraft = { id: String(request.id), text: '', error: '' };
+  renderAccount(accountSessions);
+  const area = document.querySelector('#cancelReason');
+  if (area && typeof area.focus === 'function') area.focus();
+}
+function closeCancel() { if (!cancelDraft) return; cancelDraft = null; renderAccount(accountSessions); }
+async function cancelOrder(requestId, button) {
+  if (cancelling) return;
+  const request = requestById(requestId);
+  if (!cancellableA(request)) return;
+  const session = Portal.session();
+  if (!session || !session.access_token) { showMessage('انتهت جلسة الدخول، سجّل الدخول من جديد.'); return; }
+  const reason = cancelDraft && String(cancelDraft.id) === String(request.id) ? cancelDraft.text : '';
   cancelling = true; if (button) button.disabled = true;
   try {
     const response = await fetch('/api/request-store-order-cancellation', {
@@ -268,9 +301,11 @@ async function cancelOrder(requestId, button) {
       const hit = cancelErrors.find(row => text.includes(row[0]));
       throw new Error(hit ? hit[1] : 'تعذر إرسال طلب الإلغاء، حاول مرة أخرى.');
     }
+    cancelDraft = null;
     await loadAccount();
   } catch (error) {
-    // Refresh first (the order may have moved on), then show why the request failed: a successful refresh clears the message box.
+    // The reason typed stays in the box, with the failure written under it; the orders are read again first (the order may have moved on).
+    if (cancelDraft) cancelDraft.error = Portal.errorText(error, 'تعذر إرسال طلب الإلغاء، حاول مرة أخرى.');
     await loadAccount().catch(() => {});
     showMessage(error);
   } finally { cancelling = false; if (button) button.disabled = false; }
@@ -306,14 +341,23 @@ function readRecoveryLink() {
 
 document.querySelector('#loginForm').addEventListener('submit', async event => { event.preventDefault(); try { await Portal.login(event.target); Portal.toast(Portal.welcomeText); await loadAccount(); } catch (error) { showMessage(error); } });
 document.querySelector('#archiveForm').addEventListener('submit', event => loadArchive(event).catch(showMessage));
-document.querySelector('#loadMoreOrders').addEventListener('click', () => loadAccount(true).catch(showMessage));
+document.querySelector('#loadMoreOrders').addEventListener('click', () => {
+  // Older finished orders already read are shown first (five more at a time); only when there are none left is the next page asked of the server.
+  const hidden = flatten(accountSessions).filter(request => terminalA.has(stateA(request))).length > recentShown;
+  recentShown += 5;
+  if (hidden) { renderAccount(accountSessions); return; }
+  loadAccount(true).catch(showMessage);
+});
 document.querySelector('#loadMoreArchive').addEventListener('click', () => loadArchive(null, true).catch(showMessage));
 document.querySelector('#refreshOrders').addEventListener('click', async event => {
   const button = event.currentTarget; button.disabled = true;
   try { await loadAccount(); } catch (error) { showMessage(error); } finally { button.disabled = false; }
 });
 document.addEventListener('click', event => { const button = event.target.closest('[data-reorder]'); if (button) reorder(button.dataset.reorder); });
-document.addEventListener('click', event => { const button = event.target.closest('[data-cancel]'); if (button) cancelOrder(button.dataset.cancel, button); });
+document.addEventListener('click', event => { const button = event.target.closest('[data-cancel]'); if (button) openCancel(button.dataset.cancel); });
+document.addEventListener('click', event => { const button = event.target.closest('[data-cancel-send]'); if (button) cancelOrder(button.dataset.cancelSend, button); });
+document.addEventListener('click', event => { if (event.target.closest('[data-cancel-back]')) closeCancel(); });
+document.addEventListener('input', event => { const area = event.target.closest && event.target.closest('[data-cancel-reason]'); if (area && cancelDraft) { cancelDraft.text = String(area.value || ''); cancelDraft.error = ''; } });
 
 document.querySelector('#forgotLink').addEventListener('click', event => {
   event.preventDefault();

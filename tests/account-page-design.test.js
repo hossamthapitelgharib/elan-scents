@@ -13,7 +13,7 @@ const css = read('account.css');
 const SIZE = '3f2f7d1e-6a58-4a38-9d0c-0c1f7d3a9b11';
 
 function node() {
-  return { hidden: false, textContent: '', innerHTML: '', value: '', disabled: false, dataset: {}, classList: { add() {}, remove() {}, toggle() {} }, addEventListener() {}, querySelector: () => node(), querySelectorAll: () => [], closest: () => null, reset() {}, focus() {} };
+  return { hidden: false, textContent: '', innerHTML: '', value: '', disabled: false, dataset: {}, classList: { add() {}, remove() {}, toggle() {} }, handlers: {}, addEventListener(type, handler) { (this.handlers[type] = this.handlers[type] || []).push(handler); }, querySelector: () => node(), querySelectorAll: () => [], closest: () => null, reset() {}, focus() {} };
 }
 function load() {
   const nodes = new Map();
@@ -134,7 +134,7 @@ test('the sentence at the top and the little counts follow the orders', () => {
   assert.equal(none.count, '');
   assert.equal(none.stats, '');
   assert.match(none.active, /لا توجد طلبات جارية الآن\.<a href="\/">تصفّح العطور<\/a>/, 'an empty list points back to the shop');
-  assert.match(none.recent, /لم تصلك طلبات بعد/);
+  assert.match(none.recent, /لا توجد طلبات سابقة بعد/);
 
   const one = render([order({ status: 'processing' })]);
   assert.equal(one.headline, 'عندك طلب واحد قيد المتابعة.');
@@ -198,4 +198,66 @@ test('account.css keeps the identity of the shop, is served as an immutable shar
   assert.deepEqual(loose, []);
   assert.doesNotMatch(css, /@import|url\(\s*['"]?https?:/, 'no outside file is loaded by the sheet');
   assert.match(css, /prefers-reduced-motion/, 'the pulse of the current step respects reduced motion');
+});
+
+test('a cancelled order is listed with the finished ones (newest first), and the sentence on top does not claim everything arrived', () => {
+  const p = load();
+  const render = requests => { p.run(`renderAccount([{ id: 's', store_order_requests: ${JSON.stringify(requests)} }])`); return { headline: p.el('#ordersHeadline').textContent, recent: p.el('#recentOrders').innerHTML }; };
+  const mixed = render([
+    order({ id: 'old', tracking_number: 'ELN-OLD', status: 'delivered', created_at: '2026-09-01T10:00:00Z' }),
+    order({ id: 'gone', tracking_number: 'ELN-GONE', status: 'store_cancelled', created_at: '2026-10-20T10:00:00Z' }),
+    order({ id: 'back', tracking_number: 'ELN-BACK', status: 'restored', created_at: '2026-10-10T10:00:00Z' })
+  ]);
+  assert.deepEqual([...mixed.recent.matchAll(/data-id="(old|gone|back)"/g)].map(match => match[1]), ['gone', 'back', 'old']);
+  assert.match(mixed.recent, /أُلغي الطلب وأُعيدت المنتجات/);
+  assert.match(mixed.recent, /عادت المنتجات إلى السلة/);
+  assert.match(mixed.recent, /تم التسليم/);
+  assert.equal(mixed.headline, 'لا توجد طلبات جارية الآن.', 'a cancelled order among them: no "everything reached you"');
+  assert.match(render([order({ id: 'a', status: 'delivered' }), order({ id: 'b', status: 'completed' })]).headline, /وصلتك كل طلباتك/);
+});
+
+test('the list of finished orders shows five, "show older orders" adds five more from what is already read, and asks the server only when nothing is left', async () => {
+  const p = load();
+  const requests = Array.from({ length: 12 }, (_, i) => order({ id: `r${i}`, tracking_number: `ELN-N${String(i).padStart(2, '0')}`, status: i % 4 === 3 ? 'store_cancelled' : 'delivered', created_at: new Date(Date.UTC(2026, 9, 1 + i)).toISOString() }));
+  p.run(`accountSessions = [{ id: 's', store_order_requests: ${JSON.stringify(requests)} }]; accountHasMore = false; renderAccount(accountSessions)`);
+  const shown = () => (p.el('#recentOrders').innerHTML.match(/class="acct-order is-past"/g) || []).length;
+  const more = p.el('#loadMoreOrders');
+  assert.equal(shown(), 5);
+  assert.equal(more.hidden, false, 'there are older ones to show');
+  more.handlers.click[0]();
+  assert.equal(shown(), 10);
+  assert.equal(more.hidden, false);
+  more.handlers.click[0]();
+  assert.equal(shown(), 12);
+  assert.equal(more.hidden, true, 'nothing older is left, here or on the server');
+  // when the server still has older orders the button stays, even with everything read shown
+  p.run('accountHasMore = true; renderAccount(accountSessions)');
+  assert.equal(more.hidden, false);
+});
+
+test('every card carries its id (a card the customer opened is found again after the list is drawn again)', () => {
+  const p = load();
+  for (const status of ['processing', 'delivered', 'store_cancelled']) assert.match(card(p, order({ id: 'card-7', status })), /<article class="acct-order is-(active|past)" data-id="card-7"/);
+});
+
+test('the cancellation box in the card: closed by default, opened with the reason field, never a browser dialog', () => {
+  const source = read('account.js');
+  assert.doesNotMatch(source, /window\.prompt|\bprompt\(|\bconfirm\(|\balert\(/, 'no native dialog on this page');
+  const p = load();
+  const closed = card(p, order({ status: 'awaiting_store_confirmation' }));
+  assert.match(closed, /data-cancel="r1"/);
+  assert.equal(closed.includes('data-cancel-reason'), false);
+  p.run("cancelDraft = { id: 'r1', text: 'a < b', error: 'oops' }");
+  const open = card(p, order({ status: 'awaiting_store_confirmation' }));
+  assert.match(open, /<textarea id="cancelReason" data-cancel-reason maxlength="500"/);
+  assert.match(open, /a &lt; b<\/textarea>/);
+  assert.match(open, /role="alert">oops<\/p>/);
+  assert.match(open, /اختياري/);
+  assert.match(open, /ولن يُلغى إلا إذا وافق عليه/);
+  assert.equal(open.includes('data-cancel="r1"'), false, 'the opening button is replaced by send and back');
+  assert.match(open, /data-cancel-send="r1"/);
+  assert.match(open, /data-cancel-back="r1"/);
+  // a box is opened for one order only
+  assert.equal(card(p, order({ id: 'r2', status: 'awaiting_store_confirmation' })).includes('data-cancel-reason'), false);
+  assert.match(read('account.css'), /\.cancel-open textarea/);
 });

@@ -134,12 +134,13 @@ test('my orders: a failed archive search never leaves "searching…" on screen, 
   assert.equal(nodes.get('#appMessage').hidden, true);
 });
 
-test('my orders: a cancelled order is closed (archive, "cancelled" label), not listed as an order to follow', async () => {
+test('my orders: a cancelled order is closed (cancelled label), listed with the finished orders and not as an order to follow', async () => {
   const { context, nodes } = load(['portal.js', 'account.js'], ACCOUNT_IDS);
   vm.runInContext('renderAccount', context)([cancelledSession]);
   assert.doesNotMatch(nodes.get('#activeOrders').innerHTML, /TEST-CANCELLED-1/);
   assert.match(nodes.get('#activeOrders').innerHTML, /لا توجد طلبات جارية/);
-  assert.doesNotMatch(nodes.get('#recentOrders').innerHTML, /TEST-CANCELLED-1/);
+  assert.match(nodes.get('#recentOrders').innerHTML, /TEST-CANCELLED-1/, 'the customer finds a cancelled order in the list, not only by searching');
+  assert.match(nodes.get('#recentOrders').innerHTML, /أُلغي الطلب/);
   assert.match(vm.runInContext('badgeA', context)('cancelled'), /أُلغي الطلب/);
   assert.equal(vm.runInContext('terminalA', context).has('cancelled'), true);
 });

@@ -64,12 +64,14 @@ function page({ hash = '', session = null, cart = [], responder } = {}) {
   const run = code => vm.runInContext(code, context);
   // A click on a button that carries one data attribute, delivered to every click listener of the page (the page uses delegation).
   const click = (attribute, value) => {
-    const button = { dataset: { [attribute]: value }, disabled: false };
+    const button = { dataset: { [attribute.replace(/-(\w)/g, (_, letter) => letter.toUpperCase())]: value }, disabled: false };
     const event = { target: { closest: selector => (selector === `[data-${attribute}]` ? button : null) } };
     for (const handler of docHandlers.click || []) handler(event);
     return button;
   };
-  return { context, document, elements, store, writes, calls, timers, timerFns, replaced, docHandlers, click, run, el: selector => document.querySelector(selector) };
+  // Typing in the reason box of the card, delivered to the page's input listener (the box keeps what was typed in the page's own state).
+  const type = text => { const area = { value: text }; for (const handler of docHandlers.input || []) handler({ target: { closest: selector => (selector === '[data-cancel-reason]' ? area : null) } }); };
+  return { context, document, elements, store, writes, calls, timers, timerFns, replaced, docHandlers, click, type, run, el: selector => document.querySelector(selector) };
 }
 const tick = () => new Promise(resolve => setImmediate(resolve));
 
@@ -253,7 +255,7 @@ test('the order id in the cancellation button is escaped', () => {
   assert.match(html, /data-cancel="&quot;&gt;&lt;img/);
 });
 
-test('asking to cancel sends the reason to the server API with the customer token, then refreshes the list', async () => {
+test('asking to cancel opens the box in the card; send puts the typed reason to the server API with the customer token, then refreshes the list', async () => {
   const orderCalls = [];
   const p = page({ session: { access_token: 'customer-jwt' }, responder: async (url, options) => {
     if (url.startsWith('/api/customer-orders')) { orderCalls.push(url); return new Response('{"ok":true,"sessions":[],"pagination":{"total":0,"hasMore":false}}', { status: 200 }); }
@@ -262,34 +264,74 @@ test('asking to cancel sends the reason to the server API with the customer toke
   } });
   await tick(); await tick(); await tick();
   const before = orderCalls.length;
-  p.context.prompt = () => '  غيرت رأيي  ';
+  p.context.prompt = () => { throw new Error('no browser dialog: the reason is asked in the card'); };
   p.run(`accountSessions = [{ id: 's1', store_order_requests: [${ORDER(", status: 'awaiting_store_confirmation'")}] }]`);
-  const button = p.click('cancel', 'r1');
+  p.click('cancel', 'r1');
+  assert.equal(p.calls.some(item => item.url.endsWith('/api/request-store-order-cancellation')), false, 'opening the box sends nothing');
+  assert.match(p.el('#activeOrders').innerHTML, /data-cancel-reason/, 'the box is in the card');
+  assert.match(p.el('#activeOrders').innerHTML, /data-cancel-send="r1"/);
+  assert.match(p.el('#activeOrders').innerHTML, /data-cancel-back="r1"/);
+  p.type('  غيرت رأيي  ');
+  const button = p.click('cancel-send', 'r1');
   assert.equal(button.disabled, true, 'the button is locked while the request is in flight');
   await tick(); await tick(); await tick(); await tick();
   const call = p.calls.find(item => item.url.endsWith('/api/request-store-order-cancellation'));
   assert.ok(call, 'the server API is called');
-    assert.equal(call.options.method, 'POST');
+  assert.equal(call.options.method, 'POST');
   assert.equal(call.options.headers.Authorization, 'Bearer customer-jwt');
-    assert.deepEqual(JSON.parse(call.options.body), { requestId: 'r1', reason: 'غيرت رأيي' });
+  assert.deepEqual(JSON.parse(call.options.body), { requestId: 'r1', reason: 'غيرت رأيي' });
   assert.equal(orderCalls.length > before, true, 'the list is read again so the card shows the waiting note');
   assert.equal(button.disabled, false);
 });
 
-test('a blank reason is sent as null, a long one is cut to 500 characters, and closing the box sends nothing', async () => {
+test('a blank reason is sent as null, a long one is cut to 500 characters, and going back sends nothing', async () => {
   const p = page({ session: { access_token: 't' } });
   await tick(); await tick();
   p.run(`accountSessions = [{ id: 's1', store_order_requests: [${ORDER(", status: 'awaiting_store_confirmation'")}] }]`);
   const bodies = () => p.calls.filter(item => item.url.endsWith('/api/request-store-order-cancellation')).map(item => JSON.parse(item.options.body));
-  p.context.prompt = () => null;
-  p.click('cancel', 'r1'); await tick(); await tick();
-  assert.equal(bodies().length, 0, 'cancelling the box is not a request');
-  p.context.prompt = () => '   ';
-  p.click('cancel', 'r1'); await tick(); await tick(); await tick(); await tick();
+  p.click('cancel', 'r1');
+  p.type('a reason that is never sent');
+  p.click('cancel-back', 'r1'); await tick(); await tick();
+  assert.equal(bodies().length, 0, 'going back is not a request');
+  assert.doesNotMatch(p.el('#activeOrders').innerHTML, /data-cancel-reason/, 'the box is closed again');
+  assert.match(p.el('#activeOrders').innerHTML, /data-cancel="r1"/, 'and the button is back');
+  p.click('cancel', 'r1');
+  assert.doesNotMatch(p.el('#activeOrders').innerHTML, /a reason that is never sent/, 'a reopened box starts empty');
+  p.type('   ');
+  p.click('cancel-send', 'r1'); await tick(); await tick(); await tick(); await tick();
   assert.deepEqual(bodies()[0], { requestId: 'r1', reason: null });
-  p.context.prompt = () => 'x'.repeat(900);
-  p.click('cancel', 'r1'); await tick(); await tick(); await tick(); await tick();
+  p.run(`accountSessions = [{ id: 's1', store_order_requests: [${ORDER(", status: 'awaiting_store_confirmation'")}] }]`);
+  p.click('cancel', 'r1');
+  p.type('x'.repeat(900));
+  p.click('cancel-send', 'r1'); await tick(); await tick(); await tick(); await tick();
   assert.equal(bodies()[1].reason.length, 500);
+});
+
+test('what was typed survives a refresh of the list and is shown escaped; the automatic refresh waits while the box is open', async () => {
+  const orderCalls = [];
+  const p = page({ session: { access_token: 't' }, responder: async url => {
+    if (url.startsWith('/api/customer-orders')) { orderCalls.push(url); return new Response('{"ok":true,"sessions":[],"pagination":{"total":0,"hasMore":false}}', { status: 200 }); }
+    return null;
+  } });
+  await tick(); await tick(); await tick();
+  p.run(`accountSessions = [{ id: 's1', store_order_requests: [${ORDER(", status: 'awaiting_store_confirmation'")}] }]`);
+  p.click('cancel', 'r1');
+  p.type('<img src=x onerror=alert(1)> & more');
+  p.run('renderAccount(accountSessions)');
+  const html = p.el('#activeOrders').innerHTML;
+  assert.match(html, /&lt;img src=x onerror=alert\(1\)&gt; &amp; more/, 'the draft is still in the box after the list was drawn again, escaped');
+  assert.equal(html.includes('<img'), false);
+  const before = orderCalls.length;
+  await p.run('loadAccount(false, true)');
+  assert.equal(orderCalls.length, before, 'the quiet refresh does not reach the server while someone is typing');
+  await p.run('loadAccount(false, false)');
+  assert.equal(orderCalls.length > before, true, 'a refresh the customer asked for still runs');
+  assert.match(p.el('#activeOrders').innerHTML, /data-cancel-reason/);
+  // when the order moves on (the store answered), its box disappears instead of staying around
+  p.run(`renderAccount([{ id: 's1', store_order_requests: [${ORDER(", status: 'processing'")}] }])`);
+  assert.doesNotMatch(p.el('#activeOrders').innerHTML, /data-cancel/);
+  p.run(`renderAccount([{ id: 's1', store_order_requests: [${ORDER(", status: 'awaiting_store_confirmation'")}] }])`);
+  assert.doesNotMatch(p.el('#activeOrders').innerHTML, /data-cancel-reason/, 'and it does not come back by itself');
 });
 
 test('a refused request shows the reason in Arabic, refreshes the orders, and nothing is asked for an order that is not waiting', async () => {
@@ -302,24 +344,30 @@ test('a refused request shows the reason in Arabic, refreshes the orders, and no
   await tick(); await tick(); await tick();
   p.run('document.querySelector("#app").hidden = false');
   const before = orderCalls.length;
-  p.context.prompt = () => 'x';
   p.run(`accountSessions = [{ id: 's1', store_order_requests: [${ORDER(", status: 'awaiting_store_confirmation'")}, { id: 'r2', status: 'processing', store_order_request_items: [] }, { id: 'r3', status: 'awaiting_store_confirmation', store_order_cancellation_requests: [{ created_at: 'x' }], store_order_request_items: [] }] }]`);
   p.click('cancel', 'r1');
+  p.type('my reason');
+  p.click('cancel-send', 'r1');
   for (let i = 0; i < 8; i += 1) await tick();
   assert.match(p.el('#appMessage').textContent, /المتجر بدأ في معالجة الطلب/);
+  assert.match(p.el('#activeOrders').innerHTML, /my reason/, 'the reason typed is still in the box (the order is still shown as waiting here), with the failure written under it');
+  assert.match(p.el('#activeOrders').innerHTML, /cancel-error[^>]*>[^<]*المتجر بدأ في معالجة الطلب/);
   assert.equal(orderCalls.length > before, true, 'the list is refreshed so the card shows the real state');
   const sent = () => p.calls.filter(item => item.url.endsWith('/api/request-store-order-cancellation')).length;
   const asked = sent();
   p.click('cancel', 'r2'); p.click('cancel', 'r3'); p.click('cancel', 'unknown');
+  p.click('cancel-send', 'r2'); p.click('cancel-send', 'r3'); p.click('cancel-send', 'unknown');
   for (let i = 0; i < 4; i += 1) await tick();
   assert.equal(sent(), asked, 'an order that is not waiting, already asked, or unknown sends nothing');
 });
 
 test('without a saved session the cancellation asks to sign in again and sends nothing', async () => {
   const p = page({ session: null });
-  p.context.prompt = () => { throw new Error('the box must not open without a session'); };
-  p.run(`accountSessions = [{ id: 's1', store_order_requests: [${ORDER(", status: 'awaiting_store_confirmation'")}] }]`);
+    p.run(`accountSessions = [{ id: 's1', store_order_requests: [${ORDER(", status: 'awaiting_store_confirmation'")}] }]`);
   p.click('cancel', 'r1');
+  p.click('cancel-send', 'r1');
   await tick(); await tick();
-  assert.equal(p.calls.some(item => item.url.includes('request_store_order_cancellation')), false);
+  assert.equal(p.calls.some(item => item.url.includes('request-store-order-cancellation')), false);
+  assert.doesNotMatch(p.el('#activeOrders').innerHTML, /data-cancel-reason/, 'the box does not open without a session');
+  assert.match(p.el('#message').textContent, /انتهت جلسة الدخول/, 'the sign-in box says it (the orders are not shown without a session)');
 });

@@ -725,8 +725,14 @@ test('21. the orders page shows every state in the shop\'s own look on a phone: 
     assert.equal(await past.locator('.shipment-box').isVisible(), false);
     await past.locator('summary').click();
     assert.equal(await past.locator('.shipment-box').isVisible(), true);
-    // a cancelled order is not in the recent list; it is found through the search below
-    assert.equal(await page.locator('#recentOrders').innerText().then(text => text.includes('ELN-TEST-DDDD')), false);
+    // a cancelled order is in the list of finished orders (with its own label), not among the open ones
+    assert.equal(await page.locator('#recentOrders').innerText().then(text => text.includes('ELN-TEST-DDDD')), true);
+    assert.equal(await page.locator('#activeOrders').innerText().then(text => text.includes('ELN-TEST-DDDD')), false);
+    // the details the customer opened stay open when the page draws the list again
+    assert.equal(await past.locator('details').evaluate(node => node.open), true);
+    await page.click('#refreshOrders');
+    await page.waitForFunction(() => document.querySelector('#refreshOrders').disabled === false);
+    assert.equal(await page.locator('#recentOrders .acct-order.is-past').first().locator('details').evaluate(node => node.open), true, 'an opened card is not shut by a refresh');
 
     // the look: the wordmark in gold, the order cards rounded and white, nothing wider than the phone
     assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.acct-mark b')).fontFamily.includes('Playfair')), true);
@@ -746,5 +752,50 @@ test('21b. the sign-in state of the orders page is centred in the same look, and
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
     const box = await page.locator('#loginForm').boundingBox();
     assert.ok(box.width > 250 && box.width <= 390, 'the form fits the phone');
+  } finally { await c.context.close(); }
+});
+
+
+test('21c. asking to cancel an order: the box opens inside the card (no browser dialog), the typed reason is kept when the list is drawn again, going back closes it, send posts it once', async () => {
+  const c = await context({ session: CUSTOMER_SESSION });
+  try {
+    const page = await c.context.newPage();
+    const dialogs = [];
+    page.on('dialog', dialog => { dialogs.push(dialog.type()); dialog.dismiss().catch(() => {}); });
+    await mockPage(page);
+    const bodies = [];
+    let cancelled = false;
+    const waiting = { id: 'w1', tracking_number: 'ELN-TEST-WAIT', status: 'awaiting_store_confirmation', subtotal: 150, shipping_amount: 0, total_amount: 150, currency: 'EGP', created_at: '2026-11-10T10:00:00Z', stores: { name: 'Test Store' },
+      store_order_request_items: [{ product_name: 'Test Perfume', brand_name: 'Test Brand', size_label: '100 ml', quantity: 1, unit_price: 150, line_total: 150, currency: 'EGP' }], store_shipments: [], store_order_cart_restorations: [] };
+    await page.route('**/api/customer-orders*', route => H.safeFulfill(route, { status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, sessions: [{ id: 's1', store_order_requests: [{ ...waiting, store_order_cancellation_requests: cancelled ? [{ id: 'c1', status: 'requested' }] : [] }] }], pagination: { total: 1, hasMore: false } }) }));
+    await page.route('**/api/request-store-order-cancellation', route => { bodies.push(JSON.parse(route.request().postData() || '{}')); cancelled = true; return H.safeFulfill(route, { status: 200, contentType: 'application/json', body: '{"requestId":"w1","duplicate":false}' }); });
+    await page.goto(H.SITE + '/account.html', { waitUntil: 'load' });
+    await page.waitForSelector('#activeOrders .order-cancel');
+
+    await page.click('#activeOrders [data-cancel="w1"]');
+    await page.waitForSelector('#cancelReason');
+    assert.equal(await page.evaluate(() => document.activeElement && document.activeElement.id), 'cancelReason', 'the cursor is in the reason field');
+    assert.match(await page.locator('.cancel-open').innerText(), /ما سبب طلب الإلغاء/);
+    assert.equal(bodies.length, 0, 'opening the box sends nothing');
+    await page.fill('#cancelReason', 'اخترت المقاس الخطأ');
+    // the list drawn again (a refresh by hand) keeps the box and what was typed
+    await page.click('#refreshOrders');
+    await page.waitForFunction(() => document.querySelector('#refreshOrders').disabled === false);
+    assert.equal(await page.inputValue('#cancelReason'), 'اخترت المقاس الخطأ');
+    // back closes it, the button is back, and nothing was sent
+    await page.click('[data-cancel-back="w1"]');
+    assert.equal(await page.locator('#cancelReason').count(), 0);
+    assert.equal(await page.locator('[data-cancel="w1"]').count(), 1);
+    assert.equal(bodies.length, 0);
+    // open again (empty), type, send: one request with the reason, then the card shows that the request is waiting
+    await page.click('[data-cancel="w1"]');
+    assert.equal(await page.inputValue('#cancelReason'), '');
+    await page.fill('#cancelReason', 'غيّرت رأيي');
+    await page.click('[data-cancel-send="w1"]');
+    await page.waitForSelector('#activeOrders .cancel-pending');
+    assert.deepEqual(bodies, [{ requestId: 'w1', reason: 'غيّرت رأيي' }]);
+    assert.match(await page.locator('#activeOrders .cancel-pending').innerText(), /بانتظار رده/);
+    assert.equal(await page.locator('#cancelReason').count(), 0);
+    assert.deepEqual(dialogs, [], 'no browser dialog was shown');
   } finally { await c.context.close(); }
 });
