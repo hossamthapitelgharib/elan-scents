@@ -24,7 +24,7 @@ module.exports = async function storeOrderCancelled(req, res) {
       return;
     }
     storeAuth = result;
-    if (process.env.STORE_WEBHOOK_SIGNATURE_REQUIRED === '1') {
+    if (process.env.STORE_WEBHOOK_SIGNATURE_REQUIRED !== '0') {
       const signed = verifyWebhookSignature(req, storeAuth.webhookSecret);
       if (!signed.ok) {
         reply(res, 401, { ok: false, error: signed.error });
@@ -33,7 +33,7 @@ module.exports = async function storeOrderCancelled(req, res) {
       req.body = { ...(req.body || {}), eventId: signed.eventId };
     }
   } else {
-    if (process.env.LEGACY_WEBHOOK_ENABLED === '0') {
+    if (process.env.LEGACY_WEBHOOK_ENABLED !== '1') {
       reply(res, 410, { ok: false, error: 'legacy_webhook_disabled' });
       return;
     }
@@ -41,6 +41,14 @@ module.exports = async function storeOrderCancelled(req, res) {
     if (denied) {
       reply(res, denied.status, { ok: false, error: denied.error });
       return;
+    }
+    if (process.env.STORE_WEBHOOK_SIGNATURE_REQUIRED !== '0') {
+      const signed = verifyWebhookSignature(req, process.env.STORE_ORDER_WEBHOOK_SECRET);
+      if (!signed.ok) {
+        reply(res, 401, { ok: false, error: signed.error });
+        return;
+      }
+      req.body = { ...(req.body || {}), eventId: signed.eventId };
     }
   }
   const body = req.body && typeof req.body === 'object' ? req.body : {};

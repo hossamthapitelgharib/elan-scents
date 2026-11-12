@@ -5,6 +5,7 @@ const test = require('node:test');
 const root = path.resolve(__dirname, '..');
 const api = (name) => require(path.join(root, 'api', name));
 const { STORE_ID_HEADER, RATE_LIMIT } = require(path.join(root, 'lib', 'store-webhook-auth'));
+const { digest } = require(path.join(root, 'lib', 'store-webhook-signature'));
 
 const STORE_A = '11111111-1111-4111-8111-111111111111';
 const STORE_B = '22222222-2222-4222-8222-222222222222';
@@ -66,11 +67,13 @@ const CASES = [
 ];
 
 const savedEnv = {};
-for (const key of ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'STORE_ORDER_WEBHOOK_SECRET']) savedEnv[key] = process.env[key];
+for (const key of ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'STORE_ORDER_WEBHOOK_SECRET', 'LEGACY_WEBHOOK_ENABLED', 'STORE_WEBHOOK_SIGNATURE_REQUIRED']) savedEnv[key] = process.env[key];
 const savedFetch = global.fetch;
 test.beforeEach(() => {
   process.env.SUPABASE_URL = 'https://test.supabase.co';
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'service';
+  process.env.LEGACY_WEBHOOK_ENABLED = '1';
+  process.env.STORE_WEBHOOK_SIGNATURE_REQUIRED = '0';
   delete process.env.STORE_ORDER_WEBHOOK_SECRET;
 });
 test.after(() => {
@@ -177,6 +180,48 @@ for (const { name, rpc, makeBody } of CASES) {
       assert.equal(okShared.status, 200, `header ${JSON.stringify(storeId)}`);
     }
     assert.equal(lookups(calls).length, 0, 'the shared-secret path must not read store_integrations or store_order_requests');
+  });
+}
+
+for (const { name, rpc, makeBody } of CASES) {
+  test(`${name}: secure defaults reject unsigned store calls and disable legacy fallback`, async () => {
+    delete process.env.STORE_WEBHOOK_SIGNATURE_REQUIRED;
+    delete process.env.LEGACY_WEBHOOK_ENABLED;
+    process.env.STORE_ORDER_WEBHOOK_SECRET = 'shared-secret';
+    const calls = installDatabase();
+    const handler = api(name);
+    const body = makeBody('TRK-A-1');
+
+    const unsigned = await call(handler, webhook({ body }));
+    assert.equal(unsigned.status, 401);
+    assert.equal(unsigned.body.error, 'invalid_webhook_signature');
+    assert.equal(rpcCalls(calls).length, 0);
+
+    const legacy = await call(handler, webhook({ storeId: null, secret: 'shared-secret', body }));
+    assert.equal(legacy.status, 410);
+    assert.equal(legacy.body.error, 'legacy_webhook_disabled');
+    assert.equal(rpcCalls(calls).length, 0);
+    assert.equal(calls.length, 1, 'only the signed store integration lookup is reached');
+  });
+
+  test(`${name}: a valid HMAC passes and its event id is sent into store-scoped idempotency`, async () => {
+    delete process.env.LEGACY_WEBHOOK_ENABLED;
+    process.env.STORE_WEBHOOK_SIGNATURE_REQUIRED = '1';
+    const calls = installDatabase();
+    const handler = api(name);
+    const body = makeBody('TRK-A-1');
+    const timestamp = String(Math.floor(Date.now() / 1000));
+    const eventId = 'signed-event-1';
+    const signature = digest(SECRETS[STORE_A], timestamp, eventId, body);
+    const result = await call(handler, webhook({ body, headers: {
+      'x-webhook-timestamp': timestamp,
+      'x-webhook-id': eventId,
+      'x-webhook-signature': signature
+    } }));
+    assert.equal(result.status, 200);
+    const rpcCall = rpcCalls(calls)[0];
+    assert.ok(rpcCall.body.p_payload.idempotencyKey.startsWith(`${STORE_A}:`));
+    assert.notEqual(rpcCall.body.p_payload.idempotencyKey, eventId);
   });
 }
 

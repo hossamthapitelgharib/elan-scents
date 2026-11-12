@@ -45,7 +45,7 @@ module.exports = async function storeCatalogFigures(req, res) {
     send(res, auth.denied.status, auth.denied.body);
     return;
   }
-  if (process.env.STORE_WEBHOOK_SIGNATURE_REQUIRED === '1') {
+  if (process.env.STORE_WEBHOOK_SIGNATURE_REQUIRED !== '0') {
     const signed = verifyWebhookSignature(req, auth.webhookSecret);
     if (!signed.ok) {
       send(res, 401, { ok: false, error: signed.error });

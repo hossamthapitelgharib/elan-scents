@@ -10,6 +10,7 @@ const SIZE = '8d3f2a54-6c1b-4a0e-9b7d-5e2c1f0a9b34';
 const jsonResponse = (data, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
 function recorder() { const out = {}; return { out, status(n) { out.status = n; return this; }, setHeader() { return this; }, json(body) { out.body = body; return this; }, end() { return this; } }; }
 async function call(handler, req) { const res = recorder(); await handler(req, res); return res.out; }
+test.beforeEach(() => { process.env.LEGACY_WEBHOOK_ENABLED = '1'; process.env.STORE_WEBHOOK_SIGNATURE_REQUIRED = '0'; });
 
 function notice(extra = {}) {
   return {

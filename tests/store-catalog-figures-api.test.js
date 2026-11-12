@@ -23,6 +23,7 @@ const SERVICE_KEY = 'service-key-must-never-be-echoed';
 
 process.env.SUPABASE_URL = 'https://test.supabase.co';
 process.env.SUPABASE_SERVICE_ROLE_KEY = SERVICE_KEY;
+test.beforeEach(() => { process.env.STORE_WEBHOOK_SIGNATURE_REQUIRED = '0'; });
 
 const jsonResponse = (data, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
 function recorder() { const out = { headers: {} }; return { out, status(n) { out.status = n; return this; }, setHeader(name, value) { out.headers[name.toLowerCase()] = value; return this; }, json(body) { out.body = body; return this; }, end() { return this; } }; }
@@ -158,6 +159,15 @@ test('when signatures are required an unsigned report is refused and a correctly
     const forged = await call(report({ body: { figures: [{ product_size_id: 'size-1', units_sold: 999999 }] }, headers: { 'x-webhook-timestamp': timestamp, 'x-webhook-id': eventId, 'x-webhook-signature': signature } }));
     assert.equal(forged.status, 401, 'a signature does not cover a different body');
   } finally { delete process.env.STORE_WEBHOOK_SIGNATURE_REQUIRED; }
+});
+
+test('the catalog webhook requires a signature by default when no environment value is configured', async () => {
+  delete process.env.STORE_WEBHOOK_SIGNATURE_REQUIRED;
+  const calls = installDatabase();
+  const result = await call(report());
+  assert.equal(result.status, 401);
+  assert.equal(result.body.error, 'invalid_webhook_signature');
+  assert.equal(rpcCalls(calls).length, 0);
 });
 
 test('the handler is registered for the Worker bundle and has no shared-secret path', () => {

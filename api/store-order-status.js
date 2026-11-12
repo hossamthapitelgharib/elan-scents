@@ -45,7 +45,7 @@ function validatePayload(payload) {
 
 module.exports = async function storeOrderStatus(req, res) {
   if (req.method === 'OPTIONS') {
-    res.status(204).setHeader('Access-Control-Allow-Origin', '*').setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Store-Webhook-Secret').setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS').end();
+    res.status(204).setHeader('Access-Control-Allow-Origin', '*').setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Store-Id, X-Store-Webhook-Secret, X-Webhook-Timestamp, X-Webhook-Id, X-Webhook-Signature').setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS').end();
     return;
   }
   if (req.method !== 'POST') {
@@ -65,7 +65,7 @@ module.exports = async function storeOrderStatus(req, res) {
       return;
     }
     storeAuth = result;
-    if (process.env.STORE_WEBHOOK_SIGNATURE_REQUIRED === '1') {
+    if (process.env.STORE_WEBHOOK_SIGNATURE_REQUIRED !== '0') {
       const signed = verifyWebhookSignature(req, storeAuth.webhookSecret);
       if (!signed.ok) {
         send(res, 401, { ok: false, error: signed.error });
@@ -74,7 +74,7 @@ module.exports = async function storeOrderStatus(req, res) {
       req.body = { ...(req.body || {}), eventId: signed.eventId };
     }
   } else {
-    if (process.env.LEGACY_WEBHOOK_ENABLED === '0') {
+    if (process.env.LEGACY_WEBHOOK_ENABLED !== '1') {
       send(res, 410, { ok: false, error: 'legacy_webhook_disabled' });
       return;
     }
@@ -82,6 +82,14 @@ module.exports = async function storeOrderStatus(req, res) {
     if (denied) {
       send(res, denied.status, { ok: false, error: denied.error });
       return;
+    }
+    if (process.env.STORE_WEBHOOK_SIGNATURE_REQUIRED !== '0') {
+      const signed = verifyWebhookSignature(req, process.env.STORE_ORDER_WEBHOOK_SECRET);
+      if (!signed.ok) {
+        send(res, 401, { ok: false, error: signed.error });
+        return;
+      }
+      req.body = { ...(req.body || {}), eventId: signed.eventId };
     }
   }
 

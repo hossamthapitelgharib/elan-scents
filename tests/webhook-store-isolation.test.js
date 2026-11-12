@@ -72,12 +72,14 @@ const CASES = [
 ];
 
 const savedEnv = {};
-for (const key of ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'STORE_ORDER_WEBHOOK_SECRET']) savedEnv[key] = process.env[key];
+for (const key of ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'STORE_ORDER_WEBHOOK_SECRET', 'LEGACY_WEBHOOK_ENABLED', 'STORE_WEBHOOK_SIGNATURE_REQUIRED']) savedEnv[key] = process.env[key];
 const savedFetch = global.fetch;
 const savedConsoleError = console.error;
 test.beforeEach(() => {
   process.env.SUPABASE_URL = 'https://test.supabase.co';
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'service';
+  process.env.LEGACY_WEBHOOK_ENABLED = '1';
+  process.env.STORE_WEBHOOK_SIGNATURE_REQUIRED = '0';
   delete process.env.STORE_ORDER_WEBHOOK_SECRET;
 });
 test.after(() => {

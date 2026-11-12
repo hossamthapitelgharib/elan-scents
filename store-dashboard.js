@@ -138,7 +138,12 @@ async function updateShipment(form) {
     body.requestId = form.dataset.shipmentForm;
     const response = await fetch('/api/store-shipment-update', { method: 'PATCH', headers: { ...Portal.auth(), 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const data = await response.json().catch(() => null);
-    if (!response.ok || !data) throw new Error(data && data.error || 'shipment_update_failed');
+    if (!response.ok || !data) {
+      const code = data && data.error || 'shipment_update_failed';
+      const stale = code === 'shipment_status_changed' || code === 'invalid_shipping_transition';
+      if (stale) await loadStore();
+      throw new Error(stale ? 'تغيّرت حالة الشحنة قبل حفظ التحديث، وتم تحديث القائمة. راجع الحالة الحالية ثم أعد المحاولة.' : code);
+    }
     await loadStore();
   } catch (error) {
     showOrderAction(Portal.errorText(error, 'تعذر حفظ تحديث الشحن.'));

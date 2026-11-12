@@ -18,7 +18,6 @@ function recorder() {
   };
 }
 let ipCounter = 0;
-// Every call gets its own client address unless a test pins one, so the per-IP limiter never leaks between tests.
 async function call(body, { method = 'POST', ip = `10.1.0.${++ipCounter}` } = {}) {
   const res = recorder();
   await handler({ method, headers: { 'x-forwarded-for': ip }, body }, res);
@@ -26,19 +25,50 @@ async function call(body, { method = 'POST', ip = `10.1.0.${++ipCounter}` } = {}
 }
 
 const calls = [];
-function stubFetch(rows) {
+let databaseRows = [];
+let patchStatus = 200;
+function stubFetch(rows, { patch = 200 } = {}) {
   calls.length = 0;
-  global.fetch = async (url, init = {}) => {
-    calls.push({ url: String(url), method: init.method || 'GET', body: init.body });
-    if (init.method === 'PATCH') return jsonResponse([]);
-    return jsonResponse(rows);
+  databaseRows = rows.map((row) => ({ ...row }));
+  patchStatus = patch;
+  global.fetch = async (input, init = {}) => {
+    const url = new URL(String(input));
+    const method = init.method || 'GET';
+    const entry = { url: url.toString(), method, body: init.body ? JSON.parse(init.body) : null };
+    calls.push(entry);
+    if (method !== 'PATCH') {
+      const token = url.searchParams.get('restore_token')?.replace(/^eq\./, '').toLowerCase();
+      return jsonResponse(databaseRows.filter((row) => String(row.restore_token).toLowerCase() === token).slice(0, 1));
+    }
+    if (patchStatus !== 200) return jsonResponse({ message: 'write failed' }, patchStatus);
+    const token = url.searchParams.get('restore_token')?.replace(/^eq\./, '').toLowerCase();
+    const row = databaseRows.find((candidate) => candidate.id === url.searchParams.get('id')?.replace(/^eq\./, '')
+      && String(candidate.restore_token).toLowerCase() === token
+      && candidate.status === 'pending'
+      && Number.isFinite(Date.parse(candidate.created_at))
+      && Date.parse(candidate.created_at) >= Date.parse(url.searchParams.get('created_at')?.replace(/^gte\./, '')));
+    if (!row) return jsonResponse([]);
+    Object.assign(row, entry.body);
+    const returned = { request_id: row.request_id, tracking_number: row.tracking_number, items: row.items };
+    return jsonResponse([returned]);
   };
 }
+
 const DAY = 24 * 60 * 60 * 1000;
 const ago = (ms) => new Date(Date.now() - ms).toISOString();
-const pendingRow = { id: 'row-1', request_id: 'req-1', tracking_number: 'ELN-20261020-0001-S01', items: [{ productSizeId: 'p1', quantity: 2 }], status: 'pending', customer_phone: '+201000000000', customer_email: 'a@b.co', created_at: ago(60 * 60 * 1000) };
-
+const pendingRow = {
+  id: 'row-1', restore_token: TOKEN, request_id: 'req-1', tracking_number: 'ELN-20261020-0001-S01',
+  items: [{ productSizeId: 'p1', quantity: 2 }], status: 'pending', customer_phone: '+201000000000',
+  customer_email: 'a@b.co', created_at: ago(60 * 60 * 1000)
+};
+const savedEnv = {};
+for (const key of ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY']) savedEnv[key] = process.env[key];
+const savedFetch = global.fetch;
 test.beforeEach(() => { process.env.SUPABASE_URL = 'https://test.supabase.co'; process.env.SUPABASE_SERVICE_ROLE_KEY = 'service'; });
+test.after(() => {
+  for (const [key, value] of Object.entries(savedEnv)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }
+  global.fetch = savedFetch;
+});
 
 test('only POST is accepted and a missing token is a 400', async () => {
   stubFetch([]);
@@ -58,33 +88,59 @@ test('a token that is not a UUID is answered 404 without ever reaching the datab
   assert.equal(calls.length, 0, 'malformed tokens must be rejected before any Supabase call');
 });
 
-test('a valid pending token is restored once and returns the same payload as before', async () => {
+test('a valid pending token is atomically consumed and returns only the data needed to restore the cart', async () => {
   stubFetch([pendingRow]);
   const result = await call({ restoreToken: TOKEN.toUpperCase() });
   assert.equal(result.status, 200);
   assert.deepEqual(result.body, {
     ok: true, status: 'restored', trackingNumber: 'ELN-20261020-0001-S01', requestId: 'req-1',
-    items: [{ productSizeId: 'p1', quantity: 2 }], customer: { phone: '+201000000000', email: 'a@b.co' }
+    items: [{ productSizeId: 'p1', quantity: 2 }]
   });
+  assert.equal(JSON.stringify(result.body).includes('+201000000000'), false);
+  assert.equal(JSON.stringify(result.body).includes('a@b.co'), false);
   assert.equal(result.headers['cache-control'], 'no-store');
   assert.equal(calls.length, 2);
   assert.match(calls[0].url, /restore_token=eq\.3F6C2A9E-8B1D-4C57-9A0E-7D2B5C1F4E66/);
   assert.equal(calls[1].method, 'PATCH');
-  assert.match(calls[1].body, /"status":"restored"/);
+  const updateUrl = new URL(calls[1].url);
+  assert.equal(updateUrl.searchParams.get('status'), 'eq.pending');
+  assert.match(updateUrl.searchParams.get('created_at'), /^gte\./);
+  assert.equal(updateUrl.searchParams.get('select'), 'request_id,tracking_number,items');
+  assert.match(JSON.stringify(calls[1].body), /"status":"restored"/);
+  assert.equal(databaseRows[0].status, 'restored');
 });
 
-test('an already restored token is idempotent and does not write again', async () => {
+test('already restored and recently expired tokens cannot be replayed or disclose contact data', async () => {
   stubFetch([{ ...pendingRow, status: 'restored' }]);
-  const result = await call({ token: TOKEN });
-  assert.equal(result.status, 200);
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0].method, 'GET');
+  const restored = await call({ token: TOKEN });
+  assert.equal(restored.status, 410);
+  assert.equal(restored.body.error, 'restoration_already_used');
+  assert.equal(calls.length, 1, 'a used token must not be written again');
+  assert.doesNotMatch(JSON.stringify(restored.body), /\+201000000000|a@b\.co/);
+
+  stubFetch([{ ...pendingRow, status: 'expired' }]);
+  const expired = await call({ token: TOKEN });
+  assert.equal(expired.status, 410);
+  assert.equal(expired.body.error, 'restoration_expired');
+  assert.equal(calls.length, 1, 'an expired row must not be written');
+  assert.doesNotMatch(JSON.stringify(expired.body), /\+201000000000|a@b\.co/);
 });
 
-test('an unknown token and a failing update keep their previous status codes', async () => {
-  stubFetch([]);
-  assert.equal((await call({ restoreToken: TOKEN })).status, 404);
-  global.fetch = async (url, init = {}) => (init.method === 'PATCH' ? jsonResponse({}, 500) : jsonResponse([pendingRow]));
+test('two requests racing for the same pending token produce one success and one conflict', async () => {
+  stubFetch([pendingRow]);
+  const results = await Promise.all([call({ restoreToken: TOKEN }), call({ restoreToken: TOKEN })]);
+  assert.deepEqual(results.map((result) => result.status).sort(), [200, 409]);
+  const winner = results.find((result) => result.status === 200);
+  const loser = results.find((result) => result.status === 409);
+  assert.equal(winner.body.items.length, 1);
+  assert.deepEqual(loser.body, { ok: false, error: 'restoration_already_used' });
+  assert.doesNotMatch(JSON.stringify(loser.body), /\+201000000000|a@b\.co|productSizeId/);
+  assert.equal(calls.filter((entry) => entry.method === 'PATCH').length, 2);
+  assert.equal(databaseRows[0].status, 'restored');
+});
+
+test('an update failure is a 502, and missing service configuration remains a 503', async () => {
+  stubFetch([pendingRow], { patch: 500 });
   assert.equal((await call({ restoreToken: TOKEN })).status, 502);
   delete process.env.SUPABASE_SERVICE_ROLE_KEY;
   assert.equal((await call({ restoreToken: TOKEN })).status, 503);
@@ -103,12 +159,13 @@ test('one client address is limited to 30 attempts a minute and other clients ar
   assert.equal((await call({ restoreToken: TOKEN })).status, 404, 'a different client is not limited');
 });
 
-test('the link is valid for 30 days from the cancellation and is checked against created_at', async () => {
+test('the link expires after 30 days, including on the conditional write boundary', async () => {
   assert.equal(handler.RESTORE_TTL_MS, 30 * DAY);
   stubFetch([{ ...pendingRow, created_at: ago(29 * DAY) }]);
   const inside = await call({ restoreToken: TOKEN });
   assert.equal(inside.status, 200);
   assert.match(calls[0].url, /select=[^&]*created_at/);
+  assert.match(new URL(calls[1].url).searchParams.get('created_at'), /^gte\./);
 
   stubFetch([{ ...pendingRow, created_at: ago(31 * DAY) }]);
   const outside = await call({ restoreToken: TOKEN });
@@ -116,36 +173,31 @@ test('the link is valid for 30 days from the cancellation and is checked against
   assert.deepEqual(outside.body, { ok: false, error: 'restoration_expired' });
 });
 
-test('an expired link neither restores the order nor returns the customer contact details', async () => {
+test('an expired or unreadable row never restores the order or returns customer contact details', async () => {
   for (const status of ['pending', 'restored', 'expired']) {
     stubFetch([{ ...pendingRow, status, created_at: ago(45 * DAY) }]);
     const result = await call({ restoreToken: TOKEN });
     assert.equal(result.status, 410, status);
     assert.equal(result.headers['cache-control'], 'no-store');
-    assert.equal(JSON.stringify(result.body).includes('+201000000000'), false);
-    assert.equal(JSON.stringify(result.body).includes('a@b.co'), false);
-    assert.equal(calls.filter((c) => c.method === 'PATCH').length, 0, 'an expired link must not write');
+    assert.doesNotMatch(JSON.stringify(result.body), /\+201000000000|a@b\.co/);
+    assert.equal(calls.filter((entry) => entry.method === 'PATCH').length, 0, 'an expired link must not write');
   }
-});
-
-test('a row whose age cannot be read counts as expired instead of being served', async () => {
   for (const created_at of [undefined, null, '', 'not-a-date']) {
     stubFetch([{ ...pendingRow, created_at }]);
     assert.equal((await call({ restoreToken: TOKEN })).status, 410, String(created_at));
   }
 });
 
-test('an unknown token stays 404 and does not look like an expired one', async () => {
+test('an unknown token remains 404 and the storefront removes the bearer token before making its API call', async () => {
   stubFetch([]);
   const result = await call({ restoreToken: TOKEN });
   assert.equal(result.status, 404);
   assert.equal(result.body.error, 'restoration_not_found');
-});
 
-test('the storefront tells the customer when a restore link has expired instead of ignoring it', () => {
   const core = require('node:fs').readFileSync(path.join(root, 'app-core.js'), 'utf8');
   const start = core.indexOf('function restoreCancelledStoreItemsFromToken');
-  const body = core.slice(start, core.indexOf('\n', start));
-  assert.match(body, /d\.error==='restoration_expired'/);
-  assert.match(body, /toast\(lang=='ar'\?'انتهت صلاحية رابط استعادة الطلب الملغى'/);
+  const end = core.indexOf('\nasync function cartFlush', start + 1);
+  const body = core.slice(start, end);
+  assert.ok(body.indexOf('history.replaceState') < body.indexOf("fetch('/api/restore-store-order'"), 'the token query must be stripped before the request');
+  assert.match(body, /restoration_already_used/);
 });

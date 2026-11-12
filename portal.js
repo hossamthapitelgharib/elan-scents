@@ -104,6 +104,7 @@ Portal.errorMessages = {
   supabase_update_failed: 'تعذر حفظ التحديث الآن، حاول بعد قليل.',
   order_not_shippable: 'لا يمكن تسجيل شحن لطلب مرفوض أو ملغى.',
   invalid_shipping_transition: 'لا يمكن الرجوع إلى حالة شحن سابقة.',
+  shipment_status_changed: 'تغيّرت حالة الشحنة قبل حفظ التحديث.',
   shipment_read_failed: 'تعذر قراءة بيانات الشحن الآن، حاول بعد قليل.',
   shipment_save_failed: 'تعذر حفظ بيانات الشحن الآن، حاول بعد قليل.',
   shipment_update_failed: 'تعذر حفظ بيانات الشحن الآن، حاول بعد قليل.',

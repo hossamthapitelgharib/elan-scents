@@ -70,7 +70,7 @@ test('frontend order persistence uses the authenticated Supabase identity', () =
 });
 
 test('store status API normalizes and reconciles completed webhook events', async () => {
-  process.env.SUPABASE_URL = 'https://test.supabase.co'; process.env.SUPABASE_SERVICE_ROLE_KEY = 'service'; process.env.STORE_ORDER_WEBHOOK_SECRET = 'secret';
+  process.env.SUPABASE_URL = 'https://test.supabase.co'; process.env.SUPABASE_SERVICE_ROLE_KEY = 'service'; process.env.STORE_ORDER_WEBHOOK_SECRET = 'secret'; process.env.LEGACY_WEBHOOK_ENABLED = '1'; process.env.STORE_WEBHOOK_SIGNATURE_REQUIRED = '0';
   const status = api('store-order-status'); let rpcPayload;
   global.fetch = async (url, options) => { rpcPayload = JSON.parse(options.body); return jsonResponse({ trackingNumber: 'T-1', status: 'completed', matched: true, mismatches: [] }); };
   const payload = { trackingNumber: 'T-1', customer: { name: 'عميل', phone: '010', address: 'عنوان' }, items: [{ productSizeId: '8d3f2a54-6c1b-4a0e-9b7d-5e2c1f0a9b34', quantity: 1 }], subtotal: 100, status: 'confirmed' };
@@ -79,7 +79,7 @@ test('store status API normalizes and reconciles completed webhook events', asyn
 });
 
 test('cancellation API returns the tracking number and restoration token', async () => {
-  const handler = api('store-order-cancelled'); process.env.STORE_ORDER_WEBHOOK_SECRET = 'cancel-secret'; process.env.SUPABASE_URL = 'https://test.supabase.co'; process.env.SUPABASE_SERVICE_ROLE_KEY = 'service';
+  const handler = api('store-order-cancelled'); process.env.STORE_ORDER_WEBHOOK_SECRET = 'cancel-secret'; process.env.SUPABASE_URL = 'https://test.supabase.co'; process.env.SUPABASE_SERVICE_ROLE_KEY = 'service'; process.env.LEGACY_WEBHOOK_ENABLED = '1'; process.env.STORE_WEBHOOK_SIGNATURE_REQUIRED = '0';
   let sent; global.fetch = async (_url, options) => { sent = JSON.parse(options.body); return jsonResponse({ trackingNumber: 'T-2', checkoutTrackingNumber: 'C-1', status: 'store_cancelled', matched: true, mismatches: [], restoreToken: 'restore-1', items: [{ productSizeId: 'p1', quantity: 1 }] }); };
   const result = await invoke(handler, { method: 'POST', headers: { 'x-store-webhook-secret': 'cancel-secret' }, body: { trackingNumber: 'T-2', items: [{ productSizeId: 'p1', quantity: 1 }] } });
   assert.equal(result.status, 200); assert.equal(result.body.status, 'store_cancelled'); assert.equal(result.body.restoreToken, 'restore-1');
@@ -87,7 +87,7 @@ test('cancellation API returns the tracking number and restoration token', async
 
 test('restore API is idempotent for a pending restoration', async () => {
   const handler = api('restore-store-order'); process.env.SUPABASE_URL = 'https://test.supabase.co'; process.env.SUPABASE_SERVICE_ROLE_KEY = 'service'; let patchCount = 0;
-  global.fetch = async (url, options = {}) => { if (options.method === 'PATCH') { patchCount++; return jsonResponse({}, 200); } if (url.includes('store_order_cart_restorations?')) return jsonResponse([{ id: 'r1', request_id: 'q1', tracking_number: 'T-2', status: 'pending', created_at: new Date().toISOString(), items: [{ productSizeId: 'p1' }] }]); throw new Error(url); };
+  global.fetch = async (url, options = {}) => { if (options.method === 'PATCH') { patchCount++; return jsonResponse([{ request_id: 'q1', tracking_number: 'T-2', items: [{ productSizeId: 'p1' }] }], 200); } if (url.includes('store_order_cart_restorations?')) return jsonResponse([{ id: 'r1', restore_token: '8d3f2a54-6c1b-4a0e-9b7d-5e2c1f0a9b34', request_id: 'q1', tracking_number: 'T-2', status: 'pending', created_at: new Date().toISOString(), items: [{ productSizeId: 'p1' }] }]); throw new Error(url); };
   const result = await invoke(handler, { method: 'POST', body: { restoreToken: '8d3f2a54-6c1b-4a0e-9b7d-5e2c1f0a9b34' } }); assert.equal(result.status, 200); assert.equal(result.body.status, 'restored'); assert.equal(patchCount, 1);
 });
 
@@ -127,8 +127,8 @@ test('store shipment updates stay scoped to the store order and never call a car
     if (url.includes('/profiles')) return jsonResponse([{ id: 'store-user', role: 'store_admin' }]);
     if (url.includes('/store_order_requests?')) return jsonResponse([{ id: 'request-1', store_id: 'store-a', tracking_number: 'T-1', status: 'processing' }]);
     if (url.includes('/store_accounts?')) return jsonResponse([{ store_id: 'store-a' }]);
-    if (url.includes('/store_shipments?select=')) return jsonResponse([]);
-    if (url.includes('/store_shipments?on_conflict=')) { saved = JSON.parse(options.body); return jsonResponse([{ id: 'shipment-1', ...saved }]); }
+    if (url.includes('/store_shipments?') && !options.method) return jsonResponse([]);
+    if (url.includes('/store_shipments?') && options.method === 'POST') { saved = JSON.parse(options.body); return jsonResponse([{ id: 'shipment-1', ...saved }], 201); }
     if (url.includes('/store_order_notifications')) return jsonResponse({});
     throw new Error(`unexpected ${url}`);
   };

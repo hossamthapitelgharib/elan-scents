@@ -205,6 +205,18 @@ test('a refused shipment update shows an Arabic message', async () => {
   assert.deepEqual(page.calls.find(call => call.method === 'PATCH').body, { shippingStatus: 'in_transit', requestId: 'o1' });
 });
 
+test('a concurrent shipment update refreshes the list and explains that the state changed', async () => {
+  const page = boot({ 'GET /api/store-dashboard-orders': list([order({ status: 'processing' })]), 'PATCH /api/store-shipment-update': json(409, { ok: false, error: 'shipment_status_changed' }) });
+  await tick();
+  const before = page.ordersGets().length;
+  const button = { disabled: false };
+  page.submitShipment({ dataset: { shipmentForm: 'o1' }, __entries: [['shippingStatus', 'in_transit']], querySelector: () => button });
+  await tick();
+  assert.match(page.get('#orderActionError').textContent, /تغيّرت حالة الشحنة قبل حفظ التحديث/);
+  assert.ok(page.ordersGets().length > before, 'a stale dashboard view is reloaded');
+  assert.equal(button.disabled, false);
+});
+
 test('customer text is escaped on the order cards', async () => {
   const page = boot({ 'GET /api/store-dashboard-orders': list([order({ customer_name: '<img src=x onerror=alert(1)>', customer_address: '"><script>x</script>' })]) });
   await tick();

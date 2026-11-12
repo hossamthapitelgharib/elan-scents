@@ -12,6 +12,7 @@ async function call(handler, req) { const res = recorder(); await handler(req, r
 const body = { trackingNumber: 'T-9', customer: { name: 'x', phone: '1', address: 'y' }, items: [{ productSizeId: '8d3f2a54-6c1b-4a0e-9b7d-5e2c1f0a9b34', quantity: 1 }], subtotal: 10, status: 'completed' };
 const hits = [];
 function stubFetch() { hits.length = 0; global.fetch = async (url) => { hits.push(url); return jsonResponse({ trackingNumber: 'T-9', status: 'completed', matched: true, mismatches: [] }); }; }
+test.beforeEach(() => { process.env.LEGACY_WEBHOOK_ENABLED = '1'; process.env.STORE_WEBHOOK_SIGNATURE_REQUIRED = '0'; });
 
 test('safeEqual compares secrets in constant time and rejects empty or non-string input', () => {
   assert.equal(safeEqual('abc', 'abc'), true);
