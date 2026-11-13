@@ -8,8 +8,8 @@
 - الأهلية: المتجر active، العرض available، `sync_status='synced'`، والمخزون موجب أو `NULL`؛ `NULL` يعني مجهولًا ومتاحًا وفق العقد. العملة الأخرى مرفوضة بقيد قاعدة البيانات. العرض والسعر ومعرّف `store_product_id` من الصف نفسه.
 - `catalog_eligible_offers` يحوي جميع العروض المؤهلة، و`catalog_platform_offers` يختار صفًا واحدًا. `catalog_global_offers` و`cheapest_offers` واجهتا توافق تفوضان الاختيار إلى المصدر canonical.
 - واجهة المنتج تعرض سطرًا لكل `product_size_id` (حجم قابل للشراء)، لا سطرًا واحدًا لكل `product_id`. تبقى الأحجام المختلفة منفصلة.
-- عقد الواجهة: `id`, `pid`, `sizeMl`, `gender`, `cats/occs/notes` كمفاتيح مستقرة، `categoryIds/occasionIds/noteIds`, `allEligibleOffers`, `globalOffer`, و`offersByStore` للتحقق فقط. لا helper يختار سعرًا من القائمة؛ غياب `globalOffer` يعني لا سعر ولا عرض.
-- فلتر المتجر يقارن `store_id` بمالك `globalOffer` فقط. واجهات الكتالوج ومحرر الأقسام يستخدمان مفاتيح/UUIDs، لا label أو ترتيب array. `products.gender` مستقل عن علاقات category التجارية.
+- عقد الواجهة: `id`, `pid`, `sizeMl`, `gender`, `cats/occs/notes` كمفاتيح مستقرة، `categoryIds/occasionIds/noteIds`, `allEligibleOffers`, `platformEligibleOffer`, و`offersByStore` للتحقق فقط. لا helper يختار سعرًا من القائمة؛ غياب `platformEligibleOffer` يعني لا سعر ولا عرض.
+- فلتر المتجر يقارن `store_id` بمالك `platformEligibleOffer` فقط. واجهات الكتالوج ومحرر الأقسام يستخدمان مفاتيح/UUIDs، لا label أو ترتيب array. `products.gender` مستقل عن علاقات category التجارية.
 - RPC المحرر `catalog_filter_product_sizes` يجمع dimensions بـAND، ويستعمل `EXISTS` لكل category/occasion/note لمنع تضاعف النتائج؛ نتيجة كل size تتضمن السعر ومعرف العرض canonical معًا. التنفيذ مصرح به لـ`service_role` فقط.
 
 ## تقرير data audit قبل القيود
@@ -41,7 +41,7 @@
 
 ### إعادة مطابقة 2026-11-08
 
-الـ18 اختبار قبول في هذه المرحلة ما زالت مغطاة، وأضيفت تغطية انحدار لفجوتين وجدتا في المراجعة: لا يجوز لفلتر «قريبًا» عرض صف بلا `globalOffer`، والسيكشن اليدوي يرشح فقط إذا كان المتجر مالك العرض العام عند وجود `filters.store`. كما أصبح كل عرض واجهة يحمل `stockUnknown` عندما تكون قيمة المخزون `NULL` بدل ترك دلالة المخزون ضمنية. الاختبارات المركزة بعد ذلك **43/43**، وفحص الصياغة و`git diff --check` ناجحان.
+الـ18 اختبار قبول في هذه المرحلة ما زالت مغطاة، وأضيفت تغطية انحدار لفجوتين وجدتا في المراجعة: لا يجوز لفلتر «قريبًا» عرض صف بلا `platformEligibleOffer`، والسيكشن اليدوي يرشح فقط إذا كان المتجر مالك العرض العام عند وجود `filters.store`. كما أصبح كل عرض واجهة يحمل `stockUnknown` عندما تكون قيمة المخزون `NULL` بدل ترك دلالة المخزون ضمنية. الاختبارات المركزة بعد ذلك **43/43**، وفحص الصياغة و`git diff --check` ناجحان.
 
 - أضيفت migration `20261106215242_catalog_offer_single_source_and_filter_rpc`، وسُجلت في Supabase. شُغّل SQL contract test على القاعدة داخل transaction ثم `ROLLBACK`؛ أكدت القراءة اللاحقة عدم بقاء صفوف الاختبار.
 - فحوص الوحدة والعقد والـeditor وstorefront المركزة تمر (66/66 في آخر run مركّز قبل إضافة تغييرات العقد اللاحقة؛ يعاد تشغيلها قبل الدمج).
@@ -54,9 +54,9 @@
   id: 'product_size_id', pid: 'product_id', sizeMl: 50, gender: 'men',
   cats: ['men'], occs: ['work'], notes: ['oud'],
   allEligibleOffers: [{ storeId: 'store-a', storeProductId: 'sp-a', price: 100, cur: 'EGP', avail: true }],
-  globalOffer: { storeId: 'store-a', storeProductId: 'sp-a', price: 100, cur: 'EGP', avail: true },
+  platformEligibleOffer: { storeId: 'store-a', storeProductId: 'sp-a', price: 100, cur: 'EGP', avail: true },
   offersByStore: { 'store-a': { storeProductId: 'sp-a', price: 100, cur: 'EGP', avail: true } }
 }
 ```
 
-`globalOffer` وحده مصدر السعر القابل للعرض. `offersByStore` للتحقق لا لاختيار عرض آخر. عند اختيار متجر يجب مطابقة مالك `globalOffer`، والكارت يحفظ `storeProductId`.
+`platformEligibleOffer` وحده مصدر السعر القابل للعرض. `offersByStore` للتحقق لا لاختيار عرض آخر. عند اختيار متجر يجب مطابقة مالك `platformEligibleOffer`، والكارت يحفظ `storeProductId`.

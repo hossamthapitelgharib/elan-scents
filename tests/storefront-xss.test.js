@@ -13,12 +13,13 @@ const root = path.resolve(__dirname, '..');
 const read = (name) => fs.readFileSync(path.join(root, name), 'utf8');
 
 const NUMERIC = /^(id|.*_id|price|original_price|.*_count|stock_quantity|size_ml|average_rating)$/;
-const BOOLEAN = /^(is_.*|price_includes_.*)$/;
+const BOOLEAN = /^(is_.*|price_includes_.*|stock_unknown)$/;
 const PAYLOAD = (where) => '<img src=x onerror=__x(\'' + where + '\')>';
 const ATTRIBUTE_BREAKOUT = (where) => 'https://x.test/a.png" onerror="__x(\'' + where + '\')';
 
 function column(table, name, plain) {
   if (NUMERIC.test(name)) return name === 'average_rating' ? 4.5 : name === 'size_ml' ? 100 : /price/.test(name) ? 10 : 1;
+  if (name === 'is_coming_soon') return false; // a sale offer is never a coming-soon row; the announcements have their own table below
   if (BOOLEAN.test(name)) return true;
   if (plain && plain[table + '.' + name] !== undefined) return plain[table + '.' + name];
   if (name === 'image_url') return ATTRIBUTE_BREAKOUT(table + '.' + name);

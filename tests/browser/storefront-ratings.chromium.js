@@ -53,7 +53,7 @@ for (const size of H.WIDTHS) {
     const { context, page, errors } = await openStore(size);
     try {
       // the same cards the storefront draws everywhere (home strips, grids, favourites, search) come from pc()
-      const html = await page.evaluate(() => PERFUMES.map((p) => pc({ p, b: globalOffer(p) })).join(''));
+      const html = await page.evaluate(() => PERFUMES.map((p) => pc({ p, b: platformEligibleOffer(p) })).join(''));
       const doc = await page.evaluate((h) => { const d = document.createElement('div'); d.innerHTML = h; return Array.from(d.querySelectorAll('.card.pf')).map((c) => ({ name: c.querySelector('h4').textContent.trim(), rate: (c.querySelector('.prate') || {}).textContent || '', label: c.querySelector('.prate') ? c.querySelector('.prate').getAttribute('aria-label') : null })); }, html);
       const by = Object.fromEntries(doc.map((c) => [c.name, c]));
       assert.equal(by['عطر ألف'].rate.replace(/\s/g, ''), '★4.00(305)');

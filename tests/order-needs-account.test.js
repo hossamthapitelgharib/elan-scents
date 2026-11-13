@@ -10,8 +10,8 @@ const root = path.resolve(__dirname, '..');
 const read = (name) => fs.readFileSync(path.join(root, name), 'utf8');
 const core = read('app-core.js'), texts = read('texts.js'), css = read('consent.css');
 
-test('a visitor without an account who presses "place order" gets the sign-up form, not a bare login form', () => {
-  assert.match(core, /function openStoreOrder\(store\)\{var items=cartGroups\(\)\[store\]\|\|\[\];if\(!items\.length\)return;if\(items\.some\(function\(x\)\{return x\.b\.review\|\|!x\.b\.storeProductId\}\)\)\{toast\(ORDER_UI\[lang\]\.eReview\);sheet\('cart'\);return\}if\(!AUTH\)\{PENDING_STORE=store;sheet\('signup'\);return\}/);
+test('a visitor without an account who presses "place order" gets the sign-up form, not a bare login form (after the cart is brought up to date)', () => {
+  assert.match(core, /function openStoreOrder\(store\)\{if\(reconcileCart\(true\)\)\{sheet\('cart'\);toast\(ORDER_UI\[lang\]\.cartMoved,4200\);return\}var items=cartGroups\(\)\[store\]\|\|\[\];if\(!items\.length\)return;if\(items\.some\(function\(x\)\{return x\.b\.review\|\|!x\.b\.storeProductId\}\)\)\{toast\(ORDER_UI\[lang\]\.eReview\);sheet\('cart'\);return\}if\(!AUTH\)\{PENDING_STORE=store;sheet\('signup'\);return\}/);
 });
 
 test('the sign-up and login forms carry the "an account is needed to order" message while an order is waiting', () => {

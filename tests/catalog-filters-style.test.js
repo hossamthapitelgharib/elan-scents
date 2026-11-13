@@ -98,11 +98,11 @@ function ranking(filters, items) {
   const end = core.indexOf('\n', start);
   const lstart = core.indexOf('function list()');
   const lend = core.indexOf('\n', lstart);
-  const context = vm.createContext({ F: Object.assign({ q: '', cat: '', br: '', st: '', oc: '', nt: '', size: '', min: '', max: '', sort: 0, sec: 'master' }, filters), PERFUMES: items, globalOffer: (p) => p.globalOffer });
+  const context = vm.createContext({ F: Object.assign({ q: '', cat: '', br: '', st: '', oc: '', nt: '', size: '', min: '', max: '', sort: 0, sec: 'master' }, filters), PERFUMES: items, platformEligibleOffer: (p) => p.platformEligibleOffer });
   vm.runInContext(chipsList + '\n' + core.slice(start, end) + '\n' + core.slice(lstart, lend), context);
   return vm.runInContext('list()', context).map((x) => x.p.name);
 }
-const mk = (name, brand, o) => Object.assign({ name, brand, sizeMl: 50, rel: 0, ts: 0, cats: [], occs: [], notes: [], ind: [], globalOffer: { price: 100, avail: true, flags: ['master'] } }, o);
+const mk = (name, brand, o) => Object.assign({ name, brand, sizeMl: 50, rel: 0, ts: 0, cats: [], occs: [], notes: [], ind: [], platformEligibleOffer: { price: 100, avail: true, flags: ['master'] } }, o);
 
 test('the customer filter panel exposes the available product sizes', () => {
   assert.match(core, /sel\('size',l\.sz,CATALOG_SIZE_OPTIONS\.map/);
@@ -166,7 +166,7 @@ test('"most distinguished" is gone: the home sections are ordered by the same ra
     mkp('x', 'Unranked B', {}),
     mkp('y', 'Unranked A', {})
   ];
-  const context = vm.createContext({ PERFUMES, globalOffer: () => ({ price: 1 }) });
+  const context = vm.createContext({ PERFUMES, platformEligibleOffer: () => ({ price: 1 }) });
   vm.runInContext(rankSrc + topSrc, context);
   const order = (limit) => vm.runInContext(`topSectionCards('cats','men',${limit}).map(function(x){return x.p.id})`, context);
   assert.deepEqual(Array.from(order(10)), ['r1', 'r2', 's1', 'v1', 'y', 'x'], 'rated rank first, then sales, then views, then searches; unranked last by name');

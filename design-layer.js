@@ -86,12 +86,28 @@
     var ids = (p[idsField] || []).map(String), wanted = String(value);
     return keys.indexOf(wanted) > -1 || ids.indexOf(wanted) > -1;
   }
+  /* «قريبًا» is an ANNOUNCEMENT (catalog_coming_soon_announcements): a size a store says it will offer, with no price, no stock and no cart.
+     It is not a sale offer, so it never needs platformEligibleOffer; a price filter cannot apply to it, so any price bound leaves it out. */
+  function soonList(f) {
+    if ((f.min !== undefined && f.min !== '') || (f.max !== undefined && f.max !== '')) return [];
+    var src = typeof ANNOUNCEMENTS !== 'undefined' && Array.isArray(ANNOUNCEMENTS) ? ANNOUNCEMENTS : [];
+    return src.filter(function (p) {
+      if (f.store && String(p.announcedById) !== String(f.store)) return false;
+      if (f.brand && !sameCatalogName(p.brand, f.brand)) return false;
+      if (f.size_ml != null && f.size_ml !== '' && Number(p.sizeMl) !== Number(f.size_ml)) return false;
+      if (f.cat && !taxonomyMatches(p, 'cats', f.cat)) return false;
+      if (f.occ && !taxonomyMatches(p, 'occ', f.occ)) return false;
+      if (f.note && !taxonomyMatches(p, 'notes', f.note)) return false;
+      return true;
+    }).sort(function (a, b) { return (b.rel || 0) - (a.rel || 0); }).map(function (p) { return { p: p, b: null }; });
+  }
   function autoList(f) {
     f = f || {};
+    if (f.flag === 'soon') return soonList(f);
     var l = [];
     try {
       l = PERFUMES.map(function (p) {
-        var offer = Object.prototype.hasOwnProperty.call(p, 'globalOffer') ? p.globalOffer : null;
+        var offer = Object.prototype.hasOwnProperty.call(p, 'platformEligibleOffer') ? p.platformEligibleOffer : null;
         var matches = offer && offer.avail && (!f.store || String(offer.storeId) === String(f.store)) && (!f.flag || (offer.flags || []).indexOf(f.flag) > -1);
         return { p: p, b: matches ? offer : null };
       }).filter(function (x) { return x.b; });
@@ -115,7 +131,7 @@
   function manualList(ids, f) {
     f = f || {};
     return ids.map(perfumeBy).filter(Boolean).map(function (p) {
-      var offer = globalOffer(p);
+      var offer = platformEligibleOffer(p);
       return { p: p, b: offer && (!f.store || String(offer.storeId) === String(f.store)) ? offer : null };
     }).filter(function (x) { return x.b; });
   }

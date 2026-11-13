@@ -20,7 +20,7 @@ function store() {
   return { getItem: (k) => (k in data ? data[k] : null), setItem: (k, v) => { data[k] = String(v); }, removeItem: (k) => { delete data[k]; }, data };
 }
 
-function harness({ lang = 'ar', auth = null, perfumes = [] } = {}) {
+function harness({ lang = 'ar', auth = null, perfumes = [], announcements = [] } = {}) {
   const menu = { innerHTML: '' }, favButtons = [], cartButtons = [], badge = { attrs: {}, setAttribute(k, v) { this.attrs[k] = String(v); } };
   const sheetBody = { innerHTML: '' };
   const sheetEl = { hidden: true, dataset: {} };
@@ -32,7 +32,7 @@ function harness({ lang = 'ar', auth = null, perfumes = [] } = {}) {
     body: { classList: { add() {}, remove() {} } }
   };
   const fetches = [];
-  const context = vm.createContext({ document, localStorage, window: {}, lang, AUTH: auth, PERFUMES: perfumes, console,
+  const context = vm.createContext({ document, localStorage, window: {}, lang, AUTH: auth, PERFUMES: perfumes, ANNOUNCEMENTS: announcements, console,
     SB: { url: 'https://project.example.invalid', key: 'anon-key' }, Object, encodeURIComponent, RegExp, String, JSON,
     fetch: async (url, init) => { fetches.push({ url: String(url), init: init || {} }); return { ok: true, json: async () => [] }; },
     setTimeout: (fn) => { fn(); return 0; }, location: { reload: () => calls.push('reload') } });
@@ -41,7 +41,7 @@ function harness({ lang = 'ar', auth = null, perfumes = [] } = {}) {
   const code = [
     oneLine('var XBTN='), oneLine('var LOGO='), oneLine('var LB='), oneLine('en:{home:'),
     oneLine('var CARTSVG='), oneLine('var CARTADD='), oneLine('var PHB='), oneLine('function inCart'), oneLine('function cartMarks'), oneLine('function cartBadge'), oneLine('var SP_BY_ID='), oneLine('function ratingCount'), oneLine('function ratingHTML'), oneLine('function rateMini'), oneLine('function byId'), oneLine('function nmOf'), oneLine('function sec('), oneLine('function T()'),
-    oneLine('function taxNote'), oneLine('function globalOffer('), oneLine('function best('), oneLine('function closeSheet'),
+    oneLine('function taxNote'), oneLine('function platformEligibleOffer('), oneLine('function best('), oneLine('function closeSheet'),
     between('var FAVS=[]', '\nvar SP_BY_ID='), oneLine('function authUserId'), oneLine('function authHeaders'), between('/* Favourites follow the account', 'async function pushCartToCloud'), between('function prodView', '\nfunction strip('), oneLine('function strip('),
     between('var MENU_ORDER=', 'function logoutNow'), oneLine('function mailEvent'), oneLine('function logoutNow'),
     between('function sheet(k)', '\nfunction sendMsg')
@@ -54,7 +54,7 @@ const sample = (extra = {}) => {
   const offer = { store: 'Afnan Egypt', storeId: 's1', storeProductId: 'sp1', price: 1380, cur: 'EGP', avail: true, flags: [], stock: 12, tax: true, ship: false };
   return { id: 'p1', pid: 'q1', name: 'Club de Nuit Iconic', pn: 'Club de Nuit Iconic', brand: 'Armaf', sz: '105 مل', sizeMl: 105, img: '/a.png', cats: [0], occs: [0, 1], notes: [0],
     rating: 4.3, sd: 'وصف قصير للعطر', desc: 'وصف كامل للعطر', comp: 'برغموت وعود', ind: [],
-    allEligibleOffers: [offer], globalOffer: offer, offersByStore: { s1: offer }, ...extra };
+    allEligibleOffers: [offer], platformEligibleOffer: offer, offersByStore: { s1: offer }, ...extra };
 };
 
 const labels = (html) => [...html.matchAll(/<a [^>]*>([^<]*)<\/a>/g)].map((m) => m[1]);
@@ -135,7 +135,7 @@ test('card front shows only image, heart, name, brand, size, price and add to ca
 });
 
 test('card for a product with no offer shows the soon label and no cart button', () => {
-  const h = harness({ perfumes: [sample({ globalOffer: null, allEligibleOffers: [], offersByStore: {} })] });
+  const h = harness({ perfumes: [sample({ platformEligibleOffer: null, allEligibleOffers: [], offersByStore: {} })] });
   const html = h.run('pc({p:PERFUMES[0],b:null})');
   assert.match(html, /class="st"/);
   assert.doesNotMatch(html, /cartb|class="price"/);
@@ -145,7 +145,7 @@ test('card for a product with no offer shows the soon label and no cart button',
 test('product page carries what the card dropped, plus buying controls and the heart', () => {
   const h = harness({ perfumes: [sample()] });
   const html = h.run("prodView({sid:'p1'},LB[lang],T())");
-  for (const part of ['Club de Nuit Iconic', 'Armaf', '105 مل', 'class="rating"', 'Afnan Egypt', 'يُباع لدى', 'وصف قصير للعطر', 'وصف كامل للعطر', 'برغموت وعود', 'السعر شامل الضريبة', 'المتاح حاليًا: 12']) assert.ok(html.includes(part), part);
+  for (const part of ['Club de Nuit Iconic', 'Armaf', '105 مل', 'class="rating"', 'Afnan Egypt', 'يُباع لدى', 'وصف قصير للعطر', 'وصف كامل للعطر', 'برغموت وعود', 'السعر شامل الضريبة', 'أقصى كمية متاحة: 12']) assert.ok(html.includes(part), part);
   assert.match(html, /data-fav="p1"/);
   assert.match(html, /<input id="qty" type="number" min="1" value="1" max="12">/);
   assert.match(html, /<button class="btn pdadd" data-add="p1" data-q="qty">/);
@@ -153,7 +153,7 @@ test('product page carries what the card dropped, plus buying controls and the h
 });
 
 test('product page without a store row does not draw an empty details box', () => {
-  const h = harness({ perfumes: [sample({ cats: [], occs: [], globalOffer: null, allEligibleOffers: [], offersByStore: {} })] });
+  const h = harness({ perfumes: [sample({ cats: [], occs: [], platformEligibleOffer: null, allEligibleOffers: [], offersByStore: {} })] });
   assert.doesNotMatch(h.run("prodView({sid:'p1'},LB[lang],T())"), /<dl/);
 });
 
@@ -435,27 +435,40 @@ test('the card footer is set apart by one hairline and the picture box is the re
   assert.match(css.match(/\.card\.pf \.pfoot\{[^}]*\}/)[0], /border-top:1px solid #f3eee2/);
 });
 
-test('the Coming soon section lists the perfumes a store flagged as coming soon, and only those', () => {
-  const soonOffer = (flags) => [{ store: 'Afnan Egypt', storeId: 's1', storeProductId: 'sp', price: 1000, cur: 'EGP', avail: true, flags, stock: 3, tax: true, ship: false }];
-  const flagged = (id, name, flags) => { const offer = soonOffer(flags)[0]; return sample({ id, pid: id, name, pn: name, globalOffer: offer, allEligibleOffers: [offer], offersByStore: { s1: offer } }); };
-  const h = harness({ perfumes: [flagged('a', 'Soon One', ['soon']), flagged('b', 'Plain One', []), flagged('c', 'New One', ['new'])] });
+const announcement = (id, name, extra = {}) => sample({ id, pid: id, name, pn: name, announcement: true, announcedBy: 'Afnan Egypt', announcedById: 's1', stockUnknown: false, allEligibleOffers: [], platformEligibleOffer: null, offersByStore: {}, ...extra });
+
+test('«قريبًا» lists the merchants\' announcements: no price, no stock, no cart button, and no eligible offer needed', () => {
+  const h = harness({ announcements: [announcement('a1', 'Soon One'), announcement('a2', 'Soon Two')], perfumes: [sample({ id: 'x', pid: 'x', name: 'On Sale', pn: 'On Sale' })] });
   const html = h.run('strip("soon")');
   assert.match(html, /Soon One/);
-  assert.doesNotMatch(html, /Plain One|New One/);
+  assert.match(html, /Soon Two/);
+  assert.doesNotMatch(html, /On Sale/, 'a perfume that is on sale is not an announcement');
   assert.match(html, /class="card pf"/, 'the same perfume card as every other section');
+  assert.match(html, /class="st"/, 'the card says «قريباً» where the price would be');
+  assert.doesNotMatch(html, /cartb|class="price"|data-add=/, 'nothing to buy, nothing to price');
   assert.doesNotMatch(html, /class="empty"/);
-  const none = harness({ perfumes: [flagged('a', 'Plain One', [])] }).run('strip("soon")');
-  assert.match(none, /class="empty"/, 'with nothing flagged the section keeps its waiting note');
+  const none = harness({ perfumes: [sample({ flags: ['soon'] })] }).run('strip("soon")');
+  assert.match(none, /class="empty"/, 'with no announcement the section keeps its waiting note, whatever the sale offers carry');
 });
 
-test('the storefront reads is_coming_soon and marks those product sizes with the soon flag', () => {
-  assert.match(core, /ga\('catalog_eligible_offers\?select=[^']*is_new_arrival,is_coming_soon/);
-  assert.match(core, /offers\?select=product_size_id,store_id&order=product_size_id\.asc,store_id\.asc/);
-  assert.match(core, /d\[13\]\.forEach\(function\(r\)\{if\(r\.product_size_id&&r\.store_id\)promoOwner\[String\(r\.product_size_id\)\+'\|'\+String\(r\.store_id\)\]=1\}\)/);
-  assert.match(core, /flags:\(r\.is_new_arrival\?\['new'\]:\[\]\)\.concat\(promoOwner\[String\(r\.product_size_id\)\+'\|'\+String\(r\.store_id\)\]\?\['offers'\]:\[\],indOf\(pm\[r\.product_id\]\|\|\{\}\)\.length\?\['master'\]:\[\],r\.is_coming_soon\?\['soon'\]:\[\]\)/);
-  assert.match(core, /allEligibleOffers:allOffers\[k\]\|\|\[\],globalOffer:globalOffer,offersByStore:offersByStore/);
+test('a sale section never shows an announcement, and an announcement is found by id for its page', () => {
+  const h = harness({ announcements: [announcement('a1', 'Soon One')], perfumes: [sample({ flags: ['new'] })] });
+  assert.doesNotMatch(h.run('strip("new")'), /Soon One/);
+  assert.equal(h.run('byId("a1").announcement'), true);
+  assert.equal(h.run('byId("p1").announcement'), undefined);
+});
+
+test('the storefront reads the announcements feed and keeps it apart from the sale offers', () => {
+  assert.match(core, /ga\('catalog_coming_soon_announcements\?select=product_size_id,product_id,store_id,store_name,stock_unknown&order=product_size_id\.asc'\)\.catch\(function\(e\)\{console\.error\('coming_soon_announcements_unavailable',e&&e\.message\);return\[\]\}\)/, 'a failing feed only empties «قريبًا», never the catalog');
+  assert.match(core, /d\[16\]\.filter\(function\(a\)\{[^}]*hasOwnProperty\.call\(platformOfferBySize,k\)/, 'a size that is on sale is never also announced');
+  assert.match(core, /announcement:true,announcedBy:/);
+  assert.match(core, /allEligibleOffers:\[\],platformEligibleOffer:null,offersByStore:\{\}/, 'an announcement carries no offer at all');
+  assert.match(core, /\|\|r\.is_coming_soon===true\)return;/, 'a row flagged coming soon is not a sale offer even if it slipped into the eligible feed');
+  assert.match(core, /flags:\(r\.is_new_arrival\?\['new'\]:\[\]\)\.concat\(promoOwner\[/);
+  assert.match(core, /allEligibleOffers:allOffers\[k\]\|\|\[\],platformEligibleOffer:platformEligibleOffer,offersByStore:offersByStore/);
   assert.doesNotMatch(core, /offers:allOffers/);
-  assert.match(core, /var record=platformOfferBySize\[k\],o=record\.row,globalOffer=record\.offer/);
+  assert.match(core, /var record=platformOfferBySize\[k\],o=record\.row,platformEligibleOffer=record\.offer/);
+  assert.match(core, /offers\?select=product_size_id,store_id&order=product_size_id\.asc,store_id\.asc/);
 });
 
 test('promotion owner scope exposes only store_id and remains reversible', () => {

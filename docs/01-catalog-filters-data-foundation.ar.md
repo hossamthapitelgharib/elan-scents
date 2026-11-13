@@ -106,7 +106,7 @@ unisex -> للجنسين / A Scent That Unites Us
 3. عالج التكرارات بقرار بيانات واضح، وانقل روابط `product_*` إلى السجل canonical قبل فرض unique constraint.
 4. أضف unique constraint على `(key)`، واجعل `name` label قابلًا للتغيير والترجمة وليس مفتاح فلترة.
 5. استخدم `products.gender` مباشرة للفلاتر الثلاثة؛ لا تنشئ علاقة category موازية للجنس ولا تجعل ترتيب النصوص مصدر الحقيقة.
-6. أنشئ RPC/استعلامًا موحدًا يطبق `EXISTS` لكل بعد: category وoccasion وnote، مع `gender` كقيد على `products`، ثم يعيد `product_size_id` ويربطه بـ `globalOffer`.
+6. أنشئ RPC/استعلامًا موحدًا يطبق `EXISTS` لكل بعد: category وoccasion وnote، مع `gender` كقيد على `products`، ثم يعيد `product_size_id` ويربطه بـ `platformEligibleOffer`.
 
 القاعدة التنفيذية: AND بين الأبعاد المختلفة، وOR بين عدة قيم داخل البعد نفسه إذا دعم العقد ذلك. استخدم `EXISTS` أو `DISTINCT` لمنع تضاعف الصفوف الناتج عن joins متعددة.
 
@@ -131,19 +131,19 @@ unisex -> للجنسين / A Scent That Unites Us
   occs: [...stableKeys],
   notes: [...stableKeys],
   offers: [...allEligibleOffers],
-  globalOffer: {...},
+  platformEligibleOffer: {...},
   offersByStore: { [storeId]: {...} } // للتحقق فقط، لا لعرض سعر بديل
 }
 ```
 
-لا تستخدم `p.offers` بمعنى مختلف في موضعين. اجعل `globalOffer` صريحًا، وسمِّ المجموعة الكاملة `allEligibleOffers` إذا احتاجت المرحلة الثانية للتحقق؛ لا تسمح لأي helper بإنتاج سعر متجر بديل.
+لا تستخدم `p.offers` بمعنى مختلف في موضعين. اجعل `platformEligibleOffer` صريحًا، وسمِّ المجموعة الكاملة `allEligibleOffers` إذا احتاجت المرحلة الثانية للتحقق؛ لا تسمح لأي helper بإنتاج سعر متجر بديل.
 
 ## 5. editor-catalog
 
 في `railway/editor-catalog.js`:
 
 - أبقِ `brand_id`, `store_id`, `category_id`, `occasion_id`, `note_id`, `size_ml`, `price_min`, `price_max`, `search`.
-- اجعل price filters تعتمد على `globalOffer` في كل الحالات؛ وعند وجود `store_id` أضف شرط أن يكون هو مالك `globalOffer`.
+- اجعل price filters تعتمد على `platformEligibleOffer` في كل الحالات؛ وعند وجود `store_id` أضف شرط أن يكون هو مالك `platformEligibleOffer`.
 - طبّق AND بين الأبعاد المختلفة وOR داخل نفس dimension.
 - حافظ على التحقق من UUID والأرقام وحدود pagination.
 - وحّد شروط availability مع view العام.

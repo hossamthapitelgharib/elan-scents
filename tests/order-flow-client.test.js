@@ -28,6 +28,7 @@ function setup({ auth = { access_token: 'token', user: { id: 'user-1' } }, fetch
     authHeaders: () => ({ apikey: 'anon', Authorization: 'Bearer token', 'Content-Type': 'application/json' }),
     cartGroups: cartGroups || (() => ({ 'Store A': [{ c: { q: 2 }, p: { id: SIZE, name: 'Perfume', brand: 'Brand', sz: '100 ml' }, b: { price: 150, cur: 'EGP', storeProductId: SP } }] })),
     loadData: () => events.push('loadData'),
+    reconcileCart: () => false, cartChangesHTML: () => '', cartQtyCut: () => false,
     CART_SYNCING: false, CART_PULLING: false, CART_PUSH_QUEUED: false, CART_LOCAL_DIRTY: false,
     pushCartToCloud: async () => { events.push('flush'); if (!flushFails) context.CART_LOCAL_DIRTY = false; },
     localStorage: { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => { events.push('set:' + k); store.set(k, String(v)); }, removeItem: (k) => store.delete(k) },

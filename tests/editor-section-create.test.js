@@ -167,7 +167,7 @@ test('visual editor card tools match or create catalog records and entering a pa
   assert.match(designLayer, /String\(offer\.storeId\) === String\(f\.store\)/);
   assert.doesNotMatch(designLayer, /sameCatalogName\(offer\.store, f\.store\)/);
   assert.match(designLayer, /sameCatalogName\(p\.brand, f\.brand\)/);
-  assert.match(designLayer, /Object\.prototype\.hasOwnProperty\.call\(p, 'globalOffer'\) \? p\.globalOffer/);
+  assert.match(designLayer, /Object\.prototype\.hasOwnProperty\.call\(p, 'platformEligibleOffer'\) \? p\.platformEligibleOffer/);
   assert.doesNotMatch(designLayer, /offers\.sort\(function \(a, b\) \{ return a\.price - b\.price; \}\)/);
   assert.doesNotMatch(editMode, /openEl|eo-open/);
   assert.match(editMode, /id: 'open', label: 'دخول لصفحة'/);

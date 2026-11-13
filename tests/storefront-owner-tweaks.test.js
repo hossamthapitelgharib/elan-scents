@@ -26,9 +26,10 @@ function cartHarness(cart) {
   const context = vm.createContext({
     lang: 'ar', CART: cart, calls,
     byId: (id) => (id === 'p1' ? { id: 'p1', pid: 'q1', offers: [] } : null),
-    globalOffer: () => ({ storeProductId: 'sp1' }),
+    platformEligibleOffer: () => ({ storeProductId: 'sp1' }),
     trackGuestProduct: (...a) => calls.track.push(a),
     saveCart: () => { calls.saved++; },
+    cartChangeDrop: () => {},
     toast: (m) => calls.toasts.push(m)
   });
   vm.runInContext([oneLine('var LB='), oneLine('en:{home:'), oneLine('function removeFromCart')].join('\n'), context);

@@ -170,7 +170,7 @@ test('Masterpieces page: the chips are the filter (no filter panel under them), 
   const { context, page, errors } = await visit(H.WIDTHS[0]);
   try {
     await page.evaluate(() => {
-      const mk = (id, name, brand, rel, rk, ind) => { const offer = { store: 'S', storeId: 's1', storeProductId: 'sp' + id, price: 100, cur: 'EGP', avail: true, flags: ['master'], stock: 5, tax: true, ship: false }; return { id, pid: id, name, pn: name, brand, sz: '100 مل', img: '', cats: [0], occs: [0], notes: [0], rating: 0, sales: 0, views: 0, searches: 0, requests: 0, rel, rk, ts: 0, ind, sd: 's', desc: 'd', comp: 'c', globalOffer: offer, allEligibleOffers: [offer], offersByStore: { s1: offer } }; };
+      const mk = (id, name, brand, rel, rk, ind) => { const offer = { store: 'S', storeId: 's1', storeProductId: 'sp' + id, price: 100, cur: 'EGP', avail: true, flags: ['master'], stock: 5, tax: true, ship: false }; return { id, pid: id, name, pn: name, brand, sz: '100 مل', img: '', cats: [0], occs: [0], notes: [0], rating: 0, sales: 0, views: 0, searches: 0, requests: 0, rel, rk, ts: 0, ind, sd: 's', desc: 'd', comp: 'c', platformEligibleOffer: offer, allEligibleOffers: [offer], offersByStore: { s1: offer } }; };
       /* rk = the rank the database gives each perfume per button (1 = first) */
       PERFUMES = [mk('a', 'عطر منخفض', 'X', 10, { sales: 3, views: 1, rated: 2 }, ['sales', 'views', 'rated']), mk('b', 'عطر الأعلى', 'Y', 100, { sales: 1, views: 3, rated: 1 }, ['sales', 'views', 'rated']), mk('c', 'عطر وسط', 'Y', 50, { sales: 2, views: 2 }, ['sales', 'views'])];
       go('sec|master');
@@ -221,7 +221,7 @@ test('storefront filters use exact unified sizes and owners; a changed cart offe
   try {
     await page.evaluate(() => {
       const offer = (store, storeId, storeProductId, price) => ({ store, storeId, storeProductId, price, cur: 'EGP', avail: true, flags: [], stock: 10, tax: true, ship: false });
-      const mk = (id, name, sizeMl, o) => ({ id, pid: 'catalog-product', name, pn: name, brand: 'Brand', sizeMl, sz: sizeMl + ' مل', img: '', gender: 'unisex', cats: [], categoryIds: [], categoryKeys: ['unisex'], occs: [], occasionKeys: [], notes: [], noteKeys: [], rating: 0, sales: 0, views: 0, searches: 0, requests: 0, rel: 0, ts: 0, ind: [], sd: 'desc', desc: 'description', comp: 'composition', globalOffer: o, allEligibleOffers: [o], offersByStore: { [o.storeId]: o } });
+      const mk = (id, name, sizeMl, o) => ({ id, pid: 'catalog-product', name, pn: name, brand: 'Brand', sizeMl, sz: sizeMl + ' مل', img: '', gender: 'unisex', cats: [], categoryIds: [], categoryKeys: ['unisex'], occs: [], occasionKeys: [], notes: [], noteKeys: [], rating: 0, sales: 0, views: 0, searches: 0, requests: 0, rel: 0, ts: 0, ind: [], sd: 'desc', desc: 'description', comp: 'composition', platformEligibleOffer: o, allEligibleOffers: [o], offersByStore: { [o.storeId]: o } });
       ST = [['Store A', '', 'store-a'], ['Store B', '', 'store-b']];
       BR = ['Brand'];
       CATALOG_SIZE_OPTIONS = [50, 100];
@@ -268,7 +268,7 @@ test('legacy cart lines are upgraded to the current global offer without changin
   try {
     const result = await page.evaluate(() => {
       const offer = { store: 'Store A', storeId: 'store-a', storeProductId: 'sp-a', price: 100, cur: 'EGP', avail: true, flags: [], stock: 10 };
-      PERFUMES = [{ id: 'legacy-size', pid: 'product-a', name: 'Legacy Perfume', brand: 'Brand', sz: '50 ml', globalOffer: offer, allEligibleOffers: [offer], offersByStore: { 'store-a': offer } }];
+      PERFUMES = [{ id: 'legacy-size', pid: 'product-a', name: 'Legacy Perfume', brand: 'Brand', sz: '50 ml', platformEligibleOffer: offer, allEligibleOffers: [offer], offersByStore: { 'store-a': offer } }];
       CART = [{ sid: 'legacy-size', q: 2 }];
       localStorage.setItem('elan_cart', JSON.stringify(CART));
       const changed = upgradeLegacyCart();

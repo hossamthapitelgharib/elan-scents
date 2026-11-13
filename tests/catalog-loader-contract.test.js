@@ -50,22 +50,25 @@ test('gender, occasion, and note filters use stable values with AND across dimen
   const context = vm.createContext({
     F: { q: '', cat: 'men', oc: 'work', nt: 'oud', br: '', st: '', size: '', min: '', max: '', ind: '', sec: '', sort: 0 },
     PERFUMES: [
-      { id: 'size-a', name: 'matching', brand: 'B', gender: 'men', occasionKeys: ['work'], noteKeys: ['oud'], globalOffer: { price: 12, avail: true, flags: [] }, allEligibleOffers: [] },
-      { id: 'size-b', name: 'wrong occasion', brand: 'B', gender: 'men', occasionKeys: ['date'], noteKeys: ['oud'], globalOffer: { price: 12, avail: true, flags: [] }, allEligibleOffers: [] },
-      { id: 'size-c', name: 'wrong gender', brand: 'B', gender: 'women', occasionKeys: ['work'], noteKeys: ['oud'], globalOffer: { price: 12, avail: true, flags: [] }, allEligibleOffers: [] }
+      { id: 'size-a', name: 'matching', brand: 'B', gender: 'men', occasionKeys: ['work'], noteKeys: ['oud'], platformEligibleOffer: { price: 12, avail: true, flags: [] }, allEligibleOffers: [] },
+      { id: 'size-b', name: 'wrong occasion', brand: 'B', gender: 'men', occasionKeys: ['date'], noteKeys: ['oud'], platformEligibleOffer: { price: 12, avail: true, flags: [] }, allEligibleOffers: [] },
+      { id: 'size-c', name: 'wrong gender', brand: 'B', gender: 'women', occasionKeys: ['work'], noteKeys: ['oud'], platformEligibleOffer: { price: 12, avail: true, flags: [] }, allEligibleOffers: [] }
     ],
-    MASTER_CHIPS: [], globalOffer: (p) => p.globalOffer
+    MASTER_CHIPS: [], platformEligibleOffer: (p) => p.platformEligibleOffer
   });
   vm.runInContext(source, context);
   assert.deepEqual(Array.from(vm.runInContext('list()', context), (row) => row.p.name), ['matching']);
 });
 
-test('every storefront section, including coming-soon, requires a canonical eligible offer', () => {
+test('every storefront section needs a platform eligible offer, except «قريبًا» which lists announcements (no price, no offer)', () => {
   const start = core.indexOf('function list()');
   const end = core.indexOf('\nfunction results()', start);
   const source = core.slice(start, end);
-  assert.match(source, /return x\.b&&/);
-  assert.doesNotMatch(source, /x\.b\|\|F\.sec=='soon'/, 'coming-soon must not bypass offer eligibility');
+  assert.match(source, /soon=F\.sec==='soon'/);
+  assert.match(source, /soon\?ANNOUNCEMENTS\.map\(function\(p\)\{return\{p:p,b:null\}\}\)/, 'the coming-soon list is the announcements, never sale offers');
+  assert.match(source, /return\(soon\|\|x\.b\)&&/, 'every other list still needs the platform eligible offer');
+  assert.match(source, /\(F\.min===''\|\|\(!soon&&x\.b\.price>=\+F\.min\)\)&&\(F\.max===''\|\|\(!soon&&x\.b\.price<=\+F\.max\)\)/, 'an announcement has no price, so a price bound leaves it out');
+  assert.match(source, /\(!F\.sec\|\|soon\|\|\(x\.b\.flags\|\|\[\]\)\.indexOf\(F\.sec\)>-1\)/);
   assert.doesNotMatch(source, /\(x\.b\|\|\{price:0\}\)/, 'price filters must never invent a zero price for missing offers');
 });
 
@@ -80,10 +83,10 @@ test('size filter is available in the storefront and matches the exact unified p
   const context = vm.createContext({
     F: { q: '', cat: '', br: '', st: '', oc: '', nt: '', size: '50', min: '', max: '', ind: '', sec: '', sort: 0 },
     PERFUMES: [
-      { id: 'size-50', name: '50 ml', sizeMl: 50, globalOffer: { price: 100, avail: true, flags: [] } },
-      { id: 'size-100', name: '100 ml', sizeMl: 100, globalOffer: { price: 90, avail: true, flags: [] } }
+      { id: 'size-50', name: '50 ml', sizeMl: 50, platformEligibleOffer: { price: 100, avail: true, flags: [] } },
+      { id: 'size-100', name: '100 ml', sizeMl: 100, platformEligibleOffer: { price: 90, avail: true, flags: [] } }
     ],
-    MASTER_CHIPS: [], globalOffer: (p) => p.globalOffer
+    MASTER_CHIPS: [], platformEligibleOffer: (p) => p.platformEligibleOffer
   });
   vm.runInContext(core.slice(rankedStart, rankedEnd) + '\n' + core.slice(start, end), context);
   assert.deepEqual(Array.from(vm.runInContext('list()', context), (row) => row.p.id), ['size-50']);
@@ -91,8 +94,8 @@ test('size filter is available in the storefront and matches the exact unified p
 
 test('store pages use the same selected global offer contract, not the removed p.offers alias', () => {
   assert.doesNotMatch(core, /PERFUMES\.forEach\(function\(p\)\{p\.offers\.forEach/);
-  assert.match(core, /var offer=globalOffer\(p\);if\(offer&&su&&String\(offer\.storeId\)===String\(su\[2\]\)\)bs\[p\.brand\]=1/);
-  assert.match(core, /function counts\(\).*if\(globalOffer\(p\)\)/);
+  assert.match(core, /var offer=platformEligibleOffer\(p\);if\(offer&&su&&String\(offer\.storeId\)===String\(su\[2\]\)\)bs\[p\.brand\]=1/);
+  assert.match(core, /function counts\(\).*if\(platformEligibleOffer\(p\)\)/);
 });
 
 test('manual and automatic smart sections use the canonical offer owner, never a store-specific replacement', () => {
@@ -100,7 +103,7 @@ test('manual and automatic smart sections use the canonical offer owner, never a
   assert.match(designLayer, /String\(offer\.storeId\) === String\(f\.store\)/);
   assert.match(designLayer, /manualList\(pend\.items \|\| \[\], pend\.filters\)/);
   assert.match(designLayer, /manualList\(ids, def\.filters\)/);
-  assert.match(designLayer, /var offer = Object\.prototype\.hasOwnProperty\.call\(p, 'globalOffer'\)/);
+  assert.match(designLayer, /var offer = Object\.prototype\.hasOwnProperty\.call\(p, 'platformEligibleOffer'\)/);
   assert.doesNotMatch(designLayer, /offersByStore/);
 });
 
@@ -116,19 +119,19 @@ test('active promotions are scoped to the same store as the canonical offer, wit
   assert.doesNotMatch(core, /offers\?select=[^'\n]*(discount_value|description|title)/);
 });
 
-test('globalOffer is the same eligible row for price, store, and cart/order IDs', () => {
+test('platformEligibleOffer is the same eligible row for price, store, and cart/order IDs', () => {
   const loaderStart = core.indexOf('async function loadData(){');
   const loaderEnd = core.indexOf('\nvar FT=', loaderStart);
   const loader = core.slice(loaderStart, loaderEnd);
-  assert.match(loader, /allEligibleOffers:allOffers\[k\]\|\|\[\],globalOffer:globalOffer/);
+  assert.match(loader, /allEligibleOffers:allOffers\[k\]\|\|\[\],platformEligibleOffer:platformEligibleOffer/);
   assert.match(loader, /offersByStore:offersByStore/);
   assert.doesNotMatch(loader, /offers:allOffers/);
   assert.match(loader, /String\(x\.storeProductId\)===String\(o\.store_product_id\)&&String\(x\.storeId\)===String\(o\.store_id\)&&x\.price===\+o\.price/);
   assert.match(loader, /duplicate_catalog_platform_offer_size/);
   assert.match(loader, /catalog_platform_offer_mismatch/);
-  assert.match(core, /function globalOffer\(p\)\{if\(!p\|\|!Object\.prototype\.hasOwnProperty\.call\(p,'globalOffer'\)\)return null/);
-  const offerLine = core.split('\n').find((line) => line.startsWith('function globalOffer('));
-  assert.match(core, /function best\(p\)\{return globalOffer\(p\)\}/, 'legacy callers only delegate to the explicit canonical helper');
+  assert.match(core, /function platformEligibleOffer\(p\)\{if\(!p\|\|!Object\.prototype\.hasOwnProperty\.call\(p,'platformEligibleOffer'\)\)return null/);
+  const offerLine = core.split('\n').find((line) => line.startsWith('function platformEligibleOffer('));
+  assert.match(core, /function best\(p\)\{return platformEligibleOffer\(p\)\}/, 'legacy callers only delegate to the explicit canonical helper');
   assert.doesNotMatch(offerLine, /p\.offers\b/, 'the ambiguous legacy offers alias is not used to select or display a price');
   assert.doesNotMatch(fs.readFileSync(path.join(root, 'design-layer.js'), 'utf8'), /offersByStore/, 'store offer map is verification-only');
   assert.doesNotMatch(loader, /platformOffer:o|platformOffers:|allOffers:allOffers/);
@@ -136,13 +139,14 @@ test('globalOffer is the same eligible row for price, store, and cart/order IDs'
   assert.doesNotMatch(loader, /store_id\s*\+\s*['"]\|['"]\s*\+\s*product_size_id/);
 });
 
-test('the database contract treats NULL stock as unknown-but-eligible and uses deterministic stable tie breakers', () => {
-  assert.match(migration, /stock_quantity IS NULL OR sp\.stock_quantity > 0/);
+test('NULL or zero stock is not a sale offer (the loader never builds one), and the database keeps deterministic stable tie breakers', () => {
   assert.match(migration, /currency = 'EGP'/);
   assert.match(migration, /offer\.store_id ASC,\s*offer\.store_product_id ASC/);
   assert.match(migration, /store_products_currency_egp_check/);
   assert.match(migration, /store_product_id uuid/);
-  assert.match(core, /stock:r\.stock_quantity,stockUnknown:r\.stock_quantity==null/);
+  assert.match(core, /\|\|!\(\+r\.stock_quantity>0\)\|\|r\.is_coming_soon===true\)return;/, 'a row with NULL/zero stock or a coming-soon flag is skipped');
+  assert.match(core, /stock:r\.stock_quantity,tax:/);
+  assert.doesNotMatch(core, /stockUnknown:r\.stock_quantity==null/, 'a sale offer never has unknown stock any more');
 });
 
 test('editor taxonomy filters are one service-only EXISTS RPC and compatibility selectors delegate to the platform view', () => {
