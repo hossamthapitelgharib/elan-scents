@@ -155,7 +155,7 @@
   /* The order of sections and extra blocks exactly as they appear now. */
   function fullOrder() {
     var main = document.getElementById('main'), seq = [];
-    Array.prototype.slice.call(main.children).forEach(function (c) {
+    layer.topNodes(main).forEach(function (c) {
       if (c.hasAttribute('data-elan-custom')) seq.push(c.getAttribute('data-elan-id'));
       else if (c.tagName === 'SECTION' && c.id && ED.BUILTIN.indexOf(c.id) !== -1) seq.push(c.id);
     });
@@ -245,15 +245,19 @@
   }
   /* What the editor needs to know about an element: the original editor's type names plus its current look. */
   var TYPE_OF = { section: 'section', title: 'text', 'top-bar': 'text', 'hero-text': 'text', hero: 'section', 'hero-counters': 'text', card: 'card', block: 'block', 'text-area': 'text', group: 'section', 'image-el': 'image' };
+  function rowFacts(e) {
+    var can = (e.kind === 'section' || e.kind === 'block') && inMain(e.el), prev = can ? rowPrevOf(e) : null, mine = can ? rowOf(e.el) : null;
+    return { can: !!can, prev: prev ? prev.id : null, with: !!(prev && mine && rowOf(prev.el) === mine), inRow: !!mine };
+  }
   function info(e) {
     if (!e) return null;
     var node = layer.textTarget(e) || e.el, cs = getComputedStyle(node), current = cur(e.id), st = current.style || {};
     var blk = work.blocks.filter(function (b) { return b.id === e.id; })[0];
     var type = blk ? ({ text: 'text_block', banner: 'banner', image: 'image' })[blk.type] : (TYPE_OF[e.kind] || 'text');
     if (blk && blk.type === 'image' && ED.isVideoUrl && ED.isVideoUrl(blk.src)) type = 'video';
-    var shown = mediaOf(e), media = shown.url;
+    var shown = mediaOf(e), media = shown.url, rf = rowFacts(e);
     return {
-      id: e.id, name: e.name, kind: e.kind, type: type, text: String(node.textContent || '').trim().slice(0, 120), media: media, hasMedia: shown.has, canText: !!layer.textTarget(e), textId: textProxy(e), copyKind: blk ? null : copyKindOf(e), isBlock: !!blk, dynamic: !!dynamicTarget(e),
+      id: e.id, name: e.name, kind: e.kind, type: type, text: String(node.textContent || '').trim().slice(0, 120), media: media, hasMedia: shown.has, canText: !!layer.textTarget(e), textId: textProxy(e), copyKind: blk ? null : copyKindOf(e), isBlock: !!blk, dynamic: !!dynamicTarget(e), canRow: rf.can, rowPrev: rf.prev, rowWithPrev: rf.with, inRow: rf.inRow,
       style: {
         fontFamily: st.fontFamily || (cs.fontFamily || '').split(',')[0].replace(/["']/g, '').trim(),
         fontSize: st.fontSize || Math.round(parseFloat(cs.fontSize) || 16),
@@ -339,6 +343,94 @@
      Cards (inside their strip) and the page's sections and extra blocks sit in the page's own flow. Dropping one between others
      puts it there and every other one shifts to make room, and the new order is saved. Titles, texts, the hero and the footer
      parts are free-form: they only move by an offset. Hold Alt while dragging to place a flow element freely instead. */
+  /* A section or block of the page: a child of #main, or a member of a row inside it. */
+  function inMain(el) {
+    var main = document.getElementById('main'), p = el && el.parentNode;
+    return !!(main && p && (p === main || (p.hasAttribute && p.hasAttribute('data-elan-row') && p.parentNode === main)));
+  }
+  function rowOf(el) { var p = el && el.parentNode; return p && p.hasAttribute && p.hasAttribute('data-elan-row') ? p : null; }
+  /* The thing before this one in the page, if any (the one a «جنب اللي فوقه» row would start with). */
+  function rowPrevOf(e) {
+    var main = document.getElementById('main'), list = main ? layer.topNodes(main) : [], at = list.indexOf(e.el), all = entries(), n, hit;
+    for (at = at - 1; at >= 0; at--) {
+      n = list[at];
+      hit = all.filter(function (x) { return x.el === n && (x.kind === 'section' || x.kind === 'block'); })[0];
+      if (hit && boxOf(n)) return hit;
+    }
+    return null;
+  }
+  /* Rows (design-layer.js): an element saved with {beside: id} sits in the same row as that one. Taking an element out of its row keeps the others together. */
+  function unlinkRow(d, id) {
+    ['all', device()].forEach(function (dev) {
+      var b = d.edits && d.edits[dev]; if (!b) return;
+      var mine = b[id], up = mine && mine.beside;
+      if (mine) delete mine.beside;
+      var kids = Object.keys(b).filter(function (k) { return b[k] && b[k].beside === id; });
+      kids.forEach(function (k, n) { if (up) b[k].beside = up; else if (n === 0) delete b[k].beside; else b[k].beside = kids[0]; });
+    });
+  }
+  function hasOwnBeside(id) { return ['all', device()].some(function (dev) { var b = work.edits && work.edits[dev]; return !!(b && b[id] && b[id].beside); }); }
+  function dropOffsets(id) { ['all', device()].forEach(function (dev) { var b = work.edits && work.edits[dev]; if (b && b[id]) { delete b[id].dx; delete b[id].dy; } }); }
+  var ROW_MAX = 4;
+  function joinRow(id) {
+    var e = entryById(id), prev = e && inMain(e.el) ? rowPrevOf(e) : null;
+    if (!prev) { say('مفيش عنصر فوقه يتحط جنبه.'); return null; }
+    var row = rowOf(prev.el);
+    if (row && row === rowOf(e.el)) { say('هو في نفس الصف أصلًا.'); return null; }
+    if (row && row.children.length >= ROW_MAX) { say('الصف ممتلئ: ' + ROW_MAX + ' عناصر على الأكثر.'); return null; }
+    mutate(function () {
+      if (hasOwnBeside(id)) unlinkRow(work, id);
+      edit(device(), id).beside = scopeId(prev.id);
+      dropOffsets(id);
+    });
+    say('اتحط في صف واحد جنب اللي فوقه. المسافات بين الصفوف وبين العناصر ثابتة من تنسيق المنصة.');
+    return { row: true };
+  }
+  function leaveRow(id) {
+    var e = entryById(id);
+    if (!e || !rowOf(e.el)) { say('العنصر ده مش في صف مع غيره.'); return null; }
+    mutate(function () { unlinkRow(work, id); });
+    say('رجع في صف لوحده.');
+    return { row: false };
+  }
+  /* Dropping a section or block on the side of another one (the middle of its height, near its left or right edge) puts the two in one row: the same {beside} the menu writes.
+     A full-width one has no room beside it (the menu halves two of them), and a row holds four at most. Alt keeps the old free placing. */
+  function sideAt(flow, x, y) {
+    var main = document.getElementById('main'), mw = main ? main.getBoundingClientRect().width : 0;
+    for (var i = 0; i < flow.siblings.length; i++) {
+      var s = flow.siblings[i], r = s.el.getBoundingClientRect(), row = rowOf(s.el);
+      if (!(r.width > 0 && r.height > 0)) continue;
+      if (row ? row.children.length >= ROW_MAX : r.width > mw * 0.85) continue;
+      if (x < r.left || x > r.right || y < r.top + r.height * 0.2 || y > r.bottom - r.height * 0.2) continue;
+      var edge = Math.max(24, r.width * 0.25);
+      if (x <= r.left + edge) return { id: s.id, left: true, rect: r };
+      if (x >= r.right - edge) return { id: s.id, left: false, rect: r };
+    }
+    return null;
+  }
+  function showSide(side) {
+    var r = side.rect, bar = 5, s = dropEl.style;
+    s.display = 'block'; s.top = r.top + 'px'; s.height = r.height + 'px'; s.width = bar + 'px'; s.left = ((side.left ? r.left : r.right) - bar / 2) + 'px';
+  }
+  function commitSide(g, side) {
+    var main = document.getElementById('main'), rtl = main && getComputedStyle(main).direction === 'rtl';
+    var after = side.left ? !!rtl : !rtl;                         // reading order: the left side comes next on an Arabic page, the right side on an English one
+    var order = fullOrder(), moved = sectionOf(g.id), target = sectionOf(side.id), te = entryById(side.id);
+    var tail = te && rowOf(te.el) ? rowOf(te.el).children.length : 0;
+    if (tail >= ROW_MAX) { say('الصف ممتلئ: ' + ROW_MAX + ' عناصر على الأكثر.'); return; }
+    mutate(function (d) {
+      var floats = (d.blocks || []).filter(function (b) { return b.float; }).map(function (b) { return b.id; });
+      unlinkRow(d, g.id); dropOffsets(g.id);
+      d.order = Geometry.reorderSticky ? Geometry.reorderSticky(order, moved, target, after, floats) : Geometry.reorder(order, moved, target, after);
+      if (after) edit(device(), g.id).beside = scopeId(side.id);
+      else {
+        var up = null; ['all', device()].forEach(function (dev) { var b = d.edits && d.edits[dev]; if (b && b[side.id] && b[side.id].beside) up = b[side.id].beside; });
+        if (up) edit(device(), g.id).beside = up;
+        edit(device(), side.id).beside = scopeId(g.id);
+      }
+    });
+    say('اتحطوا في صف واحد بمسافة ثابتة من تنسيق المنصة. (Alt مع السحب = تحريك حر)');
+  }
   function boxOf(el) { var r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && el.style.display !== 'none' ? r : null; }
   function flowOf(e) {
     if (!e) return null;
@@ -347,9 +439,9 @@
       return { type: 'card', axis: 'xy', rtl: getComputedStyle(e.el.parentNode).direction === 'rtl',
         siblings: list.filter(function (x) { return x.kind === 'card' && x.id !== e.id && x.el.parentNode === e.el.parentNode && boxOf(x.el); }) };
     }
-    if ((e.kind === 'section' || e.kind === 'block') && main && e.el.parentNode === main) {
+    if ((e.kind === 'section' || e.kind === 'block') && main && inMain(e.el)) {
       return { type: 'section', axis: 'y', rtl: false,
-        siblings: list.filter(function (x) { return (x.kind === 'section' || x.kind === 'block') && x.id !== e.id && x.el.parentNode === main && boxOf(x.el); }) };
+        siblings: list.filter(function (x) { return (x.kind === 'section' || x.kind === 'block') && x.id !== e.id && inMain(x.el) && boxOf(x.el); }) };
     }
     return null;
   }
@@ -384,6 +476,7 @@
     var order = g.flow.type === 'section' ? fullOrder() : null, moved = sectionOf(g.id), target = sectionOf(slot.id);
     mutate(function (d) {
       var scope = pageScope(g.id, true), gid = scopeId(g.id);
+      if (g.flow.type === 'section') unlinkRow(d, g.id);
       ['all', device()].forEach(function (dev) {
         var t = scope.edits && scope.edits[dev] && scope.edits[dev][gid];
         if (t) { delete t.dx; delete t.dy; }
@@ -557,7 +650,9 @@
       g.el.style.transform = 'translate(' + g.dx + 'px,' + g.dy + 'px)';
       // A finger swiping along a strip must scroll it: with overflow:visible the strip has nothing to pan, so only mouse/pen drags free the card.
       if (g.flow && g.flow.type === 'card' && !g.strip && !g.touch) { var strip = stripOf(entryById(g.id)); if (strip) { g.strip = { node: strip, base: strip.getAttribute('style') || '' }; strip.style.overflow = 'visible'; } }
-      if (g.flow && g.flow.siblings.length && !ev.altKey) { g.slot = slotAt(g.flow, ev.clientX, ev.clientY); showDrop(g.flow, g.slot); }
+      g.side = g.flow && g.flow.type === 'section' && !ev.altKey ? sideAt(g.flow, ev.clientX, ev.clientY) : null;
+      if (g.side) { g.slot = null; showSide(g.side); }
+      else if (g.flow && g.flow.siblings.length && !ev.altKey) { g.slot = slotAt(g.flow, ev.clientX, ev.clientY); showDrop(g.flow, g.slot); }
       else { g.slot = null; hideDrop(); }
     } else {
       g.last = { x: ev.clientX, y: ev.clientY };
@@ -572,6 +667,7 @@
     var g = gesture; gesture = null;
     if (!g.moved) return;                      // A plain click selects; only a drag commits offsets.
     ev.preventDefault();
+    if (g.mode === 'move' && g.side && !ev.altKey) { var side = sideAt(g.flow, ev.clientX, ev.clientY) || g.side; endGesture(g); commitSide(g, side); return; }
     if (g.mode === 'move' && g.flow && g.flow.siblings.length && !ev.altKey) {
       var drop = slotAt(g.flow, ev.clientX, ev.clientY);
       endGesture(g);
@@ -580,6 +676,7 @@
     endGesture(g);
     if (g.mode === 'resize') dropLive(g);
     mutate(function () {
+      if (g.mode === 'move') unlinkRow(work, g.id);                // placed freely: no longer part of a row
       var e = edit(device(), g.id);
       if (g.dx) e.dx = g.dx; else delete e.dx;
       if (g.dy) e.dy = g.dy; else delete e.dy;
@@ -1060,6 +1157,9 @@
   registerTool({ id: 'create_image', label: 'إنشاء صورة أو فيديو', ui: 'media_new', sizes: true, sizeUi: 'panel', run: function (c) { if (!c.src) throw new Error('اختاري صورة أو فيديو الأول.'); return createBlock('image', { at: c.at, src: c.src, size: c.size }); } });
   /* A standard size for the selected element (the free drag handle stays as it is): the host shows the saved groups, this applies the choice on the current screen size only. */
   registerTool({ id: 'size_preset', label: 'أبعاد العناصر', ui: 'size', sizes: true, show: function (i) { return !!i; }, when: function (i) { return !!i && i.kind !== 'top-bar'; }, run: function (c) { return c.size ? applySize(c.id, c.size) : clearSize(c.id); } });
+  /* Rows: two sections, banners or pictures side by side with the platform's fixed gaps (the row and its gaps are laid out by design-layer.js, nothing is dragged into place). */
+  registerTool({ id: 'row_join', label: 'ضعه في صف واحد جنب العنصر اللي فوقه', show: function (i) { return !!(i && i.canRow); }, when: function (i) { return !!(i && i.canRow && i.rowPrev && !i.rowWithPrev); }, run: function (c) { return joinRow(c.id); } });
+  registerTool({ id: 'row_split', label: 'رجّعه في صف لوحده', show: function (i) { return !!(i && i.canRow); }, when: function (i) { return !!(i && i.inRow); }, run: function (c) { return leaveRow(c.id); } });
   registerTool({ id: 'open', label: 'دخول لصفحة', when: function (i) { return !!(i && i.dynamic); }, run: function (c) { enterPage(entryById(c.id)); return null; } });
   /* Back / home are not in the mouse menu any more: the editor header has the «صفحة سابقة» button for them. The tools stay registered
      (the button runs go_back through tool.run) but show:false keeps them out of the menu. */

@@ -9,7 +9,7 @@ const { designBrowser, plain, read } = require('./browser-fixture');
    (tests/fixtures/elan-original-tools-golden.json): same tools, same order, same enablement. */
 const golden = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'elan-original-tools-golden.json'), 'utf8'));
 const GOLDEN_IDS = ['format', 'create_section', 'create_brand', 'create_store', 'create_perfume', 'create_occasion', 'create_note', 'create_text_block', 'create_banner', 'create_text', 'media', 'media_delete', 'edit_text', 'copy', 'archive', 'library_save', 'library_download'];
-const EXTRA_IDS = ['create_image', 'size_preset', 'open', 'go_back', 'go_home'];   // size_preset: standard sizes, shown only when an element is chosen
+const EXTRA_IDS = ['create_image', 'size_preset', 'row_join', 'row_split', 'open', 'go_back', 'go_home'];   // size_preset: standard sizes, shown only when an element is chosen; row_join / row_split: only on a section or block of the page
 const SCOPE_IDS = ['scope_toggle', 'scope_reset'];   // default pages: they show only on a product, brand or store page
 const flags = (rows) => rows.map((r) => r.startsWith('[ok]'));
 /* The right-click menu order the owner asked for (2026-11-11): text first, then pictures and videos, the banner, the section, the perfume card, the brand, the store, then the rest. */

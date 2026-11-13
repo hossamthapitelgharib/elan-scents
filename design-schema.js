@@ -162,6 +162,9 @@
       } else if (k === 'w' || k === 'h') {
         n = intIn(v, EDIT_LIMITS.minSize, EDIT_LIMITS.size);
         if (n === null) errors.push(where + '.' + k + ': out of range'); else out[k] = n;
+      } else if (k === 'beside') {
+        /* Placed in the same row as another element of the page (the one named here), right after it: the row keeps the platform's fixed gaps (design-layer.js, rows). */
+        if (typeof v === 'string' && EDIT_ID_RE.test(v)) out.beside = v; else errors.push(where + '.beside: invalid');
       } else if (k === 'hidden') {
         if (v === true) out.hidden = true; else if (v !== false) errors.push(where + '.hidden: invalid');
       } else if (k === 'archived') {

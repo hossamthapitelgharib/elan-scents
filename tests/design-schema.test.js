@@ -169,3 +169,13 @@ test('smart sections are stored as a reference only, never as prices or stock', 
   assert.equal(ED.normalize({ version: 1, blocks: [{ id: 'x-sm', type: 'smart' }] }, { strict: true }).ok, false);
   assert.ok(ED.isRef('sec-1a2b') && !ED.isRef('../x'));
 });
+
+test('an edit may say {beside: id}: the element sits in the same row as that one (rows, design-layer.js); anything else there is refused', () => {
+  const ok = ED.normalize({ version: 1, edits: { all: { 'x-b': { beside: 'x-a', w: 300 } } } }, { strict: true });
+  assert.equal(ok.ok, true, JSON.stringify(ok.errors));
+  assert.equal(ok.design.edits.all['x-b'].beside, 'x-a');
+  for (const bad of ['<b>', '', 5, null, { id: 'x-a' }, 'x-a'.repeat(80)]) {
+    const r = ED.normalize({ version: 1, edits: { all: { 'x-b': { beside: bad } } } }, { strict: true });
+    assert.equal(r.ok, false, 'refused: ' + JSON.stringify(bad));
+  }
+});

@@ -33,6 +33,12 @@
     '.elan-fit-back{position:absolute!important;inset:-40px;z-index:-1;pointer-events:none;background-position:center;background-size:cover;background-repeat:no-repeat;filter:blur(26px);clip-path:inset(40px)}',
     'video.elan-fit-back{width:calc(100% + 80px);height:calc(100% + 80px);object-fit:cover}',
     '.elan-fit-front{position:absolute!important;inset:0;z-index:-1;pointer-events:none;background-position:center;background-size:contain;background-repeat:no-repeat}',
+    /* The platform's two fixed gaps (owner, 2026-11-12): the space between one row of the page and the next (--elan-gap-y: the page's own rhythm between sections, 14px + 22px + 46px of padding ≈ 80px)
+       and the space between two things in one row (--elan-gap-x: the gap the platform already leaves between its cards). Rows built by the editor use these and nothing else. */
+    ':root{--elan-gap-y:80px;--elan-gap-x:var(--cg,16px)}',
+    '.elan-row{display:flex;flex-wrap:nowrap;justify-content:center;align-items:flex-start;column-gap:var(--elan-gap-x);box-sizing:border-box;width:100%;max-width:1200px;margin-inline:auto;padding-inline:var(--cp,16px)}',
+    '.elan-row>*{margin:0!important;min-width:0;max-width:100%;flex:1 1 0!important}',
+    '.elan-row>.elan-block{padding-inline:0;max-width:100%}',
     '.elan-float{position:relative;height:0;max-width:none;margin:0;padding:0;overflow:visible;z-index:100}',
     '.elan-float p{position:absolute;top:0;inset-inline-start:16px;width:320px;min-height:90px;max-width:calc(100% - 32px);margin:0;padding:8px;box-sizing:border-box}'
   ].join('\n');
@@ -267,7 +273,7 @@
     }
     var main = document.getElementById('main');
     if (!main) return out;
-    Array.prototype.slice.call(main.children).forEach(function (c) {
+    topNodes(main).forEach(function (c) {
       if (c.hasAttribute('data-elan-custom')) { add(c.getAttribute('data-elan-id'), blockNode(c), 'block', 'بلوك إضافي'); return; }
       if (c.tagName !== 'SECTION' || !c.id || ED.BUILTIN.indexOf(c.id) === -1) return;
       add('sec:' + c.id, c, 'section', 'سيكشن ' + (SEC_NAMES[c.id] || c.id));
@@ -341,6 +347,130 @@
       x.c.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
     });
   }
+
+  /* ---------- rows: things side by side, and one fixed gap from row to row ----------
+     Owner, 2026-11-12: two new sections placed side by side from the standard sizes, then the gap above that row differed from the gap below it, and the gap between the two
+     sections was whatever the drag left. Moving by an offset can never keep gaps (the slot an element left stays in the flow, and every width has its own heights), so a thing
+     placed beside another is laid out by the page itself instead: an edit {beside: <id>} puts it in the same row as that element, right after it (a flex row that keeps
+     --elan-gap-x between the two), and every row of the page is then spaced from the one before it by --elan-gap-y between what can be SEEN (a section's own padding is air, a
+     banner's edge is not), so the gap above a row equals the gap below it whatever sits next to it. Rows are rebuilt from the saved edits on every paint; nothing is saved but the {beside}. */
+  var rowUndo = [], rowManaged = [];
+  function unrows() { var u = rowUndo; rowUndo = []; rowManaged = []; for (var i = u.length - 1; i >= 0; i--) { try { u[i](); } catch (_) { /* keep going */ } } }
+  function rowKeep(el) {
+    if (el.__elanRowStyle !== undefined) return;
+    var was = el.getAttribute('style'); el.__elanRowStyle = was;
+    rowUndo.push(function () { delete el.__elanRowStyle; if (was === null) el.removeAttribute('style'); else el.setAttribute('style', was); });
+  }
+  /* The page's top-level things in the order they are read, a row's members in place of the row. */
+  function topNodes(main) {
+    var out = [];
+    Array.prototype.forEach.call(main.children, function (c) {
+      if (c.hasAttribute && c.hasAttribute('data-elan-row')) Array.prototype.forEach.call(c.children, function (m) { out.push(m); });
+      else out.push(c);
+    });
+    return out;
+  }
+  function shown(n) { return !!n && n.nodeType === 1 && getComputedStyle(n).display !== 'none'; }
+  function px(v) { return parseFloat(v) || 0; }
+  function gapY() { var v = px(getComputedStyle(document.documentElement).getPropertyValue('--elan-gap-y')); return v > 0 ? v : 80; }
+  /* A box that can be seen on its own (a background, a border, a shadow, a banner): its edge is what the eye meets, so no padding of its own counts as empty room. */
+  function painted(n, cs, top) {
+    if (n.classList && n.classList.contains('elan-banner')) return true;
+    if (cs.backgroundImage && cs.backgroundImage !== 'none') return true;
+    var bg = cs.backgroundColor;
+    if (bg && bg !== 'transparent' && !/^rgba\(\s*\d+,\s*\d+,\s*\d+,\s*0\s*\)$/.test(bg) && !/^rgb\(\s*255,\s*255,\s*255\s*\)$/.test(bg)) return true;
+    if (cs.boxShadow && cs.boxShadow !== 'none') return true;
+    var side = top ? 'Top' : 'Bottom';
+    return px(cs['border' + side + 'Width']) > 0 && cs['border' + side + 'Style'] !== 'none';
+  }
+  function edgeChild(n, top) {
+    var list = n.children, i = top ? 0 : list.length - 1, step = top ? 1 : -1;
+    for (; i >= 0 && i < list.length; i += step) {
+      var c = list[i], cs = getComputedStyle(c);
+      if (/^(SCRIPT|STYLE|LINK|TEMPLATE)$/i.test(c.tagName) || cs.display === 'none' || cs.position === 'absolute' || cs.position === 'fixed') continue;
+      return c;
+    }
+    return null;
+  }
+  /* The empty room at the top (or the bottom) of an element before anything can be seen: its padding and the edge margins and paddings of what it starts (or ends) with, down to the
+     first box that shows itself. A section of cards is 46px of padding above its title and 14px + the strip's 22px under its cards; a picture or a banner has none. */
+  function airOf(node, top) {
+    var sum = 0, n = node, depth = 0;
+    while (n && depth < 5) {
+      var cs = getComputedStyle(n);
+      if (depth > 0) sum += px(top ? cs.marginTop : cs.marginBottom);
+      if (painted(n, cs, top)) break;
+      sum += px(top ? cs.paddingTop : cs.paddingBottom);
+      n = edgeChild(n, top); depth++;
+    }
+    return sum;
+  }
+  /* The gap between one row and the next, set from what the two rows leave empty. A row is a section, a block or a flex row of them; only a row made of the editor's own things
+     (an extra block, a row, a section the owner resized) is spaced, so a page nobody touched keeps its natural gaps exactly. */
+  function spaceRows() {
+    var main = document.getElementById('main');
+    if (!main || document.body.classList.contains('inner')) return;
+    var G = gapY(), units = [];
+    Array.prototype.forEach.call(main.children, function (c) {
+      if (!shown(c) || (c.classList && c.classList.contains('elan-float'))) return;
+      var row = c.hasAttribute('data-elan-row');
+      units.push({ el: c, row: row, managed: row || c.hasAttribute('data-elan-custom') || rowManaged.indexOf(c) !== -1 });
+    });
+    units.forEach(function (u) {
+      if (!u.row) { u.airT = airOf(u.el, true); u.airB = airOf(u.el, false); return; }
+      var ms = Array.prototype.filter.call(u.el.children, shown), tops = ms.map(function (m) { return airOf(m, true); }), most = Math.max.apply(null, tops.concat(0)), seen = -Infinity;
+      ms.forEach(function (m, i) { rowKeep(m); m.style.setProperty('margin-top', (most - tops[i]) + 'px', 'important'); });   // the members' visible tops line up
+      var r = u.el.getBoundingClientRect();
+      ms.forEach(function (m) { seen = Math.max(seen, m.getBoundingClientRect().bottom - airOf(m, false)); });
+      u.airT = most; u.airB = seen === -Infinity ? 0 : Math.max(0, r.bottom - seen);
+    });
+    units.forEach(function (u, i) {
+      var prev = units[i - 1];
+      if (u.managed) { rowKeep(u.el); u.el.style.setProperty('margin-bottom', '0px', 'important'); }
+      if (!(u.managed || (prev && prev.managed))) return;
+      var want = prev ? G - prev.airB - u.airT : Math.max(0, G - u.airT);
+      rowKeep(u.el); u.el.style.setProperty('margin-top', Math.round(want * 100) / 100 + 'px', 'important');
+    });
+  }
+  /* Put every element that names another one in {beside} into one row with it. `managed` lists the built-in sections the owner resized (they are spaced like the rest). */
+  function buildRows(beside, managed) {
+    var main = document.getElementById('main');
+    if (!main || document.body.classList.contains('inner')) return;
+    if (!main.__elanSpaced) { main.__elanSpaced = true; main.addEventListener('load', respace, true); }   // a picture that arrives late changes a row's height
+    if (!Object.keys(beside).length && !Object.keys(managed).length) { spaceRows(); return; }
+    var tops = elements().filter(function (e) { return (e.kind === 'section' || e.kind === 'block') && e.el.parentNode === main && shown(e.el); }), byId = {}, groups = {};
+    tops.forEach(function (e, i) { e.pos = i; byId[e.id] = e; });
+    rowManaged = tops.filter(function (e) { return managed[e.id]; }).map(function (e) { return e.el; });
+    tops.forEach(function (e) {
+      var anchor = beside[e.id];
+      if (!anchor || anchor === e.id || !byId[anchor]) return;
+      var root = anchor, hops = 0;
+      while (beside[root] && byId[beside[root]] && hops < 12) { root = beside[root]; hops++; }
+      if (hops >= 12 || root === e.id) return;                      // a loop (A beside B, B beside A): nobody in it is placed
+      (groups[root] = groups[root] || [byId[root]]).push(e);
+    });
+    Object.keys(groups).forEach(function (rootId) {
+      var list = groups[rootId].sort(function (a, b) { return a.pos - b.pos; }).slice(0, 4);
+      if (list.length < 2) return;
+      var row = document.createElement('div');
+      row.className = 'elan-row'; row.setAttribute('data-elan-row', '1');
+      main.insertBefore(row, list[0].el);
+      var moved = list.map(function (e) {
+        var ph = document.createComment('elan-row');
+        main.replaceChild(ph, e.el); row.appendChild(e.el);
+        return { el: e.el, ph: ph };
+      });
+      rowUndo.push(function () { moved.forEach(function (m) { if (m.ph.parentNode) m.ph.parentNode.replaceChild(m.el, m.ph); }); if (row.parentNode) row.parentNode.removeChild(row); });
+      list.forEach(function (e) {
+        rowKeep(e.el);
+        e.el.style.transform = '';
+        if (e.el.style.getPropertyValue('width')) e.el.style.setProperty('flex', '0 1 auto', 'important');   // a standard size: the row may shrink it a little so the two fit with the fixed gap
+      });
+    });
+    spaceRows();
+  }
+  var spaceTimer = null;
+  function respace() { clearTimeout(spaceTimer); spaceTimer = setTimeout(function () { try { if (design) spaceRows(); } catch (_) { /* keep the page usable */ } }, 120); }
 
   /* A card's own artwork (a picture or a drawing) sits over the card; to show anything else, or to leave the white base, it is hidden.
      style.css gives the card its own !important rules, so only an inline !important wins. */
@@ -567,7 +697,7 @@
       if (entry.kind === 'top-bar') { document.body.classList.add('elan-no-bar'); el.__elanBar = true; }
       return;
     }
-    if (ed.dx || ed.dy) {
+    if ((ed.dx || ed.dy) && !ed.beside) {
       el.style.transform = 'translate(' + (ed.dx || 0) + 'px,' + (ed.dy || 0) + 'px)';
       if (!el.style.position && getComputedStyle(el).position === 'static') el.style.position = 'relative';
       el.style.zIndex = '3';
@@ -608,27 +738,34 @@
 
   /* Free-form edits for the current screen size. Idempotent: always undo the last paint first. */
   function applyEdits() {
+    unrows();
     touched.forEach(unpaint);
     touched = [];
-    if (!design || (!design.edits && !design.pages)) return;
-    var dev = ED.deviceOf(window.innerWidth);
-    var key = pageKey(), pg = design.pages && design.pages[key], view = document.getElementById('view');
-    var dpg = design.pages && design.pages[ED.defaultKeyOf(key)];
-    elements().forEach(function (entry) {
-      var ed = ED.editFor(design, dev, entry.id), inView = !!(view && view.contains(entry.el));
-      /* the page's own edits win over the default page's, which win over the site-wide ones */
-      if (dpg && inView && entry.did) ed = mergeEdit(ed, ED.editFor(dpg, dev, entry.did));
-      if (pg && inView) ed = mergeEdit(ed, ED.editFor(pg, dev, entry.id));
-      if (!ed) return;
-      paint(entry, ed);
-      touched.push(entry.el);
-    });
-    fitStripCards(touched);
+    if (!design) return;
+    var beside = {}, managed = {};
+    if (design.edits || design.pages) {
+      var dev = ED.deviceOf(window.innerWidth);
+      var key = pageKey(), pg = design.pages && design.pages[key], view = document.getElementById('view');
+      var dpg = design.pages && design.pages[ED.defaultKeyOf(key)];
+      elements().forEach(function (entry) {
+        var ed = ED.editFor(design, dev, entry.id), inView = !!(view && view.contains(entry.el));
+        /* the page's own edits win over the default page's, which win over the site-wide ones */
+        if (dpg && inView && entry.did) ed = mergeEdit(ed, ED.editFor(dpg, dev, entry.did));
+        if (pg && inView) ed = mergeEdit(ed, ED.editFor(pg, dev, entry.id));
+        if (!ed) return;
+        if (!inView && !ed.hidden && !ed.archived) { if (ed.beside) beside[entry.id] = ed.beside; if (ed.beside || ed.w || ed.h) managed[entry.id] = true; }
+        paint(entry, ed);
+        touched.push(entry.el);
+      });
+      fitStripCards(touched);
+    }
+    try { buildRows(beside, managed); } catch (e) { /* rows are optional: the page stays as the edits left it */ }
   }
 
   function apply() {
     var main = document.getElementById('main');
     if (!main || !design) return;
+    unrows();
     if (ED.isEmpty(design)) { applyEdits(); return; }
 
     // Idempotent: drop what we added before, then re-apply on the freshly rendered page.
@@ -794,10 +931,11 @@
     return true;
   }
 
-  window.ElanDesignLayer = { apply: apply, set: set, pageKey: pageKey, defaultKey: function () { var k = pageKey(); return k ? ED.defaultKeyOf(k) : null; }, current: function () { return design; }, applyEdits: applyEdits, elements: elements, textTarget: textTarget, goTargetOf: goTargetOf, mediaSize: mediaSize, liveSize: liveSize, endLive: function (entry) { endLive(entry && entry.el); } };
+  window.ElanDesignLayer = { topNodes: topNodes, airOf: airOf, gapY: gapY, apply: apply, set: set, pageKey: pageKey, defaultKey: function () { var k = pageKey(); return k ? ED.defaultKeyOf(k) : null; }, current: function () { return design; }, applyEdits: applyEdits, elements: elements, textTarget: textTarget, goTargetOf: goTargetOf, mediaSize: mediaSize, liveSize: liveSize, endLive: function (entry) { endLive(entry && entry.el); } };
 
   // A different screen size means a different set of free-form edits.
   window.addEventListener('resize', function () {
+    respace();
     if (!design || (!design.edits && !design.pages)) return;
     var d = ED.deviceOf(window.innerWidth);
     if (d !== lastDevice) { lastDevice = d; try { applyEdits(); } catch (e) { /* keep the page usable */ } }
