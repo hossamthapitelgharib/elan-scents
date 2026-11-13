@@ -371,6 +371,11 @@
       "migration": "20261106122349_commission_watch_shipped_unreported.sql",
       "reason": "Applied live before its source was tracked; recovered verbatim from the live ledger. It replaces a view in place (adds the shipped_unreported flag), so recovery relies on 20261106122029 and a verified backup.",
       "backupRequired": true
+    },
+    {
+      "migration": "20261110081953_catalog_offer_stock_and_announcement_contract.sql",
+      "reason": "Applied live before its source was tracked; recovered verbatim from the live ledger. It replaces the public_products view and public.place_store_order in place (stock above zero, cheapest offer per size, the coming-soon announcement), so recovery relies on the earlier definitions in 20261110060252 and 20261108135126 and a verified backup.",
+      "backupRequired": true
     }
   ]
 }
