@@ -1,4 +1,5 @@
 -- Run on the live database after catalog_filter_product_sizes migration inside this transaction.
+-- (Updated 2026-11-12: NULL stock is no longer eligible. The full eligibility contract is tests/catalog-eligibility-contract.test.sql.)
 -- All fixture rows are synthetic and are discarded by the final ROLLBACK.
 BEGIN;
 
@@ -8,6 +9,7 @@ DECLARE
   v_store_a uuid := gen_random_uuid();
   v_store_b uuid := gen_random_uuid();
   v_store_zero uuid := gen_random_uuid();
+  v_store_null uuid := gen_random_uuid();
   v_store_stale uuid := gen_random_uuid();
   v_store_inactive uuid := gen_random_uuid();
   v_store_unavailable uuid := gen_random_uuid();
@@ -28,6 +30,7 @@ BEGIN
     (v_store_a, 'Catalog Contract A', 'catalog-contract-a-' || v_store_a::text, 'active', 15, 100),
     (v_store_b, 'Catalog Contract B', 'catalog-contract-b-' || v_store_b::text, 'active', 15, 100),
     (v_store_zero, 'Catalog Contract Zero', 'catalog-contract-zero-' || v_store_zero::text, 'active', 15, 100),
+    (v_store_null, 'Catalog Contract NULL stock', 'catalog-contract-null-' || v_store_null::text, 'active', 15, 100),
     (v_store_stale, 'Catalog Contract Stale', 'catalog-contract-stale-' || v_store_stale::text, 'active', 15, 100),
     (v_store_inactive, 'Catalog Contract Inactive', 'catalog-contract-inactive-' || v_store_inactive::text, 'inactive', 15, 100),
     (v_store_unavailable, 'Catalog Contract Unavailable', 'catalog-contract-unavailable-' || v_store_unavailable::text, 'active', 15, 100);
@@ -46,7 +49,8 @@ BEGIN
   INSERT INTO public.product_notes (product_id, note_id) VALUES (v_product, v_note);
 
   INSERT INTO public.store_products (store_id, product_size_id, price, currency, stock_quantity, is_available, sync_status) VALUES
-    (v_store_a, v_size, 100, 'EGP', NULL, true, 'synced'),
+    (v_store_a, v_size, 100, 'EGP', 5, true, 'synced'),
+    (v_store_null, v_size, 1, 'EGP', NULL, true, 'synced'),
     (v_store_b, v_size, 120, 'EGP', 5, true, 'synced'),
     (v_store_zero, v_size, 1, 'EGP', 0, true, 'synced'),
     (v_store_stale, v_size, 2, 'EGP', 5, true, 'stale'),
@@ -57,6 +61,9 @@ BEGIN
 
   IF (SELECT count(*) FROM public.catalog_eligible_offers WHERE product_size_id = v_size) <> 2 THEN
     RAISE EXCEPTION 'eligible offer contract failed: expected active, available, synced A/B only';
+  END IF;
+  IF EXISTS (SELECT 1 FROM public.catalog_eligible_offers WHERE product_size_id = v_size AND store_id = v_store_null) THEN
+    RAISE EXCEPTION 'NULL stock (unconfirmed) must not be eligible (owner rule 2026-11-12: stock_quantity > 0 only)';
   END IF;
   IF EXISTS (SELECT 1 FROM public.catalog_eligible_offers WHERE product_size_id = v_size AND store_id = v_store_zero) THEN
     RAISE EXCEPTION 'zero stock offer must not be eligible';
@@ -74,7 +81,7 @@ BEGIN
   SELECT store_product_id, store_id, price, currency
     INTO v_global FROM public.catalog_platform_offers WHERE product_size_id = v_size;
   IF v_global.store_id <> v_store_a OR v_global.price <> 100 OR v_global.currency <> 'EGP' THEN
-    RAISE EXCEPTION 'global offer must be the exact 100 EGP A row';
+    RAISE EXCEPTION 'platform eligible offer must be the exact 100 EGP A row';
   END IF;
   SELECT store_product_id, store_id, price, currency
     INTO v_compat FROM public.catalog_global_offers WHERE product_size_id = v_size;
@@ -86,10 +93,10 @@ BEGIN
     RAISE EXCEPTION 'legacy catalog views must delegate to the one canonical platform offer';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM public.store_products WHERE id = v_global.store_product_id AND product_size_id = v_size AND store_id = v_global.store_id AND price = v_global.price) THEN
-    RAISE EXCEPTION 'global offer store_product_id and price must be from the same source row';
+    RAISE EXCEPTION 'platform eligible offer store_product_id and price must be from the same source row';
   END IF;
   IF EXISTS (SELECT 1 FROM public.catalog_platform_offers WHERE product_size_id = v_size AND store_id = v_store_b) THEN
-    RAISE EXCEPTION 'store B must not pass a store-owner filter when A owns the global offer';
+    RAISE EXCEPTION 'store B must not pass a store-owner filter when A owns the platform eligible offer';
   END IF;
   SELECT store_product_id, store_id, price, currency
     INTO v_tie FROM public.catalog_platform_offers WHERE product_size_id = v_tie_size;
@@ -97,7 +104,7 @@ BEGIN
     RAISE EXCEPTION 'equal prices must use the deterministic commission/priority/store/id tie-break order';
   END IF;
   IF (SELECT count(*) FROM public.catalog_platform_offers WHERE product_size_id = v_tie_size) <> 1 THEN
-    RAISE EXCEPTION 'one global offer row is required per product size';
+    RAISE EXCEPTION 'one platform eligible offer row is required per product size';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM public.public_products WHERE id = v_product AND gender = 'men') THEN
     RAISE EXCEPTION 'public product view must expose products.gender';
