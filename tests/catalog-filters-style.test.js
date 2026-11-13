@@ -149,7 +149,7 @@ test('the four tags and the ranks come from the database ranking view, never fro
 test('every chip ranks by its own database rank, and the ranking does not touch the other pages', () => {
   assert.match(core, /var MASTER_CHIPS=\['rated','sales','views','searches'\];/);
   assert.match(core, /function ranked\(by\)\{var k=MASTER_CHIPS\.indexOf\(F\.ind\)>-1\?F\.ind:'';return k\?function\(a,b\)\{return\(\(\(a\.p\.rk\|\|\{\}\)\[k\]\|\|1e9\)-\(\(b\.p\.rk\|\|\{\}\)\[k\]\|\|1e9\)\)\|\|by\(a,b\)\}:by\}/);
-  assert.match(core, /\(x\.id=='master'\?chips\(\):filterPanel\(l\)\)\+'<div id="res" class="grid"><\/div>'/, 'the Masterpieces page shows the chips and no filter panel; every other list page keeps its filters');
+  assert.match(core, /\(x\.id=='soon'\?'':x\.id=='master'\?chips\(\):filterPanel\(l\)\)\+'<div id="res" class="grid"><\/div>'/, 'the Masterpieces page shows the chips and no filter panel, «قريبًا» shows neither (it lists every announcement); every other list page keeps its filters');
 });
 
 test('"most distinguished" is gone: the home sections are ordered by the same ranks as the four buttons, "most rated" first', () => {

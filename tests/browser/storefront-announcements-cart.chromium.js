@@ -87,6 +87,12 @@ test('«قريبًا»: the announced perfume is listed without a price, without
     await page.waitForSelector('#res .card');
     const list = await page.evaluate(() => ({ names: [...document.querySelectorAll('#res .card h4')].map((h) => h.textContent.trim()), price: document.querySelectorAll('#res .card .price').length, cart: document.querySelectorAll('#res .card .cartb').length, st: [...document.querySelectorAll('#res .card .st')].map((s) => s.textContent.trim()) }));
     assert.deepEqual(list.names, [NAMES.B]);
+    // the page has no filters, and nothing in the filter state can hide an announcement
+    await shot(page, 'soon-page');
+    assert.equal(await page.locator('.filter-panel').count(), 0, 'no filter panel on «قريبًا»');
+    assert.equal(await page.locator('input[data-k="min"], input[data-k="max"]').count(), 0, 'no price inputs');
+    const stubborn = await page.evaluate(() => { F.min = '5000'; F.max = '1'; F.q = 'zzz'; F.br = 'nobody'; F.st = 'nobody'; results(); return [...document.querySelectorAll('#res .card h4')].map((h) => h.textContent.trim()); });
+    assert.deepEqual(stubborn, [NAMES.B], 'whatever the filter state, the announcement is listed');
     assert.equal(list.price, 0);
     assert.equal(list.cart, 0);
     assert.deepEqual(list.st, ['قريباً']);

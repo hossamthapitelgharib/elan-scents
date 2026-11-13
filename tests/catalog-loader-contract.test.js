@@ -60,16 +60,17 @@ test('gender, occasion, and note filters use stable values with AND across dimen
   assert.deepEqual(Array.from(vm.runInContext('list()', context), (row) => row.p.name), ['matching']);
 });
 
-test('every storefront section needs a platform eligible offer, except «قريبًا» which lists announcements (no price, no offer)', () => {
+test('every storefront section needs a platform eligible offer, except «قريبًا»: every announcement, with no filter at all', () => {
   const start = core.indexOf('function list()');
   const end = core.indexOf('\nfunction results()', start);
   const source = core.slice(start, end);
-  assert.match(source, /soon=F\.sec==='soon'/);
-  assert.match(source, /soon\?ANNOUNCEMENTS\.map\(function\(p\)\{return\{p:p,b:null\}\}\)/, 'the coming-soon list is the announcements, never sale offers');
-  assert.match(source, /return\(soon\|\|x\.b\)&&/, 'every other list still needs the platform eligible offer');
-  assert.match(source, /\(F\.min===''\|\|\(!soon&&x\.b\.price>=\+F\.min\)\)&&\(F\.max===''\|\|\(!soon&&x\.b\.price<=\+F\.max\)\)/, 'an announcement has no price, so a price bound leaves it out');
-  assert.match(source, /\(!F\.sec\|\|soon\|\|\(x\.b\.flags\|\|\[\]\)\.indexOf\(F\.sec\)>-1\)/);
+  assert.match(source, /if\(F\.sec==='soon'\)return ANNOUNCEMENTS\.map\(function\(p\)\{return\{p:p,b:null\}\}\)\.sort\(ranked\(/, 'the coming-soon list is the announcements, never sale offers, and returns before any filter');
+  const afterSoon = source.slice(source.indexOf("var q=F.q.toLowerCase()"));
+  assert.match(afterSoon, /return x\.b&&\(!q\|\|/, 'every other list still needs the platform eligible offer');
+  assert.match(afterSoon, /\(F\.min===''\|\|x\.b\.price>=\+F\.min\)&&\(F\.max===''\|\|x\.b\.price<=\+F\.max\)/, 'price bounds compare the platform eligible offer');
   assert.doesNotMatch(source, /\(x\.b\|\|\{price:0\}\)/, 'price filters must never invent a zero price for missing offers');
+  // the page has no filter panel (nor the master chips): nothing can hide an announcement
+  assert.match(core, /h\+=\(x\.id=='soon'\?'':x\.id=='master'\?chips\(\):filterPanel\(l\)\)\+'<div id="res" class="grid"><\/div>'/);
 });
 
 

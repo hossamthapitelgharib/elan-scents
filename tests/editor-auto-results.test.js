@@ -114,26 +114,27 @@ test('size and taxonomy IDs/keys remain part of the loader contract', () => {
 const announced = (id, extra = {}) => ({ id, name: 'Soon ' + id, brand: 'Brand', sizeMl: 50, announcement: true, announcedById: 'store-a', platformEligibleOffer: null, allEligibleOffers: [], ...extra });
 const sale = { id: 'sale-1', name: 'On sale', brand: 'Brand', sizeMl: 50, platformEligibleOffer: { store: 'Store A', storeId: 'store-a', storeProductId: 'sp-a', price: 100, avail: true, flags: ['soon'] } };
 
-test('«قريبًا» in an automatic section lists the announcements: no offer needed, never a sale offer, a price bound leaves it out', () => {
+test('«قريبًا» in an automatic section lists the announcements: no offer needed, never a sale offer, and a price bound never removes one', () => {
   const ctx = designHelpers([sale], [announced('a1'), announced('a2', { announcedById: 'store-b', sizeMl: 100, brand: 'Other' })]);
   const ids = (f) => Array.from(vm.runInContext('autoList(' + JSON.stringify(f) + ')', ctx), (row) => [row.p.id, row.b]);
   assert.deepEqual(ids({ flag: 'soon' }), [['a1', null], ['a2', null]], 'both announcements, with no offer; the sale offer is not one');
-  assert.deepEqual(ids({ flag: 'soon', store: 'store-b' }), [['a2', null]], 'the store filter is the announcing store');
+  assert.deepEqual(ids({ flag: 'soon', store: 'store-b' }), [['a2', null]], 'an owner may still pick the announcing store for a section');
   assert.deepEqual(ids({ flag: 'soon', brand: 'Brand' }), [['a1', null]]);
   assert.deepEqual(ids({ flag: 'soon', size_ml: 100 }), [['a2', null]]);
-  assert.deepEqual(ids({ flag: 'soon', min: 1 }), [], 'an announcement has no price, so a price range cannot include it');
-  assert.deepEqual(ids({ flag: 'soon', max: 500 }), []);
+  assert.deepEqual(ids({ flag: 'soon', min: 1 }), [['a1', null], ['a2', null]], 'an announcement has no price: a price bound is ignored, it never hides one');
+  assert.deepEqual(ids({ flag: 'soon', max: 500 }), [['a1', null], ['a2', null]]);
   assert.deepEqual(Array.from(vm.runInContext("autoList({})", ctx), (row) => row.p.id), ['sale-1'], 'a plain section lists only what is on sale');
   assert.deepEqual(Array.from(vm.runInContext("autoList({ flag: 'soon' })", designHelpers([sale]))), [], 'with no announcement the section is empty');
 });
 
-test('the storefront «قريبًا» page lists announcements and applies the page filters without needing an offer', () => {
+test('the storefront «قريبًا» page lists every announcement whatever the filter state, and the other pages are unchanged', () => {
   const rows = [announced('a1'), announced('a2', { announcedById: 'store-b', brand: 'Other', sizeMl: 100 })];
   const ids = (filters) => Array.from(vm.runInContext('list()', coreCatalog([sale], { sec: 'soon', ...filters }, rows)), (x) => [x.p.id, x.b]);
-  assert.deepEqual(ids({}), [['a1', null], ['a2', null]].sort(), 'the sale perfume with a "soon" flag on its offer is not listed here');
-  assert.deepEqual(ids({ st: 'store-b' }), [['a2', null]]);
-  assert.deepEqual(ids({ br: 'Brand' }), [['a1', null]]);
-  assert.deepEqual(ids({ size: '100' }), [['a2', null]]);
-  assert.deepEqual(ids({ min: '10' }), [], 'a price bound leaves announcements out');
+  const everything = [['a1', null], ['a2', null]];
+  assert.deepEqual(ids({}), everything, 'the sale perfume with a "soon" flag on its offer is not listed here');
+  for (const filters of [{ st: 'store-b' }, { br: 'Brand' }, { size: '100' }, { min: '10' }, { max: '5' }, { q: 'zzz' }, { cat: 'women', oc: 'work', nt: 'oud' }, { ind: 'rated' }]) {
+    assert.deepEqual(ids(filters), everything, 'no filter can hide an announcement: ' + JSON.stringify(filters));
+  }
   assert.deepEqual(Array.from(vm.runInContext('list()', coreCatalog([sale], { sec: '' }, rows)), (x) => x.p.id), ['sale-1'], 'the full catalog is still only what is on sale');
+  assert.deepEqual(Array.from(vm.runInContext('list()', coreCatalog([sale], { sec: '', min: '500' }, rows)), (x) => x.p.id), [], 'filters still work on the sale pages');
 });

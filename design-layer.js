@@ -93,9 +93,8 @@
     return keys.indexOf(wanted) > -1 || ids.indexOf(wanted) > -1;
   }
   /* «قريبًا» is an ANNOUNCEMENT (catalog_coming_soon_announcements): a size a store says it will offer, with no price, no stock and no cart.
-     It is not a sale offer, so it never needs platformEligibleOffer; a price filter cannot apply to it, so any price bound leaves it out. */
+     It is not a sale offer, so it never needs platformEligibleOffer; it has no price, so a price bound is ignored (it never removes an announcement). */
   function soonList(f) {
-    if ((f.min !== undefined && f.min !== '') || (f.max !== undefined && f.max !== '')) return [];
     var src = typeof ANNOUNCEMENTS !== 'undefined' && Array.isArray(ANNOUNCEMENTS) ? ANNOUNCEMENTS : [];
     return src.filter(function (p) {
       if (f.store && String(p.announcedById) !== String(f.store)) return false;
