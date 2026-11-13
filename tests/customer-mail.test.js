@@ -23,9 +23,9 @@ function configure(extra = {}) {
   Object.assign(process.env, { SMTP_USER: 'shop@example.invalid', SMTP_PASSWORD: 'app-password-for-tests', PLATFORM_NOTIFY_EMAIL: 'platform@example.invalid' }, extra);
 }
 
-/* world: { user, profile, claims: { kind: boolean | (kind) => boolean }, sendFails } */
+/* world: { user, profile, claims: { kind: boolean }, sendFails, completeFails } */
 async function call(event, world = {}, { token = 'user-token', body, method = 'POST', waitUntil = true, ip } = {}) {
-  const log = { rpc: [], sent: [], released: [], fetches: [], waiting: [] };
+  const log = { rpc: [], completed: [], sent: [], released: [], releasedTokens: [], fetches: [], waiting: [] };
   const user = Object.assign({ id: USER, email: 'buyer@example.invalid', email_confirmed_at: '2026-10-01T00:00:00Z', created_at: new Date(Date.now() - 60 * 60 * 1000).toISOString() }, world.user);
   const profile = Object.assign({ id: USER, role: 'customer', full_name: 'Test Buyer' }, world.profile);
   const claims = Object.assign({ welcome: true, registered: true }, world.claims);
@@ -39,9 +39,36 @@ async function call(event, world = {}, { token = 'user-token', body, method = 'P
       const args = JSON.parse(options.body);
       log.rpc.push(args);
       if (world.claimFails || world.claimFailsFor === args.p_kind) return json({}, false);
+      if (world.dbState) {
+        const key = `${args.p_user_id}:${args.p_kind}`;
+        if (world.dbState.has(key)) return json(false);
+        world.dbState.set(key, { token: args.p_claim_token, completed: false });
+        return json(true);
+      }
       return json(claims[args.p_kind] !== false);
     }
-    if (url.endsWith('/rpc/release_customer_mail')) { log.released.push(JSON.parse(options.body).p_kind); return json(null); }
+    if (url.endsWith('/rpc/complete_customer_mail')) {
+      const args = JSON.parse(options.body);
+      log.completed.push(args);
+      if (world.completeFails || world.completeFailsFor === args.p_kind) return json(false);
+      if (world.dbState) {
+        const entry = world.dbState.get(`${args.p_user_id}:${args.p_kind}`);
+        if (!entry || entry.token !== args.p_claim_token || entry.completed) return json(false);
+        entry.completed = true;
+      }
+      return json(true);
+    }
+    if (url.endsWith('/rpc/release_customer_mail')) {
+      const args = JSON.parse(options.body);
+      log.released.push(args.p_kind);
+      log.releasedTokens.push(args.p_claim_token);
+      if (world.dbState) {
+        const key = `${args.p_user_id}:${args.p_kind}`;
+        const entry = world.dbState.get(key);
+        if (entry && entry.token === args.p_claim_token && !entry.completed) world.dbState.delete(key);
+      }
+      return json(true);
+    }
     throw new Error('unexpected request ' + url);
   };
   smtp.sendMail = async (options) => {
@@ -164,7 +191,10 @@ test('a new account is welcomed once, at the account\'s own address, from the sh
   assert.equal(welcome.port, 465);
   assert.match(welcome.text, /رحلة تسويقية ممتعة/);
   assert.deepEqual(log.rpc.map((r) => r.p_kind).sort(), ['registered', 'welcome']);
-  assert.ok(log.rpc.every((r) => r.p_min_interval === '100 years'), 'both are once per account, for good');
+  assert.ok(log.rpc.every((r) => r.p_lease === '5 minutes'), 'claims use short leases');
+  assert.ok(log.rpc.every((r) => /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(r.p_claim_token)), 'each claim has a UUID token');
+  assert.deepEqual(log.completed.map((r) => r.p_kind).sort(), ['registered', 'welcome']);
+  assert.ok(log.completed.every((r) => log.rpc.some((c) => c.p_kind === r.p_kind && c.p_claim_token === r.p_claim_token)), 'completion uses the claim token');
 });
 
 test('the welcome is never repeated: a second report of the same account sends nothing', async () => {
@@ -202,7 +232,7 @@ test('a confirmed new account tells the platform mailbox once, with when it regi
   assert.match(notice.text, /تاريخ ووقت التسجيل: .*3 نوفمبر 2026 في 1:02 م \(توقيت القاهرة\)/, 'the registration time, in Cairo time');
   assert.match(notice.text, /تاريخ ووقت تأكيد البريد: .*3 نوفمبر 2026 في 1:03 م \(توقيت القاهرة\)/, 'and the confirmation time');
   assert.match(notice.html, /1:02 م/);
-  assert.equal(log.rpc.find((r) => r.p_kind === 'registered').p_min_interval, '100 years');
+  assert.equal(log.rpc.find((r) => r.p_kind === 'registered').p_lease, '5 minutes');
 
   const again = await call('registered', { claims: { registered: false, welcome: false } });
   assert.equal(again.log.sent.length, 0, 'a second report of the same account sends nothing');
@@ -250,7 +280,58 @@ test('a mail that could not be sent gives its slot back so the next attempt can 
   const { res, log } = await call('registered', { sendFails: true });
   assert.equal(res.statusCode, 202, 'the page is not told about a mail problem');
   assert.deepEqual(log.released.sort(), ['registered', 'welcome']);
+  assert.deepEqual(log.completed, [], 'SMTP failure never completes a claim');
+  assert.equal(log.releasedTokens.length, 2, 'release carries each lease token');
   assert.ok(!JSON.stringify(res.body).includes('smtp'));
+});
+
+test('a released failed claim is available to the next request', async () => {
+  const world = { dbState: new Map(), sendFails: true };
+  const first = await call('registered', world);
+  assert.deepEqual(first.log.released.sort(), ['registered', 'welcome']);
+  assert.equal(world.dbState.size, 0, 'both failed leases were released');
+  world.sendFails = false;
+  const retry = await call('registered', world);
+  assert.equal(retry.res.statusCode, 202);
+  assert.deepEqual(retry.log.completed.map((row) => row.p_kind).sort(), ['registered', 'welcome']);
+  assert.equal(world.dbState.size, 2, 'both retries are durably completed');
+});
+
+test('a completion failure keeps the claim lease until it expires, avoiding an immediate duplicate after SMTP may have accepted the mail', async () => {
+  const world = { dbState: new Map(), completeFails: true };
+  const { res, log } = await call('registered', world);
+  assert.equal(res.statusCode, 202, 'the page is not told about a mail problem');
+  assert.deepEqual(log.sent.map((m) => m.to).sort(), ['buyer@example.invalid', 'platform@example.invalid']);
+  assert.deepEqual(log.released, [], 'do not immediately release a claim after SMTP may have accepted the message');
+  assert.equal(world.dbState.size, 2, 'the two leases remain occupied until their five-minute expiry');
+  for (const args of log.completed) {
+    const claimArgs = log.rpc.find((claimArgs) => claimArgs.p_kind === args.p_kind);
+    const entry = world.dbState.get(`${args.p_user_id}:${args.p_kind}`);
+    assert.ok(claimArgs && claimArgs.p_claim_token, 'the claim has its own token');
+    assert.equal(entry.token, claimArgs.p_claim_token, 'the claim still belongs to the sender');
+    assert.equal(entry.completed, false, 'failed completion is not marked as a delivered mail');
+  }
+});
+
+test('a normal successful delivery completes only after a claim exists; no reservation is treated as a successful send in the DB log', async () => {
+  const { log } = await call('registered');
+  assert.equal(log.completed.length, 2);
+  for (const completion of log.completed) {
+    const claimArgs = log.rpc.find((args) => args.p_kind === completion.p_kind);
+    assert.ok(claimArgs, 'completion follows a granted claim');
+    assert.equal(completion.p_claim_token, claimArgs.p_claim_token);
+  }
+});
+
+test('simultaneous requests for the same account and kind produce one sender, then never repeat a completed mail', async () => {
+  const world = { dbState: new Map() };
+  const attempts = await Promise.all([call('registered', world), call('registered', world)]);
+  assert.equal(attempts.filter((attempt) => attempt.res.body.sent === true).length, 1, 'only one request wins the competing claims');
+  assert.equal(attempts.filter((attempt) => attempt.res.body.reason === 'already_sent').length, 1, 'the competing request sends nothing');
+  assert.equal(attempts.reduce((count, attempt) => count + attempt.log.sent.length, 0), 2, 'the winner sends each distinct mail once');
+  const again = await call('registered', world);
+  assert.equal(again.res.body.reason, 'already_sent');
+  assert.equal(again.log.sent.length, 0, 'successful completion is durable');
 });
 
 test('if the database memory is unavailable nothing is sent, and the answer is a plain error', async () => {

@@ -51,7 +51,7 @@ async function mockPage(page) {
     if (body.action === 'claim' && carry.claimDelay) await new Promise((resolve) => setTimeout(resolve, carry.claimDelay));
     return H.safeFulfill(route, { status: 200, contentType: 'application/json', body: JSON.stringify(body.action === 'claim' ? carry.claimAnswer : { ok: true }) });
   });
-  await page.route('**/api/customer-cart', route => H.safeFulfill(route, { status: 200, contentType: 'application/json', body: '{"ok":true,"items":[]}' }));
+  await page.route('**/api/customer-cart', route => H.safeFulfill(route, { status: 200, contentType: 'application/json', body: '{"ok":true,"items":[],"revision":0}' }));
   await page.route('**/api/request-store-order-cancellation', route => H.safeFulfill(route, { status: 200, contentType: 'application/json', body: '{"requestId":"request-1","duplicate":false}' }));
   await page.route('**/sbgdtuqfrnfeggkwqtrw.supabase.co/**', async route => {
     const request = route.request(), url = new URL(request.url());
@@ -631,7 +631,7 @@ test('20. browser A leaves its cart and hearts for the new account, and browser 
     b.context.on('request', (request) => {
       const url = new URL(request.url());
       if (url.pathname === '/api/signup-carry') order.push('claim');
-      else if (url.pathname.includes('/rest/v1/cart_items') && request.method() === 'GET') order.push('read-cart');
+      else if (url.pathname === '/api/customer-cart' && request.method() === 'GET') order.push('read-cart');
       else if (url.pathname.includes('/rest/v1/favorites') && request.method() === 'GET') order.push('read-favs');
     });
     await openConfirmLink(b);

@@ -24,8 +24,12 @@ test('the cart is saved with the atomic database function, not a delete followed
   const push = core.match(/async function pushCartToCloud\(\)\{.*\n/)[0];
   assert.ok(push.includes('/api/customer-cart'));
   assert.ok(push.includes('items:rows'));
+  assert.ok(push.includes('expectedRevision:CART_SERVER_REVISION'), 'every replacement is conditional on the snapshot revision');
   assert.ok(!push.includes("method:'DELETE'"), 'no separate delete of the stored cart');
   assert.ok(!push.includes('/rest/v1/cart_items'), 'no direct write to cart_items');
+  const sync = core.match(/async function syncCartFromCloud\(mergeLocal\)\{.*\n/)[0];
+  assert.ok(sync.includes("fetch('/api/customer-cart'"), 'the cart and revision are read through the authenticated API');
+  assert.ok(!sync.includes('/rest/v1/cart_items'), 'the browser never reads cart_items directly');
   // A page that has not loaded the catalog yet must not push an empty list over the stored cart.
   assert.match(push, /if\(snapshot\.length&&!rows\.length&&!PERFUMES\.length\)return;/);
 });

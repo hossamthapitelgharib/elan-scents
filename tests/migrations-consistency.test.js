@@ -49,6 +49,21 @@ test('the files recovered verbatim from the live ledger keep their ledger text',
   }
 });
 
+test('the live ledger sources recovered or applied on 2026-11-12 and 2026-11-13 match their statement MD5s', () => {
+  const crypto = require('node:crypto');
+  const recovered = {
+    '20261110081953_catalog_offer_stock_and_announcement_contract.sql': '1c7fe198fe497ad557043b7b941f5c96',
+    '20261111064516_phase2_payment_merchant_shipping.sql': '1c26ff99714319da3bd5771ce1e90779',
+    '20261113141046_customer_cart_revision_cas.sql': 'f3a86a190087ec8d7c7af5681d7a1e56',
+    '20261113141111_customer_mail_claims.sql': '38e3b39b3384225868fcecbe41570db5'
+  };
+  for (const [file, md5] of Object.entries(recovered)) {
+    assert.ok(migrations.includes(file), file + ' is missing');
+    const text = fs.readFileSync(path.join(root, 'migrations', file), 'utf8').replace(/\r?\n$/, '');
+    assert.equal(crypto.createHash('md5').update(text).digest('hex'), md5, file + ' differs from the live ledger statement');
+  }
+});
+
 test('pending migrations are newer than every applied migration', () => {
   if (!pending.length) return;
   const last = migrations[migrations.length - 1].split('_')[0];

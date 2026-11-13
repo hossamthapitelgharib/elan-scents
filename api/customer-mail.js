@@ -1,3 +1,4 @@
+const { randomUUID } = require('node:crypto');
 const { getContext } = require('./_auth');
 const smtp = require('../lib/smtp');
 const templates = require('../lib/mail-templates');
@@ -14,7 +15,7 @@ const { createLimiter, clientIp, setRateLimitHeaders } = require('../lib/rate-li
    runs after the answer (waitUntil on Cloudflare), so a page that is closing does not cut it off. See docs/customer-mail.ar.md. */
 
 const EVENTS = ['registered', 'login'];
-const ONCE = '100 years';   // a slot in public.customer_mail_log that is taken once per account for good
+const CLAIM_LEASE = '5 minutes';
 const limiter = createLimiter({ max: 60, windowMs: 60 * 1000 });
 
 function reply(res, status, body) { res.setHeader('Cache-Control', 'no-store'); res.status(status).setHeader('Content-Type', 'application/json').json(body); }
@@ -42,17 +43,19 @@ async function rpc(context, name, args) {
   if (!response.ok) throw new Error(`${name}_failed`);
   return response.json();
 }
-const claim = (context, kind) => rpc(context, 'claim_customer_mail', { p_user_id: context.user.id, p_kind: kind, p_min_interval: ONCE });
-const release = (context, kind) => rpc(context, 'release_customer_mail', { p_user_id: context.user.id, p_kind: kind }).catch(() => {});
+const claim = (context, kind, token) => rpc(context, 'claim_customer_mail', { p_user_id: context.user.id, p_kind: kind, p_claim_token: token, p_lease: CLAIM_LEASE });
+const complete = (context, kind, token) => rpc(context, 'complete_customer_mail', { p_user_id: context.user.id, p_kind: kind, p_claim_token: token });
+const release = (context, kind, token) => rpc(context, 'release_customer_mail', { p_user_id: context.user.id, p_kind: kind, p_claim_token: token }).catch(() => false);
 
 const YOUNG_ACCOUNT_MS = 3 * 24 * 60 * 60 * 1000;
 
 /* Takes the slot of one mail and, when it was free, adds the mail to the jobs. A database failure loses nothing that an earlier slot already took:
    that mail still goes out, and only when nothing was claimed yet is the failure raised. */
 async function addJob(jobs, context, kind, to, mail) {
+  const token = randomUUID();
   let due = false;
-  try { due = await claim(context, kind); } catch (error) { if (!jobs.length) throw error; return; }
-  if (due) jobs.push({ kind, to, mail });
+  try { due = await claim(context, kind, token); } catch (error) { if (!jobs.length) throw error; return; }
+  if (due) jobs.push({ kind, to, mail, token });
 }
 
 module.exports = async function customerMail(req, res) {
@@ -83,11 +86,17 @@ module.exports = async function customerMail(req, res) {
     if (!jobs.length) return reply(res, 200, { ok: true, sent: false, reason: 'already_sent' });
 
     const work = Promise.all(jobs.map(async (job) => {
+      let delivered = false;
       try {
         await smtp.sendMail({ host: config.host, port: config.port, user: config.user, pass: config.pass, from: { name: config.fromName, address: config.user }, to: job.to, ...job.mail });
+        delivered = true;
+        const completed = await complete(context, job.kind, job.token);
+        if (completed !== true) throw new Error('customer_mail_completion_failed');
       } catch (error) {
         console.error('customer mail failed', job.kind, error && error.code ? error.code : 'error');
-        await release(context, job.kind);   // the next attempt may try again
+        // A successful SMTP send followed by a DB error is ambiguous: keep the lease until
+        // it expires rather than immediately allowing a second request to send the same mail.
+        if (!delivered) await release(context, job.kind, job.token);   // only this lease may be released
       }
     }));
     if (typeof req.waitUntil === 'function') req.waitUntil(work); else await work;

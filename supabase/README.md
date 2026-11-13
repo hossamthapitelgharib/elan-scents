@@ -1,6 +1,17 @@
 # Supabase migrations
 
-`migrations/` contains **118** tracked SQL source files for the live Supabase project, one for every record of the live ledger (`supabase_migrations.schema_migrations`, 118 records, checked read-only on 2026-11-07). Migration files are kept in ascending version order, and `tests/migrations-consistency.test.js` checks local naming and ordering. The Supabase GitHub integration compares the versions of the ledger with the files here and refuses to run ("Remote migration versions not found in local migrations directory") when a ledger version has no file, so every version recorded live must have a file.
+`migrations/` contains **133** tracked SQL source files for the live Supabase project, one for every record of the live ledger (`supabase_migrations.schema_migrations`, 133 records, checked read-only on 2026-11-13). Migration files are kept in ascending version order, and `tests/migrations-consistency.test.js` checks local naming and ordering. The Supabase GitHub integration compares the versions of the ledger with the files here and refuses to run ("Remote migration versions not found in local migrations directory") when a ledger version has no file, so every version recorded live must have a file.
+
+## Current live-ledger match (checked 2026-11-13)
+
+The local version list matches all 133 rows in `supabase_migrations.schema_migrations`, in order; the ordered-version-list MD5 is `86167a97452543560d0c015858b055cf` and the latest recorded version is `20261113141111`. The two sources recovered on 2026-11-12 and the two new security migrations applied on 2026-11-13 are pinned by `tests/migrations-consistency.test.js` and `tests/live-migration-source-integrity.test.js`:
+
+- `20261110081953_catalog_offer_stock_and_announcement_contract` — ledger statement MD5 `1c7fe198fe497ad557043b7b941f5c96`.
+- `20261111064516_phase2_payment_merchant_shipping` — ledger statement MD5 `1c26ff99714319da3bd5771ce1e90779`.
+- `20261113141046_customer_cart_revision_cas` — ledger statement MD5 `f3a86a190087ec8d7c7af5681d7a1e56`; conditional cart writes prevent an older device snapshot from replacing a newer cart.
+- `20261113141111_customer_mail_claims` — ledger statement MD5 `38e3b39b3384225868fcecbe41570db5`; time-limited per-account mail claims prevent concurrent duplicate sends while retaining the durable send log.
+
+The 2026-11-13 migrations were tested against the live schema in one rolled-back transaction before application. Their SQL tests use synthetic accounts and `BEGIN ... ROLLBACK`; the two tests passed after application and left no fixture rows.
 
 ## Records whose file did not exist or carried another version (fixed 2026-11-07)
 The integration's "Supabase Preview" check was red because the ledger held versions without a file here. A migration applied through the Supabase tool is stamped with the **time it was applied**, not with the number the author gave the file, so a file named in advance never matches its ledger record. The rule is: **after applying, the file takes the version the ledger recorded** (`list_migrations`), and a migration applied before its file exists is recovered verbatim from the ledger.

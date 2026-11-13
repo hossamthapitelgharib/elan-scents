@@ -5,10 +5,12 @@ const path = require('node:path');
 
 const core = fs.readFileSync(path.join(__dirname, '..', 'app-core.js'), 'utf8');
 
-test('authenticated cart hydration preserves the exact store_product_id', () => {
-  assert.match(core, /select=store_product_id,quantity/);
-  assert.match(core, /var storeProductId=String\(x\.store_product_id\|\|'\'\),sid=sidForStoreProduct\(storeProductId\)/);
-  assert.match(core, /storeProductId:cloud\[sid\]\.storeProductId,q:cloud\[sid\]\.q/);
+test('authenticated cart hydration preserves the exact store_product_id through the server API', () => {
+  assert.match(core, /fetch\('\/api\/customer-cart',\{headers:\{Authorization:'Bearer '\+\(AUTH&&AUTH\.access_token\|\|''\)\}\}\)/);
+  assert.match(core, /function customerCartRows\(items\).*storeProductId=String\(x&&x\.storeProductId\|\|''\).*quantity/);
+  assert.match(core, /storeProductId:storeProductId,q:Math\.max\(1,\+x\.quantity\|\|1\)/);
+  assert.match(core, /expectedRevision:CART_SERVER_REVISION/);
+  assert.doesNotMatch(core, /rest\/v1\/cart_items/);
 });
 
 test('guest cart hydration preserves offer identity and observed pricing metadata', () => {
