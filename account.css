@@ -257,3 +257,16 @@ body.acct .privacy-links a { color: var(--muted); }
   body.acct .archive-form input { grid-column: 1 / -1; }
   body.acct .acct-order.is-past .acct-order-top { align-items: flex-start; }
 }
+/* Payment (phase 2): the amount due and how to pay, readable at a glance; the first method is the main action. */
+body.acct .acct-order .pay-box { display: flex; justify-content: space-between; align-items: center; gap: 14px; margin-top: 16px; padding: 14px 16px; border: 1px solid var(--gold); border-radius: 14px; background: var(--gold-soft); color: var(--muted); font-size: 13px; line-height: 1.7; }
+body.acct .acct-order .pay-box b { display: block; color: var(--gold-deep); font-size: 15px; }
+body.acct .acct-order .pay-box span { display: block; }
+body.acct .acct-order .pay-box.pay-done { border-color: #cfe2c9; background: #f4faf2; }
+body.acct .acct-order .pay-box.pay-done b { display: inline; margin-inline-end: 6px; color: #3f6b33; font-size: 13px; }
+body.acct .acct-order .pay-box.pay-done span { display: inline; }
+body.acct .acct-order .pay-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+body.acct .acct-order .order-pay { min-height: 40px; padding: 8px 18px; font-size: 14px; white-space: nowrap; }
+body.acct .acct-order .order-timeline ol { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
+body.acct .acct-order .order-timeline li { display: flex; gap: 10px; align-items: flex-start; font-size: 12px; color: var(--muted); }
+body.acct .acct-order .order-timeline li small { display: block; }
+@media (max-width: 700px) { body.acct .acct-order .pay-box { display: block; } body.acct .acct-order .pay-actions { margin-top: 10px; } body.acct .acct-order .order-pay { flex: 1 1 100%; } }

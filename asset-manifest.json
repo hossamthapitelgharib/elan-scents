@@ -1,10 +1,10 @@
 {
-  "version": "20261114-02",
+  "version": "20261114-04",
   "files": {
-    "account.css": "4d9a36a04bf71ac8",
-    "account.js": "6b311fa04cc2241d",
+    "account.css": "b62ef68373b3cc72",
+    "account.js": "c891c15c4c4bb317",
     "app-core.js": "fee83c7c79dd3790",
-    "app.js": "a444fde5dc21f64e",
+    "app.js": "479db079bdd29e1e",
     "auth-session.js": "005394b4b936cdb2",
     "consent.css": "79e25a99fc582a15",
     "consent.js": "c383591883071ab4",
@@ -22,7 +22,7 @@
     "hero-early.js": "d8c19f6ae161bf72",
     "hero-video.js": "df4dbe08e2d9eea3",
     "platform-dashboard.js": "5b67e757196451be",
-    "portal.css": "4077f48b80c37f3e",
+    "portal.css": "ee5720a53e921fd5",
     "portal.js": "9c0ea45e441d03e3",
     "privacy.css": "bbb7614467979223",
     "pw-eye.js": "6bec44ed621467c4",

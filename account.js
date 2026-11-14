@@ -3,7 +3,7 @@ const statusA = { awaiting_store_confirmation: ['بانتظار تأكيد ال�
 const shippingA = { preparing: ['قيد التجهيز', 'gold'], handed_to_carrier: ['تم تسليمها لشركة الشحن', 'blue'], in_transit: ['في الطريق', 'blue'], out_for_delivery: ['خرجت للتسليم', 'blue'], delivered: ['تم التسليم', 'green'], delayed: ['متأخرة', 'orange'], returned: ['مرتجعة', 'red'], cancelled: ['ملغاة', 'red'] };
 // The sentence at the top of an order that is still being followed, and the four steps under it (the order's whole life in one glance).
 const headlineA = { awaiting_store_confirmation: 'المتجر يراجع طلبك', store_confirmed: 'أكّد المتجر طلبك', processing: 'المتجر يجهّز طلبك', shipped: 'طلبك في الطريق إليك', needs_review: 'طلبك قيد المراجعة' };
-const stepsA = ['تم الطلب', 'أكّد المتجر', 'خرج للشحن', 'وصل إليك'];
+const stepsA = ['تم الطلب', 'أكّد المتجر', 'الدفع', 'خرج للشحن', 'وصل إليك'];
 const terminalA = new Set(['completed', 'delivered', 'store_cancelled', 'store_rejected', 'cancelled', 'restored', 'closed']);
 // Errors go where the person can see them: the login box before sign-in, the orders page after it
 // (the login box is hidden once the orders are shown, so an error written there is never seen).
@@ -22,7 +22,21 @@ const currencyA = currency => (!currency || currency === 'EGP' ? 'ج.م' : Strin
 const moneyA = (amount, currency = 'EGP') => `${numA(amount)} ${escA(currencyA(currency))}`;
 // Arabic counts: one, two, 3-10 plural, 11 and more singular accusative.
 const countA = (n, one, two, few, many) => (n === 1 ? one : n === 2 ? two : n >= 3 && n <= 10 ? `${n} ${few}` : `${n} ${many}`);
-const stateA = request => { const restoration = (request.store_order_cart_restorations || [])[0]; if (restoration && restoration.status === 'restored') return 'restored'; return request.status || 'awaiting_store_confirmation'; };
+// «completed» is what the platform records when the merchant's notice matched: it can come BEFORE the shipment, so it is not a delivery.
+// For an order of the payment flow (approved_at is set) the page says «delivered» only when delivery is documented (a delivered shipment
+// or sale_proven_at); until then it is still being prepared or on its way. An older order without approved_at keeps «completed» as it was.
+const MOVING_A = ['handed_to_carrier', 'in_transit', 'out_for_delivery', 'delayed'];
+const stateA = request => {
+  const restoration = (request.store_order_cart_restorations || [])[0];
+  if (restoration && restoration.status === 'restored') return 'restored';
+  const status = request.status || 'awaiting_store_confirmation';
+  if (status === 'completed' && request.approved_at) {
+    const shipment = shipmentA(request);
+    if (request.sale_proven_at || (shipment && shipment.shipping_status === 'delivered')) return 'delivered';
+    return shipment && MOVING_A.includes(shipment.shipping_status) ? 'shipped' : 'processing';
+  }
+  return status;
+};
 const shipmentA = request => (request.store_shipments || [])[0] || null;
 // Cancellation is a REQUEST to the store. What the customer sees is derived from the order itself: the request is
 // waiting while the store has not answered, accepted when the store rejected/cancelled the order, declined when it went on.
@@ -72,8 +86,11 @@ function updateCartShortcut(restored = 0) { const element = document.querySelect
 function stageA(request) {
   const state = stateA(request), shipment = shipmentA(request), shipping = shipment && shipment.shipping_status;
   const delivered = state === 'delivered' || state === 'completed' || shipping === 'delivered';
-  const shipped = delivered || state === 'shipped' || ['handed_to_carrier', 'in_transit', 'out_for_delivery', 'delayed'].includes(shipping);
-  return [true, shipped || state === 'store_confirmed' || state === 'processing', shipped, delivered];
+  const shipped = delivered || state === 'shipped' || MOVING_A.includes(shipping);
+  const confirmed = shipped || ['store_confirmed', 'processing'].includes(state);
+  // Shipping is refused by the database before a recorded payment, so anything shipped was paid; an older order (no approved_at) has no payment step to wait for.
+  const paid = shipped || paidA(request) || (!request.approved_at && confirmed);
+  return [true, confirmed, paid, shipped, delivered];
 }
 function trackerA(request) {
   const done = stageA(request), current = done.indexOf(false);
@@ -83,7 +100,7 @@ function trackerA(request) {
 const noShipmentA = { store_confirmed: 'المتجر يجهّز طلبك. ستظهر بيانات الشحن هنا فور تسليمه لشركة الشحن.', processing: 'المتجر يجهّز طلبك. ستظهر بيانات الشحن هنا فور تسليمه لشركة الشحن.', shipped: 'خرج طلبك من المتجر. ستظهر بيانات شركة الشحن هنا قريبًا.' };
 function shipmentLine(request) {
   const shipment = shipmentA(request);
-  if (!shipment) { const text = noShipmentA[stateA(request)]; return text ? `<div class="shipment-box shipment-empty"><span>${text}</span></div>` : ''; }
+  if (!shipment) { const text = (paidA(request) || !request.approved_at || ['shipped', 'delivered'].includes(stateA(request))) ? noShipmentA[stateA(request)] : ''; return text ? `<div class="shipment-box shipment-empty"><span>${text}</span></div>` : ''; }
   const deliveryVerification = shipment.shipping_status === 'delivered'
     ? shipment.delivery_verified_at ? `أكدت المنصة التسليم من شركة الشحن في ${dateTimeA(shipment.delivery_verified_at)}.` : 'أبلغ المتجر عن التسليم؛ جارٍ تحقق المنصة من بيانات شركة الشحن.'
     : '';
@@ -96,6 +113,7 @@ function shipmentLine(request) {
 const payStatusA = { not_started: ['بانتظار اختيار طريقة الدفع', 'gold'], awaiting_payment: ['بانتظار نتيجة الدفع', 'gold'], paid: ['تم الدفع', 'green'], cod_selected: ['الدفع عند الاستلام', 'blue'], failed: ['تعذر الدفع', 'orange'] };
 const payKindA = { card: 'بطاقة', cod: 'الدفع عند الاستلام', other: 'طريقة أخرى' };
 const eventSourceA = { merchant_api: 'من المتجر', merchant_notice: 'من المتجر', store_dashboard: 'من المتجر', platform_admin: 'من المنصة' };
+const paidA = request => ['paid', 'cod_selected'].includes(request.payment_status);
 const payKeysA = new Map();
 let paying = false;
 function canChoosePayment(request) {
@@ -115,7 +133,7 @@ function paymentLine(request) {
   }
   if (!canChoosePayment(request)) return '';
   const note = status === 'awaiting_payment' ? 'بانتظار نتيجة الدفع من المتجر. إن لم تُكمل الدفع يمكنك المحاولة من جديد.' : status === 'failed' ? 'تعذر الدفع. اختر طريقة الدفع من جديد.' : 'أكّد المتجر طلبك. اختر طريقة الدفع لإكمال الطلب.';
-  const buttons = request.payment_options.map(option => `<button class="ghost order-pay" type="button" data-pay-request="${escA(request.id)}" data-pay-method="${escA(option.id)}">${escA(option.labelAr || payKindA[option.kind] || 'ادفع')}</button>`).join('');
+  const buttons = request.payment_options.map((option, index) => `<button class="${index === 0 ? 'primary' : 'ghost'} order-pay" type="button" data-pay-request="${escA(request.id)}" data-pay-method="${escA(option.id)}">${escA(option.labelAr || payKindA[option.kind] || 'ادفع')}</button>`).join('');
   return `<div class="pay-box" role="status"><div><b>المبلغ المستحق ${moneyA(amount, request.currency)}</b><span>${note}</span></div><div class="pay-actions">${buttons}</div></div>`;
 }
 function timelineLine(request) {
@@ -157,7 +175,7 @@ async function payOrder(requestId, methodId, button) {
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payErrors[data.error] || 'تعذر تنفيذ اختيار طريقة الدفع، حاول مرة أخرى.');
-    if (data.paymentUrl) { location.assign(data.paymentUrl); return; }
+    if (typeof data.paymentUrl === 'string' && /^https:\/\//i.test(data.paymentUrl)) { location.assign(data.paymentUrl); return; }
     if (option.kind !== 'cod') throw new Error('صفحة الدفع لدى المتجر غير متاحة الآن، حاول لاحقًا أو اختر طريقة أخرى.');
     await loadAccount();
   } catch (error) {
@@ -197,7 +215,7 @@ function requestLine(request) {
     return `<article class="acct-order is-past" data-id="${escA(request.id)}" data-state="${escA(state)}"><div class="acct-order-top"><div class="acct-order-title"><h3>${names || 'تفاصيل المنتجات داخل الطلب'}${more}</h3><p class="acct-sub">من ${store} · ${number} · ${dateA(request.created_at)}</p></div><div class="acct-side">${badgeA(state)}${totalBoxA(request)}</div></div>${rejectionLine(request)}${cancelLine(request)}<div class="acct-past-actions">${reorder}${detailsA(request, items, shipmentLine(request))}</div></article>`;
   }
   // Still being followed: what is happening now (the sentence, the four steps, the shipment), then what was ordered.
-  return `<article class="acct-order is-active" data-id="${escA(request.id)}" data-state="${escA(state)}"><div class="acct-order-top"><div class="acct-order-title"><h3>${headlineA[state] || 'طلبك قيد المتابعة'}</h3><p class="acct-sub">من ${store} · ${number}</p></div>${totalBoxA(request)}</div>${trackerA(request)}${paymentLine(request)}${shipmentLine(request)}${itemsPreviewA(items)}${cancelLine(request)}<div class="acct-order-foot"><span>تاريخ الطلب: ${dateA(request.created_at)}</span>${detailsA(request, items, '', reorder)}</div></article>`;
+  return `<article class="acct-order is-active" data-id="${escA(request.id)}" data-state="${escA(state)}"><div class="acct-order-top"><div class="acct-order-title"><h3>${state === 'store_confirmed' && request.approved_at && !paidA(request) ? 'أكمل الدفع ليجهّز المتجر طلبك' : (headlineA[state] || 'طلبك قيد المتابعة')}</h3><p class="acct-sub">من ${store} · ${number}</p></div>${totalBoxA(request)}</div>${trackerA(request)}${paymentLine(request)}${shipmentLine(request)}${itemsPreviewA(items)}${cancelLine(request)}<div class="acct-order-foot"><span>تاريخ الطلب: ${dateA(request.created_at)}</span>${detailsA(request, items, '', reorder)}</div></article>`;
 }
 function flatten(sessions) { return sessions.flatMap(session => (session.store_order_requests || []).map(request => ({ ...request, session }))); }
 function mergeSessions(newer, older) {

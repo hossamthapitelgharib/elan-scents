@@ -170,9 +170,9 @@ test('6. signed-in account page renders active order, shipping area and order co
     assert.match(await page.locator('#ordersCount').innerText(), /واحد/);
     assert.match(await page.locator('#ordersHeadline').innerText(), /عندك طلب واحد/);
     assert.match(await page.locator('#activeOrders').innerText(), /ELN-TEST-0001/);
-    // An order the store has not confirmed yet: its sentence, the four steps with the second one "now", its total, and no empty shipping box.
+    // An order the store has not confirmed yet: its sentence, the five steps with the second one "now", its total, and no empty shipping box.
     assert.match(await page.locator('#activeOrders .acct-order h3').first().innerText(), /المتجر يراجع طلبك/);
-    assert.equal(await page.locator('#activeOrders .acct-steps li').count(), 4);
+    assert.equal(await page.locator('#activeOrders .acct-steps li').count(), 5);
     assert.match(await page.locator('#activeOrders .acct-steps li.current').innerText(), /أكّد المتجر/);
     assert.match(await page.locator('#activeOrders .acct-total').innerText(), /150\s*ج\.م/);
     assert.equal(await page.locator('#activeOrders .shipment-box').count(), 0);
@@ -711,9 +711,9 @@ test('21. the orders page shows every state in the shop\'s own look on a phone: 
     assert.match(await page.locator('#ordersHeadline').innerText(), /عندك طلبان قيد المتابعة/);
     assert.deepEqual(await page.locator('#stats .acct-stat').allInnerTexts().then(list => list.map(text => text.replace(/\s+/g, ' ').trim())), ['2 جارية', '1 وصلت', '1 ملغاة']);
 
-    // shipped: three steps done, the last one "now"; the shipment box and only the first three items (the rest is behind "details")
+    // shipped: four steps done, the last one "now"; the shipment box and only the first three items (the rest is behind "details")
     const shipped = page.locator('#activeOrders .acct-order').nth(0);
-    assert.deepEqual(await shipped.locator('.acct-steps li').evaluateAll(list => list.map(li => li.className)), ['done', 'done', 'done', 'current']);
+    assert.deepEqual(await shipped.locator('.acct-steps li').evaluateAll(list => list.map(li => li.className)), ['done', 'done', 'done', 'done', 'current']);
     assert.equal(await shipped.locator('.shipment-box').count(), 1);
     assert.equal(await shipped.locator('.acct-items li:not(.more)').count(), 3);
     assert.match(await shipped.locator('.acct-items .more').innerText(), /منتجان آخران/);

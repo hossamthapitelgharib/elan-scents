@@ -1,4 +1,4 @@
-// The redesigned orders page (account.html + account.css + the render half of account.js): the four steps of an order, the sentence at the top,
+// The redesigned orders page (account.html + account.css + the render half of account.js): the five steps of an order, the sentence at the top,
 // money and dates in the shop's digits, Arabic counts, what each kind of card shows (and what it must not), and the sheet's own rules.
 // account.js runs in a stub page; every order below is made up.
 const test = require('node:test');
@@ -32,21 +32,57 @@ const order = (extra = {}) => ({ id: 'r1', tracking_number: 'ELN-TEST-0001', sta
 const card = (p, request) => p.run(`requestLine(${JSON.stringify(request)})`);
 const steps = markup => [...markup.matchAll(/<li class="(done|current|todo)"/g)].map(match => match[1]);
 
-test('the four steps follow what happened to the order: the first one that has not happened is "now"', () => {
+test('the five steps (placed, confirmed, payment, shipping, delivered) follow what happened to the order: the first one that has not happened is "now"', () => {
   const p = load();
   const at = (status, extra) => steps(card(p, order({ status, ...extra })));
-  assert.deepEqual(at('awaiting_store_confirmation'), ['done', 'current', 'todo', 'todo']);
-  assert.deepEqual(at('needs_review'), ['done', 'current', 'todo', 'todo']);
-  assert.deepEqual(at('store_confirmed'), ['done', 'done', 'current', 'todo']);
-  assert.deepEqual(at('processing'), ['done', 'done', 'current', 'todo']);
-  assert.deepEqual(at('shipped'), ['done', 'done', 'done', 'current']);
+  assert.deepEqual(at('awaiting_store_confirmation'), ['done', 'current', 'todo', 'todo', 'todo']);
+  assert.deepEqual(at('needs_review'), ['done', 'current', 'todo', 'todo', 'todo']);
+  // an older order (no approved_at) has no payment step to wait for
+  assert.deepEqual(at('store_confirmed'), ['done', 'done', 'done', 'current', 'todo']);
+  assert.deepEqual(at('processing'), ['done', 'done', 'done', 'current', 'todo']);
+  assert.deepEqual(at('shipped'), ['done', 'done', 'done', 'done', 'current']);
+  // an order of the payment flow: the store confirmed, nothing is paid yet, so payment is what is "now"
+  assert.deepEqual(at('store_confirmed', { approved_at: '2026-11-12T10:00:00Z', payment_status: 'not_started' }), ['done', 'done', 'current', 'todo', 'todo']);
+  assert.deepEqual(at('store_confirmed', { approved_at: '2026-11-12T10:00:00Z', payment_status: 'failed' }), ['done', 'done', 'current', 'todo', 'todo']);
+  assert.deepEqual(at('store_confirmed', { approved_at: '2026-11-12T10:00:00Z', payment_status: 'paid' }), ['done', 'done', 'done', 'current', 'todo']);
+  assert.deepEqual(at('store_confirmed', { approved_at: '2026-11-12T10:00:00Z', payment_status: 'cod_selected' }), ['done', 'done', 'done', 'current', 'todo']);
   // a shipment the carrier already has moves the steps even before the order's own status does
-  assert.deepEqual(at('processing', { store_shipments: [{ shipping_status: 'in_transit' }] }), ['done', 'done', 'done', 'current']);
-  assert.deepEqual(at('processing', { store_shipments: [{ shipping_status: 'preparing' }] }), ['done', 'done', 'current', 'todo']);
-  assert.deepEqual(at('shipped', { store_shipments: [{ shipping_status: 'delivered' }] }), ['done', 'done', 'done', 'done']);
+  assert.deepEqual(at('processing', { store_shipments: [{ shipping_status: 'in_transit' }] }), ['done', 'done', 'done', 'done', 'current']);
+  assert.deepEqual(at('processing', { store_shipments: [{ shipping_status: 'preparing' }] }), ['done', 'done', 'done', 'current', 'todo']);
+  assert.deepEqual(at('shipped', { store_shipments: [{ shipping_status: 'delivered' }] }), ['done', 'done', 'done', 'done', 'done']);
   const marked = card(p, order({ status: 'processing' }));
   assert.equal((marked.match(/aria-current="step"/g) || []).length, 1, 'exactly one step is announced as the current one');
   assert.match(marked, /aria-label="مراحل الطلب"/);
+});
+
+test('an approved order that is not paid yet says so: no «the store is preparing» box, the sentence asks for the payment, the first method is the main button', () => {
+  const p = load();
+  const unpaid = order({ status: 'store_confirmed', approved_at: '2026-11-12T10:00:00Z', payment_status: 'not_started', payable_amount: 3510,
+    payment_options: [{ id: 'm1', kind: 'card', labelAr: 'بطاقة بنكية' }, { id: 'm2', kind: 'cod', labelAr: 'الدفع عند الاستلام' }] });
+  const html = card(p, unpaid);
+  assert.match(html, /<h3>أكمل الدفع ليجهّز المتجر طلبك<\/h3>/);
+  assert.equal(html.includes('shipment-empty'), false, 'nothing is being prepared before the payment');
+  assert.match(html, /class="primary order-pay"[^>]*data-pay-method="m1"/, 'the first method is the main action');
+  assert.match(html, /class="ghost order-pay"[^>]*data-pay-method="m2"/);
+  const paid = card(p, { ...unpaid, payment_status: 'cod_selected' });
+  assert.match(paid, /shipment-empty[^>]*><span>المتجر يجهّز طلبك/, 'once paid (or cash on delivery chosen) the shipping box returns');
+  assert.match(paid, /<h3>أكّد المتجر طلبك<\/h3>/);
+});
+
+test('«completed» is not a delivery: for an order of the payment flow the page says delivered only when delivery is documented', () => {
+  const p = load();
+  const flow = { approved_at: '2026-11-12T10:00:00Z', payment_status: 'paid' };
+  const matched = card(p, order({ status: 'completed', ...flow }));
+  assert.match(matched, /class="acct-order is-active"/, 'a matched notice before shipping keeps the order in the followed list');
+  assert.match(matched, /<h3>المتجر يجهّز طلبك<\/h3>/);
+  assert.match(card(p, order({ status: 'completed', ...flow, store_shipments: [{ shipping_status: 'in_transit' }] })), /<h3>طلبك في الطريق إليك<\/h3>/);
+  for (const proof of [{ sale_proven_at: '2026-11-13T10:00:00Z' }, { store_shipments: [{ shipping_status: 'delivered' }] }]) {
+    const done = card(p, order({ status: 'completed', ...flow, ...proof }));
+    assert.match(done, /class="acct-order is-past"/);
+    assert.match(done, /تم التسليم/);
+  }
+  // an older completed order (no approved_at) is finished as it always was
+  assert.match(card(p, order({ status: 'completed' })), /class="acct-order is-past"/);
 });
 
 test('an open order shows its sentence, the steps and the total; a finished one is a compact row with "order again" in reach and no steps', () => {
