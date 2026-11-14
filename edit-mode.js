@@ -386,6 +386,38 @@
     say('اتحط في صف واحد جنب اللي فوقه. المسافات بين الصفوف وبين العناصر ثابتة من تنسيق المنصة.');
     return { row: true };
   }
+  /* «ظبّط المسافات» (owner, 13 Nov 2026, the simple version): one pass that puts the page on the platform's fixed gaps.
+     1) Whole sections and blocks lose their free offsets (a section pulled up or sideways by hand is what made the gaps uneven).
+     2) Two things that SAT side by side only because of those offsets (the same height band, no overlap, in page order) become a real row, the same
+        {beside} the menu writes; a row holds four at most.
+     It is one undo step and nothing is published until Save. No preview and no button of its own to go back: «تراجع» does it. */
+  function fixSpacing() {
+    var main = document.getElementById('main'); if (!main) return null;
+    var all = entries(), dev = device(), list = [];
+    layer.topNodes(main).forEach(function (n) {
+      var hit = all.filter(function (x) { return x.el === n && (x.kind === 'section' || x.kind === 'block'); })[0];
+      if (hit && boxOf(n)) list.push(hit);
+    });
+    var mw = main.getBoundingClientRect().width || 0, joins = [], run = 1, i;
+    function offset(id) { return ['all', dev].some(function (d) { var b = work.edits && work.edits[d], t = b && b[id]; return !!(t && (t.dx || t.dy)); }); }
+    for (i = 1; i < list.length; i++) {
+      var p = list[i - 1], e = list[i], rp = p.el.getBoundingClientRect(), re = e.el.getBoundingClientRect();
+      var band = Math.min(rp.bottom, re.bottom) - Math.max(rp.top, re.top), across = Math.min(rp.right, re.right) - Math.max(rp.left, re.left);
+      var side = band >= 0.5 * Math.min(rp.height, re.height) && across <= 8 && rp.width <= mw * 0.85 && re.width <= mw * 0.85;
+      var rowP = rowOf(p.el), together = rowP && rowP === rowOf(e.el);
+      if (side && !together && !hasOwnBeside(e.id) && run < ROW_MAX && !(rowP && rowP.children.length >= ROW_MAX)) { joins.push({ id: e.id, after: p.id }); run++; }
+      else run = 1;
+    }
+    var freed = list.filter(function (x) { return offset(x.id); });
+    if (!joins.length && !freed.length) { say('المسافات مظبوطة أصلًا، مفيش حاجة تتغير.'); return { changed: 0, rows: 0, message: 'المسافات مظبوطة أصلًا، مفيش حاجة تتغير.' }; }
+    mutate(function () {
+      joins.forEach(function (j) { edit(dev, j.id).beside = scopeId(j.after); });
+      list.forEach(function (x) { dropOffsets(x.id); });
+    });
+    var msg = 'ظبّطت المسافات: شلت الإزاحة اليدوية عن ' + freed.length + (freed.length === 1 ? ' عنصر' : ' عناصر') + (joins.length ? '، ورتّبت ' + joins.length + ' جنب اللي قبلهم في صفوف' : '') + '. مفيش حاجة اتنشرت لحد ما تدوس حفظ، و«تراجع» يرجّع كله مرة واحدة.';
+    say(msg);
+    return { changed: freed.length, rows: joins.length, message: msg };
+  }
   function leaveRow(id) {
     var e = entryById(id);
     if (!e || !rowOf(e.el)) { say('العنصر ده مش في صف مع غيره.'); return null; }
@@ -1206,6 +1238,7 @@
     switch (action) {
       case 'page.getState': return snapshot();
       case 'page.check': return { warnings: publishWarnings() };
+      case 'page.fixSpacing': return fixSpacing();
       case 'page.markSaved': if (readOnly) throw new Error('هذا الإصدار للقراءة فقط ولا يمكن تأكيد حفظه.'); baseRevision = p.revision; undoStack = []; redoStack = []; baseJson = JSON.stringify(work); dirty = true; setDirty(false); if (hostApi) hostApi.revision(baseRevision); return snapshot();
       case 'element.select': select(need(p.elementId).id); return { selected: selectedId };
       case 'element.move': { var e1 = need(p.elementId || selectedId); mutate(function () { var t = edit(device(), e1.id); t.dx = Math.round(+p.dx || 0); t.dy = Math.round(+p.dy || 0); }); return null; }

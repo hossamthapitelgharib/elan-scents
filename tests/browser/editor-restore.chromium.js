@@ -38,16 +38,16 @@ async function openEditor(size, answers) {
 const statusText = (page) => page.evaluate(() => document.getElementById('status').textContent);
 
 for (const size of H.WIDTHS) {
-  test('header buttons on ' + size.name + ': six of the same small size in one row, the restore button between Save and the library with a look of its own', async () => {
+  test('header buttons on ' + size.name + ': seven of the same small size in one row, the restore button right after Save with a look of its own, then «ظبّط المسافات»', async () => {
     const { context, page } = await openEditor(size);
     try {
       const r = await page.evaluate(() => {
-        const ids = ['undo', 'redo', 'save', 'restorePrev', 'library', 'editorLogout'];
+        const ids = ['undo', 'redo', 'save', 'restorePrev', 'fixSpacing', 'library', 'editorLogout'];
         const boxes = ids.map((id) => { const b = document.getElementById(id), r = b.getBoundingClientRect(); return { id, top: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height), bg: getComputedStyle(b).backgroundColor, bw: getComputedStyle(b).borderTopStyle }; });
         const order = Array.from(document.querySelectorAll('#editorHeaderActions>button')).map((b) => b.id);
         return { boxes, order, label: document.querySelector('#restorePrev .lbl').textContent.trim(), aria: document.getElementById('restorePrev').getAttribute('aria-label'), overflowX: document.documentElement.scrollWidth > innerWidth };
       });
-      assert.deepEqual(r.order, ['undo', 'redo', 'save', 'restorePrev', 'library', 'editorLogout'], 'restore sits right after Save');
+      assert.deepEqual(r.order, ['undo', 'redo', 'save', 'restorePrev', 'fixSpacing', 'library', 'editorLogout'], 'restore sits right after Save, then the spacing button');
       assert.ok(r.boxes.every((b) => Math.abs(b.top - r.boxes[0].top) <= 2), 'one row: ' + JSON.stringify(r.boxes));
       assert.ok(r.boxes.every((b) => Math.abs(b.w - r.boxes[0].w) <= 2 && b.h === r.boxes[0].h), 'the same size: ' + JSON.stringify(r.boxes));
       assert.ok(r.boxes[0].h <= 40 && r.boxes[0].w <= 60, 'small: ' + r.boxes[0].w + 'x' + r.boxes[0].h);
