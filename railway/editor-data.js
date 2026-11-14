@@ -88,6 +88,38 @@ function catalogSlug(name) {
     .replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-+|-+$/g, '').slice(0, 72);
   return slug || ('catalog-' + crypto.createHash('sha256').update(canonicalName(name)).digest('hex').slice(0, 16));
 }
+/* What the editor itself creates is remembered (editor_created_records) so that, after a save, whatever the saved page never used can be cleaned up
+   (owner, 13 Nov 2026). Best effort: if remembering fails the record simply stays unremembered, which means it is never cleaned up, never lost. */
+async function remember(ctx, kind, id) {
+  if (typeof id !== 'string' || !UUID.test(id)) return;
+  try { await sb(ctx, 'editor_created_records', '?on_conflict=kind,record_id', 'POST', [{ kind, record_id: id }], 'resolution=ignore-duplicates,return=minimal'); } catch (_) { /* untracked is safe */ }
+}
+
+/* Every smart-section id (block ref) that a design uses, on any page. Walks the whole file so a new place for blocks cannot hide a section from it. */
+function smartRefsOf(design) {
+  const refs = new Set();
+  (function walk(node, depth) {
+    if (!node || typeof node !== 'object' || depth > 12) return;
+    if (Array.isArray(node)) { node.forEach((x) => walk(x, depth + 1)); return; }
+    if (node.type === 'smart' && typeof node.ref === 'string') refs.add(node.ref);
+    Object.keys(node).forEach((k) => walk(node[k], depth + 1));
+  })(design, 0);
+  return Array.from(refs);
+}
+
+/* After a successful save: remove what the editor created and the saved page never used (see supabase/migrations/*_editor_cleanup_unsaved.sql for what
+   is and is not touched). The keep list comes from the design file on the branch, never from the browser. If that file cannot be read or is not a design,
+   nothing runs: an empty or unknown list must never look like «the page uses nothing». */
+async function cleanupUnsaved(ctx) {
+  let text = null;
+  try { text = await require('./editor.js').internals.currentDesignText(); } catch (_) { text = null; }
+  let design = null;
+  try { design = typeof text === 'string' && text.trim() ? JSON.parse(text) : null; } catch (_) { design = null; }
+  if (!design || typeof design !== 'object' || Array.isArray(design) || !Number.isInteger(design.version)) return { ok: true, skipped: 'design_unreadable' };
+  const removed = await sb(ctx, 'rpc/editor_cleanup_unsaved', '', 'POST', { p_keep_refs: smartRefsOf(design) });
+  return { ok: true, removed };
+}
+
 async function createCatalogRecord(ctx, input) {
   const kind = String(input && input.kind || '');
   const spec = CATALOG_ENTITIES[kind];
@@ -118,7 +150,10 @@ async function createCatalogRecord(ctx, input) {
     row.status = 'inactive';
   }
   const inserted = await sb(ctx, spec.table, '?on_conflict=' + spec.conflict, 'POST', [row], 'resolution=ignore-duplicates,return=representation');
-  if (Array.isArray(inserted) && inserted[0]) return { ok: true, kind, record: inserted[0], created: true };
+  if (Array.isArray(inserted) && inserted[0]) {
+    if (kind !== 'store') await remember(ctx, kind, inserted[0].id); // a store has dependants that cascade: never cleaned up automatically
+    return { ok: true, kind, record: inserted[0], created: true };
+  }
 
   // A concurrent identical request may have won the unique-key race. Resolve only to the same name.
   const identity = spec.unique === 'name' ? name : row.slug;
@@ -376,6 +411,7 @@ async function createSection(ctx, input) {
   }]);
   const created = Array.isArray(rows) ? rows[0] : null;
   if (!created || !created.id) throw Object.assign(new Error('section_create_unconfirmed'), { status: 502 });
+  await remember(ctx, 'section', created.id);
   if (productSizeIds.length) {
     try {
       const items = await sb(ctx, 'editor_section_items', '', 'POST', productSizeIds.map((productSizeId, sortOrder) => ({ section_id: created.id, product_size_id: productSizeId, sort_order: sortOrder })));
@@ -402,6 +438,7 @@ module.exports = async function editorData(req, res) {
     if (action === 'library.delete' && req.method === 'POST') return reply(res, 200, await deleteLibraryItem(ctx, input));
     if (action === 'catalog.create' && req.method === 'POST') return reply(res, 200, await createCatalogRecord(ctx, input));
     if (action === 'section.create' && req.method === 'POST') return reply(res, 200, await createSection(ctx, input));
+    if (action === 'cleanup.run' && req.method === 'POST') return reply(res, 200, await cleanupUnsaved(ctx));
     return reply(res, 400, { ok: false, error: 'unknown_action' });
   } catch (e) {
     reply(res, e.status || 502, { ok: false, error: e.message === 'supabase_request_failed' ? 'data_provider_failed' : (e.message || 'editor_data_failed') });
