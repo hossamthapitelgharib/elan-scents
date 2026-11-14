@@ -1186,10 +1186,26 @@
   function snapshot() { return { revision: baseRevision, design: clone(work), device: device(), dirty: dirty, readOnly: readOnly, scope: scopeInfo(), archive: archiveList(), selected: info(selectedId && entryById(selectedId)) }; }
   function need(id) { var e = id && entryById(id); if (!e) throw new Error('اختاري عنصر الأول.'); return e; }
 
+  /* Before publishing: the smart sections (brand cards, store cards, filtered sections) that show NO perfumes, each with the plain reason.
+     Only what the page really shows is judged, so this can never disagree with what a visitor would see. A check that cannot run reports nothing. */
+  function publishWarnings() {
+    var rows = [];
+    try { rows = layer.smartReport(); } catch (e) { return []; }
+    return rows.filter(function (r) { return r.count === 0; }).map(function (r) {
+      var f = r.filters || {}, why;
+      if (f.store) why = 'المتجر ده مفيهوش منتجات ظاهرة للزوار (غالبًا لسه مش مفعّل أو مش مربوط)';
+      else if (f.brand) why = 'البراند ده مفيهوش منتجات متاحة دلوقتي';
+      else if (r.mode === 'manual') why = 'المنتجات اللي اتختارت فيه مش متاحة دلوقتي';
+      else why = 'مفيش منتجات بتطابق الفلتر بتاعه';
+      return { id: r.id, name: r.name || 'سيكشن بدون اسم', text: why };
+    });
+  }
+
   async function execute(action, p, meta) {
     p = p || {};
     switch (action) {
       case 'page.getState': return snapshot();
+      case 'page.check': return { warnings: publishWarnings() };
       case 'page.markSaved': if (readOnly) throw new Error('هذا الإصدار للقراءة فقط ولا يمكن تأكيد حفظه.'); baseRevision = p.revision; undoStack = []; redoStack = []; baseJson = JSON.stringify(work); dirty = true; setDirty(false); if (hostApi) hostApi.revision(baseRevision); return snapshot();
       case 'element.select': select(need(p.elementId).id); return { selected: selectedId };
       case 'element.move': { var e1 = need(p.elementId || selectedId); mutate(function () { var t = edit(device(), e1.id); t.dx = Math.round(+p.dx || 0); t.dy = Math.round(+p.dy || 0); }); return null; }

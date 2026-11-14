@@ -140,7 +140,7 @@
       return { p: p, b: offer && (!f.store || String(offer.storeId) === String(f.store)) ? offer : null };
     }).filter(function (x) { return x.b; });
   }
-  function paint(root, name, list) {
+  function paintSmart(root, name, list) {
     root.textContent = '';
     if (name) { var h = el('h3'); h.textContent = name; root.appendChild(h); }
     var g = el('div', 'grid section-perfume-grid');
@@ -149,22 +149,35 @@
   }
   function fillSmart(root, ref) {
     var pend = window.ElanPendingSections[ref];
-    if (pend) { paint(root, pend.name, pend.mode === 'auto' ? autoList(pend.filters) : manualList(pend.items || [], pend.filters)); return; }
+    if (pend) { paintSmart(root, pend.name, pend.mode === 'auto' ? autoList(pend.filters) : manualList(pend.items || [], pend.filters)); return; }
     if (typeof SB === 'undefined' || !SB || !SB.url) { root.remove(); return; }
     var hit = smartCache[ref];
-    if (hit && Date.now() - hit.t < 60000) { if (hit.def) paint(root, hit.def.name, hit.list()); else root.remove(); return; }
+    if (hit && Date.now() - hit.t < 60000) { if (hit.def) paintSmart(root, hit.def.name, hit.list()); else root.remove(); return; }
     var H = { apikey: SB.key, Authorization: 'Bearer ' + SB.key };
     fetch(SB.url + '/rest/v1/editor_sections?element_id=eq.' + encodeURIComponent(ref) + '&select=id,name,selection_mode,filters&limit=1', { headers: H })
       .then(function (r) { return r.ok ? r.json() : []; })
       .then(function (rows) {
         if (!rows.length) { smartCache[ref] = { t: Date.now(), def: null }; root.remove(); return null; }
         var def = rows[0];
-        if (def.selection_mode === 'auto') { smartCache[ref] = { t: Date.now(), def: def, list: function () { return autoList(def.filters); } }; paint(root, def.name, autoList(def.filters)); return null; }
+        if (def.selection_mode === 'auto') { smartCache[ref] = { t: Date.now(), def: def, list: function () { return autoList(def.filters); } }; paintSmart(root, def.name, autoList(def.filters)); return null; }
         return fetch(SB.url + '/rest/v1/editor_section_items?section_id=eq.' + def.id + '&select=product_size_id&order=sort_order', { headers: H })
           .then(function (r) { return r.ok ? r.json() : []; })
-          .then(function (items) { var ids = items.map(function (i) { return i.product_size_id; }); smartCache[ref] = { t: Date.now(), def: def, list: function () { return manualList(ids, def.filters); } }; paint(root, def.name, manualList(ids, def.filters)); });
+          .then(function (items) { var ids = items.map(function (i) { return i.product_size_id; }); smartCache[ref] = { t: Date.now(), def: def, list: function () { return manualList(ids, def.filters); } }; paintSmart(root, def.name, manualList(ids, def.filters)); });
       })
       .catch(function () { root.remove(); });
+  }
+
+  /* What the page shows for every smart section right now (the name, how many perfume cards it holds, and the filters that picked them).
+     The editor asks this before publishing, so an empty brand card or an inactive store is caught while the owner can still fix it.
+     count -1 means the cards are not painted yet (still loading): that is never reported as empty. Sections the owner hid are skipped. */
+  function smartReport() {
+    return Array.prototype.slice.call(document.querySelectorAll('.elan-smart[data-elan-id]')).filter(function (root) {
+      try { return getComputedStyle(root).display !== 'none'; } catch (e) { return true; }
+    }).map(function (root) {
+      var ref = root.getAttribute('data-elan-ref') || '', hit = smartCache[ref], def = hit && hit.def;
+      var grid = root.querySelector('.section-perfume-grid'), h = root.querySelector('h3');
+      return { id: root.getAttribute('data-elan-id'), ref: ref, name: h ? h.textContent : (def && def.name) || '', count: grid ? grid.children.length : -1, mode: def ? def.selection_mode : '', filters: (def && def.filters) || {} };
+    });
   }
 
   function buildBlock(b) {
@@ -183,6 +196,7 @@
     }
     if (b.type === 'smart') {
       root.classList.add('elan-smart');
+      root.setAttribute('data-elan-ref', b.ref || '');
       fillSmart(root, b.ref);
     } else if (b.type === 'text') {
       var p = el('p');
@@ -930,7 +944,7 @@
     return true;
   }
 
-  window.ElanDesignLayer = { topNodes: topNodes, airOf: airOf, gapY: gapY, apply: apply, set: set, pageKey: pageKey, defaultKey: function () { var k = pageKey(); return k ? ED.defaultKeyOf(k) : null; }, current: function () { return design; }, applyEdits: applyEdits, elements: elements, textTarget: textTarget, goTargetOf: goTargetOf, mediaSize: mediaSize, liveSize: liveSize, endLive: function (entry) { endLive(entry && entry.el); } };
+  window.ElanDesignLayer = { smartReport: smartReport, topNodes: topNodes, airOf: airOf, gapY: gapY, apply: apply, set: set, pageKey: pageKey, defaultKey: function () { var k = pageKey(); return k ? ED.defaultKeyOf(k) : null; }, current: function () { return design; }, applyEdits: applyEdits, elements: elements, textTarget: textTarget, goTargetOf: goTargetOf, mediaSize: mediaSize, liveSize: liveSize, endLive: function (entry) { endLive(entry && entry.el); } };
 
   // A different screen size means a different set of free-form edits.
   window.addEventListener('resize', function () {
