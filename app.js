@@ -90,6 +90,6 @@ function applyArtAndHero(){
   watchSheet();
   watchMenu();
 }
-var CORE='/app-core.js?v=20261113-05';
+var CORE='/app-core.js?v=20261114-01';
 loadScript(CORE, applyArtAndHero);
 })();
