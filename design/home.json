@@ -166,17 +166,9 @@
         "h": 55,
         "dx": -2
       },
-      "sec:master": {
-        "dx": 6,
-        "dy": -28
-      },
       "sec:soon:title": {
         "dx": 7,
         "dy": -7
-      },
-      "sec:stores": {
-        "dx": -17,
-        "dy": -25
       }
     }
   }
