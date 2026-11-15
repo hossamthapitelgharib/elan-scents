@@ -114,6 +114,9 @@
       "sec:stores:title": {
         "style": {
           "fontSize": 16
+        },
+        "text": {
+          "ar": "وكلاء و موزعون معتمدون"
         }
       },
       "sec:new:title": {
