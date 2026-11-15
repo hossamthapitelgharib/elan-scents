@@ -1,10 +1,10 @@
 {
-  "version": "20261115-02",
+  "version": "20261115-04",
   "files": {
     "account.css": "4d9a36a04bf71ac8",
     "account.js": "6b311fa04cc2241d",
-    "app-core.js": "fee83c7c79dd3790",
-    "app.js": "ca4516c5881118b9",
+    "app-core.js": "bfe9186127b58fef",
+    "app.js": "0184cb50b6b743a5",
     "auth-session.js": "005394b4b936cdb2",
     "consent.css": "79e25a99fc582a15",
     "consent.js": "48af0c55d9cb872e",
@@ -28,7 +28,7 @@
     "pw-eye.js": "6bec44ed621467c4",
     "store-dashboard.js": "706a70ebc3d19ffd",
     "stores-dashboard.js": "22657020fd7bc998",
-    "style-3.css": "edde2820969e72df",
+    "style-3.css": "2719836abcc0669d",
     "style.css": "b15c3c0599afdba2",
     "texts.js": "e6af7bb1f2508fef",
     "turnstile.js": "1188b085c589e6d1"

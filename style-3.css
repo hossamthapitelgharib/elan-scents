@@ -464,3 +464,20 @@ header .ic button[data-sheet="cart"] svg{width:20px!important;height:20px!import
 /* Welcome and goodbye: a card with a gold tick, a title and one warm line (the plain pill stays for short notices and errors) */
 .order-review{display:grid;gap:6px;padding:10px 12px;border:1px solid #ead9b1;border-radius:14px;background:#fff}.orv-row{display:flex;justify-content:space-between;gap:10px;font-size:12px;line-height:1.7}.orv-row span{color:var(--gray);white-space:nowrap}.orv-row b{color:#3b2a08;text-align:end;overflow-wrap:anywhere}.orv-note{margin:0;color:var(--gray);font-size:12px;line-height:1.7}
 .cart-changes{margin:0 0 12px;border:1px solid #e3c98a;border-radius:12px;background:#fff}.cart-changes-bar{display:flex;align-items:center;gap:6px;width:100%;padding:10px 12px;border:0;background:none;color:#6b4e12;font:inherit;font-size:13px;font-weight:600;text-align:start;cursor:pointer}.cart-changes-bar span{font-weight:400}.cart-changes-bar i{margin-inline-start:auto;font-style:normal;transition:transform .2s}.cart-changes-bar[aria-expanded="true"] i{transform:rotate(180deg)}.cart-changes-list{display:grid;gap:8px;padding:0 12px 12px}.cart-changes-list[hidden]{display:none}.cart-change{display:grid;gap:2px;padding:9px 10px;border-radius:9px;background:#fff;font-size:12px;line-height:1.55;color:#4a4130}.cart-change b{color:#2d2a22}.cart-change small{color:#85775c}.chg-gone{color:#9b2c1f;font-weight:600}.cart-qtycut{display:block;margin-top:3px;color:#8a5e0c;font-size:11px;font-weight:600;line-height:1.45}.soon-by{display:block;margin-top:4px;color:#85775c;font-size:12px}
+
+/* offers, explicit discounts and bundles: a small tag on the card image, the store's message, and the bundles block of «عروض وخصومات» */
+.otag{display:inline-block;padding:1px 9px;border-radius:999px;border:1px solid #c8962a;background:#fff;color:#8a5e0c;font-size:11px;font-weight:600;line-height:1.6;letter-spacing:.2px;white-space:nowrap}
+.otag-d{background:#8a5e0c;border-color:#8a5e0c;color:#fff}
+.card.pf .pim .otag{position:absolute;inset-inline-start:7px;bottom:7px;z-index:1}
+.card.pf .pmsg{margin:2px 0 0;font-size:11.5px;line-height:1.3;color:#6f5a2b;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.pdh.osec{margin:22px 0 2px;text-align:center}
+.smsgs{display:grid;gap:8px;padding:8px 0}
+.smsg{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;padding:10px 14px;border:1px solid #eadfc6;border-radius:14px;background:#fff;font-size:13px;color:#2b2418}
+.smsg b{color:#8a5e0c}.smsg small{flex-basis:100%;color:#85775c;font-size:12px}.smsg .oend{flex-basis:auto}
+.card.pf.bf{cursor:default}.card.pf.bf:hover{border-color:#efe9db;box-shadow:none}
+.card.pf.bf .pbody{padding:10px 11px;gap:6px}.card.pf.bf .otag{align-self:flex-start}
+.bitems{list-style:none;margin:0;padding:0;display:grid;gap:3px;font-size:12px;line-height:1.35;color:#2b2418}
+.bitems b{color:#8a5e0c;font-weight:600}.bitems .bextra{color:#85775c}
+.pdoffers{display:grid;gap:8px}
+.pdo{margin:0;padding:10px 12px;border:1px solid #eadfc6;border-radius:12px;background:#fff;font-size:13px;color:#2b2418;display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px}
+.pdo small{flex-basis:100%;color:#85775c;font-size:12px}.pdo .oend{flex-basis:auto}
