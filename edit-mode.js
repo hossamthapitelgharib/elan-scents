@@ -10,7 +10,7 @@
   };
   if (!layer || !ED || !Bridge || window.parent === window) return;
 
-  var work = null, baseJson = '', baseRevision = null, hostApi = null, selectedId = null, dirty = false, bridgeTicket = '', readOnly = false;
+  var work = null, baseJson = '', baseRevision = null, hostApi = null, selectedId = null, dirty = false, bridgeTicket = '', bridgeSession = '', readOnly = false;
   var undoStack = [], redoStack = [], editing = null, gesture = null, pendingMedia = null, touchPress = null, suppressContextUntil = 0;
   var SECTIONS_NAMES = { section: 1 };
 
@@ -839,7 +839,7 @@
     return seq;
   }
   async function editorData(action, payload) {
-    var r = await editorFetch('/api/editor-data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ action: action }, payload || {})) });
+    var r = await editorFetch('/api/editor-data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ action: action, session: bridgeSession || undefined }, payload || {})) });
     var j = await r.json().catch(function () { return {}; });
     if (!r.ok || !j.ok) throw new Error(j.error || 'تعذر تحميل بيانات الكتالوج.');
     return j;
@@ -1192,6 +1192,8 @@
   /* Rows: two sections, banners or pictures side by side with the platform's fixed gaps (the row and its gaps are laid out by design-layer.js, nothing is dragged into place). */
   registerTool({ id: 'row_join', label: 'ضعه في صف واحد جنب العنصر اللي فوقه', show: function (i) { return !!(i && i.canRow); }, when: function (i) { return !!(i && i.canRow && i.rowPrev && !i.rowWithPrev); }, run: function (c) { return joinRow(c.id); } });
   registerTool({ id: 'row_split', label: 'رجّعه في صف لوحده', show: function (i) { return !!(i && i.canRow); }, when: function (i) { return !!(i && i.inRow); }, run: function (c) { return leaveRow(c.id); } });
+  /* «ظبّط مسافات الصفحة كلها» (owner, 14 Nov 2026: an item of the right-click menu, not a header button). Shown on every right-click, on the page as a whole. */
+  registerTool({ id: 'fix_spacing', label: 'ظبّط مسافات الصفحة كلها', show: function () { return true; }, when: function () { return true; }, run: function () { return fixSpacing(); } });
   registerTool({ id: 'open', label: 'دخول لصفحة', when: function (i) { return !!(i && i.dynamic); }, run: function (c) { enterPage(entryById(c.id)); return null; } });
   /* Back / home are not in the mouse menu any more: the editor header has the «صفحة سابقة» button for them. The tools stay registered
      (the button runs go_back through tool.run) but show:false keeps them out of the menu. */
@@ -1238,7 +1240,6 @@
     switch (action) {
       case 'page.getState': return snapshot();
       case 'page.check': return { warnings: publishWarnings() };
-      case 'page.fixSpacing': return fixSpacing();
       case 'page.markSaved': if (readOnly) throw new Error('هذا الإصدار للقراءة فقط ولا يمكن تأكيد حفظه.'); baseRevision = p.revision; undoStack = []; redoStack = []; baseJson = JSON.stringify(work); dirty = true; setDirty(false); if (hostApi) hostApi.revision(baseRevision); return snapshot();
       case 'element.select': select(need(p.elementId).id); return { selected: selectedId };
       case 'element.move': { var e1 = need(p.elementId || selectedId); mutate(function () { var t = edit(device(), e1.id); t.dx = Math.round(+p.dx || 0); t.dy = Math.round(+p.dy || 0); }); return null; }
@@ -1362,6 +1363,7 @@
     allowedEditorOrigins: [editorParentOrigin()],
     authorize: async function (context) {
       bridgeTicket = context && typeof context.ticket === 'string' ? context.ticket : bridgeTicket;
+      bridgeSession = context && typeof context.session === 'string' ? context.session : bridgeSession;
       if (!bridgeTicket) return false;
       try { var r = await editorFetch('/api/editor-session'); return r.ok; } catch (_) { return false; }
     },

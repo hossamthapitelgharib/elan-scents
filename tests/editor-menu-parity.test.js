@@ -9,7 +9,7 @@ const { designBrowser, plain, read } = require('./browser-fixture');
    (tests/fixtures/elan-original-tools-golden.json): same tools, same order, same enablement. */
 const golden = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'elan-original-tools-golden.json'), 'utf8'));
 const GOLDEN_IDS = ['format', 'create_section', 'create_brand', 'create_store', 'create_perfume', 'create_occasion', 'create_note', 'create_text_block', 'create_banner', 'create_text', 'media', 'media_delete', 'edit_text', 'copy', 'archive', 'library_save', 'library_download'];
-const EXTRA_IDS = ['create_image', 'size_preset', 'row_join', 'row_split', 'open', 'go_back', 'go_home'];   // size_preset: standard sizes, shown only when an element is chosen; row_join / row_split: only on a section or block of the page
+const EXTRA_IDS = ['create_image', 'size_preset', 'row_join', 'row_split', 'fix_spacing', 'open', 'go_back', 'go_home'];   // size_preset: standard sizes, shown only when an element is chosen; row_join / row_split: only on a section or block of the page; fix_spacing: «ظبّط مسافات الصفحة كلها», on every right-click (owner, 14 Nov 2026)
 const SCOPE_IDS = ['scope_toggle', 'scope_reset'];   // default pages: they show only on a product, brand or store page
 const flags = (rows) => rows.map((r) => r.startsWith('[ok]'));
 /* The right-click menu order the owner asked for (2026-11-11): text first, then pictures and videos, the banner, the section, the perfume card, the brand, the store, then the rest. */
@@ -50,8 +50,8 @@ test('the menu keeps the original editor tools in the original order, new ones a
   const idsOn = (el) => plain(b.tools.menu(el).map((t) => t.id));
   /* the menu SHOWS them in the owner's order (see the next test); the registered order above stays the original editor's */
   const after = (ids) => ids.slice(OWNER_ORDER.length);
-  assert.deepEqual(after(idsOn(null)), ['create_occasion', 'create_note', 'copy', 'archive', 'library_save', 'library_download', 'open'], 'an empty page: "دخول لصفحة" is listed (the owner asked for it in the menu) but no back / home');
-  assert.deepEqual(after(idsOn({ dynamic: true })), ['create_occasion', 'create_note', 'copy', 'archive', 'library_save', 'library_download', 'size_preset', 'open']);
+  assert.deepEqual(after(idsOn(null)), ['create_occasion', 'create_note', 'copy', 'archive', 'library_save', 'library_download', 'fix_spacing', 'open'], 'an empty page: "دخول لصفحة" is listed (the owner asked for it in the menu) but no back / home');
+  assert.deepEqual(after(idsOn({ dynamic: true })), ['create_occasion', 'create_note', 'copy', 'archive', 'library_save', 'library_download', 'size_preset', 'fix_spacing', 'open']);
   const open = (el) => plain(b.tools.menu(el).find((t) => t.id === 'open'));
   assert.equal(open(null).label, 'دخول لصفحة');
   assert.equal(open(null).enabled, false, 'nothing to enter on an empty area');

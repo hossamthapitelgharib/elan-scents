@@ -1,5 +1,5 @@
 'use strict';
-/* Owner, 2026-11-13 (point 6, the simple version): one button, «ظبّط المسافات», puts the whole page on the platform's fixed gaps.
+/* Owner, 2026-11-13 (point 6, the simple version), 2026-11-14 (an item of the right-click menu, not a header button): «ظبّط مسافات الصفحة كلها» puts the whole page on the platform's fixed gaps.
    Whole sections and blocks lose their free offsets; things that sat side by side only because of those offsets become a real row (at most four);
    it is one undo step and nothing is published until Save. No preview and no button of its own to go back. */
 const test = require('node:test');
@@ -58,7 +58,7 @@ test('things that sit side by side only because of hand offsets become one row, 
     assert.ok(Math.abs(a.top - b.top) < 2 && b.left > a.right - 1, 'before: side by side by hand: ' + JSON.stringify([a, b]));
     const hand = await edits(frame, ids[1]);
     assert.ok(Object.keys(hand).some((d) => hand[d].dx !== undefined), 'the second one carries a hand offset');
-    const res = await run(frame, 'page.fixSpacing');
+    const res = await run(frame, 'tool.run', { id: 'fix_spacing' });
     await page.waitForTimeout(400);
     assert.equal(res.rows, 1, JSON.stringify(res));
     assert.ok(res.changed >= 1);
@@ -80,7 +80,7 @@ test('a section pulled by hand is put back in the normal flow, and a page that i
   const { context, page, frame } = await openEditor(CLEAN);
   try {
     const before = await frame.evaluate(() => JSON.stringify(window.ElanEditMode.state().design));
-    const none = await run(frame, 'page.fixSpacing');
+    const none = await run(frame, 'tool.run', { id: 'fix_spacing' });
     assert.equal(none.changed, 0); assert.equal(none.rows, 0);
     assert.match(none.message, /مظبوطة أصلًا/);
     assert.equal(await frame.evaluate(() => JSON.stringify(window.ElanEditMode.state().design)), before, 'nothing changed in the design');
@@ -89,7 +89,7 @@ test('a section pulled by hand is put back in the normal flow, and a page that i
     await run(frame, 'element.move', { elementId: section, dx: 0, dy: -25 });
     const pulled = await edits(frame, section);
     assert.ok(Object.keys(pulled).some((d) => pulled[d].dy === -25), 'the section carries the hand offset: ' + JSON.stringify(pulled));
-    const res = await run(frame, 'page.fixSpacing');
+    const res = await run(frame, 'tool.run', { id: 'fix_spacing' });
     await page.waitForTimeout(300);
     assert.equal(res.changed, 1, JSON.stringify(res));
     assert.equal(res.rows, 0);
@@ -103,7 +103,7 @@ test('a row never holds more than four: the fifth in a line is only freed from i
   try {
     const ids = await lineOfBlocks(frame, 5);
     await page.waitForTimeout(300);
-    const res = await run(frame, 'page.fixSpacing');
+    const res = await run(frame, 'tool.run', { id: 'fix_spacing' });
     await page.waitForTimeout(400);
     assert.equal(res.rows, 3, 'three joins make a row of four: ' + JSON.stringify(res));
     const rows = await frame.evaluate(() => Array.from(document.querySelectorAll('[data-elan-row]')).map((r) => r.children.length));
@@ -113,16 +113,26 @@ test('a row never holds more than four: the fifth in a line is only freed from i
   } finally { await context.close(); }
 });
 
-test('the header button is small and equal to its neighbours, and pressing it says what it did', async () => {
-  const { context, page } = await openEditor();
+test('it is an item of the right-click menu (not a header button), and choosing it says what it did', async () => {
+  const { context, page, frame } = await openEditor();
   try {
-    const btn = page.locator('#fixSpacing');
-    assert.equal(await btn.count(), 1, 'the button is in the header');
-    const box = await btn.boundingBox(), save = await page.locator('#save').boundingBox();
-    assert.ok(Math.abs(box.width - save.width) <= 1 && Math.abs(box.height - save.height) <= 1, 'same size as Save: ' + JSON.stringify([box, save]));
-    assert.match(await btn.innerText(), /ظبّط المسافات/);
-    await btn.click();
-    await page.waitForFunction(() => /مظبوطة أصلًا|ظبّطت المسافات/.test(document.getElementById('status').textContent), null, { timeout: 8000 });
-    assert.match(await page.evaluate(() => document.getElementById('status').textContent), /ظبّطت المسافات: شلت الإزاحة اليدوية/, 'the real page has hand offsets, so it says what it removed');
+    assert.equal(await page.locator('#fixSpacing').count(), 0, 'no header button any more');
+    assert.deepEqual(await page.evaluate(() => Array.from(document.querySelectorAll('#editorHeaderActions>button')).map((b) => b.id)), ['undo', 'redo', 'save', 'restorePrev', 'library', 'editorLogout'], 'the header keeps its six buttons');
+    const target = await frame.evaluate(() => {
+      const e = window.ElanDesignLayer.elements().find((x) => x.kind === 'section' && x.id.startsWith('sec:') && x.el.getBoundingClientRect().height > 80);
+      document.documentElement.style.scrollBehavior = 'auto'; window.scrollTo({ top: Math.max(0, scrollY + e.el.getBoundingClientRect().top - 120), behavior: 'instant' });
+      const r = e.el.getBoundingClientRect(); return { x: r.left + 30, y: r.top + 30 };
+    });
+    await page.waitForTimeout(300);
+    const box = await page.locator('iframe').first().boundingBox(), k = box.width / 390;
+    await page.mouse.click(box.x + target.x * k, box.y + target.y * k, { button: 'right' });
+    await page.waitForFunction(() => Array.from(document.getElementById('menu').children).some((b) => b.textContent.trim() === 'ظبّط مسافات الصفحة كلها'), null, { timeout: 8000 });
+    const item = page.locator('#menu > button', { hasText: 'ظبّط مسافات الصفحة كلها' });
+    assert.equal(await item.count(), 1, 'one such item in the mouse menu');
+    assert.equal(await item.isDisabled(), false, 'and it can be pressed');
+    await item.click();
+    /* the answer shows on the page itself (the platform's own message line), like every other menu tool */
+    await frame.waitForFunction(() => /ظبّطت المسافات: شلت الإزاحة اليدوية|المسافات مظبوطة أصلًا/.test(document.body.textContent), null, { timeout: 8000 });
+    assert.match(await frame.evaluate(() => document.body.textContent), /ظبّطت المسافات: شلت الإزاحة اليدوية/, 'the real page has hand offsets, so it says what it removed');
   } finally { await context.close(); }
 });

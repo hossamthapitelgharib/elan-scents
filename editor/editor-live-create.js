@@ -120,8 +120,10 @@
     unauthorized: 'انتهت الجلسة. أعد فتح المحرر.',
     forbidden: 'هذا الحساب غير مصرح له.'
   };
+  /* The editor session (one open editor tab) the records created here belong to: a save keeps them, leaving without a save removes them. */
+  function editorSession() { var live = root.elanLiveEditorBridge, s = live && typeof live.getState === 'function' ? live.getState().session : ''; return s || undefined; }
   function data(action, payload) {
-    return root.fetch('/api/editor-data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', cache: 'no-store', body: JSON.stringify(Object.assign({ action: action }, payload || {})) })
+    return root.fetch('/api/editor-data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', cache: 'no-store', body: JSON.stringify(Object.assign({ action: action, session: editorSession() }, payload || {})) })
       .then(function (r) {
         return r.json().catch(function () { return {}; }).then(function (j) {
           if (!r.ok || !j.ok) throw new Error(ERRORS[j.error] || 'تعذر الاتصال بالكتالوج.');

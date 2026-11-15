@@ -88,11 +88,14 @@ function catalogSlug(name) {
     .replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-+|-+$/g, '').slice(0, 72);
   return slug || ('catalog-' + crypto.createHash('sha256').update(canonicalName(name)).digest('hex').slice(0, 16));
 }
-/* What the editor itself creates is remembered (editor_created_records) so that, after a save, whatever the saved page never used can be cleaned up
-   (owner, 13 Nov 2026). Best effort: if remembering fails the record simply stays unremembered, which means it is never cleaned up, never lost. */
-async function remember(ctx, kind, id) {
+/* What the editor itself creates is remembered (editor_created_records) together with the editor session that created it (one open editor tab; the page sends its
+   id). Owner, 14 Nov 2026: a SAVE makes everything its session created permanent (cleanup.keep), and leaving WITHOUT a save removes what the session created
+   (cleanup.discard); only a session that never said goodbye is swept, after 3 days (cleanup.run). Best effort: if remembering fails the record simply stays
+   unremembered, which means it is never cleaned up, never lost. */
+function sessionOf(input) { const v = input && input.session; return typeof v === 'string' && UUID.test(v) ? v.toLowerCase() : null; }
+async function remember(ctx, kind, id, session) {
   if (typeof id !== 'string' || !UUID.test(id)) return;
-  try { await sb(ctx, 'editor_created_records', '?on_conflict=kind,record_id', 'POST', [{ kind, record_id: id }], 'resolution=ignore-duplicates,return=minimal'); } catch (_) { /* untracked is safe */ }
+  try { await sb(ctx, 'editor_created_records', '?on_conflict=kind,record_id', 'POST', [{ kind, record_id: id, session_id: session || null }], 'resolution=ignore-duplicates,return=minimal'); } catch (_) { /* untracked is safe */ }
 }
 
 /* Every smart-section id (block ref) that a design uses, on any page. Walks the whole file so a new place for blocks cannot hide a section from it. */
@@ -107,16 +110,41 @@ function smartRefsOf(design) {
   return Array.from(refs);
 }
 
-/* After a successful save: remove what the editor created and the saved page never used (see supabase/migrations/*_editor_cleanup_unsaved.sql for what
-   is and is not touched). The keep list comes from the design file on the branch, never from the browser. If that file cannot be read or is not a design,
-   nothing runs: an empty or unknown list must never look like «the page uses nothing». */
-async function cleanupUnsaved(ctx) {
+/* The sections the SAVED page uses: the keep list for every cleanup. It comes from the design file on the branch, never from the browser. If that file cannot
+   be read or is not a design, null: nothing may run, because an empty or unknown list must never look like «the page uses nothing». */
+async function savedRefs() {
   let text = null;
   try { text = await require('./editor.js').internals.currentDesignText(); } catch (_) { text = null; }
   let design = null;
   try { design = typeof text === 'string' && text.trim() ? JSON.parse(text) : null; } catch (_) { design = null; }
-  if (!design || typeof design !== 'object' || Array.isArray(design) || !Number.isInteger(design.version)) return { ok: true, skipped: 'design_unreadable' };
-  const removed = await sb(ctx, 'rpc/editor_cleanup_unsaved', '', 'POST', { p_keep_refs: smartRefsOf(design) });
+  if (!design || typeof design !== 'object' || Array.isArray(design) || !Number.isInteger(design.version)) return null;
+  return smartRefsOf(design);
+}
+/* Abandoned sessions (a crash, a dead battery): what the editor created more than 3 days ago and the saved page does not use. See
+   supabase/migrations/*_editor_cleanup_by_session.sql for what is and is not touched. */
+async function cleanupSweep(ctx) {
+  const refs = await savedRefs();
+  if (!refs) return { ok: true, skipped: 'design_unreadable' };
+  const removed = await sb(ctx, 'rpc/editor_cleanup_unsaved', '', 'POST', { p_keep_refs: refs });
+  return { ok: true, removed };
+}
+/* A save went through: whatever this session created is permanent, used by the page or not. Nothing removes it afterwards. */
+async function cleanupKeep(ctx, input) {
+  const session = sessionOf(input);
+  if (!session) throw Object.assign(new Error('invalid_session'), { status: 400 });
+  const kept = await sb(ctx, 'rpc/editor_keep_created', '', 'POST', { p_session: session });
+  return { ok: true, kept: Number.isInteger(kept) ? kept : null };
+}
+/* The owner leaves (the exit button, closing the browser or the tab) without saving: what this session created and never saved is removed. */
+async function cleanupDiscard(ctx, input) {
+  const session = sessionOf(input);
+  if (!session) throw Object.assign(new Error('invalid_session'), { status: 400 });
+  /* Most sessions made nothing, or saved it: ask the cheap question first, so leaving the editor does not read the design from GitHub for nothing. */
+  const mine = await sb(ctx, 'editor_created_records', '?select=record_id&session_id=eq.' + session + '&limit=1');
+  if (!Array.isArray(mine) || !mine.length) return { ok: true, removed: { sections: 0, brands: 0, occasions: 0, notes: 0 } };
+  const refs = await savedRefs();
+  if (!refs) return { ok: true, skipped: 'design_unreadable' };
+  const removed = await sb(ctx, 'rpc/editor_cleanup_unsaved', '', 'POST', { p_keep_refs: refs, p_session: session });
   return { ok: true, removed };
 }
 
@@ -151,7 +179,7 @@ async function createCatalogRecord(ctx, input) {
   }
   const inserted = await sb(ctx, spec.table, '?on_conflict=' + spec.conflict, 'POST', [row], 'resolution=ignore-duplicates,return=representation');
   if (Array.isArray(inserted) && inserted[0]) {
-    if (kind !== 'store') await remember(ctx, kind, inserted[0].id); // a store has dependants that cascade: never cleaned up automatically
+    if (kind !== 'store') await remember(ctx, kind, inserted[0].id, sessionOf(input)); // a store has dependants that cascade: never cleaned up automatically
     return { ok: true, kind, record: inserted[0], created: true };
   }
 
@@ -411,7 +439,7 @@ async function createSection(ctx, input) {
   }]);
   const created = Array.isArray(rows) ? rows[0] : null;
   if (!created || !created.id) throw Object.assign(new Error('section_create_unconfirmed'), { status: 502 });
-  await remember(ctx, 'section', created.id);
+  await remember(ctx, 'section', created.id, sessionOf(input));
   if (productSizeIds.length) {
     try {
       const items = await sb(ctx, 'editor_section_items', '', 'POST', productSizeIds.map((productSizeId, sortOrder) => ({ section_id: created.id, product_size_id: productSizeId, sort_order: sortOrder })));
@@ -438,7 +466,9 @@ module.exports = async function editorData(req, res) {
     if (action === 'library.delete' && req.method === 'POST') return reply(res, 200, await deleteLibraryItem(ctx, input));
     if (action === 'catalog.create' && req.method === 'POST') return reply(res, 200, await createCatalogRecord(ctx, input));
     if (action === 'section.create' && req.method === 'POST') return reply(res, 200, await createSection(ctx, input));
-    if (action === 'cleanup.run' && req.method === 'POST') return reply(res, 200, await cleanupUnsaved(ctx));
+    if (action === 'cleanup.run' && req.method === 'POST') return reply(res, 200, await cleanupSweep(ctx));
+    if (action === 'cleanup.keep' && req.method === 'POST') return reply(res, 200, await cleanupKeep(ctx, input));
+    if (action === 'cleanup.discard' && req.method === 'POST') return reply(res, 200, await cleanupDiscard(ctx, input));
     return reply(res, 400, { ok: false, error: 'unknown_action' });
   } catch (e) {
     reply(res, e.status || 502, { ok: false, error: e.message === 'supabase_request_failed' ? 'data_provider_failed' : (e.message || 'editor_data_failed') });
