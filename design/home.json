@@ -14,7 +14,8 @@
     "occ",
     "x-52jbo",
     "soon",
-    "stores"
+    "stores",
+    "x-lfnvi"
   ],
   "blocks": [
     {
@@ -60,6 +61,21 @@
       },
       "src": "https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/uploads/2026/13cb1a013529a15393b4.webp",
       "alt": {}
+    },
+    {
+      "id": "x-lfnvi",
+      "type": "banner",
+      "style": {
+        "align": "center",
+        "size": "md"
+      },
+      "title": {
+        "ar": "عنوان جديد"
+      },
+      "subtitle": {
+        "ar": "سطر تعريفي قصير"
+      },
+      "image": "https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/uploads/2026/8f7bd64d2170280a596a.webp"
     }
   ],
   "texts": {},
@@ -222,6 +238,9 @@
         "style": {
           "media": "https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/uploads/2026/c5c5e276e54b5e8d5b82.jpg"
         }
+      },
+      "x-lfnvi": {
+        "archived": true
       }
     },
     "mobile": {
@@ -249,6 +268,10 @@
       "card:1dsn4im": {
         "w": 340,
         "h": 340
+      },
+      "x-lfnvi": {
+        "w": 390,
+        "h": 130
       }
     }
   }
