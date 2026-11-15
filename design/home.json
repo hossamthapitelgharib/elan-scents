@@ -149,7 +149,7 @@
       },
       "card:1dsn4im": {
         "style": {
-          "media": "https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/uploads/2026/0dad190fc712b791dd4e.png"
+          "media": "https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/uploads/2026/fc22c517d701ad7f7864.webp"
         }
       },
       "footer:logo": {
@@ -168,6 +168,11 @@
       "hero": {
         "style": {
           "media": "https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/uploads/2026/d5d8c67dcdb281a88324.jpg"
+        }
+      },
+      "card:1dsn4il": {
+        "style": {
+          "media": "https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/uploads/2026/5531d485e7680a36c405.webp"
         }
       }
     },
