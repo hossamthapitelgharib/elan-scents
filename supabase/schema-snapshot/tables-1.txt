@@ -51,6 +51,40 @@ TABLE brands  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
   POLICY public_read PERMISSIVE FOR SELECT TO anon,authenticated USING (is_active)
   CREATE TRIGGER set_updated_at BEFORE UPDATE ON brands FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
 
+TABLE bundle_items  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
+  bundle_id uuid NOT NULL
+  product_size_id uuid NOT NULL
+  quantity integer NOT NULL DEFAULT 1
+  CONSTRAINT bundle_items_pkey PRIMARY KEY (bundle_id, product_size_id)
+  CONSTRAINT bundle_items_bundle_id_fkey FOREIGN KEY (bundle_id) REFERENCES bundles(id) ON DELETE CASCADE
+  CONSTRAINT bundle_items_product_size_id_fkey FOREIGN KEY (product_size_id) REFERENCES product_sizes(id) ON DELETE RESTRICT
+  CONSTRAINT bundle_items_quantity_check CHECK (((quantity >= 1) AND (quantity <= 20)))
+  CREATE INDEX bundle_items_size_idx ON bundle_items USING btree (product_size_id)
+  CREATE TRIGGER bundle_items_touch_bundle AFTER INSERT OR DELETE OR UPDATE ON bundle_items FOR EACH ROW EXECUTE FUNCTION private.bundle_items_after_write_touch_bundle()
+
+TABLE bundles  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
+  id uuid NOT NULL DEFAULT gen_random_uuid()
+  brand_id uuid
+  name text NOT NULL
+  slug text NOT NULL
+  description text
+  has_extra_items boolean NOT NULL DEFAULT false
+  composition_key text
+  status text NOT NULL DEFAULT 'draft'::text
+  is_active boolean NOT NULL DEFAULT true
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT bundles_pkey PRIMARY KEY (id)
+  CONSTRAINT bundles_slug_key UNIQUE (slug)
+  CONSTRAINT bundles_brand_id_fkey FOREIGN KEY (brand_id) REFERENCES brands(id) ON DELETE RESTRICT
+  CONSTRAINT bundles_key_not_with_extras CHECK (((composition_key IS NULL) OR (NOT has_extra_items)))
+  CONSTRAINT bundles_name_check CHECK (((length(btrim(name)) >= 1) AND (length(btrim(name)) <= 200)))
+  CONSTRAINT bundles_status_check CHECK ((status = ANY (ARRAY['draft'::text, 'published'::text])))
+  CREATE INDEX bundles_brand_idx ON bundles USING btree (brand_id)
+  CREATE UNIQUE INDEX bundles_composition_key_uq ON bundles USING btree (composition_key) WHERE (composition_key IS NOT NULL)
+  CREATE TRIGGER bundles_compute_key BEFORE INSERT OR UPDATE ON bundles FOR EACH ROW EXECUTE FUNCTION private.bundles_before_write_compute_key()
+  CREATE TRIGGER set_updated_at BEFORE UPDATE ON bundles FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
+
 TABLE cart_items  rls=on  grants: anon=- authenticated=d service_role=rawdDxt
   id uuid NOT NULL DEFAULT gen_random_uuid()
   user_id uuid NOT NULL
@@ -71,6 +105,7 @@ TABLE cart_items  rls=on  grants: anon=- authenticated=d service_role=rawdDxt
   POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
   POLICY own_all PERMISSIVE FOR ALL TO authenticated USING ((user_id = ( SELECT auth.uid() AS uid))) WITH CHECK ((user_id = ( SELECT auth.uid() AS uid)))
   CREATE TRIGGER cart_items_product_snapshot BEFORE INSERT OR UPDATE OF store_product_id, quantity ON cart_items FOR EACH ROW EXECUTE FUNCTION populate_cart_item_product_snapshot()
+  CREATE TRIGGER customer_cart_revision_changed AFTER INSERT OR DELETE OR UPDATE ON cart_items FOR EACH ROW EXECUTE FUNCTION private.bump_customer_cart_revision()
   CREATE TRIGGER set_updated_at BEFORE UPDATE ON cart_items FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
 
 TABLE categories  rls=on  grants: anon=r authenticated=r service_role=rawdDxt
@@ -106,6 +141,7 @@ TABLE checkout_sessions  rls=on  grants: anon=- authenticated=- service_role=raw
   CONSTRAINT checkout_sessions_tracking_number_key UNIQUE (tracking_number)
   CONSTRAINT checkout_sessions_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
   CONSTRAINT checkout_sessions_address_len CHECK (((char_length(customer_address) >= 1) AND (char_length(customer_address) <= 500)))
+  CONSTRAINT checkout_sessions_currency_egp CHECK ((currency = 'EGP'::text))
   CONSTRAINT checkout_sessions_currency_fmt CHECK ((currency ~ '^[A-Z]{3}$'::text))
   CONSTRAINT checkout_sessions_email_len CHECK (((customer_email IS NULL) OR (char_length(customer_email) <= 254)))
   CONSTRAINT checkout_sessions_name_len CHECK (((char_length(customer_name) >= 1) AND (char_length(customer_name) <= 120)))
@@ -169,6 +205,7 @@ TABLE commission_settlements  rls=on  grants: anon=- authenticated=- service_rol
   CONSTRAINT commission_settlements_verified_by_fkey FOREIGN KEY (verified_by) REFERENCES profiles(id) ON DELETE SET NULL
   CONSTRAINT commission_settlements_amount_check CHECK ((amount >= (0)::numeric))
   CONSTRAINT commission_settlements_currency_check CHECK ((currency ~ '^[A-Z]{3}$'::text))
+  CONSTRAINT commission_settlements_currency_egp CHECK ((currency = 'EGP'::text))
   CONSTRAINT commission_settlements_dates_check CHECK ((((submitted_at IS NULL) OR (submitted_at >= requested_at)) AND ((verified_at IS NULL) OR ((submitted_at IS NOT NULL) AND (verified_at >= submitted_at))) AND ((paid_at IS NULL) OR ((verified_at IS NOT NULL) AND (paid_at >= verified_at)))))
   CONSTRAINT commission_settlements_evidence_reference_check CHECK (((evidence_reference IS NULL) OR ((char_length(evidence_reference) >= 1) AND (char_length(evidence_reference) <= 200))))
   CONSTRAINT commission_settlements_failure_reason_check CHECK (((failure_reason IS NULL) OR ((char_length(failure_reason) >= 1) AND (char_length(failure_reason) <= 400))))
@@ -230,6 +267,65 @@ TABLE contact_messages  rls=on  grants: anon=- authenticated=ra service_role=raw
   POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
   POLICY auth_insert PERMISSIVE FOR INSERT TO authenticated WITH CHECK ((( SELECT auth.uid() AS uid) IS NOT NULL))
   CREATE TRIGGER set_updated_at BEFORE UPDATE ON contact_messages FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
+
+TABLE customer_cart_revisions  rls=off  grants: anon=- authenticated=- service_role=-
+  user_id uuid NOT NULL
+  revision bigint NOT NULL DEFAULT 0
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT customer_cart_revisions_pkey PRIMARY KEY (user_id)
+  CONSTRAINT customer_cart_revisions_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+  CONSTRAINT customer_cart_revisions_revision_check CHECK ((revision >= 0))
+
+TABLE customer_details  rls=on  grants: anon=- authenticated=raw service_role=rawdDxt
+  user_id uuid NOT NULL
+  full_name text NOT NULL
+  phone text NOT NULL
+  governorate text
+  address text NOT NULL
+  address_lat double precision
+  address_lng double precision
+  ship_same boolean NOT NULL DEFAULT true
+  ship_governorate text
+  ship_address text NOT NULL
+  ship_lat double precision
+  ship_lng double precision
+  recipient_name text
+  recipient_phone text
+  delivery_notes text
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+  city text
+  building_no text
+  floor_no text
+  apartment_no text
+  ship_city text
+  ship_building_no text
+  ship_floor_no text
+  ship_apartment_no text
+  CONSTRAINT customer_details_pkey PRIMARY KEY (user_id)
+  CONSTRAINT customer_details_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+  CONSTRAINT customer_details_address_len CHECK ((((char_length(address) >= 5) AND (char_length(address) <= 300)) AND ((char_length(ship_address) >= 5) AND (char_length(ship_address) <= 300))))
+  CONSTRAINT customer_details_city_len CHECK (((char_length(city) <= 80) AND (char_length(ship_city) <= 80)))
+  CONSTRAINT customer_details_full_name_len CHECK (((char_length(full_name) >= 2) AND (char_length(full_name) <= 120)))
+  CONSTRAINT customer_details_governorate_len CHECK (((char_length(governorate) <= 60) AND (char_length(ship_governorate) <= 60)))
+  CONSTRAINT customer_details_notes_len CHECK ((char_length(delivery_notes) <= 500))
+  CONSTRAINT customer_details_phone_fmt CHECK ((phone ~ '^\+?[0-9]{8,15}$'::text))
+  CONSTRAINT customer_details_point CHECK ((((address_lat IS NULL) = (address_lng IS NULL)) AND ((ship_lat IS NULL) = (ship_lng IS NULL)) AND ((address_lat IS NULL) OR (((address_lat >= ('-90'::integer)::double precision) AND (address_lat <= (90)::double precision)) AND ((address_lng >= ('-180'::integer)::double precision) AND (address_lng <= (180)::double precision)))) AND ((ship_lat IS NULL) OR (((ship_lat >= ('-90'::integer)::double precision) AND (ship_lat <= (90)::double precision)) AND ((ship_lng >= ('-180'::integer)::double precision) AND (ship_lng <= (180)::double precision))))))
+  CONSTRAINT customer_details_recipient CHECK ((((recipient_name IS NULL) OR ((char_length(recipient_name) >= 2) AND (char_length(recipient_name) <= 120))) AND ((recipient_phone IS NULL) OR (recipient_phone ~ '^\+?[0-9]{8,15}$'::text))))
+  CONSTRAINT customer_details_unit_len CHECK (((char_length(building_no) <= 20) AND (char_length(floor_no) <= 20) AND (char_length(apartment_no) <= 20) AND (char_length(ship_building_no) <= 20) AND (char_length(ship_floor_no) <= 20) AND (char_length(ship_apartment_no) <= 20)))
+  POLICY own_all PERMISSIVE FOR ALL TO authenticated USING ((user_id = ( SELECT auth.uid() AS uid))) WITH CHECK ((user_id = ( SELECT auth.uid() AS uid)))
+  CREATE TRIGGER customer_details_normalize BEFORE INSERT OR UPDATE ON customer_details FOR EACH ROW EXECUTE FUNCTION private.customer_details_normalize()
+
+TABLE customer_mail_claims  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
+  user_id uuid NOT NULL
+  kind text NOT NULL
+  claim_token uuid NOT NULL
+  lease_expires_at timestamp with time zone NOT NULL
+  completed_at timestamp with time zone
+  created_at timestamp with time zone NOT NULL DEFAULT clock_timestamp()
+  CONSTRAINT customer_mail_claims_pkey PRIMARY KEY (user_id, kind)
+  CONSTRAINT customer_mail_claims_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+  CONSTRAINT customer_mail_claims_kind_check CHECK ((kind = ANY (ARRAY['login'::text, 'logout'::text, 'registered'::text, 'welcome'::text])))
 
 TABLE customer_mail_log  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
   user_id uuid NOT NULL
@@ -327,6 +423,14 @@ TABLE editor_archive  rls=on  grants: anon=- authenticated=r service_role=rawdDx
   CREATE INDEX idx_editor_archive_element ON editor_archive USING btree (element_id)
   POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
   CREATE TRIGGER set_updated_at BEFORE UPDATE ON editor_archive FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
+
+TABLE editor_created_records  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
+  kind text NOT NULL
+  record_id uuid NOT NULL
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  session_id text
+  CONSTRAINT editor_created_records_pkey PRIMARY KEY (kind, record_id)
+  CONSTRAINT editor_created_records_kind_check CHECK ((kind = ANY (ARRAY['section'::text, 'brand'::text, 'occasion'::text, 'note'::text])))
 
 TABLE editor_saved_elements  rls=on  grants: anon=- authenticated=r service_role=rawdDxt
   id uuid NOT NULL DEFAULT gen_random_uuid()

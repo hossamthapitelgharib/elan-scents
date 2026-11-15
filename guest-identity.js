@@ -101,13 +101,17 @@
     function createKey() {
       var cryptoApi = window.crypto;
       if (cryptoApi && typeof cryptoApi.randomUUID === 'function') return cryptoApi.randomUUID();
+      if (!cryptoApi || typeof cryptoApi.getRandomValues !== 'function') return null;
       var bytes = new Uint8Array(16);
-      if (cryptoApi && typeof cryptoApi.getRandomValues === 'function') cryptoApi.getRandomValues(bytes);
-      else for (var i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+      cryptoApi.getRandomValues(bytes);
       bytes[6] = (bytes[6] & 15) | 64;
       bytes[8] = (bytes[8] & 63) | 128;
       var hex = Array.from(bytes, function (byte) { return byte.toString(16).padStart(2, '0'); }).join('');
       return hex.slice(0, 8) + '-' + hex.slice(8, 12) + '-' + hex.slice(12, 16) + '-' + hex.slice(16, 20) + '-' + hex.slice(20);
+    }
+    function hasSecureRandom() {
+      var cryptoApi = window.crypto;
+      return !!(cryptoApi && (typeof cryptoApi.randomUUID === 'function' || typeof cryptoApi.getRandomValues === 'function'));
     }
 
     var VISIT_IDLE_MS = 30 * 60 * 1000;       // a new visit starts only after 30 quiet minutes
@@ -150,6 +154,7 @@
       if (stored) { cachedKey = stored; return stored; }
       if (cachedKey) return cachedKey;
       var fresh = createKey();
+      if (!fresh) throw new Error('secure_random_unavailable');
       try { localStorage.setItem(STORAGE_KEY, fresh); } catch (_) {}
       writeCookie(fresh);
       cachedKey = readStoredKey() || fresh;
@@ -162,7 +167,9 @@
       try { rec = JSON.parse(localStorage.getItem(VISIT_KEY) || 'null'); } catch (_) {}
       if (!rec || !UUID.test(rec.id || '') || !(now - rec.last < VISIT_IDLE_MS)) {
         if (!touch && cachedSessionId) return cachedSessionId;
-        rec = { id: createKey(), last: now };
+        var freshSessionId = createKey();
+        if (!freshSessionId) return null;
+        rec = { id: freshSessionId, last: now };
         try { localStorage.setItem(VISIT_KEY, JSON.stringify(rec)); } catch (_) {}
         try { var again = JSON.parse(localStorage.getItem(VISIT_KEY) || 'null'); if (again && UUID.test(again.id || '')) rec = again; } catch (_) {}
       } else if (touch) {
@@ -334,6 +341,10 @@
 
     function resolve() {
       if (!identification) identification = request('resolve').then(function (body) {
+        if (body && body.blocked === true) {
+          clearKey();
+          return body;
+        }
         // the server may have merged this browser into the key it already knew
         if (body && body.visitorKey && UUID.test(body.visitorKey) && body.visitorKey !== visitorKey()) {
           try { localStorage.setItem(STORAGE_KEY, body.visitorKey); } catch (_) {}
@@ -450,7 +461,10 @@
     function claim(token) {
       // without the visitor's consent there is no browser key and no guest basket to move: only the account's own visit starts
       if (!allowed()) return startSession(token).catch(function () {}).then(function () { return { ok: true, claimed: false, cart: 0 }; });
-      return saveQueue.catch(function () {}).then(function () { return request('claim', {}, token); }).then(function (result) {
+      if (!readStoredKey() && !cachedKey && !hasSecureRandom())
+        return startSession(token).catch(function () {}).then(function () { return { ok: true, claimed: false, cart: 0 }; });
+      return Promise.all([saveQueue.catch(function () {}), identification ? identification.catch(function () {}) : Promise.resolve()])
+        .then(function () { return request('claim', {}, token); }).then(function (result) {
         if (result && result.ok) clearKey();
         return startSession(token).catch(function () { return result; }).then(function () { return result; });
       });
@@ -535,7 +549,17 @@
       window.addEventListener(type, interacted, { capture: true, passive: true });
     });
     window.addEventListener('storage', function (e) {
-      if (e.key === STORAGE_KEY && e.newValue && UUID.test(e.newValue)) cachedKey = e.newValue;
+      if (e.key !== STORAGE_KEY) return;
+      if (e.newValue && UUID.test(e.newValue)) {
+        cachedKey = e.newValue;
+        identification = null;
+      } else if (e.newValue === null && e.oldValue && UUID.test(e.oldValue)) {
+        cachedKey = null;
+        identification = null;
+        // Another tab claimed or erased this key. Reload so this tab follows the shared auth/refusal state
+        // instead of continuing to send a stale in-memory browser identity.
+        try { window.location.reload(); } catch (_) {}
+      }
     });
   }
 

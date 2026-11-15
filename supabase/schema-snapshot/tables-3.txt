@@ -50,6 +50,23 @@ TABLE platform_audit_log  rls=on  grants: anon=- authenticated=- service_role=ra
   CREATE INDEX platform_audit_log_created_idx ON platform_audit_log USING btree (created_at DESC)
   CREATE INDEX platform_audit_log_target_idx ON platform_audit_log USING btree (target_type, target_id, created_at DESC)
 
+TABLE platform_order_notices  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
+  id uuid NOT NULL DEFAULT gen_random_uuid()
+  request_id uuid NOT NULL
+  store_id uuid NOT NULL
+  tracking_number text NOT NULL
+  idempotency_key text NOT NULL
+  payload jsonb NOT NULL
+  payload_hash text NOT NULL
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT platform_order_notices_pkey PRIMARY KEY (id)
+  CONSTRAINT platform_order_notices_idempotency_key_key UNIQUE (idempotency_key)
+  CONSTRAINT platform_order_notices_request_id_key UNIQUE (request_id)
+  CONSTRAINT platform_order_notices_request_id_fkey FOREIGN KEY (request_id) REFERENCES store_order_requests(id)
+  CONSTRAINT platform_order_notices_store_id_fkey FOREIGN KEY (store_id) REFERENCES stores(id)
+  POLICY platform_order_notices_admin_all PERMISSIVE FOR ALL TO authenticated USING (private.is_platform_admin()) WITH CHECK (private.is_platform_admin())
+  CREATE TRIGGER platform_order_notices_append_only BEFORE DELETE OR UPDATE ON platform_order_notices FOR EACH ROW EXECUTE FUNCTION private.forbid_change()
+
 TABLE product_categories  rls=on  grants: anon=r authenticated=r service_role=rawdDxt
   product_id uuid NOT NULL
   category_id uuid NOT NULL
@@ -130,15 +147,29 @@ TABLE product_stats  rls=on  grants: anon=r authenticated=r service_role=rawdDxt
   views_count integer NOT NULL DEFAULT 0
   sales_count integer NOT NULL DEFAULT 0
   search_count integer NOT NULL DEFAULT 0
-  request_count integer NOT NULL DEFAULT 0
   average_rating numeric(3,2)
   reviews_count integer NOT NULL DEFAULT 0
   created_at timestamp with time zone NOT NULL DEFAULT now()
   updated_at timestamp with time zone NOT NULL DEFAULT now()
   distinctiveness_score numeric(5,2)
+  views_source text
+  sales_source text
+  search_source text
+  rating_source text
+  rating_top_source_count integer NOT NULL DEFAULT 0
   CONSTRAINT product_stats_pkey PRIMARY KEY (product_id)
   CONSTRAINT product_stats_product_id_fkey FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
   CONSTRAINT product_stats_distinctiveness_score_check CHECK (((distinctiveness_score IS NULL) OR ((distinctiveness_score >= (0)::numeric) AND (distinctiveness_score <= (100)::numeric))))
+  CONSTRAINT product_stats_rating_source_check CHECK ((rating_source = ANY (ARRAY['customers'::text, 'store_catalog'::text, 'combined'::text])))
+  CONSTRAINT product_stats_rating_source_matches CHECK (((rating_source IS NULL) = (average_rating IS NULL)))
+  CONSTRAINT product_stats_rating_top_matches CHECK (((rating_top_source_count > 0) = (average_rating IS NOT NULL)))
+  CONSTRAINT product_stats_rating_top_nonnegative CHECK ((rating_top_source_count >= 0))
+  CONSTRAINT product_stats_sales_source_check CHECK ((sales_source = ANY (ARRAY['customers'::text, 'store_catalog'::text, 'combined'::text])))
+  CONSTRAINT product_stats_sales_source_matches CHECK (((sales_source IS NULL) = (sales_count = 0)))
+  CONSTRAINT product_stats_search_source_check CHECK ((search_source = ANY (ARRAY['customers'::text, 'store_catalog'::text, 'combined'::text])))
+  CONSTRAINT product_stats_search_source_matches CHECK (((search_source IS NULL) = (search_count = 0)))
+  CONSTRAINT product_stats_views_source_check CHECK ((views_source = ANY (ARRAY['customers'::text, 'store_catalog'::text, 'combined'::text])))
+  CONSTRAINT product_stats_views_source_matches CHECK (((views_source IS NULL) = (views_count = 0)))
   POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
   POLICY public_read PERMISSIVE FOR SELECT TO anon,authenticated USING (private.product_is_available(product_id))
   CREATE TRIGGER set_updated_at BEFORE UPDATE ON product_stats FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
@@ -167,6 +198,7 @@ TABLE products  rls=on  grants: anon=r authenticated=r service_role=rawdDxt
   CONSTRAINT products_notes_source_check CHECK ((notes_source = ANY (ARRAY['brand_official'::text, 'store_catalog'::text, 'mixed'::text])))
   CONSTRAINT products_status_check CHECK ((status = ANY (ARRAY['draft'::text, 'published'::text, 'archived'::text])))
   CREATE INDEX idx_products_brand_id ON products USING btree (brand_id)
+  CREATE INDEX idx_products_published_gender_brand ON products USING btree (gender, brand_id, id) WHERE ((status = 'published'::text) AND is_active)
   CREATE INDEX idx_products_status ON products USING btree (status) WHERE is_active
   POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
   POLICY public_read PERMISSIVE FOR SELECT TO anon,authenticated USING (((status = 'published'::text) AND is_active AND private.product_is_available(id)))
@@ -219,6 +251,17 @@ TABLE reviews  rls=on  grants: anon=r authenticated=rawd service_role=rawdDxt
   CREATE TRIGGER reviews_refresh_rating AFTER INSERT OR DELETE OR UPDATE ON reviews FOR EACH ROW EXECUTE FUNCTION private.refresh_product_rating()
   CREATE TRIGGER set_updated_at BEFORE UPDATE ON reviews FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
 
+TABLE signup_carry  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
+  user_id uuid NOT NULL
+  cart jsonb NOT NULL DEFAULT '[]'::jsonb
+  favs jsonb NOT NULL DEFAULT '[]'::jsonb
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  consumed_at timestamp with time zone
+  CONSTRAINT signup_carry_pkey PRIMARY KEY (user_id)
+  CONSTRAINT signup_carry_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+  CONSTRAINT signup_carry_cart_array CHECK (((jsonb_typeof(cart) = 'array'::text) AND (jsonb_array_length(cart) <= 100)))
+  CONSTRAINT signup_carry_favs_array CHECK (((jsonb_typeof(favs) = 'array'::text) AND (jsonb_array_length(favs) <= 200)))
+
 TABLE site_settings  rls=on  grants: anon=r authenticated=r service_role=rawdDxt
   key text NOT NULL
   value text
@@ -244,6 +287,107 @@ TABLE store_accounts  rls=on  grants: anon=- authenticated=- service_role=rawdDx
   POLICY admin_all PERMISSIVE FOR ALL TO authenticated USING (( SELECT private.is_platform_admin() AS is_platform_admin)) WITH CHECK (( SELECT private.is_platform_admin() AS is_platform_admin))
   POLICY own_read PERMISSIVE FOR SELECT TO authenticated USING ((user_id = ( SELECT auth.uid() AS uid)))
   CREATE TRIGGER set_updated_at BEFORE UPDATE ON store_accounts FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
+
+TABLE store_bundles  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
+  id uuid NOT NULL DEFAULT gen_random_uuid()
+  store_id uuid NOT NULL
+  bundle_id uuid NOT NULL
+  price numeric(12,2) NOT NULL
+  currency text NOT NULL DEFAULT 'EGP'::text
+  stock_quantity integer NOT NULL
+  is_available boolean NOT NULL DEFAULT false
+  price_includes_tax boolean
+  price_includes_shipping boolean
+  data_source text NOT NULL DEFAULT 'store_catalog'::text
+  sync_status text NOT NULL DEFAULT 'unavailable'::text
+  last_synced_at timestamp with time zone
+  product_url text
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT store_bundles_pkey PRIMARY KEY (id)
+  CONSTRAINT store_bundles_store_bundle_key UNIQUE (store_id, bundle_id)
+  CONSTRAINT store_bundles_bundle_id_fkey FOREIGN KEY (bundle_id) REFERENCES bundles(id) ON DELETE CASCADE
+  CONSTRAINT store_bundles_store_id_fkey FOREIGN KEY (store_id) REFERENCES stores(id) ON DELETE CASCADE
+  CONSTRAINT store_bundles_currency_check CHECK ((currency = 'EGP'::text))
+  CONSTRAINT store_bundles_price_check CHECK ((price > (0)::numeric))
+  CONSTRAINT store_bundles_stock_check CHECK ((stock_quantity >= 0))
+  CONSTRAINT store_bundles_sync_status_check CHECK ((sync_status = ANY (ARRAY['synced'::text, 'stale'::text, 'unavailable'::text])))
+  CREATE INDEX store_bundles_bundle_idx ON store_bundles USING btree (bundle_id)
+  CREATE TRIGGER set_updated_at BEFORE UPDATE ON store_bundles FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
+
+TABLE store_catalog_best_sellers  rls=on  grants: anon=- authenticated=r service_role=rawdDxt
+  store_product_id uuid NOT NULL
+  store_id uuid NOT NULL
+  product_size_id uuid NOT NULL
+  units_sold integer NOT NULL
+  reported_at timestamp with time zone NOT NULL DEFAULT now()
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT store_catalog_best_sellers_pkey PRIMARY KEY (store_product_id)
+  CONSTRAINT store_catalog_best_sellers_product_size_id_fkey FOREIGN KEY (product_size_id) REFERENCES product_sizes(id) ON DELETE CASCADE
+  CONSTRAINT store_catalog_best_sellers_store_id_fkey FOREIGN KEY (store_id) REFERENCES stores(id) ON DELETE CASCADE
+  CONSTRAINT store_catalog_best_sellers_store_product_id_fkey FOREIGN KEY (store_product_id) REFERENCES store_products(id) ON DELETE CASCADE
+  CONSTRAINT store_catalog_best_sellers_units_sold_check CHECK ((units_sold >= 0))
+  CREATE INDEX store_catalog_best_sellers_size_idx ON store_catalog_best_sellers USING btree (product_size_id)
+  CREATE INDEX store_catalog_best_sellers_store_idx ON store_catalog_best_sellers USING btree (store_id)
+  POLICY store_catalog_best_sellers_read PERMISSIVE FOR SELECT TO authenticated USING ((( SELECT private.is_platform_admin() AS is_platform_admin) OR ( SELECT private.is_store_member(store_catalog_best_sellers.store_id) AS is_store_member)))
+  CREATE TRIGGER store_catalog_best_sellers_sync_keys BEFORE INSERT OR UPDATE ON store_catalog_best_sellers FOR EACH ROW EXECUTE FUNCTION private.store_ranking_sync_keys()
+
+TABLE store_catalog_most_searched  rls=on  grants: anon=- authenticated=r service_role=rawdDxt
+  store_product_id uuid NOT NULL
+  store_id uuid NOT NULL
+  product_size_id uuid NOT NULL
+  searches_count integer NOT NULL
+  reported_at timestamp with time zone NOT NULL DEFAULT now()
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT store_catalog_most_searched_pkey PRIMARY KEY (store_product_id)
+  CONSTRAINT store_catalog_most_searched_product_size_id_fkey FOREIGN KEY (product_size_id) REFERENCES product_sizes(id) ON DELETE CASCADE
+  CONSTRAINT store_catalog_most_searched_store_id_fkey FOREIGN KEY (store_id) REFERENCES stores(id) ON DELETE CASCADE
+  CONSTRAINT store_catalog_most_searched_store_product_id_fkey FOREIGN KEY (store_product_id) REFERENCES store_products(id) ON DELETE CASCADE
+  CONSTRAINT store_catalog_most_searched_searches_count_check CHECK ((searches_count >= 0))
+  CREATE INDEX store_catalog_most_searched_size_idx ON store_catalog_most_searched USING btree (product_size_id)
+  CREATE INDEX store_catalog_most_searched_store_idx ON store_catalog_most_searched USING btree (store_id)
+  POLICY store_catalog_most_searched_read PERMISSIVE FOR SELECT TO authenticated USING ((( SELECT private.is_platform_admin() AS is_platform_admin) OR ( SELECT private.is_store_member(store_catalog_most_searched.store_id) AS is_store_member)))
+  CREATE TRIGGER store_catalog_most_searched_sync_keys BEFORE INSERT OR UPDATE ON store_catalog_most_searched FOR EACH ROW EXECUTE FUNCTION private.store_ranking_sync_keys()
+
+TABLE store_catalog_most_viewed  rls=on  grants: anon=- authenticated=r service_role=rawdDxt
+  store_product_id uuid NOT NULL
+  store_id uuid NOT NULL
+  product_size_id uuid NOT NULL
+  views_count integer NOT NULL
+  reported_at timestamp with time zone NOT NULL DEFAULT now()
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT store_catalog_most_viewed_pkey PRIMARY KEY (store_product_id)
+  CONSTRAINT store_catalog_most_viewed_product_size_id_fkey FOREIGN KEY (product_size_id) REFERENCES product_sizes(id) ON DELETE CASCADE
+  CONSTRAINT store_catalog_most_viewed_store_id_fkey FOREIGN KEY (store_id) REFERENCES stores(id) ON DELETE CASCADE
+  CONSTRAINT store_catalog_most_viewed_store_product_id_fkey FOREIGN KEY (store_product_id) REFERENCES store_products(id) ON DELETE CASCADE
+  CONSTRAINT store_catalog_most_viewed_views_count_check CHECK ((views_count >= 0))
+  CREATE INDEX store_catalog_most_viewed_size_idx ON store_catalog_most_viewed USING btree (product_size_id)
+  CREATE INDEX store_catalog_most_viewed_store_idx ON store_catalog_most_viewed USING btree (store_id)
+  POLICY store_catalog_most_viewed_read PERMISSIVE FOR SELECT TO authenticated USING ((( SELECT private.is_platform_admin() AS is_platform_admin) OR ( SELECT private.is_store_member(store_catalog_most_viewed.store_id) AS is_store_member)))
+  CREATE TRIGGER store_catalog_most_viewed_sync_keys BEFORE INSERT OR UPDATE ON store_catalog_most_viewed FOR EACH ROW EXECUTE FUNCTION private.store_ranking_sync_keys()
+
+TABLE store_catalog_ratings  rls=on  grants: anon=- authenticated=r service_role=rawdDxt
+  store_product_id uuid NOT NULL
+  store_id uuid NOT NULL
+  product_size_id uuid NOT NULL
+  average_rating numeric(3,2) NOT NULL
+  ratings_count integer NOT NULL
+  reported_at timestamp with time zone NOT NULL DEFAULT now()
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT store_catalog_ratings_pkey PRIMARY KEY (store_product_id)
+  CONSTRAINT store_catalog_ratings_product_size_id_fkey FOREIGN KEY (product_size_id) REFERENCES product_sizes(id) ON DELETE CASCADE
+  CONSTRAINT store_catalog_ratings_store_id_fkey FOREIGN KEY (store_id) REFERENCES stores(id) ON DELETE CASCADE
+  CONSTRAINT store_catalog_ratings_store_product_id_fkey FOREIGN KEY (store_product_id) REFERENCES store_products(id) ON DELETE CASCADE
+  CONSTRAINT store_catalog_ratings_average_rating_check CHECK (((average_rating >= (1)::numeric) AND (average_rating <= (5)::numeric)))
+  CONSTRAINT store_catalog_ratings_ratings_count_check CHECK ((ratings_count >= 1))
+  CREATE INDEX store_catalog_ratings_size_idx ON store_catalog_ratings USING btree (product_size_id)
+  CREATE INDEX store_catalog_ratings_store_idx ON store_catalog_ratings USING btree (store_id)
+  POLICY store_catalog_ratings_read PERMISSIVE FOR SELECT TO authenticated USING ((( SELECT private.is_platform_admin() AS is_platform_admin) OR ( SELECT private.is_store_member(store_catalog_ratings.store_id) AS is_store_member)))
+  CREATE TRIGGER store_catalog_ratings_sync_keys BEFORE INSERT OR UPDATE ON store_catalog_ratings FOR EACH ROW EXECUTE FUNCTION private.store_ranking_sync_keys()
 
 TABLE store_integrations  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
   id uuid NOT NULL DEFAULT gen_random_uuid()

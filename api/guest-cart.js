@@ -164,7 +164,7 @@ module.exports = async (req, res) => {
   // cookie is expired only once the rows are gone, so a failed call can be retried by the browser. Registered customers' data is
   // never touched (forget_guest_browser works on guest rows only). No key at all means there is nothing to erase.
   if (action === 'forget') {
-    const keys = [...new Set([String(body.visitorKey || ''), cookieKey(req) || ''].filter((k) => UUID.test(k)))];
+    const keys = [...new Set([String(body.visitorKey || ''), cookieKey(req) || ''].filter((k) => UUID.test(k)))].sort();
     if (!keys.length) {
       expireKeyCookie(req, res);
       return json(res, 200, { ok: true, forgotten: false });
@@ -224,14 +224,20 @@ module.exports = async (req, res) => {
     // If this browser arrives with a different key than the one the server already gave it, the two
     // records are merged into the cookie's key, so one browser is never two visitors.
     let canonicalKey = null;
+    let shouldSetKeyCookie = false;
     if (action === 'resolve') {
       const known = cookieKey(req);
-      if (!known || body.fresh === true) setKeyCookie(req, res, visitorKey);
+      if (!known || body.fresh === true) shouldSetKeyCookie = true;
       else if (known !== visitorKey) {
-        const merge = await admin('rpc/merge_guest_browser', {
+        const mergeResponse = await admin('rpc/merge_guest_browser', {
           p_from_fingerprint: fingerprintHash, p_to_fingerprint: hmac(hashSecret, 'guest-browser', known),
           p_from_analytics: analyticsHash, p_to_analytics: hmac(hashSecret, 'guest-analytics', known)
-        }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+        });
+        const merge = mergeResponse.ok ? await mergeResponse.json().catch(() => null) : null;
+        if (merge && merge.reason === 'blocked') {
+          expireKeyCookie(req, res);
+          return json(res, 200, { ok: true, tracked: false, blocked: true, cart: [] });
+        }
         if (merge && merge.merged === true) { canonicalKey = known; visitorKey = known; }
       }
     }
@@ -249,6 +255,11 @@ module.exports = async (req, res) => {
       const response = await admin(`rpc/${rpc}`, payload);
       if (!response.ok) return json(res, 502, { error: 'guest_profile_unavailable' });
       const profile = await response.json();
+      if (profile && profile.blocked === true) {
+        expireKeyCookie(req, res);
+        return json(res, 200, { ok: true, tracked: false, blocked: true, cart: [] });
+      }
+      if (action === 'resolve' && shouldSetKeyCookie) setKeyCookie(req, res, visitorKey);
       return json(res, 200, { ok: true, visitorId: profile.visitorId, status: profile.status, cart: cleanCart(profile.cart || []), ...(profile.limited === true ? { limited: true } : {}), ...(canonicalKey ? { visitorKey: canonicalKey } : {}) });
     }
 
@@ -287,6 +298,7 @@ module.exports = async (req, res) => {
     });
     if (!response.ok) return json(res, 502, { error: 'cart_transfer_failed' });
     const result = await response.json();
+    expireKeyCookie(req, res);
     return json(res, 200, { ok: true, claimed: !!result.claimed, cart: Number(result.cart) || 0 });
   } catch (_) {
     return json(res, 502, { error: 'guest_sync_unavailable' });

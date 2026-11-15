@@ -19,17 +19,27 @@ function makeNode(attrs = {}) {
   };
 }
 
-function browser({ stored = null, extra = {}, cookie = '', search = '', framed = false, gpc, readyState = 'complete', blocked = false, server = 'ok', page = true } = {}) {
+function browser({ stored = null, extra = {}, cookie = '', search = '', framed = false, gpc, readyState = 'complete', blocked = false, cookieBlocked = false, server = 'ok', page = true } = {}) {
   const store = new Map(Object.entries(extra));
   if (stored !== null) store.set('elan_consent_v1', typeof stored === 'string' ? stored : JSON.stringify(stored));
   const docListeners = {}, winListeners = {}, cookieWrites = [], requests = [], writes = [];
+  const cookies = new Map(String(cookie).split(';').map((part) => part.trim()).filter(Boolean).map((part) => { const i = part.indexOf('='); return [part.slice(0, i), part.slice(i + 1)]; }));
   const openState = makeNode({ 'data-consent-when': 'open' });
   const refusedState = makeNode({ 'data-consent-when': 'refused', hidden: '' });
   const button = makeNode({ 'data-consent-refuse': '' });
   const nodes = page ? [openState, refusedState, button] : [];
   const document = {
     readyState,
-    get cookie() { return cookie; }, set cookie(line) { cookieWrites.push(String(line)); },
+    get cookie() { return [...cookies].map(([name, value]) => name + '=' + value).join('; '); },
+    set cookie(line) {
+      if (cookieBlocked) throw new Error('cookie storage blocked');
+      cookieWrites.push(String(line));
+      const pair = String(line).split(';', 1)[0];
+      const i = pair.indexOf('=');
+      const name = pair.slice(0, i), value = pair.slice(i + 1);
+      if (!value || /(?:^|;)\s*max-age=0(?:;|$)/i.test(String(line))) cookies.delete(name);
+      else cookies.set(name, value);
+    },
     querySelectorAll: (sel) => nodes.filter((n) => (sel === '[data-consent-when]' ? n.attrs['data-consent-when'] !== undefined : sel === '[data-consent-refuse]' ? n.attrs['data-consent-refuse'] !== undefined : false)),
     addEventListener(type, fn) { (docListeners[type] = docListeners[type] || []).push(fn); }
   };
@@ -41,7 +51,7 @@ function browser({ stored = null, extra = {}, cookie = '', search = '', framed =
     localStorage: {
       getItem: (k) => { if (blocked) throw new Error('storage blocked'); return store.has(k) ? store.get(k) : null; },
       setItem: (k, v) => { if (blocked) throw new Error('storage blocked'); writes.push(k); store.set(k, String(v)); },
-      removeItem: (k) => { store.delete(k); }
+      removeItem: (k) => { if (blocked) throw new Error('storage blocked'); store.delete(k); }
     },
     fetch: (url, options = {}) => {
       requests.push({ url: String(url), body: JSON.parse(options.body || '{}'), keepalive: options.keepalive === true, method: options.method });
@@ -52,8 +62,10 @@ function browser({ stored = null, extra = {}, cookie = '', search = '', framed =
   vm.runInNewContext(source, context, { filename: 'consent.js' });
   return {
     window, store, writes, requests, cookieWrites, consent: window.ElanConsent, nodes: { openState, refusedState, button },
+    cookieValue() { return document.cookie; },
     click(node) { (docListeners.click || []).forEach((fn) => fn({ target: node, preventDefault() {} })); },
     storageEvent(key) { (winListeners.storage || []).forEach((fn) => fn({ key })); },
+    focus() { (winListeners.focus || []).forEach((fn) => fn()); },
     ready() { (docListeners.DOMContentLoaded || []).forEach((fn) => fn()); }
   };
 }
@@ -229,6 +241,19 @@ test('blocked storage does not break the refusal for the current page', async ()
   assert.doesNotThrow(() => b.consent.refuse());
   assert.equal(b.consent.analytics(), false);
   assert.equal(b.consent.refused(), true);
+});
+
+test('when localStorage is blocked the refusal cookie survives a reload and prevents a new guest request', async () => {
+  const first = browser({ blocked: true, cookie: 'elan_vk=' + KEY });
+  first.consent.refuse();
+  await flush();
+  assert.equal(first.consent.analytics(), false);
+  assert.match(first.cookieValue(), /(?:^|; )elan_consent_refused=1(?:;|$)/);
+  assert.deepEqual(first.requests[0].body, { action: 'forget', visitorKey: KEY });
+  const reloaded = browser({ blocked: true, cookie: first.cookieValue() });
+  assert.equal(reloaded.consent.refused(), true);
+  assert.equal(reloaded.consent.analytics(), false);
+  assert.deepEqual(reloaded.requests, [], 'the server key was erased and the persistent refusal marker remains');
 });
 
 test('a listener that throws does not stop the others', () => {

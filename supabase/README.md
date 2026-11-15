@@ -1,17 +1,19 @@
 # Supabase migrations
 
-`migrations/` contains **133** tracked SQL source files for the live Supabase project, one for every record of the live ledger (`supabase_migrations.schema_migrations`, 133 records, checked read-only on 2026-11-13). Migration files are kept in ascending version order, and `tests/migrations-consistency.test.js` checks local naming and ordering. The Supabase GitHub integration compares the versions of the ledger with the files here and refuses to run ("Remote migration versions not found in local migrations directory") when a ledger version has no file, so every version recorded live must have a file.
+`migrations/` contains **138** tracked SQL source files for the live Supabase project, one for every record of the live ledger (`supabase_migrations.schema_migrations`, 138 records, checked read-only on 2026-11-15). Migration files are kept in ascending version order, and `tests/migrations-consistency.test.js` checks local naming and ordering. The Supabase GitHub integration compares the versions of the ledger with the files here and refuses to run ("Remote migration versions not found in local migrations directory") when a ledger version has no file, so every version recorded live must have a file.
 
-## Current live-ledger match (checked 2026-11-13)
+## Current live-ledger match (checked 2026-11-15)
 
-The local version list matches all 133 rows in `supabase_migrations.schema_migrations`, in order; the ordered-version-list MD5 is `86167a97452543560d0c015858b055cf` and the latest recorded version is `20261113141111`. The two sources recovered on 2026-11-12 and the two new security migrations applied on 2026-11-13 are pinned by `tests/migrations-consistency.test.js` and `tests/live-migration-source-integrity.test.js`:
+The local version list matches all 138 rows in `supabase_migrations.schema_migrations`, in order; the ordered-version-list MD5 is `7a278bf0e68b3f867a1bf114dde7eef1` and the latest recorded version is `20261115074256`. Newly applied migration sources are pinned by `tests/migrations-consistency.test.js` and `tests/live-migration-source-integrity.test.js`:
 
 - `20261110081953_catalog_offer_stock_and_announcement_contract` — ledger statement MD5 `1c7fe198fe497ad557043b7b941f5c96`.
 - `20261111064516_phase2_payment_merchant_shipping` — ledger statement MD5 `1c26ff99714319da3bd5771ce1e90779`.
 - `20261113141046_customer_cart_revision_cas` — ledger statement MD5 `f3a86a190087ec8d7c7af5681d7a1e56`; conditional cart writes prevent an older device snapshot from replacing a newer cart.
 - `20261113141111_customer_mail_claims` — ledger statement MD5 `38e3b39b3384225868fcecbe41570db5`; time-limited per-account mail claims prevent concurrent duplicate sends while retaining the durable send log.
+- `20261114154459_guest_identity_revocation_barrier` — ledger statement MD5 `63a241cbaf0836c7949d60843767c5d3`; the local source SHA-256 is `7a0ae316aff4e8ddb284440a52663e345ad02725b7602ca85de02b01fffda83d`. The database barrier blocks late guest activity writes after opt-out or account claiming.
+- `20261114122256_editor_cleanup_unsaved`, `20261114124230_payment_retry_new_attempt`, `20261115065036_editor_cleanup_by_session` and `20261115074256_catalog_bundles` are also present in both the live ledger and the local migration list.
 
-The 2026-11-13 migrations were tested against the live schema in one rolled-back transaction before application. Their SQL tests use synthetic accounts and `BEGIN ... ROLLBACK`; the two tests passed after application and left no fixture rows.
+The reviewed migrations were tested against the live schema in rolled-back transactions before application. Their SQL tests use synthetic accounts and `BEGIN ... ROLLBACK`; tests passed after application and left no fixture rows.
 
 ## Records whose file did not exist or carried another version (fixed 2026-11-07)
 The integration's "Supabase Preview" check was red because the ledger held versions without a file here. A migration applied through the Supabase tool is stamped with the **time it was applied**, not with the number the author gave the file, so a file named in advance never matches its ledger record. The rule is: **after applying, the file takes the version the ledger recorded** (`list_migrations`), and a migration applied before its file exists is recovered verbatim from the ledger.

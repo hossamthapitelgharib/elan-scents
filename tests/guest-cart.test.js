@@ -39,14 +39,34 @@ test('claim transfers both server HMACs with the authenticated customer ID', asy
     if (String(url).endsWith('/auth/v1/user')) return response({ id: 'a6d53c31-c9d7-428a-82f4-c742bf923690' });
     return response({ claimed: true, cart: 2, items: 1 });
   };
-  const res = recorder();
-  await handler({ method: 'POST', headers: { authorization: 'Bearer unit-test-token' }, body: { action: 'claim', visitorKey } }, res);
+  const res = cookieRes();
+  await handler({ method: 'POST', headers: { authorization: 'Bearer unit-test-token', 'x-forwarded-proto': 'https' }, body: { action: 'claim', visitorKey } }, res);
   assert.equal(res.out.status, 200); assert.equal(res.out.body.claimed, true);
+  assert.equal(res.headers['Set-Cookie'], 'elan_gid=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax; Secure', 'claim retires the HttpOnly browser key');
   assert.match(calls[1].url, /rpc\/claim_guest_browser_cart$/);
   const payload = JSON.parse(calls[1].options.body);
   assert.match(payload.p_fingerprint_hash, /^[a-f0-9]{64}$/);
   assert.match(payload.p_analytics_hash, /^[a-f0-9]{64}$/);
   assert.equal(payload.p_user_id, 'a6d53c31-c9d7-428a-82f4-c742bf923690');
+});
+
+test('a retired key cannot receive a new HttpOnly cookie after a delayed resolve', async () => {
+  useDatabase(() => response({ blocked: true, visitorId: null, status: 'guest', cart: [] }));
+  const res = cookieRes();
+  await handler({ method: 'POST', headers: { 'x-forwarded-proto': 'https' }, body: { action: 'resolve', visitorKey } }, res);
+  assert.equal(res.out.status, 200);
+  assert.deepEqual(res.out.body, { ok: true, tracked: false, blocked: true, cart: [] });
+  assert.equal(res.headers['Set-Cookie'], 'elan_gid=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax; Secure');
+});
+
+test('a blocked browser merge stops before resolving either identity and expires the stale server cookie', async () => {
+  const calls = useDatabase(url => url.endsWith('/rpc/merge_guest_browser') ? response({ merged: false, reason: 'blocked' }) : response({}));
+  const res = cookieRes();
+  await handler({ method: 'POST', headers: { cookie: 'elan_gid=' + otherKey, 'x-forwarded-proto': 'https' }, body: { action: 'resolve', visitorKey } }, res);
+  assert.equal(res.out.status, 200);
+  assert.deepEqual(res.out.body, { ok: true, tracked: false, blocked: true, cart: [] });
+  assert.equal(calls.length, 1, 'a stopped merge never starts a new resolve');
+  assert.equal(res.headers['Set-Cookie'], 'elan_gid=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax; Secure');
 });
 
 test('legacy guest activity route accepts cart removal and writes to the unified detailed ledger', async () => {

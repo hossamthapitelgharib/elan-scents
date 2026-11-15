@@ -288,3 +288,70 @@ TABLE order_operation_events  rls=on  grants: anon=- authenticated=- service_rol
   CREATE INDEX order_operation_events_session_idx ON order_operation_events USING btree (checkout_session_id, created_at DESC)
   CREATE INDEX order_operation_events_type_idx ON order_operation_events USING btree (event_type, created_at DESC)
   POLICY order_operation_events_internal_read PERMISSIVE FOR SELECT TO authenticated USING ((private.is_platform_admin() OR (EXISTS ( SELECT 1 FROM store_order_requests r WHERE ((r.id = order_operation_events.request_id) AND private.is_store_member(r.store_id))))))
+
+TABLE order_payment_events  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
+  id uuid NOT NULL DEFAULT gen_random_uuid()
+  request_id uuid NOT NULL
+  payment_id uuid
+  store_id uuid NOT NULL
+  provider text NOT NULL
+  event_id text NOT NULL
+  event_type text NOT NULL
+  provider_transaction_id text
+  payment_reference text
+  amount numeric(12,2)
+  currency text
+  occurred_at timestamp with time zone
+  idempotency_key text NOT NULL
+  payload_hash text NOT NULL
+  outcome text NOT NULL
+  received_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT order_payment_events_pkey PRIMARY KEY (id)
+  CONSTRAINT order_payment_events_idempotency_key_key UNIQUE (idempotency_key)
+  CONSTRAINT order_payment_events_payment_id_fkey FOREIGN KEY (payment_id) REFERENCES order_payments(id)
+  CONSTRAINT order_payment_events_request_id_fkey FOREIGN KEY (request_id) REFERENCES store_order_requests(id)
+  CONSTRAINT order_payment_events_store_id_fkey FOREIGN KEY (store_id) REFERENCES stores(id)
+  CONSTRAINT order_payment_events_event_id_check CHECK (((char_length(event_id) >= 1) AND (char_length(event_id) <= 200)))
+  CONSTRAINT order_payment_events_event_type_check CHECK ((event_type = ANY (ARRAY['payment.succeeded'::text, 'payment.failed'::text])))
+  CONSTRAINT order_payment_events_outcome_check CHECK ((outcome = ANY (ARRAY['applied'::text, 'failed_recorded'::text, 'duplicate_payment'::text, 'amount_mismatch'::text, 'currency_mismatch'::text, 'state_rejected'::text])))
+  CREATE INDEX order_payment_events_request_idx ON order_payment_events USING btree (request_id, received_at DESC)
+  POLICY order_payment_events_admin_all PERMISSIVE FOR ALL TO authenticated USING (private.is_platform_admin()) WITH CHECK (private.is_platform_admin())
+  CREATE TRIGGER order_payment_events_append_only BEFORE DELETE OR UPDATE ON order_payment_events FOR EACH ROW EXECUTE FUNCTION private.forbid_change()
+
+TABLE order_payments  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
+  id uuid NOT NULL DEFAULT gen_random_uuid()
+  request_id uuid NOT NULL
+  store_id uuid NOT NULL
+  user_id uuid
+  method_kind text NOT NULL
+  mode text NOT NULL
+  provider text NOT NULL
+  status text NOT NULL
+  amount numeric(12,2) NOT NULL
+  currency text NOT NULL DEFAULT 'EGP'::text
+  provider_transaction_id text
+  payment_reference text
+  idempotency_key text NOT NULL
+  failure_reason text
+  paid_at timestamp with time zone
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT order_payments_pkey PRIMARY KEY (id)
+  CONSTRAINT order_payments_idempotency_key_key UNIQUE (idempotency_key)
+  CONSTRAINT order_payments_request_id_fkey FOREIGN KEY (request_id) REFERENCES store_order_requests(id)
+  CONSTRAINT order_payments_store_id_fkey FOREIGN KEY (store_id) REFERENCES stores(id)
+  CONSTRAINT order_payments_amount_check CHECK ((amount > (0)::numeric))
+  CONSTRAINT order_payments_currency_check CHECK ((currency = 'EGP'::text))
+  CONSTRAINT order_payments_failure_reason_check CHECK (((failure_reason IS NULL) OR (char_length(failure_reason) <= 500)))
+  CONSTRAINT order_payments_idempotency_key_check CHECK (((char_length(idempotency_key) >= 8) AND (char_length(idempotency_key) <= 200)))
+  CONSTRAINT order_payments_method_kind_check CHECK ((method_kind = ANY (ARRAY['card'::text, 'cod'::text, 'other'::text])))
+  CONSTRAINT order_payments_mode_check CHECK ((mode = ANY (ARRAY['redirect'::text, 'hosted'::text, 'none'::text])))
+  CONSTRAINT order_payments_payment_reference_check CHECK (((payment_reference IS NULL) OR ((char_length(payment_reference) >= 1) AND (char_length(payment_reference) <= 160))))
+  CONSTRAINT order_payments_provider_transaction_id_check CHECK (((provider_transaction_id IS NULL) OR ((char_length(provider_transaction_id) >= 1) AND (char_length(provider_transaction_id) <= 160))))
+  CONSTRAINT order_payments_status_check CHECK ((status = ANY (ARRAY['initiated'::text, 'paid'::text, 'failed'::text, 'cancelled'::text, 'cod_selected'::text])))
+  CREATE UNIQUE INDEX order_payments_one_settled_idx ON order_payments USING btree (request_id) WHERE (status = ANY (ARRAY['paid'::text, 'cod_selected'::text]))
+  CREATE UNIQUE INDEX order_payments_provider_txn_idx ON order_payments USING btree (provider, provider_transaction_id) WHERE (provider_transaction_id IS NOT NULL)
+  CREATE INDEX order_payments_request_idx ON order_payments USING btree (request_id, created_at DESC)
+  CREATE INDEX order_payments_store_idx ON order_payments USING btree (store_id)
+  POLICY order_payments_admin_all PERMISSIVE FOR ALL TO authenticated USING (private.is_platform_admin()) WITH CHECK (private.is_platform_admin())
+  CREATE TRIGGER order_payments_touch BEFORE UPDATE ON order_payments FOR EACH ROW EXECUTE FUNCTION private.phase2_touch()

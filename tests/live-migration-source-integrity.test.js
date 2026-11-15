@@ -13,7 +13,8 @@ const recovered = new Map([
   ['20261110081953_catalog_offer_stock_and_announcement_contract.sql', 'cbdf99726151ffa9efa99252cd0a42897620228ab9fc6cf946ea3171fe78363f'],
   ['20261111064516_phase2_payment_merchant_shipping.sql', '0592d7bb181c6e92615f6b2eb7087674527cfd6d992c9ca748ebdd9731e080ca'],
   ['20261113141046_customer_cart_revision_cas.sql', '65fd269d8daee7759691ba31f475bf84dea554e51ffcf6d8d477279dd8d0d4c2'],
-  ['20261113141111_customer_mail_claims.sql', '255096315c14e54e7fccfbe2512fb81f82ccb1b42b6c8857ee57090434ae9b95']
+  ['20261113141111_customer_mail_claims.sql', '255096315c14e54e7fccfbe2512fb81f82ccb1b42b6c8857ee57090434ae9b95'],
+  ['20261114154459_guest_identity_revocation_barrier.sql', '7a0ae316aff4e8ddb284440a52663e345ad02725b7602ca85de02b01fffda83d']
 ]);
 
 test('recovered applied migration sources retain their exact live-ledger SHA-256 digests', () => {

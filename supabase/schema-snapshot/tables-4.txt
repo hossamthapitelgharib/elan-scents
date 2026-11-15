@@ -70,12 +70,15 @@ TABLE store_order_request_items  rls=on  grants: anon=- authenticated=- service_
   source_cart_item_id uuid
   platform_order_number text
   merchant_order_reference text
+  product_snapshot jsonb
+  product_description text
   CONSTRAINT store_order_request_items_pkey PRIMARY KEY (id)
   CONSTRAINT store_order_request_items_id_request_unique UNIQUE (id, request_id)
   CONSTRAINT store_order_request_items_request_id_product_size_id_key UNIQUE (request_id, product_size_id)
   CONSTRAINT store_order_request_items_product_size_id_fkey FOREIGN KEY (product_size_id) REFERENCES product_sizes(id)
   CONSTRAINT store_order_request_items_request_id_fkey FOREIGN KEY (request_id) REFERENCES store_order_requests(id) ON DELETE CASCADE
   CONSTRAINT store_order_request_items_store_product_id_fkey FOREIGN KEY (store_product_id) REFERENCES store_products(id)
+  CONSTRAINT store_order_request_items_currency_egp CHECK ((currency = 'EGP'::text))
   CONSTRAINT store_order_request_items_line_total_check CHECK ((line_total >= (0)::numeric))
   CONSTRAINT store_order_request_items_merchant_reference_check CHECK (((merchant_order_reference IS NULL) OR (char_length(merchant_order_reference) <= 160)))
   CONSTRAINT store_order_request_items_platform_order_number_check CHECK (((platform_order_number IS NULL) OR ((char_length(platform_order_number) >= 1) AND (char_length(platform_order_number) <= 80))))
@@ -92,6 +95,7 @@ TABLE store_order_request_items  rls=on  grants: anon=- authenticated=- service_
   POLICY store_order_request_items_store_read PERMISSIVE FOR SELECT TO authenticated USING ((EXISTS ( SELECT 1 FROM store_order_requests r WHERE ((r.id = store_order_request_items.request_id) AND private.is_store_member(r.store_id)))))
   CREATE TRIGGER assign_platform_order_number BEFORE INSERT ON store_order_request_items FOR EACH ROW EXECUTE FUNCTION private.assign_platform_order_number()
   CREATE TRIGGER protect_order_base_trigger BEFORE DELETE OR UPDATE ON store_order_request_items FOR EACH ROW EXECUTE FUNCTION private.protect_order_base()
+  CREATE TRIGGER snapshot_order_item BEFORE INSERT ON store_order_request_items FOR EACH ROW EXECUTE FUNCTION private.snapshot_order_item()
 
 TABLE store_order_requests  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
   id uuid NOT NULL DEFAULT gen_random_uuid()
@@ -121,6 +125,19 @@ TABLE store_order_requests  rls=on  grants: anon=- authenticated=- service_role=
   inventory_applied_at timestamp with time zone
   customer_confirmed_at timestamp with time zone
   commission_rate numeric(5,2) NOT NULL DEFAULT 15.00
+  merchant_order_number text
+  merchant_invoice_number text
+  customer_snapshot jsonb NOT NULL DEFAULT '{}'::jsonb
+  approved_at timestamp with time zone
+  payable_amount numeric(12,2)
+  payment_options jsonb
+  payment_status text NOT NULL DEFAULT 'not_started'::text
+  payment_method text
+  payment_provider text
+  payment_reference text
+  paid_at timestamp with time zone
+  cart_cleared_at timestamp with time zone
+  sale_proven_at timestamp with time zone
   CONSTRAINT store_order_requests_pkey PRIMARY KEY (id)
   CONSTRAINT store_order_requests_tracking_number_key UNIQUE (tracking_number)
   CONSTRAINT store_order_requests_checkout_session_id_fkey FOREIGN KEY (checkout_session_id) REFERENCES checkout_sessions(id)
@@ -128,9 +145,15 @@ TABLE store_order_requests  rls=on  grants: anon=- authenticated=- service_role=
   CONSTRAINT store_order_requests_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
   CONSTRAINT store_order_requests_address_len CHECK (((char_length(customer_address) >= 1) AND (char_length(customer_address) <= 500)))
   CONSTRAINT store_order_requests_commission_rate_check CHECK (((commission_rate >= (0)::numeric) AND (commission_rate <= (100)::numeric)))
+  CONSTRAINT store_order_requests_currency_egp CHECK ((currency = 'EGP'::text))
   CONSTRAINT store_order_requests_email_len CHECK (((customer_email IS NULL) OR (char_length(customer_email) <= 254)))
+  CONSTRAINT store_order_requests_merchant_numbers_fmt CHECK ((((merchant_order_number IS NULL) OR ((char_length(btrim(merchant_order_number)) >= 1) AND (char_length(btrim(merchant_order_number)) <= 160))) AND ((merchant_invoice_number IS NULL) OR ((char_length(btrim(merchant_invoice_number)) >= 1) AND (char_length(btrim(merchant_invoice_number)) <= 160)))))
   CONSTRAINT store_order_requests_name_len CHECK (((char_length(customer_name) >= 1) AND (char_length(customer_name) <= 120)))
   CONSTRAINT store_order_requests_notes_len CHECK (((customer_notes IS NULL) OR (char_length(customer_notes) <= 1000)))
+  CONSTRAINT store_order_requests_payable_check CHECK (((payable_amount IS NULL) OR (payable_amount >= (0)::numeric)))
+  CONSTRAINT store_order_requests_payment_method_check CHECK (((payment_method IS NULL) OR (payment_method = ANY (ARRAY['card'::text, 'cod'::text, 'other'::text]))))
+  CONSTRAINT store_order_requests_payment_reference_len CHECK (((payment_reference IS NULL) OR ((char_length(payment_reference) >= 1) AND (char_length(payment_reference) <= 160))))
+  CONSTRAINT store_order_requests_payment_status_check CHECK ((payment_status = ANY (ARRAY['not_started'::text, 'awaiting_payment'::text, 'paid'::text, 'cod_selected'::text, 'failed'::text])))
   CONSTRAINT store_order_requests_phone_len CHECK (((char_length(customer_phone) >= 1) AND (char_length(customer_phone) <= 32)))
   CONSTRAINT store_order_requests_reconciliation_status_check CHECK ((reconciliation_status = ANY (ARRAY['pending'::text, 'matched'::text, 'mismatched'::text])))
   CONSTRAINT store_order_requests_shipping_amount_check CHECK (((shipping_amount IS NULL) OR (shipping_amount >= (0)::numeric)))
@@ -147,17 +170,49 @@ TABLE store_order_requests  rls=on  grants: anon=- authenticated=- service_role=
   POLICY store_order_requests_admin_all PERMISSIVE FOR ALL TO authenticated USING (private.is_platform_admin()) WITH CHECK (private.is_platform_admin())
   POLICY store_order_requests_owner_read PERMISSIVE FOR SELECT TO authenticated USING ((user_id = ( SELECT auth.uid() AS uid)))
   POLICY store_order_requests_store_read PERMISSIVE FOR SELECT TO authenticated USING (private.is_store_member(store_id))
-  CREATE TRIGGER protect_order_base_trigger BEFORE UPDATE ON store_order_requests FOR EACH ROW EXECUTE FUNCTION private.protect_order_base()
+  CREATE TRIGGER guard_payment_fields BEFORE UPDATE ON store_order_requests FOR EACH ROW EXECUTE FUNCTION private.guard_payment_fields()
+  CREATE TRIGGER order_approval_stamp BEFORE UPDATE ON store_order_requests FOR EACH ROW EXECUTE FUNCTION private.order_approval_stamp()
+  CREATE TRIGGER protect_order_base_trigger BEFORE DELETE OR UPDATE ON store_order_requests FOR EACH ROW EXECUTE FUNCTION private.protect_order_base()
   CREATE TRIGGER protect_order_commission_rate BEFORE UPDATE ON store_order_requests FOR EACH ROW EXECUTE FUNCTION private.protect_order_commission_rate()
+  CREATE TRIGGER snapshot_order_customer BEFORE INSERT ON store_order_requests FOR EACH ROW EXECUTE FUNCTION private.snapshot_order_customer()
   CREATE TRIGGER snapshot_store_commission_rate BEFORE INSERT ON store_order_requests FOR EACH ROW EXECUTE FUNCTION private.snapshot_store_commission_rate()
   CREATE TRIGGER store_order_notifications_realtime_trigger AFTER INSERT OR UPDATE ON store_order_requests FOR EACH ROW EXECUTE FUNCTION notifications_on_store_order_change()
   CREATE TRIGGER store_order_request_audit_trigger AFTER INSERT OR UPDATE ON store_order_requests FOR EACH ROW EXECUTE FUNCTION audit_store_order_request_change()
+
+TABLE store_payment_methods  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
+  id uuid NOT NULL DEFAULT gen_random_uuid()
+  store_id uuid NOT NULL
+  kind text NOT NULL
+  mode text NOT NULL DEFAULT 'redirect'::text
+  provider text NOT NULL DEFAULT 'merchant'::text
+  label_ar text NOT NULL
+  label_en text
+  redirect_url text
+  hosted_config jsonb NOT NULL DEFAULT '{}'::jsonb
+  enabled boolean NOT NULL DEFAULT true
+  sort_order integer NOT NULL DEFAULT 0
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT store_payment_methods_pkey PRIMARY KEY (id)
+  CONSTRAINT store_payment_methods_store_id_kind_provider_key UNIQUE (store_id, kind, provider)
+  CONSTRAINT store_payment_methods_store_id_fkey FOREIGN KEY (store_id) REFERENCES stores(id)
+  CONSTRAINT store_payment_methods_cod_has_no_page CHECK (((kind <> 'cod'::text) OR ((mode = 'none'::text) AND (redirect_url IS NULL))))
+  CONSTRAINT store_payment_methods_hosted_is_public CHECK (((jsonb_typeof(hosted_config) = 'object'::text) AND (pg_column_size(hosted_config) <= 4000) AND ((hosted_config)::text !~* '(secret|private|password|passwd|card_?number|cvv|cvc|pan)'::text)))
+  CONSTRAINT store_payment_methods_kind_check CHECK ((kind = ANY (ARRAY['card'::text, 'cod'::text, 'other'::text])))
+  CONSTRAINT store_payment_methods_label_ar_check CHECK (((char_length(btrim(label_ar)) >= 1) AND (char_length(btrim(label_ar)) <= 80)))
+  CONSTRAINT store_payment_methods_label_en_check CHECK (((label_en IS NULL) OR (char_length(label_en) <= 80)))
+  CONSTRAINT store_payment_methods_mode_check CHECK ((mode = ANY (ARRAY['redirect'::text, 'hosted'::text, 'none'::text])))
+  CONSTRAINT store_payment_methods_online_has_page CHECK (((kind = 'cod'::text) OR ((mode <> 'none'::text) AND (redirect_url IS NOT NULL))))
+  CONSTRAINT store_payment_methods_provider_check CHECK (((char_length(btrim(provider)) >= 1) AND (char_length(btrim(provider)) <= 60)))
+  CONSTRAINT store_payment_methods_redirect_url_check CHECK (((redirect_url IS NULL) OR ((char_length(redirect_url) <= 500) AND (redirect_url ~* '^https://[^[:space:]/?#@]+(/[^[:space:]]*)?$'::text))))
+  POLICY store_payment_methods_admin_all PERMISSIVE FOR ALL TO authenticated USING (private.is_platform_admin()) WITH CHECK (private.is_platform_admin())
+  CREATE TRIGGER store_payment_methods_touch BEFORE UPDATE ON store_payment_methods FOR EACH ROW EXECUTE FUNCTION private.phase2_touch()
 
 TABLE store_products  rls=on  grants: anon=- authenticated=awd service_role=rawdDxt
   id uuid NOT NULL DEFAULT gen_random_uuid()
   store_id uuid NOT NULL
   product_size_id uuid NOT NULL
-  price numeric(12,2) NOT NULL
+  price numeric(12,2)
   original_price numeric(12,2)
   discount_percentage numeric(5,2)
   stock_quantity integer DEFAULT 0
@@ -183,11 +238,13 @@ TABLE store_products  rls=on  grants: anon=- authenticated=awd service_role=rawd
   CONSTRAINT store_products_link_is_http CHECK (((product_url IS NULL) OR (product_url = ''::text) OR (product_url ~* '^https?://[^[:space:]]+$'::text)))
   CONSTRAINT store_products_original_price_check CHECK ((original_price >= (0)::numeric))
   CONSTRAINT store_products_price_check CHECK ((price >= (0)::numeric))
+  CONSTRAINT store_products_price_required_unless_coming_soon CHECK (((is_coming_soon IS TRUE) OR (price IS NOT NULL)))
   CONSTRAINT store_products_stock_quantity_check CHECK ((stock_quantity >= 0))
   CONSTRAINT store_products_sync_status_check CHECK ((sync_status = ANY (ARRAY['synced'::text, 'stale'::text, 'unavailable'::text])))
   CREATE INDEX idx_store_products_catalog_eligible ON store_products USING btree (product_size_id, price, store_id, id) WHERE (is_available AND (sync_status = 'synced'::text) AND (currency = 'EGP'::text) AND ((stock_quantity IS NULL) OR (stock_quantity > 0)))
   CREATE INDEX idx_store_products_cheapest ON store_products USING btree (product_size_id, price) WHERE is_available
   CREATE INDEX idx_store_products_is_available ON store_products USING btree (is_available) WHERE is_available
+  CREATE INDEX idx_store_products_platform_sale_eligible ON store_products USING btree (product_size_id, price, store_id, id) WHERE (is_available AND (sync_status = 'synced'::text) AND (currency = 'EGP'::text) AND (stock_quantity IS NOT NULL) AND (stock_quantity > 0) AND (price IS NOT NULL) AND (is_coming_soon IS NOT TRUE))
   CREATE INDEX idx_store_products_price ON store_products USING btree (price)
   CREATE INDEX idx_store_products_product_size_id ON store_products USING btree (product_size_id)
   CREATE INDEX idx_store_products_store_id ON store_products USING btree (store_id)
@@ -197,6 +254,29 @@ TABLE store_products  rls=on  grants: anon=- authenticated=awd service_role=rawd
   POLICY public_read PERMISSIVE FOR SELECT TO anon,authenticated USING ((is_available AND (stock_quantity > 0) AND (sync_status = 'synced'::text) AND private.store_is_active(store_id)))
   CREATE TRIGGER guard_platform_columns BEFORE INSERT OR UPDATE ON store_products FOR EACH ROW EXECUTE FUNCTION private.guard_store_product_platform_columns()
   CREATE TRIGGER set_updated_at BEFORE UPDATE ON store_products FOR EACH ROW EXECUTE FUNCTION private.set_updated_at()
+
+TABLE store_shipment_events  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
+  id uuid NOT NULL DEFAULT gen_random_uuid()
+  request_id uuid NOT NULL
+  store_id uuid NOT NULL
+  event_key text NOT NULL
+  carrier_name text
+  tracking_code text
+  shipping_status text NOT NULL
+  occurred_at timestamp with time zone NOT NULL DEFAULT now()
+  source text NOT NULL
+  note text
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT store_shipment_events_pkey PRIMARY KEY (id)
+  CONSTRAINT store_shipment_events_event_key_key UNIQUE (event_key)
+  CONSTRAINT store_shipment_events_request_id_fkey FOREIGN KEY (request_id) REFERENCES store_order_requests(id)
+  CONSTRAINT store_shipment_events_store_id_fkey FOREIGN KEY (store_id) REFERENCES stores(id)
+  CONSTRAINT store_shipment_events_shipping_status_check CHECK ((shipping_status = ANY (ARRAY['preparing'::text, 'handed_to_carrier'::text, 'in_transit'::text, 'out_for_delivery'::text, 'delivered'::text, 'delayed'::text, 'returned'::text, 'cancelled'::text])))
+  CONSTRAINT store_shipment_events_source_check CHECK ((source = ANY (ARRAY['merchant_api'::text, 'merchant_notice'::text, 'store_dashboard'::text, 'platform_admin'::text])))
+  CREATE INDEX store_shipment_events_request_idx ON store_shipment_events USING btree (request_id, occurred_at, created_at)
+  CREATE INDEX store_shipment_events_store_idx ON store_shipment_events USING btree (store_id)
+  POLICY store_shipment_events_admin_all PERMISSIVE FOR ALL TO authenticated USING (private.is_platform_admin()) WITH CHECK (private.is_platform_admin())
+  CREATE TRIGGER store_shipment_events_append_only BEFORE DELETE OR UPDATE ON store_shipment_events FOR EACH ROW EXECUTE FUNCTION private.forbid_change()
 
 TABLE store_shipments  rls=on  grants: anon=- authenticated=- service_role=rawdDxt
   id uuid NOT NULL DEFAULT gen_random_uuid()
@@ -229,6 +309,8 @@ TABLE store_shipments  rls=on  grants: anon=- authenticated=- service_role=rawdD
   POLICY store_shipments_admin_all PERMISSIVE FOR ALL TO authenticated USING (private.is_platform_admin()) WITH CHECK (private.is_platform_admin())
   POLICY store_shipments_owner_read PERMISSIVE FOR SELECT TO authenticated USING ((EXISTS ( SELECT 1 FROM store_order_requests r WHERE ((r.id = store_shipments.request_id) AND (r.user_id = ( SELECT auth.uid() AS uid))))))
   POLICY store_shipments_store_read PERMISSIVE FOR SELECT TO authenticated USING (private.is_store_member(store_id))
+  CREATE TRIGGER guard_shipping_requires_payment BEFORE INSERT OR UPDATE ON store_shipments FOR EACH ROW EXECUTE FUNCTION private.guard_shipping_requires_payment()
+  CREATE TRIGGER log_shipment_event AFTER INSERT OR UPDATE ON store_shipments FOR EACH ROW EXECUTE FUNCTION private.log_shipment_event()
   CREATE TRIGGER set_store_shipments_updated_at BEFORE UPDATE ON store_shipments FOR EACH ROW EXECUTE FUNCTION private.set_store_shipments_updated_at()
   CREATE TRIGGER set_verified_delivery_commission_deadlines AFTER UPDATE OF delivery_verified_at ON store_shipments FOR EACH ROW EXECUTE FUNCTION private.set_verified_delivery_commission_deadlines()
   CREATE TRIGGER store_shipment_signals AFTER INSERT OR UPDATE OF shipping_status ON store_shipments FOR EACH ROW EXECUTE FUNCTION private.shipment_signals()

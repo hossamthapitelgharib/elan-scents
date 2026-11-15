@@ -12,6 +12,8 @@
   'use strict';
 
   var KEY = 'elan_consent_v1';          // the refusal, kept in this browser
+  var REFUSAL_COOKIE = 'elan_consent_refused';
+  var REFUSAL_COOKIE_AGE = 34560000;    // 400 days, matching the guest identity lifetime
   var VERSION = 1;
   var STORAGE_KEY = 'elan_guest_browser_key_v2';
   var VISIT_KEY = 'elan_visit_v1';
@@ -25,12 +27,21 @@
       new URLSearchParams(window.location.search).get('elan_editor') === '1';
   } catch (_) {}
 
+  function cookieRefused() {
+    try {
+      return document.cookie.split(';').some(function (part) {
+        return part.trim() === REFUSAL_COOKIE + '=1';
+      });
+    } catch (_) { return false; }
+  }
+
   // Only a refusal is ever stored. An older "accepted" record (from the short-lived consent notice) means nothing now.
   function read() {
     try {
       var rec = JSON.parse(localStorage.getItem(KEY) || 'null');
       if (rec && rec.v === VERSION && rec.a === false) return { refused: true, at: Number(rec.t) || 0 };
     } catch (_) {}
+    if (cookieRefused()) return { refused: true, at: 0 };
     return { refused: false, at: 0 };
   }
 
@@ -85,6 +96,21 @@
 
   function persist(source) {
     try { localStorage.setItem(KEY, JSON.stringify({ v: VERSION, a: false, t: state.at, s: source || 'visitor' })); } catch (_) {}
+    try {
+      document.cookie = REFUSAL_COOKIE + '=1; max-age=' + REFUSAL_COOKIE_AGE + '; path=/; SameSite=Lax' +
+        (window.location && window.location.protocol === 'https:' ? '; Secure' : '');
+    } catch (_) {}
+  }
+
+  function syncRefusal() {
+    if (preview) return;
+    var wasRefused = state.refused;
+    var next = read();
+    if (!next.refused) return;
+    state = next;
+    render();
+    if (!wasRefused) notify();
+    erase(false);
   }
 
   function refuse(source) {
@@ -125,7 +151,17 @@
     var before = snapshot();
     state = read();
     render();
-    if (before.analytics !== snapshot().analytics) notify();
+    if (before.analytics !== snapshot().analytics) {
+      notify();
+      if (state.refused) erase(false);
+    }
+  });
+
+  // If localStorage is unavailable, the first-party refusal cookie lets another open tab follow
+  // the choice as soon as it becomes visible or focused.
+  window.addEventListener('focus', syncRefusal);
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') syncRefusal();
   });
 
   // a refusal already in force also removes whatever an earlier visit or a failed erase left behind

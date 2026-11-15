@@ -19,11 +19,13 @@ function storage(seed = {}) {
   return { values, getItem: key => values.has(key) ? values.get(key) : null, setItem: (key, value) => values.set(key, String(value)), removeItem: key => values.delete(key) };
 }
 function response(body) { return { ok: true, json: async () => body }; }
-function loadIdentity() {
+function loadIdentity(fetchImpl, cryptoApi) {
   const local = storage({ elan_auth_session: JSON.stringify({ access_token: 'registered-token' }), elan_visit_v1: JSON.stringify({ id: oldSessionId, last: Date.now() }) });
   const requests = [];
   let uuidIndex = 0;
-  const window = { location: { search: '' }, crypto: { randomUUID: () => UUIDs[uuidIndex++ % UUIDs.length] }, addEventListener() {}, ElanConsent: { analytics: () => true, decided: () => true, onChange() {} } };
+  let storageListener = null;
+  let reloads = 0;
+  const window = { location: { search: '', reload() { reloads++; } }, crypto: cryptoApi === undefined ? { randomUUID: () => UUIDs[uuidIndex++ % UUIDs.length] } : cryptoApi, addEventListener(type, listener) { if (type === 'storage') storageListener = listener; }, ElanConsent: { analytics: () => true, decided: () => true, onChange() {} } };
   window.parent = window;
   const document = { visibilityState: 'visible', addEventListener() {} };
   const context = {
@@ -31,13 +33,55 @@ function loadIdentity() {
     fetch: async (url, options = {}) => {
       const call = { url: String(url), options, body: JSON.parse(options.body || '{}') };
       requests.push(call);
+      if (fetchImpl) return fetchImpl(call, requests);
       return call.url === '/api/guest-cart' ? response({ ok: true, visitorId: 'guest-1', cart: [] }) : response({ ok: true, tracked: true });
     },
     setTimeout() {}, setInterval() {}
   };
   vm.runInNewContext(identitySource, context, { filename: 'guest-identity.js' });
-  return { identity: window.GuestIdentity, local, requests };
+  return { identity: window.GuestIdentity, local, requests, window, fireStorage: event => storageListener && storageListener(event), reloads: () => reloads };
 }
+
+test('claim waits for an in-flight resolve so its stale Set-Cookie cannot follow the cookie expiry', async () => {
+  let finishResolve;
+  const { identity, requests } = loadIdentity(call => {
+    if (call.url === '/api/guest-cart' && call.body.action === 'resolve')
+      return new Promise(resolve => { finishResolve = () => resolve(response({ ok: true, visitorId: 'guest-1', cart: [] })); });
+    return Promise.resolve(response(call.url === '/api/guest-cart' ? { ok: true, claimed: true, cart: 1 } : { ok: true, tracked: true }));
+  });
+  const resolving = identity.resolve();
+  const claiming = identity.claim('registered-token');
+  await Promise.resolve();
+  assert.equal(requests.some(call => call.url === '/api/guest-cart' && call.body.action === 'claim'), false, 'claim waits while resolve is pending');
+  finishResolve();
+  await Promise.all([resolving, claiming]);
+  assert.deepEqual(requests.filter(call => call.url === '/api/guest-cart').map(call => call.body.action), ['resolve', 'claim']);
+});
+
+test('a different tab reloads when a successful claim removes the shared guest key', () => {
+  const { local, fireStorage, reloads } = loadIdentity();
+  const oldKey = '8ac7c4ab-02f0-4c2c-9cde-b29151ee7712';
+  fireStorage({ key: 'elan_guest_browser_key_v2', oldValue: oldKey, newValue: null });
+  assert.equal(reloads(), 1, 'stale in-memory identity is discarded by reloading the tab');
+  assert.ok(local, 'the storage event is isolated from this test browser');
+});
+
+test('a server-blocked resolve clears the retired key from this browser before another request', async () => {
+  const { identity, local, requests } = loadIdentity(call => Promise.resolve(response({ ok: true, blocked: true, tracked: false, cart: [] })));
+  const key = '8ac7c4ab-02f0-4c2c-9cde-b29151ee7712';
+  local.setItem('elan_guest_browser_key_v2', key);
+  const result = await identity.resolve();
+  assert.equal(result.blocked, true);
+  assert.equal(local.getItem('elan_guest_browser_key_v2'), null);
+  assert.deepEqual(requests.map(call => call.body.action), ['resolve']);
+});
+
+test('claim does not invent a predictable browser key when Web Crypto is unavailable', async () => {
+  const { identity, requests } = loadIdentity(call => Promise.resolve(response({ ok: true, tracked: true })), {});
+  const result = await identity.claim('registered-token');
+  assert.equal(result.claimed, false);
+  assert.equal(requests.some(call => call.url === '/api/guest-cart'), false, 'no guest key is generated or sent');
+});
 
 test('logout ends the registered session with its token and rotates the browser session id', async () => {
   const { identity, local, requests } = loadIdentity();

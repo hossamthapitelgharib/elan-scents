@@ -42,15 +42,24 @@ DEFAULT PRIVILEGES
   supabase_auth_admin in auth on S: postgres=rwU/supabase_auth_admin dashboard_user=rwU/supabase_auth_admin
 
 VIEWS
+VIEW catalog_coming_soon_announcements | owner-privileges | grants: anon=r authenticated=r service_role=rawd
+  cols: product_size_id uuid, product_id uuid, store_id uuid, store_name text, stock_unknown boolean
+  def_md5=5001737fe64a015e241290e79835a94e
+VIEW catalog_eligible_bundle_offers | owner-privileges | grants: anon=r authenticated=r service_role=rawd
+  cols: store_bundle_id uuid, bundle_id uuid, store_id uuid, store_name text, price numeric, currency text, stock_quantity integer, price_includes_tax boolean, price_includes_shipping boolean, last_synced_at timestamp with time zone
+  def_md5=20e6ef8ec5f98ffe69dc5a8e8bbb2263
 VIEW catalog_eligible_offers | owner-privileges | grants: anon=r authenticated=r service_role=rawd
   cols: store_product_id uuid, product_size_id uuid, product_id uuid, brand_id uuid, store_id uuid, store_name text, price numeric, currency text, stock_quantity integer, price_includes_tax boolean, price_includes_shipping boolean, last_synced_at timestamp with time zone, is_available boolean, sync_status text, store_status text, is_new_arrival boolean, is_coming_soon boolean, is_catalog_bestseller boolean
-  def_md5=98d0bfbb29124f098820cace21a3dd74
+  def_md5=52a0ae03b96692043a0b8051d21f2b45
 VIEW catalog_global_offers | owner-privileges | grants: anon=r authenticated=r service_role=rawd
   cols: store_product_id uuid, product_size_id uuid, product_id uuid, brand_id uuid, store_id uuid, store_name text, price numeric, currency text, stock_quantity integer, price_includes_tax boolean, price_includes_shipping boolean, last_synced_at timestamp with time zone, is_available boolean, sync_status text, store_status text, is_new_arrival boolean, is_coming_soon boolean, is_catalog_bestseller boolean
-  def_md5=bce4d71f455103e2bc9fac395f785689
+  def_md5=6911e38e5d6e1c1a79fe024837ccaa81
+VIEW catalog_platform_bundle_offers | owner-privileges | grants: anon=r authenticated=r service_role=rawd
+  cols: store_bundle_id uuid, bundle_id uuid, store_id uuid, store_name text, price numeric, currency text, stock_quantity integer, price_includes_tax boolean, price_includes_shipping boolean, last_synced_at timestamp with time zone
+  def_md5=c3a9783bfb04eb882d6f7ea4cc2c47b0
 VIEW catalog_platform_offers | owner-privileges | grants: anon=r authenticated=r service_role=rawd
   cols: store_product_id uuid, product_size_id uuid, product_id uuid, brand_id uuid, store_id uuid, store_name text, price numeric, currency text, stock_quantity integer, price_includes_tax boolean, price_includes_shipping boolean, last_synced_at timestamp with time zone, is_available boolean, sync_status text, store_status text, is_new_arrival boolean, is_coming_soon boolean, is_catalog_bestseller boolean
-  def_md5=e5380d712e754d514ae4e96bc99e1775
+  def_md5=4eae369040b8d056237e5cbce5b1c210
 VIEW cheapest_offers | security_invoker | grants: anon=r authenticated=r service_role=rawd
   cols: product_size_id uuid, product_id uuid, brand_id uuid, store_id uuid, store_name text, price numeric, stock_quantity integer, currency text, price_includes_tax boolean, price_includes_shipping boolean, last_synced_at timestamp with time zone
   def_md5=c2de1d868a39bb85a8f9dbb2566289d7
@@ -71,13 +80,19 @@ VIEW guest_current_cart_items | security_invoker | grants: anon=- authenticated=
   def_md5=30b263dc090d6250302f3cfde17eb919
 VIEW platform_commission_watch | security_invoker | grants: anon=- authenticated=- service_role=rawd
   cols: request_id uuid, tracking_number text, store_id uuid, status text, reconciliation_status text, created_at timestamp with time zone, updated_at timestamp with time zone, flag text
-  def_md5=ce576c22f9da04adf654685ece8e6d73
+  def_md5=00106ff9753ac1e3237fa9253fba02ef
 VIEW public_brands | security_invoker | grants: anon=r authenticated=r service_role=rawd
   cols: id uuid, name text, slug text, official_logo_url text, description text
   def_md5=8f549fb40f164c3dc59ab08b32a64639
+VIEW public_bundle_items | owner-privileges | grants: anon=r authenticated=r service_role=rawd
+  cols: bundle_id uuid, product_size_id uuid, quantity integer
+  def_md5=54beda4aabe0a9402cd6efd1c0b78588
+VIEW public_bundles | owner-privileges | grants: anon=r authenticated=r service_role=rawd
+  cols: id uuid, brand_id uuid, brand_name text, name text, slug text, description text, has_extra_items boolean
+  def_md5=9114e7a580519edda237901f348a1923
 VIEW public_products | security_invoker | grants: anon=r authenticated=r service_role=rawd
-  cols: id uuid, brand_id uuid, brand_name text, brand_slug text, name text, slug text, short_description text, official_description text, composition text, gender text, notes_source text, meta_title text, meta_description text, min_price numeric, available_sizes bigint, views_count integer, sales_count integer, search_count integer, request_count integer, average_rating numeric(3,2), reviews_count integer, distinctiveness_score numeric(5,2), catalog_bestseller boolean
-  def_md5=f0fdfca0d3712de3f3ef1371fb8c6de7
+  cols: id uuid, brand_id uuid, brand_name text, brand_slug text, name text, slug text, short_description text, official_description text, composition text, gender text, notes_source text, meta_title text, meta_description text, min_price numeric, available_sizes bigint, views_count integer, sales_count integer, search_count integer, average_rating numeric(3,2), reviews_count integer
+  def_md5=1c2222c945d3ea716d673d8d6f5964ab
 VIEW public_stores | security_invoker | grants: anon=r authenticated=r service_role=rawd
   cols: id uuid, name text, slug text, logo_url text, image_url text, short_description text, status text
   def_md5=44d3e340da1fe2c0685ecc9d0f0cd2b2
@@ -87,6 +102,9 @@ VIEW registered_customer_best_sellers | owner-privileges | grants: anon=- authen
 VIEW registered_customer_current_cart_items | security_invoker | grants: anon=- authenticated=- service_role=r
   cols: cart_item_id uuid, user_id uuid, store_id uuid, store_product_id uuid, product_size_id uuid, product_id uuid, quantity integer, created_at timestamp with time zone, updated_at timestamp with time zone, product_snapshot jsonb
   def_md5=e994fdc6ef2257d04beb0f89a6d3eade
+VIEW storefront_product_rankings | security_invoker | grants: anon=r authenticated=r service_role=rawd
+  cols: product_id uuid, sales_rank integer, sales_source text, views_rank integer, views_source text, searches_rank integer, searches_source text, rating_rank integer, rating_source text
+  def_md5=6f64e8d104b5457f50acbb212489b611
 
 PG_CRON JOBS
   customer-searches-retention-365d | 17 3 * * * | active=true
@@ -97,6 +115,8 @@ PG_CRON JOBS
     select public.purge_expired_guest_fingerprints();
   order-idempotency-retention-7d | 29 3 * * * | active=true
     delete from private.store_order_idempotency where created_at < now() - interval '7 days'
+  refresh-product-stats-5min | */5 * * * * | active=true
+    select private.refresh_product_stats();
   release-due-store-commissions | */15 * * * * | active=true
     select private.release_due_commissions();
 

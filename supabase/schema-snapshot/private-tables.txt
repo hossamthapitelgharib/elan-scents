@@ -1,0 +1,51 @@
+TABLE private.catalog_gender_relation_backup  rls=off  grants: anon=- authenticated=- service_role=-
+  product_id uuid NOT NULL
+  category_id uuid NOT NULL
+  category_key text NOT NULL
+  backed_up_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT catalog_gender_relation_backup_pkey PRIMARY KEY (product_id, category_id)
+
+TABLE private.edge_rate_limit_buckets  rls=on  grants: anon=- authenticated=- service_role=-
+  bucket_key text NOT NULL
+  hit_count bigint NOT NULL
+  reset_at timestamp with time zone NOT NULL
+  CONSTRAINT edge_rate_limit_buckets_pkey PRIMARY KEY (bucket_key)
+  CONSTRAINT edge_rate_limit_buckets_bucket_key_check CHECK ((bucket_key ~ '^[0-9a-f]{64}$'::text))
+  CONSTRAINT edge_rate_limit_buckets_hit_count_check CHECK ((hit_count > 0))
+  CREATE INDEX edge_rate_limit_buckets_reset_at_idx ON private.edge_rate_limit_buckets USING btree (reset_at)
+
+TABLE private.guest_identity_blocks  rls=on  grants: anon=- authenticated=- service_role=-
+  fingerprint_hash text NOT NULL
+  analytics_hash text NOT NULL
+  reason text NOT NULL
+  blocked_at timestamp with time zone NOT NULL DEFAULT clock_timestamp()
+  expires_at timestamp with time zone NOT NULL
+  CONSTRAINT guest_identity_blocks_pkey PRIMARY KEY (fingerprint_hash)
+  CONSTRAINT guest_identity_blocks_analytics_hash_key UNIQUE (analytics_hash)
+  CONSTRAINT guest_identity_blocks_analytics_hash_check CHECK ((analytics_hash ~ '^[a-f0-9]{64}$'::text))
+  CONSTRAINT guest_identity_blocks_check CHECK ((expires_at > blocked_at))
+  CONSTRAINT guest_identity_blocks_fingerprint_hash_check CHECK ((fingerprint_hash ~ '^[a-f0-9]{64}$'::text))
+  CONSTRAINT guest_identity_blocks_reason_check CHECK ((reason = ANY (ARRAY['refused'::text, 'claimed'::text])))
+  CREATE INDEX guest_identity_blocks_expiry_idx ON private.guest_identity_blocks USING btree (expires_at)
+
+TABLE private.product_activity_archive  rls=on  grants: anon=- authenticated=- service_role=-
+  product_id uuid NOT NULL
+  event_type text NOT NULL
+  event_count bigint NOT NULL DEFAULT 0
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT product_activity_archive_pkey PRIMARY KEY (product_id, event_type)
+  CONSTRAINT product_activity_archive_product_id_fkey FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+  CONSTRAINT product_activity_archive_event_count_check CHECK ((event_count >= 0))
+  CONSTRAINT product_activity_archive_event_type_check CHECK ((event_type = ANY (ARRAY['view'::text, 'search'::text])))
+
+TABLE private.store_order_idempotency  rls=on  grants: anon=- authenticated=- service_role=-
+  user_id uuid NOT NULL
+  idem_key text NOT NULL
+  request_id uuid NOT NULL
+  created_at timestamp with time zone NOT NULL DEFAULT now()
+  CONSTRAINT store_order_idempotency_pkey PRIMARY KEY (user_id, idem_key)
+  CONSTRAINT store_order_idempotency_request_id_fkey FOREIGN KEY (request_id) REFERENCES store_order_requests(id) ON DELETE CASCADE
+  CONSTRAINT store_order_idempotency_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+  CONSTRAINT store_order_idempotency_idem_key_check CHECK (((char_length(idem_key) >= 8) AND (char_length(idem_key) <= 64)))
+  CREATE INDEX store_order_idempotency_created_idx ON private.store_order_idempotency USING btree (created_at)
+  CREATE INDEX store_order_idempotency_request_idx ON private.store_order_idempotency USING btree (request_id)

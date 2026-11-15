@@ -44,21 +44,24 @@ test('snapshot is structure only: no row data, secrets or function bodies', () =
 });
 
 test('table blocks are well formed and cover every table once', () => {
-  const blocks = ['tables-1.txt', 'tables-2.txt', 'tables-3.txt', 'tables-4.txt']
+  const files = ['tables-1.txt', 'tables-2.txt', 'tables-3.txt', 'tables-4.txt', 'private-tables.txt'];
+  const blocks = files
     .flatMap((f) => fs.readFileSync(path.join(dir, f), 'utf8').trimEnd().split('\n\n'));
   const names = blocks.map((b) => {
-    const m = /^TABLE ([a-z0-9_]+)  rls=(on|off)  grants: anon=\S+ authenticated=\S+ service_role=\S+$/m.exec(b.split('\n')[0]);
+    const m = /^TABLE ([a-z0-9_.]+)  rls=(on|off)  grants: anon=\S+ authenticated=\S+ service_role=\S+$/m.exec(b.split('\n')[0]);
     assert.ok(m, `bad table header: ${b.split('\n')[0]}`);
     return m[1];
   });
   assert.equal(new Set(names).size, names.length, 'a table appears twice');
   assert.ok(names.length >= 52);
+  assert.match(fs.readFileSync(path.join(dir, 'private-tables.txt'), 'utf8'), /^TABLE private\.guest_identity_blocks  rls=on /m);
 });
 
-test('every public table in the snapshot has row level security on', () => {
+test('public tables without RLS have no client or service table grants', () => {
   const text = ['tables-1.txt', 'tables-2.txt', 'tables-3.txt', 'tables-4.txt']
     .map((f) => fs.readFileSync(path.join(dir, f), 'utf8')).join('\n');
-  assert.deepEqual(text.match(/^TABLE .*  rls=off  /gm) || [], []);
+  const exceptions = text.match(/^TABLE .*  rls=off  grants: .*$/gm) || [];
+  assert.deepEqual(exceptions, ['TABLE customer_cart_revisions  rls=off  grants: anon=- authenticated=- service_role=-']);
 });
 
 test('generate.sql is read-only', () => {

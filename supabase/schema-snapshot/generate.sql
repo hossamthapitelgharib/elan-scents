@@ -5,7 +5,7 @@
 -- A file on disk is `txt` followed by one newline. Its md5 is the md5 of `txt`, that is the file minus its last newline.
 -- Compare `md5` with the table in README.md to detect drift.
 with tb as (
-  select c.oid, c.relname, c.relrowsecurity from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind='r'
+  select n.nspname, c.oid, c.relname, c.relrowsecurity from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname in ('public','private') and c.relkind='r'
 ), cols as (
   select a.attrelid as oid, string_agg('  ' || a.attname || ' ' || format_type(a.atttypid, a.atttypmod) || case when a.attnotnull then ' NOT NULL' else '' end || coalesce(' DEFAULT ' || regexp_replace(pg_get_expr(d.adbin, d.adrelid), '\s+', ' ', 'g'), ''), E'\n' order by a.attnum) as txt
   from pg_attribute a left join pg_attrdef d on d.adrelid=a.attrelid and d.adnum=a.attnum where a.attnum>0 and not a.attisdropped group by a.attrelid
@@ -30,7 +30,7 @@ with tb as (
 ), tg as (
   select tb.oid, (select string_agg(r.rolname || '=' || coalesce(nullif(case when has_table_privilege(r.oid, tb.oid, 'SELECT') then 'r' else '' end || case when has_table_privilege(r.oid, tb.oid, 'INSERT') then 'a' else '' end || case when has_table_privilege(r.oid, tb.oid, 'UPDATE') then 'w' else '' end || case when has_table_privilege(r.oid, tb.oid, 'DELETE') then 'd' else '' end || case when has_table_privilege(r.oid, tb.oid, 'TRUNCATE') then 'D' else '' end || case when has_table_privilege(r.oid, tb.oid, 'REFERENCES') then 'x' else '' end || case when has_table_privilege(r.oid, tb.oid, 'TRIGGER') then 't' else '' end, ''), '-'), ' ' order by r.rolname) from pg_roles r where r.rolname in ('anon','authenticated','service_role')) as txt from tb
 ), blk as (
-  select tb.relname, concat_ws(E'\n', 'TABLE ' || tb.relname || '  rls=' || case when tb.relrowsecurity then 'on' else 'off' end || '  grants: ' || tg.txt, cols.txt, cons.txt, idx.txt, colg.txt, pol.txt, trg.txt) as txt
+  select tb.nspname, tb.relname, concat_ws(E'\n', 'TABLE ' || case when tb.nspname='public' then tb.relname else tb.nspname || '.' || tb.relname end || '  rls=' || case when tb.relrowsecurity then 'on' else 'off' end || '  grants: ' || tg.txt, cols.txt, cons.txt, idx.txt, colg.txt, pol.txt, trg.txt) as txt
   from tb join tg on tg.oid=tb.oid left join cols on cols.oid=tb.oid left join cons on cons.oid=tb.oid left join idx on idx.oid=tb.oid left join colg on colg.oid=tb.oid left join pol on pol.oid=tb.oid left join trg on trg.oid=tb.oid
 ), f as (
   select n.nspname, p.proname, p.oid, p.prosecdef, p.provolatile, p.proconfig, p.proacl, pg_get_function_identity_arguments(p.oid) as args, pg_get_function_result(p.oid) as res, l.lanname, pg_get_userbyid(p.proowner) as owner
@@ -67,13 +67,15 @@ with tb as (
 )
 
 , parts as (
-  select 'tables-1' as file, string_agg(txt, E'\n\n' order by relname) as txt from blk where relname < 'favorites'
-  union all select 'tables-2', string_agg(txt, E'\n\n' order by relname) from blk where relname >= 'favorites' and relname < 'order_reconciliation_checks'
-  union all select 'tables-3', string_agg(txt, E'\n\n' order by relname) from blk where relname >= 'order_reconciliation_checks' and relname < 'store_order_item_adjustments'
-  union all select 'tables-4', string_agg(txt, E'\n\n' order by relname) from blk where relname >= 'store_order_item_adjustments'
+  select 'tables-1' as file, string_agg(txt, E'\n\n' order by relname) as txt from blk where nspname='public' and relname < 'favorites'
+  union all select 'tables-2', string_agg(txt, E'\n\n' order by relname) from blk where nspname='public' and relname >= 'favorites' and relname < 'order_reconciliation_checks'
+  union all select 'tables-3', string_agg(txt, E'\n\n' order by relname) from blk where nspname='public' and relname >= 'order_reconciliation_checks' and relname < 'store_order_item_adjustments'
+  union all select 'tables-4', string_agg(txt, E'\n\n' order by relname) from blk where nspname='public' and relname >= 'store_order_item_adjustments'
+  union all select 'private-tables', string_agg(txt, E'\n\n' order by relname) from blk where nspname='private'
   union all select 'functions', string_agg(line, E'\n' order by nspname, proname, args) from ftxt
   union all select 'misc', txt from misc
 )
 select file, md5(txt) as md5, length(txt) as chars, txt from parts
 union all select 'ledger', null, null, count(*)::text || ' latest ' || max(version) from supabase_migrations.schema_migrations
-order by file;
+order by file
+limit 8;
