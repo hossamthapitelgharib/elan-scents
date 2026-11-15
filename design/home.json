@@ -137,7 +137,7 @@
       },
       "sec:occ:title": {
         "style": {
-          "align": "end"
+          "align": "center"
         }
       },
       "sec:notes:title": {
@@ -212,6 +212,11 @@
       },
       "x-70idw": {
         "archived": true
+      },
+      "about:p1": {
+        "style": {
+          "fontSize": 14
+        }
       }
     },
     "mobile": {
