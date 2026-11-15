@@ -3,6 +3,7 @@
   "sections": {},
   "order": [
     "brands",
+    "x-f52nr",
     "offers",
     "new",
     "cats",
@@ -27,6 +28,16 @@
       "subtitle": {
         "ar": "سطر تعريفي قصير"
       }
+    },
+    {
+      "id": "x-f52nr",
+      "type": "image",
+      "style": {
+        "align": "center",
+        "size": "md"
+      },
+      "src": "https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/uploads/2026/0600e4a974a560527d09.webp",
+      "alt": {}
     }
   ],
   "texts": {},
