@@ -140,12 +140,14 @@
       },
       "sec:occ:title": {
         "style": {
-          "align": "center"
+          "align": "center",
+          "fontSize": 20,
+          "fontFamily": "Amiri"
         }
       },
       "sec:notes:title": {
         "style": {
-          "fontSize": 16
+          "fontSize": 20
         }
       },
       "sec:soon:title": {
