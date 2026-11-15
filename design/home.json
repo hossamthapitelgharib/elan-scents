@@ -96,10 +96,10 @@
       },
       "sec:new:title": {
         "style": {
-          "fontSize": 26,
+          "fontSize": 20,
           "align": "center",
-          "color": "#c62828",
-          "fontFamily": "Noto Kufi Arabic",
+          "color": "#b8860b",
+          "fontFamily": "Amiri",
           "effect": "none"
         }
       },
