@@ -4,6 +4,8 @@
   "order": [
     "brands",
     "x-f52nr",
+    "x-70idw",
+    "x-7wf8s",
     "offers",
     "new",
     "cats",
@@ -37,6 +39,26 @@
         "size": "md"
       },
       "src": "https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/uploads/2026/0600e4a974a560527d09.webp",
+      "alt": {}
+    },
+    {
+      "id": "x-70idw",
+      "type": "image",
+      "style": {
+        "align": "center",
+        "size": "md"
+      },
+      "src": "https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/uploads/2026/fc6c9dfe06b4fa28a660.jpg",
+      "alt": {}
+    },
+    {
+      "id": "x-7wf8s",
+      "type": "image",
+      "style": {
+        "align": "center",
+        "size": "md"
+      },
+      "src": "https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/uploads/2026/13cb1a013529a15393b4.webp",
       "alt": {}
     }
   ],
@@ -179,6 +201,17 @@
         "style": {
           "media": "https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/uploads/2026/58beeeb2dc01fc5bfbe3.webp"
         }
+      },
+      "card:1dsn4in": {
+        "style": {
+          "media": "https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/uploads/2026/07d46e965d9824f57fd0.webp"
+        }
+      },
+      "x-f52nr": {
+        "archived": true
+      },
+      "x-70idw": {
+        "archived": true
       }
     },
     "mobile": {
@@ -194,6 +227,18 @@
       "card:1wt173k": {
         "w": 359,
         "h": 479
+      },
+      "card:1dsn4in": {
+        "w": 340,
+        "h": 340
+      },
+      "card:1dsn4il": {
+        "w": 340,
+        "h": 340
+      },
+      "card:1dsn4im": {
+        "w": 340,
+        "h": 340
       }
     }
   }
