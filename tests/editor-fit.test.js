@@ -3,8 +3,8 @@ const assert = require('node:assert/strict');
 const G = require('../editor/editor-geometry.js');
 const { designBrowser, plain, read } = require('./browser-fixture');
 
-/* Owner, 2026-11-11: a size chosen for an element (menu or corner) is its size whatever the stylesheet says (the hero too); a picture or a video in it is shown whole and fills it
-   (never cut, never stretched), and «نفس شكل الصورة» gives the frame the picture's own shape. The real layout (grids, strips, the blurred copy) is in tests/browser/editor-fit.chromium.js. */
+/* Owner, 2026-11-11: a size chosen for an element (menu or corner) is its size whatever the stylesheet says (the hero too); a picture or a video adapts inside it
+   (never cut, never stretched), and «نفس شكل الصورة» gives the frame the picture's own shape. */
 
 async function editor() {
   const b = designBrowser(); let bridge;
@@ -65,7 +65,7 @@ test('the hero is resized like any element: a saved size is painted on it (so th
   assert.equal(hero.style.getPropertyValue('height'), '', 'automatic: nothing of it is left on the hero');
 });
 
-test('a picture in a resized element is made to fill it whole: contain (never cut, never stretched), and it is all taken off again with the size', async () => {
+test('a picture in a resized element adapts inside the fixed frame: contain (never cut, never stretched)', async () => {
   const b = await editor();
   alwaysPixels(b, 400, 200);
   const made = (await b.mode.execute('element.create', { kind: 'image', src: '/assets/cards/a.webp' })).elementId;
@@ -77,18 +77,17 @@ test('a picture in a resized element is made to fill it whole: contain (never cu
   assert.equal(now.style.getPropertyValue('object-fit'), 'contain'); assert.equal(now.style.getPropertyPriority('object-fit'), 'important');
   assert.equal(now.style.getPropertyValue('width'), '100%'); assert.equal(now.style.getPropertyValue('height'), '100%');
   assert.match(root.style.getPropertyValue('padding'), /^0(px)?$/, 'the block\'s side gutter would leave a strip beside the picture');
-  assert.equal(root.querySelectorAll('.elan-fit-back').length, 1, 'the room a 1:1 frame leaves around a 2:1 picture is its own blurred copy');
+  assert.equal(root.querySelectorAll('.elan-fit-back,.elan-fit-front').length, 0, 'no artificial background layer is added');
   await b.mode.execute('history.undo', {});
   const back = b.document.querySelector('[data-elan-id="' + made + '"]');
-  assert.equal(back.querySelector('.elan-fit-back'), null); assert.equal(back.hasAttribute('data-elan-fit'), false);
+  assert.equal(back.querySelector('.elan-fit-back,.elan-fit-front'), null); assert.equal(back.hasAttribute('data-elan-fit'), false);
   assert.equal(back.querySelector('img').style.getPropertyValue('object-fit'), '', 'the picture is as it was');
 });
 
-test('the stylesheet keeps the picture whole and the blurred copy inside the frame, and the corner drag no longer pins the opposite edge', () => {
+test('the stylesheet keeps the picture whole without a crop or artificial background, and the corner drag no longer pins the opposite edge', () => {
   const css = read('design-layer.js'), mode = read('edit-mode.js');
-  assert.match(css, /\.elan-fit-back\{[^}]*filter:blur\([^}]*clip-path:inset\(40px\)/, 'blurred copy clipped to the frame');
-  assert.match(css, /\.elan-fit-front\{[^}]*background-size:contain/);
-  assert.match(css, /video\.elan-fit-back\{[^}]*object-fit:cover/);
+  assert.match(css, /\[data-elan-fit\] img,\[data-elan-fit\] video\{[^}]*object-fit:contain/);
+  assert.doesNotMatch(css, /filter:blur\(|\.elan-fit-back/);
   const step = mode.slice(mode.indexOf('function stepResize'), mode.indexOf('function showSize'));
   assert.ok(!/translate\(/.test(step) && !/g\.dx =|g\.dy =/.test(step), 'the element stays where the page put it and everything around it makes room (no compensating offset)');
   assert.match(mode, /handleEl\.setAttribute\('data-h', rtl \? 'sw' : 'se'\)/, 'the handle is on the corner that moves');

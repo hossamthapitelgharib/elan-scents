@@ -28,12 +28,9 @@
     /* The top bar was hidden in the editor: the header, which sits just under it, goes up to the top. */
     'html body.elan-no-bar header{top:0!important}',
     /* A free text: a zero-height slot in the flow (nothing moves for it) and the text itself laid over the page from that slot. */
-    /* A picture or a video in an element that was given a size: shown whole (never cut, never stretched); what the shape of the frame leaves over around it is the same picture, blurred (see fitMedia). */
-    '[data-elan-fit]{isolation:isolate;background:#f4f0e8}.elan-image[data-elan-fit]{overflow:hidden;border-radius:12px}',
-    '.elan-fit-back{position:absolute!important;inset:-40px;z-index:0;pointer-events:none;background-position:center;background-size:cover;background-repeat:no-repeat;filter:blur(26px);clip-path:inset(40px)}',
-    'video.elan-fit-back{width:calc(100% + 80px);height:calc(100% + 80px);object-fit:cover}',
-    '.elan-fit-front{position:absolute!important;inset:0;z-index:0;pointer-events:none;background-position:center;background-size:contain;background-repeat:no-repeat}',
-    '[data-elan-fit] img:not(.elan-fit-back),[data-elan-fit] video:not(.elan-fit-back){position:relative!important;z-index:1!important}',
+    /* A picture or video controls the element's height. The media keeps its natural ratio; no crop, stretch, blur or artificial frame is used. */
+    '[data-elan-fit]{isolation:isolate}.elan-image[data-elan-fit]{overflow:hidden;border-radius:12px}',
+    '[data-elan-fit] img,[data-elan-fit] video{display:block;object-fit:contain}',
     /* The platform's two fixed gaps (owner, 2026-11-12): the space between one row of the page and the next (--elan-gap-y: the page's own rhythm between sections, 14px + 22px + 46px of padding ≈ 80px)
        and the space between two things in one row (--elan-gap-x: the gap the platform already leaves between its cards). Rows built by the editor use these and nothing else. */
     ':root{--elan-gap-y:80px;--elan-gap-x:var(--cg,16px)}',
@@ -623,7 +620,7 @@
     var m = /url\(\s*(?:"([^"]*)"|'([^']*)'|([^)\s"']*))\s*\)/.exec(el.style.backgroundImage || '');
     return m ? (m[1] || m[2] || m[3] || '') : '';
   }
-  function visibleMedia(n) { return !!n && n.style.display !== 'none' && !/(^|\s)elan-fit-(back|front)(\s|$)/.test(n.className || ''); }
+  function visibleMedia(n) { return !!n && n.style.display !== 'none'; }
   /* The picture or video an element shows as its own: { kind: 'img' | 'video' | 'bg', node | url, self }, or null. A section or a block of cards owns none (its cards do). */
   function findMedia(entry) {
     var el = entry.el, kind = entry.kind, i, list, n;
@@ -641,7 +638,6 @@
       for (i = 0; i < list.length; i++) if (visibleMedia(list[i])) return { kind: list[i].tagName === 'VIDEO' ? 'video' : 'img', node: list[i] };
     }
     var url = bgUrl(el);
-    if (!url) { var shown = el.querySelector(':scope > .elan-fit-front'); url = shown ? bgUrl(shown) : ''; }   // already fitted: the picture is in the layer that replaced the background
     return url ? { kind: 'bg', url: url } : null;
   }
   /* The picture's own pixels ({ w, h, video }), or null when there is none or it has not arrived yet. */
@@ -667,34 +663,27 @@
     el.__elanFit = token;
     el.setAttribute('data-elan-fit', '1');
     undo.push(function () { el.removeAttribute('data-elan-fit'); if (el.__elanFit === token) delete el.__elanFit; });
-    if (f.self) { imp(el, 'object-fit', 'contain'); return; }   // a lone picture (a logo) has no room for a backdrop: shown whole, the page shows through
     try { if (getComputedStyle(el).position === 'static') el.style.position = 'relative'; } catch (_) { /* optional */ }
     if (el.classList.contains('elan-image')) imp(el, 'padding', '0');
-    var host = el;
     if (f.kind === 'bg') {
-      imp(el, 'background-image', 'none');
-      var front = document.createElement('div'); front.className = 'elan-fit-front'; front.style.backgroundImage = 'url("' + f.url + '")';
-      host = el; el.insertBefore(front, el.firstChild);
-      undo.push(function () { front.remove(); });
-    } else {
-      var n = f.node;
+      keepStyle(el, undo);
+      imp(el, 'background-size', 'contain');
+      imp(el, 'background-position', 'center');
+      imp(el, 'background-repeat', 'no-repeat');
+    }
+    var n = f.node;
+    if (n) {
       keepStyle(n, undo);
       imp(n, 'width', '100%'); imp(n, 'height', '100%'); imp(n, 'max-width', 'none'); imp(n, 'object-fit', 'contain'); imp(n, 'margin', '0');
       for (var up = n.parentNode; up && up !== el; up = up.parentNode) { keepStyle(up, undo); imp(up, 'width', '100%'); imp(up, 'height', '100%'); }
-      host = n.parentNode;
     }
-    var before = f.kind === 'bg' ? el.firstChild : f.node;
     whenSized(f, function (nat) {
       if (el.__elanFit !== token || el.isConnected === false) return;
       var r = el.getBoundingClientRect();
-      if (r.width > 0 && r.height > 0 && Math.abs((r.width / r.height) / (nat.w / nat.h) - 1) < 0.02) return;   // the frame has the picture's own shape: nothing is left over
-      var back;
-      if (f.kind === 'video') { back = document.createElement('video'); back.setAttribute('src', f.node.getAttribute('src') || f.node.currentSrc); back.muted = true; back.loop = true; back.autoplay = true; back.setAttribute('muted', ''); back.setAttribute('loop', ''); back.setAttribute('autoplay', ''); back.setAttribute('playsinline', ''); back.setAttribute('aria-hidden', 'true'); }
-      else { back = document.createElement('div'); back.style.backgroundImage = 'url("' + (f.kind === 'bg' ? f.url : (f.node.currentSrc || f.node.getAttribute('src'))) + '")'; }
-      back.className = 'elan-fit-back';
-      host.insertBefore(back, f.kind === 'bg' ? host.firstChild : before);
-      undo.push(function () { back.remove(); });
-      if (f.kind === 'video') playQuietly(back);
+      if (r.width <= 0 || !nat.w || !nat.h) return;
+      /* The element keeps its chosen dimensions; only the media adapts inside it. */
+      imp(el, 'overflow', 'hidden');
+      if (n && n.parentNode && n.parentNode !== el) imp(n.parentNode, 'height', '100%');
     });
   }
   /* The same while the corner is being dragged: the size is written straight onto the element, and the picture follows it. */
