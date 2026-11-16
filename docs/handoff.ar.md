@@ -11,6 +11,10 @@
 
 ## مفتوح
 
+### 2026-11-16: لوحة إدارة المنصة صارت لوحة واحدة بقايمة جانبية — العملاء والمتاجر داخلها، وقراءة الإشعار الأول، وتنبيهات الصوت والرسائل (قيد التنفيذ من جلسة لوحة الإدارة؛ لا تلمسوا هذه الملفات قبل أن أنقله إلى «مُنجَز»)
+- **الملفات التي أعمل عليها الآن:** `platform-dashboard.html` و`platform-dashboard.js` و`customers-dashboard.*` و`stores-dashboard.*` و`dashboard.*` (الطلبات) و`portal.js` (سطر واحد لإيقاف الجرس القديم داخل اللوحة) و`vercel.json` (قوائم الملفات الثابتة) وملفات جديدة `admin-*.js` و`admin.css` و`api/platform-first-notices.js` و`api/platform-alerts.js`. من يحتاج شيئًا في لوحات المنصة (صفحة «الاختلافات» أو غيرها من المرحلة 3 و5 في خطة التصحيح) يكتبه هنا ولا ينفّذه، وسأضيفه صفحةً في القايمة نفسها: كل صفحة = قسم `data-page` في `platform-dashboard.html` + سكربت يستدعي `AdminPages.register(...)` (العقد في أعلى `admin-common.js`)، والتنبيهات تُسجَّل في `AdminAttention.set(...)`.
+- **ما فهمته من طلب المالك (16 نوفمبر):** «لوحة العملاء» = `customers-dashboard.html` و«لوحة المتاجر» = `stores-dashboard.html` (لا صفحة «طلباتي» في `account.html`، ولا `store-dashboard.*` الخاصة بحساب المتجر، وهذه تبقى كما هي)؛ «الإشعار الأول» = جدول `platform_order_notices` (ثابت، صفر صفوف اليوم لأنه لم يُدفع طلب بعد)؛ «الرسائل» = إشعارات `recipient_role='platform_admin'` (١٥ غير مقروءة اليوم). جدول `contact_messages` فارغ ولا يكتب فيه المتجر أصلًا فلم أضمّه.
+
 ### 2026-11-15: واجهة المتجر للعروض والخصومات والباقات (`app-core.js`، بلا ترحيل جديد)
 - **التحميل:** `loadData` يطلب أربعة عروض عامة جديدة (`catalog_platform_bundle_offers` و`public_bundles` و`public_bundle_items` و`catalog_offer_messages`) في `d[17..20]`، كلٌّ منها بـ `.catch` يعيد `[]` فلا تتعطل الصفحة إن غابت، ثم `buildOfferData(d[17],d[18],d[19],d[20])`. لا يُطلب أي حقل رقمي كتبه المتجر (`original_price` و`discount_*`)، وتحرسه الاختبارات.
 - **الكتلة:** كل المنطق في كتلة واحدة بين `prodView` و`strip` (`OFFERS_UI` و`buildOfferData` و`offerMsgFor` و`offerTag` و`offerLine` و`offerNote` و`bundleCard` و`offersExtra`)؛ مهم أن تبقى هناك لأن اختبار `storefront-card-menu` يقتطع هذا المدى بالضبط.
