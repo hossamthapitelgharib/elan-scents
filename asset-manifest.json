@@ -1,17 +1,17 @@
 {
-  "version": "20261115-04",
+  "version": "20261116-01",
   "files": {
     "account.css": "4d9a36a04bf71ac8",
     "account.js": "6b311fa04cc2241d",
-    "app-core.js": "bfe9186127b58fef",
-    "app.js": "0184cb50b6b743a5",
+    "app-core.js": "2dfb414ec3d46278",
+    "app.js": "dfa7929be2b79b5e",
     "auth-session.js": "005394b4b936cdb2",
     "consent.css": "79e25a99fc582a15",
     "consent.js": "48af0c55d9cb872e",
     "customers-dashboard.js": "7c2933f822a1a763",
     "dashboard.css": "dcf5968fda800241",
     "dashboard.js": "1360ef3a6a00e8dc",
-    "design-layer.js": "9152b1137fcc00e1",
+    "design-layer.js": "98463090c4ca0ee4",
     "design-schema.js": "c243c6cd47f5a9ed",
     "edit-boot.js": "c6beecc1e5c6cc06",
     "edit-mode.js": "5156cabca385e08a",
@@ -30,7 +30,7 @@
     "stores-dashboard.js": "22657020fd7bc998",
     "style-3.css": "2719836abcc0669d",
     "style.css": "b15c3c0599afdba2",
-    "texts.js": "e6af7bb1f2508fef",
+    "texts.js": "3b567965cf21453a",
     "turnstile.js": "1188b085c589e6d1"
   }
 }

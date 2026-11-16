@@ -29,10 +29,11 @@
     'html body.elan-no-bar header{top:0!important}',
     /* A free text: a zero-height slot in the flow (nothing moves for it) and the text itself laid over the page from that slot. */
     /* A picture or a video in an element that was given a size: shown whole (never cut, never stretched); what the shape of the frame leaves over around it is the same picture, blurred (see fitMedia). */
-    '[data-elan-fit]{isolation:isolate}.elan-image[data-elan-fit]{overflow:hidden;border-radius:12px}',
-    '.elan-fit-back{position:absolute!important;inset:-40px;z-index:-1;pointer-events:none;background-position:center;background-size:cover;background-repeat:no-repeat;filter:blur(26px);clip-path:inset(40px)}',
+    '[data-elan-fit]{isolation:isolate;background:#f4f0e8}.elan-image[data-elan-fit]{overflow:hidden;border-radius:12px}',
+    '.elan-fit-back{position:absolute!important;inset:-40px;z-index:0;pointer-events:none;background-position:center;background-size:cover;background-repeat:no-repeat;filter:blur(26px);clip-path:inset(40px)}',
     'video.elan-fit-back{width:calc(100% + 80px);height:calc(100% + 80px);object-fit:cover}',
-    '.elan-fit-front{position:absolute!important;inset:0;z-index:-1;pointer-events:none;background-position:center;background-size:contain;background-repeat:no-repeat}',
+    '.elan-fit-front{position:absolute!important;inset:0;z-index:0;pointer-events:none;background-position:center;background-size:contain;background-repeat:no-repeat}',
+    '[data-elan-fit] img:not(.elan-fit-back),[data-elan-fit] video:not(.elan-fit-back){position:relative!important;z-index:1!important}',
     /* The platform's two fixed gaps (owner, 2026-11-12): the space between one row of the page and the next (--elan-gap-y: the page's own rhythm between sections, 14px + 22px + 46px of padding ≈ 80px)
        and the space between two things in one row (--elan-gap-x: the gap the platform already leaves between its cards). Rows built by the editor use these and nothing else. */
     ':root{--elan-gap-y:80px;--elan-gap-x:var(--cg,16px)}',
@@ -717,14 +718,17 @@
       if (entry.kind === 'card' && el.closest('.strip')) el.__elanOff = { dx: ed.dx || 0, dy: ed.dy || 0 };   // limited to the strip once every size is painted (fitStripCards)
     }
     if (ed.w || ed.h) sizeBox(el, ed.w, ed.h);
-    if (st.color) el.style.color = st.color;
-    if (st.background) el.style.backgroundColor = st.background;
+    /* Apply text formatting to the actual text node. The hero magic label is a
+       wrapper around h2, so styling only the wrapper is overridden by storefront CSS. */
+    var visual = textTarget(entry) || el;
+    if (st.color) visual.style.color = st.color;
+    if (st.background) visual.style.backgroundColor = st.background;
     if (st.media) paintMedia(entry, st.media);
-    if (st.fontSize) el.style.fontSize = st.fontSize + 'px';
-    if (st.weight) el.style.fontWeight = String(st.weight);
+    if (st.fontSize) visual.style.fontSize = st.fontSize + 'px';
+    if (st.weight) visual.style.fontWeight = String(st.weight);
     if (st.radius !== undefined) el.style.borderRadius = st.radius + 'px';
-    if (st.align) el.style.textAlign = ({ start: 'start', end: 'end', center: 'center', left: 'left', right: 'right' })[st.align] || 'center';
-    if (st.fontFamily) { loadFont(st.fontFamily); el.style.fontFamily = st.fontFamily === 'system-ui' ? 'system-ui, sans-serif' : '"' + st.fontFamily + '", sans-serif'; }
+    if (st.align) visual.style.textAlign = ({ start: 'start', end: 'end', center: 'center', left: 'left', right: 'right' })[st.align] || 'center';
+    if (st.fontFamily) { loadFont(st.fontFamily); visual.style.fontFamily = st.fontFamily === 'system-ui' ? 'system-ui, sans-serif' : '"' + st.fontFamily + '", sans-serif'; }
     if (st.effect === 'soft') { el.style.textShadow = '0 1px 0 #fff,0 3px 4px rgba(0,0,0,.22)'; el.style.boxShadow = '0 7px 18px rgba(0,0,0,.14)'; }
     if (st.effect === 'gold') { el.style.color = st.color || '#ae852e'; el.style.textShadow = '0 1px 0 #fceab1,0 2px 0 #77541e,0 4px 6px rgba(80,52,0,.3)'; el.style.boxShadow = '0 2px 0 #d6bc79,0 9px 22px rgba(101,72,18,.22)'; }
     if (st.effect === 'deep') { el.style.textShadow = '1px 1px 0 rgba(255,255,255,.6),2px 3px 3px rgba(0,0,0,.3)'; el.style.boxShadow = '0 4px 0 rgba(0,0,0,.13),0 14px 26px rgba(0,0,0,.2)'; }
