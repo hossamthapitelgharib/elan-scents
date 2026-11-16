@@ -247,7 +247,7 @@ begin
   assert pg_temp.blocked(u_a, 'authenticated', $q$select 1 from public.store_integrations$q$), 'A cannot read store integration secrets';
   -- Phase 2 (payment, merchant notices, shipping): these tables are server-only. Neither a customer, a store admin nor a visitor can
   -- read or write them through the data API; the platform's first notice, the payments and the shipment events are reached only through the checked APIs.
-  for v_bad in select unnest(array['store_payment_methods', 'order_payments', 'order_payment_events', 'platform_order_notices', 'store_shipment_events'])
+  for v_bad in select unnest(array['order_payments', 'order_payment_events', 'platform_order_notices', 'store_shipment_events', 'order_drafts', 'merchant_deliveries', 'merchant_delivery_attempts', 'payment_windows'])
   loop
     assert pg_temp.blocked(u_a, 'authenticated', format('select 1 from public.%I', v_bad)), 'A cannot read ' || v_bad;
     assert pg_temp.blocked(u_sx, 'authenticated', format('select 1 from public.%I', v_bad)), 'a store admin cannot read ' || v_bad || ' through the data API';
@@ -283,11 +283,16 @@ begin
   where n.nspname = 'public' and p.prokind = 'f' and has_function_privilege('anon', p.oid, 'execute');
   assert v_bad is null, 'a visitor may call no public function, found: ' || coalesce(v_bad, '');
   assert not has_function_privilege('anon', 'public.place_store_order(jsonb)', 'execute'), 'a visitor cannot place an order';
-  assert not has_function_privilege('authenticated', 'public.select_order_payment_server(uuid,uuid,uuid,text)', 'execute')
-     and not has_function_privilege('authenticated', 'public.record_payment_event(uuid,jsonb)', 'execute')
+  assert not has_function_privilege('authenticated', 'public.record_payment_event(uuid,jsonb)', 'execute')
      and not has_function_privilege('authenticated', 'public.record_shipment_event(uuid,jsonb)', 'execute')
      and not has_function_privilege('authenticated', 'public.merchant_review_order(uuid,jsonb)', 'execute'), 'the Phase 2 payment, merchant and shipment functions are closed to a customer token';
-  assert has_function_privilege('service_role', 'public.select_order_payment_server(uuid,uuid,uuid,text)', 'execute'), 'the server keeps the payment-choice function';
+  -- Stage 1 (16 Nov 2026): the customer's payment chooser and the cancel button are gone, and the new send / review / payment-window
+  -- functions are for the server alone (a store merchant never reaches them with a token either).
+  assert not exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname in ('select_order_payment_server', 'request_store_order_cancellation', 'request_store_order_cancellation_server')), 'the payment chooser and the customer cancel request no longer exist';
+  assert not has_function_privilege('authenticated', 'public.claim_merchant_deliveries(uuid,integer)', 'execute') and has_function_privilege('service_role', 'public.claim_merchant_deliveries(uuid,integer)', 'execute'), 'only the server drains the merchant send queue';
+  assert not has_function_privilege('authenticated', 'public.finish_merchant_delivery(uuid,integer,jsonb)', 'execute') and has_function_privilege('service_role', 'public.finish_merchant_delivery(uuid,integer,jsonb)', 'execute'), 'only the server records a merchant reply';
+  assert not has_function_privilege('authenticated', 'public.open_payment_window(uuid,uuid)', 'execute') and not has_function_privilege('authenticated', 'public.payment_window_return(uuid,uuid,text)', 'execute') and not has_function_privilege('authenticated', 'public.expire_payment_windows()', 'execute'), 'the payment window is opened, reported and expired by the server alone';
+  assert not has_function_privilege('authenticated', 'public.reserve_order_draft(uuid,uuid)', 'execute') and not has_function_privilege('anon', 'public.reserve_order_draft(uuid,uuid)', 'execute') and not has_function_privilege('authenticated', 'public.store_order_readiness()', 'execute') and not has_function_privilege('anon', 'public.store_order_readiness()', 'execute'), 'the order draft and the readiness list are read by the server only';
   assert pg_temp.attack(null, 'anon', $q$select public.place_store_order('{}'::jsonb)$q$) like 'err:%', 'a visitor calling place_store_order is refused';
   assert not has_function_privilege('authenticated', 'public.confirm_store_order_purchase(uuid)', 'execute') and not has_function_privilege('anon', 'public.confirm_store_order_purchase(uuid)', 'execute'), 'neither a visitor nor a customer token can confirm a purchase directly';
   assert pg_temp.blocked(u_a, 'authenticated', $q$update public.store_order_commissions set commission_amount = 0$q$), 'a customer cannot change the legacy commission ledger';

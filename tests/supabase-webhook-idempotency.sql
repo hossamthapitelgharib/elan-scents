@@ -1,6 +1,6 @@
 -- Webhook idempotency regression test.
 -- Uses a real active store/product and rolls back all rows.
--- Phase 2: the order is approved and paid (cash on delivery) before the merchant's notice can match.
+-- Stage 1/2: the order is approved and paid (a trusted payment event) before the merchant's notice can match.
 begin;
 create temporary table idem_context on commit drop as
 select s.id as store_id,sp.id as store_product_id,ps.id as product_size_id,p.name as product_name,sp.price,sp.currency
@@ -17,14 +17,12 @@ from idem_context c cross join idem_user u cross join public.checkout_sessions c
 insert into public.store_order_request_items (request_id,store_product_id,product_size_id,product_name,quantity,unit_price,line_total,currency)
 select r.id,c.store_product_id,c.product_size_id,c.product_name,1,c.price,c.price,c.currency from public.store_order_requests r cross join idem_context c where r.tracking_number='TEST-IDEMPOTENCY-STORE-20261010';
 
-insert into public.store_payment_methods (store_id, kind, mode, provider, label_ar)
-select store_id, 'cod', 'none', 'merchant', 'الدفع عند الاستلام' from idem_context on conflict do nothing;
 update public.store_order_requests set status='store_confirmed',updated_at=now() where tracking_number='TEST-IDEMPOTENCY-STORE-20261010';
-select public.select_order_payment_server(
-  r.id, u.id,
-  (select (o->>'id')::uuid from jsonb_array_elements(r.payment_options) o where o->>'kind'='cod' limit 1),
-  'idem-pay-key-20261010') as payment_choice_result
-from public.store_order_requests r cross join idem_user u where r.tracking_number='TEST-IDEMPOTENCY-STORE-20261010';
+select public.record_payment_event(
+  r.store_id,
+  jsonb_build_object('trackingNumber', r.tracking_number, 'eventId', 'idem-pay-evt-20261010', 'eventType', 'payment.succeeded',
+                     'providerTransactionId', 'idem-txn-20261010', 'amount', r.payable_amount, 'currency', 'EGP')) as payment_result
+from public.store_order_requests r where r.tracking_number='TEST-IDEMPOTENCY-STORE-20261010';
 
 create temporary table idem_notice on commit drop as
 select jsonb_build_object(

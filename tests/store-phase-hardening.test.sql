@@ -44,6 +44,13 @@ begin
   select id into v_a from public.stores where slug = 'afnan-egypt';
   select id into v_b from public.stores where slug = 'emarati-scents';
   assert v_a is not null and v_b is not null, 'the two live stores exist to test with';
+
+  -- Stage 1: an order is accepted only for a store that is technically linked (a fake https address and a fake secret, rolled back with the rest).
+  insert into public.store_integrations (store_id, enabled, base_url, cart_url, api_base_url, catalog_endpoint, api_key, webhook_secret, notes, order_endpoint)
+  select s, true, 'https://merchant.example.invalid', 'https://merchant.example.invalid/cart', 'https://merchant.example.invalid/api', '/catalog',
+         'fake-api-key-for-test', 'fake-webhook-secret-for-test-0000000000', '', 'https://merchant.example.invalid/elan/orders'
+  from unnest(array[v_a, v_b]) s
+  on conflict (store_id) do update set enabled = true, webhook_secret = excluded.webhook_secret, order_endpoint = excluded.order_endpoint;
   select * into pa1 from public.store_products where store_id = v_a order by id limit 1;
   select * into pa2 from public.store_products where store_id = v_a and id <> pa1.id order by id limit 1;
   select * into pb1 from public.store_products where store_id = v_b order by id limit 1;

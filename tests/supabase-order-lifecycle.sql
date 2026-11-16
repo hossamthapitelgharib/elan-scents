@@ -1,6 +1,6 @@
 -- End-to-end Supabase order lifecycle test.
 -- Uses a real active store/product, then rolls back everything.
--- Phase 2: the store approves, the customer chooses cash on delivery, the platform writes its first notice, and only then does the
+-- Stage 1/2: the store approves, a trusted event says the customer paid, the platform writes its first notice, and only then does the
 -- merchant's own notice (with its order and invoice numbers) match it.
 begin;
 create temporary table lifecycle_context on commit drop as
@@ -45,18 +45,16 @@ select r.id,r.tracking_number,'initial_submitted','awaiting_store_confirmation',
        jsonb_build_object('source','customer','trackingNumber',r.tracking_number)
 from public.store_order_requests r where r.tracking_number='TEST-LIFECYCLE-STORE-20261009';
 
--- The store must offer a payment method before it approves; the approval freezes the payable amount.
-insert into public.store_payment_methods (store_id, kind, mode, provider, label_ar)
-select store_id, 'cod', 'none', 'merchant', 'الدفع عند الاستلام' from lifecycle_context
-on conflict do nothing;
+-- Stage 1: the store approves (the approval freezes the payable amount; the payment window is the merchant's own page).
 update public.store_order_requests set status='store_confirmed',updated_at=now() where tracking_number='TEST-LIFECYCLE-STORE-20261009';
 
--- The customer chooses cash on delivery: payment is recorded and the platform's first notice is written.
-select public.select_order_payment_server(
-  r.id, u.id,
-  (select (o->>'id')::uuid from jsonb_array_elements(r.payment_options) o where o->>'kind'='cod' limit 1),
-  'lifecycle-pay-key-20261009') as payment_choice_result
-from public.store_order_requests r cross join lifecycle_user u
+-- The customer pays in the merchant's window; the trusted payment event (the interim signed one, until the neutral adapters of stage 2)
+-- records it and the platform writes its first notice.
+select public.record_payment_event(
+  r.store_id,
+  jsonb_build_object('trackingNumber', r.tracking_number, 'eventId', 'lifecycle-pay-evt-20261009', 'eventType', 'payment.succeeded',
+                     'providerTransactionId', 'lifecycle-txn-20261009', 'amount', r.payable_amount, 'currency', 'EGP')) as payment_result
+from public.store_order_requests r
 where r.tracking_number='TEST-LIFECYCLE-STORE-20261009';
 
 update public.store_order_requests set status='processing',updated_at=now() where tracking_number='TEST-LIFECYCLE-STORE-20261009';
@@ -92,7 +90,7 @@ declare
   v public.store_order_requests;
 begin
   select * into v from public.store_order_requests where tracking_number='TEST-LIFECYCLE-STORE-20261009';
-  assert v.payment_status = 'cod_selected' and v.payment_method = 'cod', 'cash on delivery was recorded by the platform';
+  assert v.payment_status = 'paid', 'the trusted payment event was recorded by the platform';
   assert exists (select 1 from public.platform_order_notices where request_id = v.id), 'the platform wrote its first notice';
   assert v.reconciliation_status = 'matched', 'the merchant notice matched the platform notice: ' || coalesce(v.mismatch_fields::text, '');
   assert v.merchant_order_number = 'MERCHANT-LIFECYCLE-20261009' and v.merchant_invoice_number = 'INVOICE-LIFECYCLE-20261009',

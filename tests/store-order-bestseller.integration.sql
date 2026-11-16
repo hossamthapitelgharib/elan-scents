@@ -53,6 +53,12 @@ begin
   -- A product with no sale yet has no row in the view: that is zero units, not NULL.
   v_before_units := COALESCE((SELECT units_sold FROM public.registered_customer_best_sellers WHERE product_id = v_product_id), 0);
 
+  -- Stage 1: a store is orderable only while it is technically linked (a fake https address and a fake secret, rolled back with the rest).
+  INSERT INTO public.store_integrations (store_id, enabled, base_url, cart_url, api_base_url, catalog_endpoint, api_key, webhook_secret, notes, order_endpoint)
+  VALUES (v_sp.store_id, true, 'https://merchant.example.invalid', 'https://merchant.example.invalid/cart', 'https://merchant.example.invalid/api',
+          '/catalog', 'fake-api-key-for-test', 'fake-webhook-secret-for-test-0000000000', '', 'https://merchant.example.invalid/elan/orders')
+  ON CONFLICT (store_id) DO UPDATE SET enabled = true, webhook_secret = EXCLUDED.webhook_secret, order_endpoint = EXCLUDED.order_endpoint;
+
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_uid, 'role', 'authenticated')::text, true);
   PERFORM set_config('request.jwt.claim.sub', v_uid::text, true);
 
@@ -78,14 +84,12 @@ begin
   v_units := COALESCE((SELECT units_sold FROM public.registered_customer_best_sellers WHERE product_id = v_product_id), 0);
   ASSERT v_units = v_before_units, 'unconfirmed store request must not count as a sale';
 
-  -- (phase 2) The store offers cash on delivery and approves, the customer chooses it: the platform's first notice exists, and only then
-  -- can the merchant's own notice match it.
-  INSERT INTO public.store_payment_methods (store_id, kind, mode, provider, label_ar)
-  VALUES (v_sp.store_id, 'cod', 'none', 'merchant', 'الدفع عند الاستلام') ON CONFLICT DO NOTHING;
-  PERFORM public.merchant_review_order(v_sp.store_id, jsonb_build_object('trackingNumber', v_tracking, 'decision', 'approve', 'shipping', 0));
-  PERFORM public.select_order_payment_server(v_request_id, v_uid,
-    (SELECT (o->>'id')::uuid FROM public.store_order_requests r, jsonb_array_elements(r.payment_options) o WHERE r.id = v_request_id AND o->>'kind' = 'cod' LIMIT 1),
-    'bestseller-pay-key-1');
+  -- (stage 1/2) The merchant's automatic review approves with its own payment window, a trusted event says the customer paid: the platform's
+  -- first notice exists, and only then can the merchant's own notice match it.
+  PERFORM public.merchant_review_order(v_sp.store_id, jsonb_build_object('trackingNumber', v_tracking, 'decision', 'approve', 'shipping', 0,
+    'paymentWindowUrl', 'https://merchant.example.invalid/pay/' || v_tracking));
+  PERFORM public.record_payment_event(v_sp.store_id, jsonb_build_object('trackingNumber', v_tracking, 'eventId', 'bestseller-pay-evt-1', 'eventType', 'payment.succeeded',
+    'providerTransactionId', 'bestseller-txn-1', 'amount', (SELECT payable_amount FROM public.store_order_requests WHERE id = v_request_id), 'currency', 'EGP'));
   ASSERT (SELECT count(*) FROM public.platform_order_notices WHERE request_id = v_request_id) = 1, 'the first platform notice exists before the merchant reports';
 
   SELECT id INTO v_request_item_id

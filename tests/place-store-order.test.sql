@@ -36,6 +36,13 @@ begin
   where s.status = 'active' and sp.store_id <> v_store_a group by sp.store_id order by sp.store_id limit 1;
   assert v_store_a is not null and v_store_b is not null, 'two active stores with products exist to test with';
 
+  -- Stage 1: an order is accepted only for a store that is technically linked (a fake https address and a fake secret, rolled back with the rest).
+  insert into public.store_integrations (store_id, enabled, base_url, cart_url, api_base_url, catalog_endpoint, api_key, webhook_secret, notes, order_endpoint)
+  select s, true, 'https://merchant.example.invalid', 'https://merchant.example.invalid/cart', 'https://merchant.example.invalid/api', '/catalog',
+         'fake-api-key-for-test', 'fake-webhook-secret-for-test-0000000000', '', 'https://merchant.example.invalid/elan/orders'
+  from unnest(array[v_store_a, v_store_b]) s
+  on conflict (store_id) do update set enabled = true, webhook_secret = excluded.webhook_secret, order_endpoint = excluded.order_endpoint;
+
   select * into a1 from public.store_products where store_id = v_store_a order by id limit 1;
   select * into a2 from public.store_products where store_id = v_store_a and id <> a1.id order by id limit 1;
   select * into b1 from public.store_products where store_id = v_store_b order by id limit 1;

@@ -2,8 +2,9 @@
 -- (docs/implementation-phase-2-payment-merchant-shipping.ar.md).
 -- Run AFTER the migration (or with the migration text first, in the same transaction), as the project owner. Everything is rolled back.
 -- Synthetic users only; the catalog and the stores are read, and the few catalog rows that change (stock, price) change inside the transaction.
--- Order of the story: no payment method -> no approval; merchant approval; the customer chooses; a signed event (never the browser) settles a card payment;
--- the FIRST platform notice and the cart; the merchant's notice matched against it; shipping events; delivery proof; cash on delivery; rejection; failure and retry.
+-- Updated 16 Nov 2026 for stage 1 (the merchant's own payment window replaces the customer's payment chooser and the store's payment-method list).
+-- Order of the story: no window address -> no approval; merchant approval; the customer opens the merchant's window; a signed event (never the browser) settles it;
+-- the FIRST platform notice and the cart; the merchant's notice matched against it; shipping events; delivery proof; a second order; rejection; failure and retry.
 begin;
 
 do $$
@@ -16,15 +17,13 @@ declare
   a2 public.store_products;
   b1 public.store_products;
   v_res jsonb;
-  v_pay jsonb;
   v_req public.store_order_requests;
   v_id uuid;
   v_trk text;
   v_items jsonb;
   v_it record;
   v_n integer;
-  v_m_card uuid;
-  v_m_cod uuid;
+  v_win jsonb;
   v_total numeric;
   v_sub numeric;
   v_ref text;
@@ -40,6 +39,13 @@ begin
   select sp.store_id into v_store_b from public.store_products sp join public.stores s on s.id = sp.store_id
    where s.status = 'active' and sp.store_id <> v_store_a group by sp.store_id order by sp.store_id limit 1;
   assert v_store_a is not null and v_store_b is not null, 'two active stores with products exist to test with';
+
+  -- Stage 1: an order is accepted only for a store that is technically linked (a fake https address and a fake secret, rolled back with the rest).
+  insert into public.store_integrations (store_id, enabled, base_url, cart_url, api_base_url, catalog_endpoint, api_key, webhook_secret, notes, order_endpoint)
+  select s, true, 'https://merchant.example.invalid', 'https://merchant.example.invalid/cart', 'https://merchant.example.invalid/api', '/catalog',
+         'fake-api-key-for-test', 'fake-webhook-secret-for-test-0000000000', '', 'https://merchant.example.invalid/elan/orders'
+  from unnest(array[v_store_a, v_store_b]) s
+  on conflict (store_id) do update set enabled = true, webhook_secret = excluded.webhook_secret, order_endpoint = excluded.order_endpoint;
   select * into a1 from public.store_products where store_id = v_store_a order by id limit 1;
   select * into a2 from public.store_products where store_id = v_store_a and id <> a1.id order by id limit 1;
   select * into b1 from public.store_products where store_id = v_store_b order by id limit 1;
@@ -58,21 +64,22 @@ begin
 
   -- 1. Who may call what: the server only. The browser role reads, never writes, the payment records.
   assert has_function_privilege('service_role', 'public.merchant_review_order(uuid, jsonb)', 'execute'), 'the server records the merchant decision';
-  assert has_function_privilege('service_role', 'public.select_order_payment_server(uuid, uuid, uuid, text)', 'execute'), 'the server records the customer choice';
+  assert has_function_privilege('service_role', 'public.open_payment_window(uuid, uuid)', 'execute'), 'the server opens the merchant window for a verified customer';
+  assert not exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'select_order_payment_server') and to_regclass('public.store_payment_methods') is null, 'the customer chooser and the store payment-method list are gone';
   assert has_function_privilege('service_role', 'public.record_payment_event(uuid, jsonb)', 'execute'), 'the server records signed payment events';
   assert has_function_privilege('service_role', 'public.record_shipment_event(uuid, jsonb)', 'execute'), 'the server records signed shipping events';
   assert not has_function_privilege('authenticated', 'public.merchant_review_order(uuid, jsonb)', 'execute') and not has_function_privilege('anon', 'public.merchant_review_order(uuid, jsonb)', 'execute'), 'no browser role decides an order';
-  assert not has_function_privilege('authenticated', 'public.select_order_payment_server(uuid, uuid, uuid, text)', 'execute'), 'no browser role chooses a payment';
+  assert not has_function_privilege('authenticated', 'public.open_payment_window(uuid, uuid)', 'execute'), 'no browser role opens a payment window';
   assert not has_function_privilege('authenticated', 'public.record_payment_event(uuid, jsonb)', 'execute') and not has_function_privilege('anon', 'public.record_payment_event(uuid, jsonb)', 'execute'), 'no browser role marks an order paid';
   assert not has_function_privilege('authenticated', 'public.record_shipment_event(uuid, jsonb)', 'execute'), 'no browser role records shipping';
   assert not has_function_privilege('authenticated', 'public.receive_store_order_notification(jsonb)', 'execute'), 'no browser role sends the merchant notice';
   assert not has_function_privilege('authenticated', 'private.finalize_payment(uuid)', 'execute'), 'the notice and cart step is internal';
   assert not has_table_privilege('authenticated', 'public.order_payments', 'insert') and not has_table_privilege('authenticated', 'public.order_payments', 'update')
      and not has_table_privilege('authenticated', 'public.platform_order_notices', 'insert') and not has_table_privilege('authenticated', 'public.store_shipment_events', 'insert')
-     and not has_table_privilege('authenticated', 'public.order_payment_events', 'insert') and not has_table_privilege('authenticated', 'public.store_payment_methods', 'insert'),
+     and not has_table_privilege('authenticated', 'public.order_payment_events', 'insert') and not has_table_privilege('authenticated', 'public.payment_windows', 'insert'),
      'the payment tables are read-only for a browser token';
   assert not has_table_privilege('anon', 'public.order_payments', 'select') and not has_table_privilege('anon', 'public.platform_order_notices', 'select'), 'anon reads none of them';
-  assert not exists (select 1 from pg_policies where schemaname = 'public' and tablename in ('order_payments', 'order_payment_events', 'platform_order_notices', 'store_shipment_events', 'store_payment_methods') and policyname not like '%_admin_all'), 'no policy opens these tables to a customer or a store';
+  assert not exists (select 1 from pg_policies where schemaname = 'public' and tablename in ('order_payments', 'order_payment_events', 'platform_order_notices', 'store_shipment_events', 'payment_windows') and policyname not like '%_admin_all'), 'no policy opens these tables to a customer or a store';
 
   -- 2. An order, built by the Phase 1 path (u1: both stores in the cart).
   insert into public.cart_items (user_id, store_product_id, quantity) values (v_u1, a1.id, 2), (v_u1, a2.id, 1), (v_u1, b1.id, 2);
@@ -86,21 +93,21 @@ begin
     from public.store_order_request_items i where i.request_id = v_id;
   assert (select count(*) from public.cart_items where user_id = v_u1) = 3, 'the cart is untouched by creating the order';
 
-  -- 3. No payment method, no approval (by either door). Another store cannot touch the order.
+  -- 3. No payment window address, no approval. Another store cannot touch the order.
   begin
     perform public.merchant_review_order(v_store_a, jsonb_build_object('trackingNumber', v_trk, 'decision', 'approve'));
-    raise exception 'FAIL: approved without a payment method';
+    raise exception 'FAIL: approved without a payment window';
   exception when raise_exception then
-    assert sqlerrm like 'Configure a payment method%', 'approval needs a payment method: ' || sqlerrm;
+    assert sqlerrm like 'An approval needs the https address of the payment window%', 'approval needs the window address: ' || sqlerrm;
   end;
   begin
-    update public.store_order_requests set status = 'store_confirmed' where id = v_id;
-    raise exception 'FAIL: dashboard approval without a payment method';
+    perform public.merchant_review_order(v_store_a, jsonb_build_object('trackingNumber', v_trk, 'decision', 'approve', 'paymentWindowUrl', 'http://insecure.example.com/pay'));
+    raise exception 'FAIL: a plain http payment window was accepted';
   exception when raise_exception then
-    assert sqlerrm like 'Configure a payment method%', 'the dashboard door is closed too: ' || sqlerrm;
+    assert sqlerrm like 'An approval needs the https address of the payment window%', 'plain http is refused: ' || sqlerrm;
   end;
   begin
-    perform public.merchant_review_order(v_store_b, jsonb_build_object('trackingNumber', v_trk, 'decision', 'approve'));
+    perform public.merchant_review_order(v_store_b, jsonb_build_object('trackingNumber', v_trk, 'decision', 'approve', 'paymentWindowUrl', 'https://pay.example.com/w'));
     raise exception 'FAIL: a foreign merchant decided the order';
   exception when raise_exception then
     assert sqlerrm = 'Order not found', 'a merchant cannot touch another store''s order: ' || sqlerrm;
@@ -117,23 +124,7 @@ begin
   exception when raise_exception then
     assert sqlerrm = 'Order not found', 'nor ship it: ' || sqlerrm;
   end;
-
-  -- 4. The store's payment methods: only a safe page, never a card or a secret.
-  insert into public.store_payment_methods (store_id, kind, mode, provider, label_ar, redirect_url)
-  values (v_store_a, 'card', 'redirect', 'paymob', 'بطاقة بنكية', 'https://pay.example.com/checkout') returning id into v_m_card;
-  insert into public.store_payment_methods (store_id, kind, mode, provider, label_ar) values (v_store_a, 'cod', 'none', 'merchant', 'الدفع عند الاستلام') returning id into v_m_cod;
-  begin
-    insert into public.store_payment_methods (store_id, kind, mode, provider, label_ar, redirect_url) values (v_store_a, 'other', 'redirect', 'plain', 'x', 'http://insecure.example.com');
-    raise exception 'FAIL: a plain http payment page was accepted';
-  exception when check_violation then null; end;
-  begin
-    insert into public.store_payment_methods (store_id, kind, mode, provider, label_ar, redirect_url, hosted_config) values (v_store_a, 'other', 'hosted', 'h', 'x', 'https://ok.example.com', '{"card_number":"4111"}');
-    raise exception 'FAIL: card data in a method was accepted';
-  exception when check_violation then null; end;
-  begin
-    insert into public.store_payment_methods (store_id, kind, mode, provider, label_ar, redirect_url) values (v_store_a, 'cod', 'none', 'cod2', 'x', 'https://ok.example.com');
-    raise exception 'FAIL: cash on delivery with a page was accepted';
-  exception when check_violation then null; end;
+  assert (select payment_status from public.store_order_requests where id = v_id) = 'not_started' and (select count(*) from public.payment_windows where request_id = v_id) = 0, 'no window and no payment before an approval';
 
   -- 5. The merchant decides. A rejection needs a reason. An approval freezes the amount and the methods.
   begin
@@ -143,17 +134,18 @@ begin
     assert sqlerrm = 'A rejection needs a reason', 'rejection needs a reason: ' || sqlerrm;
   end;
   begin
-    perform public.merchant_review_order(v_store_a, jsonb_build_object('trackingNumber', v_trk, 'decision', 'approve', 'total', 1));
+    perform public.merchant_review_order(v_store_a, jsonb_build_object('trackingNumber', v_trk, 'decision', 'approve', 'total', 1, 'paymentWindowUrl', 'https://pay.example.com/w'));
     raise exception 'FAIL: a total below the products was accepted';
   exception when raise_exception then
     assert sqlerrm = 'Total is below the products total', 'the total cannot undercut the products: ' || sqlerrm;
   end;
-  v_res := public.merchant_review_order(v_store_a, jsonb_build_object('trackingNumber', v_trk, 'decision', 'approve', 'eventId', 'dec-1', 'shipping', 30));
+  v_res := public.merchant_review_order(v_store_a, jsonb_build_object('trackingNumber', v_trk, 'decision', 'approve', 'eventId', 'dec-1', 'shipping', 30, 'paymentWindowUrl', 'https://pay.example.com/checkout'));
   v_total := v_sub + 30;
   assert v_res->>'status' = 'store_confirmed' and (v_res->>'payableAmount')::numeric = v_total, 'approved; the payable amount is products plus shipping';
-  assert (public.merchant_review_order(v_store_a, jsonb_build_object('trackingNumber', v_trk, 'decision', 'approve', 'eventId', 'dec-1', 'shipping', 99))->>'duplicate')::boolean, 'a replayed decision changes nothing';
+  assert (public.merchant_review_order(v_store_a, jsonb_build_object('trackingNumber', v_trk, 'decision', 'approve', 'eventId', 'dec-1', 'shipping', 99, 'paymentWindowUrl', 'https://pay.example.com/other'))->>'duplicate')::boolean, 'a replayed decision changes nothing';
   select * into v_req from public.store_order_requests where id = v_id;
-  assert v_req.approved_at is not null and v_req.payable_amount = v_total and v_req.total_amount = v_total and jsonb_array_length(v_req.payment_options) = 2, 'the terms are frozen on the order';
+  assert v_req.approved_at is not null and v_req.payable_amount = v_total and v_req.total_amount = v_total, 'the terms are frozen on the order';
+  assert (select url from public.payment_windows where request_id = v_id) = 'https://pay.example.com/checkout' and (select state from public.payment_windows where request_id = v_id) = 'issued', 'the merchant''s window is recorded once, with the first decision''s address';
   begin
     update public.store_order_requests set payable_amount = 1 where id = v_id;
     raise exception 'FAIL: the approved amount changed';
@@ -187,31 +179,24 @@ begin
     assert sqlerrm like 'Payment is required before shipping%', 'nor a shipment row: ' || sqlerrm;
   end;
 
-  -- 7. The customer chooses the card (the browser only receives where to go). Another customer cannot choose for this order.
+  -- 7. The customer opens the merchant's window (the browser only receives where to go). Another customer cannot open it.
   begin
-    perform public.select_order_payment_server(v_id, v_u2, v_m_card, 'phase2-pay-key-x');
-    raise exception 'FAIL: another customer chose the payment';
+    perform public.open_payment_window(v_id, v_u2);
+    raise exception 'FAIL: another customer opened the window';
   exception when raise_exception then
-    assert sqlerrm = 'Order not found', 'only the owner chooses: ' || sqlerrm;
+    assert sqlerrm = 'Order not found', 'only the owner opens the window: ' || sqlerrm;
   end;
-  begin
-    perform public.select_order_payment_server(v_id, v_u1, gen_random_uuid(), 'phase2-pay-key-y');
-    raise exception 'FAIL: a method the store does not offer';
-  exception when raise_exception then
-    assert sqlerrm like 'Payment method is not offered%', 'only an offered method: ' || sqlerrm;
-  end;
-  v_pay := public.select_order_payment_server(v_id, v_u1, v_m_card, 'phase2-pay-key-1');
-  assert v_pay->>'status' = 'initiated' and v_pay->>'paymentStatus' = 'awaiting_payment' and v_pay->>'redirectUrl' = 'https://pay.example.com/checkout'
-     and (v_pay->>'amount')::numeric = v_total and v_pay->>'currency' = 'EGP', 'a card attempt is open; the page address comes from the approved terms';
-  assert public.select_order_payment_server(v_id, v_u1, v_m_card, 'phase2-pay-key-1')->>'paymentId' = v_pay->>'paymentId', 'the same retry key returns the same attempt';
-  assert (select count(*) from public.platform_order_notices where request_id = v_id) = 0 and (select count(*) from public.cart_items where user_id = v_u1) = 3, 'choosing is not paying: no notice, the cart stays';
+  v_win := public.open_payment_window(v_id, v_u1);
+  assert v_win->>'state' = 'opened' and v_win->>'url' = 'https://pay.example.com/checkout', 'the window opens with the merchant''s address';
+  assert (select payment_status from public.store_order_requests where id = v_id) = 'not_started', 'opening the window is not paying';
+  assert (select count(*) from public.platform_order_notices where request_id = v_id) = 0 and (select count(*) from public.cart_items where user_id = v_u1) = 3, 'opening is not paying: no notice, the cart stays';
 
   -- 8. The signed event settles it. A wrong amount or currency settles nothing; the browser's return changes nothing.
   v_res := public.record_payment_event(v_store_a, jsonb_build_object('trackingNumber', v_trk, 'eventId', 'pay-ev-1', 'eventType', 'payment.succeeded', 'providerTransactionId', 'TXN-1', 'amount', v_total - 1, 'provider', 'paymob'));
   assert v_res->>'outcome' = 'amount_mismatch' and (v_res->>'applied')::boolean is false, 'a wrong amount is recorded and not applied';
   v_res := public.record_payment_event(v_store_a, jsonb_build_object('trackingNumber', v_trk, 'eventId', 'pay-ev-2', 'eventType', 'payment.succeeded', 'providerTransactionId', 'TXN-1', 'amount', v_total, 'currency', 'USD', 'provider', 'paymob'));
   assert v_res->>'outcome' = 'currency_mismatch', 'a wrong currency is recorded and not applied';
-  assert (select payment_status from public.store_order_requests where id = v_id) = 'awaiting_payment' and (select count(*) from public.platform_order_notices where request_id = v_id) = 0, 'still awaiting; no first notice yet';
+  assert (select payment_status from public.store_order_requests where id = v_id) = 'not_started' and (select count(*) from public.platform_order_notices where request_id = v_id) = 0, 'still unpaid; no first notice yet';
   assert (select count(*) from public.order_payment_events where request_id = v_id) = 2, 'both events are in the log';
   v_res := public.record_payment_event(v_store_a, jsonb_build_object('trackingNumber', v_trk, 'eventId', 'pay-ev-3', 'eventType', 'payment.succeeded', 'providerTransactionId', 'TXN-1',
             'paymentReference', 'PAYREF-1', 'amount', v_total, 'currency', 'EGP', 'provider', 'paymob', 'occurredAt', '2026-11-10T10:00:00Z'));
@@ -238,12 +223,7 @@ begin
   v_res := public.record_payment_event(v_store_a, jsonb_build_object('trackingNumber', v_trk, 'eventId', 'pay-ev-4', 'eventType', 'payment.succeeded', 'providerTransactionId', 'TXN-2', 'amount', v_total, 'provider', 'paymob'));
   assert v_res->>'outcome' = 'duplicate_payment', 'a second payment for a paid order is recorded, not applied';
   assert (select count(*) from public.platform_order_notices where request_id = v_id) = 1 and (select count(*) from public.order_payments where request_id = v_id and status = 'paid') = 1, 'still one notice, one paid payment';
-  begin
-    perform public.select_order_payment_server(v_id, v_u1, v_m_cod, 'phase2-pay-key-2');
-    raise exception 'FAIL: chose again after paying';
-  exception when raise_exception then
-    assert sqlerrm = 'Payment is already settled', 'no second choice after payment: ' || sqlerrm;
-  end;
+  assert (public.payment_window_return(v_id, v_u1, 'cancel')->>'state') = 'paid', 'a window return after payment cancels nothing';
 
   -- 10. The merchant's own notice, matched against the first one. Differences are recorded and nothing is overwritten.
   v_notice := jsonb_build_object('trackingNumber', v_trk, 'status', 'completed', 'subtotal', v_sub, 'shipping', 30, 'total', v_total, 'currency', 'EGP',
@@ -315,7 +295,7 @@ begin
   -- 12. The payment tables are server-only, like every order table: a browser token (a customer's, a store's, a stranger's) reads none of them.
   assert not has_table_privilege('authenticated', 'public.order_payments', 'select') and not has_table_privilege('authenticated', 'public.order_payment_events', 'select')
      and not has_table_privilege('authenticated', 'public.platform_order_notices', 'select') and not has_table_privilege('authenticated', 'public.store_shipment_events', 'select')
-     and not has_table_privilege('authenticated', 'public.store_payment_methods', 'select'), 'no browser role has a grant on the payment tables';
+     and not has_table_privilege('authenticated', 'public.payment_windows', 'select'), 'no browser role has a grant on the payment tables';
   perform set_config('request.jwt.claims', json_build_object('sub', v_u1, 'role', 'authenticated')::text, true);
   perform set_config('request.jwt.claim.sub', v_u1::text, true);
   execute 'set local role authenticated';
@@ -335,41 +315,33 @@ begin
   perform set_config('request.jwt.claims', '{}', true);
   perform set_config('request.jwt.claim.sub', '', true);
 
-  -- 13. Cash on delivery goes through the same cycle: chosen = recorded, first notice, cart, then the same shipping.
+  -- 13. A second order goes through the same cycle: approved with its own window, paid by a trusted event, first notice, cart, then the same shipping.
   insert into public.cart_items (user_id, store_product_id, quantity) values (v_u2, a1.id, 1), (v_u2, b1.id, 1);
   v_res := public.place_store_order_server(jsonb_build_object('storeId', v_store_a, 'idempotencyKey', 'phase2-key-0002'), v_u2);
   v_id2 := (v_res->>'id')::uuid; v_trk2 := v_res->>'trackingNumber';
-  perform public.merchant_review_order(v_store_a, jsonb_build_object('trackingNumber', v_trk2, 'decision', 'approve', 'shipping', 20,
-            'paymentMethods', jsonb_build_array(jsonb_build_object('kind', 'cod', 'labelAr', 'الدفع عند الاستلام'))));
+  perform public.merchant_review_order(v_store_a, jsonb_build_object('trackingNumber', v_trk2, 'decision', 'approve', 'shipping', 20, 'paymentWindowUrl', 'https://pay.example.com/second'));
   select * into v_req from public.store_order_requests where id = v_id2;
-  assert jsonb_array_length(v_req.payment_options) = 1 and v_req.payment_options->0->>'kind' = 'cod', 'the merchant offered only cash on delivery';
   v_total2 := v_req.payable_amount;
-  begin
-    perform public.select_order_payment_server(v_id2, v_u2, v_m_card, 'phase2-pay-key-3');
-    raise exception 'FAIL: a method outside the order''s offer';
-  exception when raise_exception then
-    assert sqlerrm like 'Payment method is not offered%', 'the order''s own offer is the only one: ' || sqlerrm;
-  end;
-  v_pay := public.select_order_payment_server(v_id2, v_u2, (v_req.payment_options->0->>'id')::uuid, 'phase2-pay-key-4');
-  assert v_pay->>'status' = 'cod_selected', 'cash on delivery is recorded at once';
+  assert v_total2 = v_req.subtotal + 20, 'the second order''s payable amount is products plus shipping';
+  assert (select count(*) from public.platform_order_notices where request_id = v_id2) = 0 and (select count(*) from public.cart_items where user_id = v_u2) = 2, 'approved is not paid: no notice, the cart stays';
+  v_res := public.record_payment_event(v_store_a, jsonb_build_object('trackingNumber', v_trk2, 'eventId', 'second-ev-1', 'eventType', 'payment.succeeded', 'providerTransactionId', 'TXN-C', 'amount', v_total2, 'provider', 'x'));
+  assert (v_res->>'applied')::boolean, 'the trusted event settles the second order';
   select * into v_req from public.store_order_requests where id = v_id2;
-  assert v_req.payment_status = 'cod_selected' and v_req.payment_method = 'cod' and v_req.cart_cleared_at is not null, 'recorded on the order, cart cleared';
-  assert (select count(*) from public.platform_order_notices where request_id = v_id2) = 1, 'the first notice exists for cash on delivery too';
+  assert v_req.payment_status = 'paid' and v_req.cart_cleared_at is not null, 'recorded on the order, cart cleared';
+  assert (select count(*) from public.platform_order_notices where request_id = v_id2) = 1, 'the first notice exists';
   assert (select count(*) from public.cart_items where user_id = v_u2 and store_product_id = a1.id) = 0 and (select count(*) from public.cart_items where user_id = v_u2 and store_product_id = b1.id) = 1, 'only the paid store''s line left the cart';
-  v_res := public.record_payment_event(v_store_a, jsonb_build_object('trackingNumber', v_trk2, 'eventId', 'cod-ev-1', 'eventType', 'payment.succeeded', 'providerTransactionId', 'TXN-C', 'amount', v_total2, 'provider', 'x'));
-  assert v_res->>'outcome' = 'state_rejected', 'a card event cannot settle a cash-on-delivery order';
   select coalesce(jsonb_agg(jsonb_build_object('productSizeId', i.product_size_id, 'quantity', i.quantity, 'unitPrice', i.unit_price, 'currency', i.currency,
            'total', i.line_total, 'platformOrderNumber', i.platform_order_number) order by i.id), '[]'::jsonb) into v_items from public.store_order_request_items i where i.request_id = v_id2;
   v_res := public.receive_store_order_notification(jsonb_build_object('trackingNumber', v_trk2, 'status', 'completed', 'subtotal', (select subtotal from public.store_order_requests where id = v_id2),
-     'shipping', 20, 'total', v_total2, 'currency', 'EGP', 'merchantOrderNumber', 'M-2002', 'merchantInvoiceNumber', 'INV-3002', 'paymentReference', 'COD-77',
+     'shipping', 20, 'total', v_total2, 'currency', 'EGP', 'merchantOrderNumber', 'M-2002', 'merchantInvoiceNumber', 'INV-3002', 'paymentReference', 'TXN-C',
      'customer', jsonb_build_object('id', v_u2, 'name', 'منى سمير فتحي عبد', 'phone', '01112345678', 'address', 'الجيزة'), 'items', v_items,
-     'shipment', jsonb_build_object('carrier', 'Bosta', 'trackingCode', 'BW-9', 'status', 'handed_to_carrier'), 'idempotencyKey', 'p2-cod-n1'));
-  assert (v_res->>'matched')::boolean, 'the cash-on-delivery notice matches: ' || v_res::text;
+     'shipment', jsonb_build_object('carrier', 'Bosta', 'trackingCode', 'BW-9', 'status', 'handed_to_carrier'), 'idempotencyKey', 'p2-second-n1'));
+  assert (v_res->>'matched')::boolean, 'the second order''s notice matches: ' || v_res::text;
   assert (select merchant_order_number from public.store_order_requests where id = v_id2) = 'M-2002', 'merchant numbers recorded after the match';
-  v_res := public.record_shipment_event(v_store_a, jsonb_build_object('trackingNumber', v_trk2, 'eventId', 'cod-sh-1', 'status', 'delivered'));
-  assert (v_res->>'saleProven')::boolean, 'the cash-on-delivery sale is proven by delivery too';
+  v_res := public.record_shipment_event(v_store_a, jsonb_build_object('trackingNumber', v_trk2, 'eventId', 'second-sh-1', 'status', 'delivered'));
+  assert (v_res->>'saleProven')::boolean, 'the sale is proven by delivery too';
 
-  -- 14. Rejection (reason mandatory, closes the order, no payment afterwards) and a failed card payment that is retried.
+  -- 14. Rejection (reason mandatory, closes the order, no payment afterwards) and a failed payment event that is followed by a good one.
   insert into public.cart_items (user_id, store_product_id, quantity) values (v_u2, a2.id, 1);
   v_res := public.place_store_order_server(jsonb_build_object('storeId', v_store_a, 'idempotencyKey', 'phase2-key-0003'), v_u2);
   v_id3 := (v_res->>'id')::uuid; v_trk3 := v_res->>'trackingNumber';
@@ -378,10 +350,10 @@ begin
   select * into v_req from public.store_order_requests where id = v_id3;
   assert v_req.status = 'store_rejected' and v_req.failure_reason = 'out of stock', 'the reason is stored for the customer';
   begin
-    perform public.select_order_payment_server(v_id3, v_u2, v_m_card, 'phase2-pay-key-5');
-    raise exception 'FAIL: paid a rejected order';
+    perform public.open_payment_window(v_id3, v_u2);
+    raise exception 'FAIL: opened a window on a rejected order';
   exception when raise_exception then
-    assert sqlerrm like 'Order is not approved for payment%', 'no payment on a rejected order: ' || sqlerrm;
+    assert sqlerrm like 'Order has no open payment window%', 'no window on a rejected order: ' || sqlerrm;
   end;
   assert (public.record_payment_event(v_store_a, jsonb_build_object('trackingNumber', v_trk3, 'eventId', 'rej-pay-1', 'eventType', 'payment.succeeded', 'providerTransactionId', 'TXN-R', 'amount', 100, 'provider', 'x'))->>'outcome') = 'state_rejected', 'a payment event for a rejected order is recorded, not applied';
   assert (select payment_status from public.store_order_requests where id = v_id3) = 'not_started', 'a rejected order never had a payment';
@@ -389,25 +361,17 @@ begin
   insert into public.cart_items (user_id, store_product_id, quantity) values (v_u1, a2.id, 1);
   v_res := public.place_store_order_server(jsonb_build_object('storeId', v_store_a, 'idempotencyKey', 'phase2-key-0004'), v_u1);
   v_id3 := (v_res->>'id')::uuid; v_trk3 := v_res->>'trackingNumber';
-  perform public.merchant_review_order(v_store_a, jsonb_build_object('trackingNumber', v_trk3, 'decision', 'approve'));
+  perform public.merchant_review_order(v_store_a, jsonb_build_object('trackingNumber', v_trk3, 'decision', 'approve', 'paymentWindowUrl', 'https://pay.example.com/third'));
   select * into v_req from public.store_order_requests where id = v_id3;
-  v_pay := public.select_order_payment_server(v_id3, v_u1, v_m_card, 'phase2-pay-key-6');
   v_res := public.record_payment_event(v_store_a, jsonb_build_object('trackingNumber', v_trk3, 'eventId', 'fail-1', 'eventType', 'payment.failed', 'reason', 'card declined', 'provider', 'paymob'));
-  assert v_res->>'paymentStatus' = 'failed', 'a signed failure is recorded';
+  assert v_res->>'outcome' = 'failed_recorded' and (v_res->>'applied')::boolean is false, 'a signed failure is recorded and applies nothing';
+  assert (select payment_status from public.store_order_requests where id = v_id3) = 'not_started', 'a failure inside the window leaves the order unpaid (the window decides what happens next)';
   assert (select count(*) from public.platform_order_notices where request_id = v_id3) = 0 and (select count(*) from public.cart_items where user_id = v_u1 and store_product_id = a2.id) = 1, 'a failed payment writes no notice and keeps the cart';
-  v_pay := public.select_order_payment_server(v_id3, v_u1, v_m_card, 'phase2-pay-key-7');
-  assert v_pay->>'paymentStatus' = 'awaiting_payment', 'the customer can try again after a failure';
   v_res := public.record_payment_event(v_store_a, jsonb_build_object('trackingNumber', v_trk3, 'eventId', 'ok-1', 'eventType', 'payment.succeeded', 'providerTransactionId', 'TXN-9', 'amount', v_req.payable_amount, 'provider', 'paymob'));
-  assert (v_res->>'applied')::boolean, 'the retry is settled';
+  assert (v_res->>'applied')::boolean, 'the later success is settled';
   assert (select payment_reference from public.store_order_requests where id = v_id3) = 'TXN-9', 'with no separate reference the transaction id is the reference';
 
   -- 15. EGP only, at every step.
-  begin
-    perform public.select_order_payment_server(v_id3, v_u1, v_m_card, 'phase2-pay-key-8');
-    raise exception 'FAIL: chose after settled';
-  exception when raise_exception then
-    assert sqlerrm = 'Payment is already settled', 'a settled order is closed to a new choice';
-  end;
   begin
     insert into public.order_payments (request_id, store_id, user_id, method_kind, mode, provider, status, amount, currency, idempotency_key)
     values (v_id3, v_store_a, v_u1, 'card', 'redirect', 'x', 'initiated', 10, 'USD', 'phase2-cur-key-1');

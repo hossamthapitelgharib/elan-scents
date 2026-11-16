@@ -52,14 +52,11 @@ begin
   assert v_platform_number = v_tracking || '-01', 'platform generates the line-level order number';
   assert not exists (select 1 from public.commissions where store_order_request_item_id in (select id from public.store_order_request_items where request_id=v_request limit 1) limit 1), 'no commission accrues before a matched merchant completion notice';
 
-  -- (phase 2) The store offers cash on delivery and approves, the customer chooses it, and only then may the order ship and the
+  -- (stage 1/2) The store approves, a trusted payment event says the customer paid, and only then may the order ship and the
   -- merchant's own notice match the platform's first notice.
-  insert into public.store_payment_methods (store_id, kind, mode, provider, label_ar)
-  values (v_store, 'cod', 'none', 'merchant', 'الدفع عند الاستلام') on conflict do nothing;
   update public.store_order_requests set status = 'store_confirmed' where id = v_request;
-  perform public.select_order_payment_server(v_request, v_user,
-    (select (o->>'id')::uuid from public.store_order_requests r, jsonb_array_elements(r.payment_options) o
-      where r.id = v_request and o->>'kind' = 'cod' limit 1), 'commission-pay-key-1');
+  perform public.record_payment_event(v_store, jsonb_build_object('trackingNumber', v_tracking, 'eventId', 'commission-pay-evt-1', 'eventType', 'payment.succeeded',
+    'providerTransactionId', 'commission-txn-1', 'amount', (select payable_amount from public.store_order_requests where id = v_request), 'currency', 'EGP'));
   assert exists (select 1 from public.platform_order_notices where request_id = v_request), 'the platform first notice exists before the merchant reports';
 
   insert into public.store_shipments(request_id,store_id,carrier_name,tracking_code,shipping_status)
