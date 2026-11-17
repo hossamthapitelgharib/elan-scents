@@ -61,7 +61,7 @@ test('rollback preserves financial records while restoring prior applied functio
 });
 
 test('platform dashboard and Worker expose one commissions tab and protected APIs', () => {
-  const html = fs.readFileSync(path.join(root, 'stores-dashboard.html'), 'utf8');
+  const html = fs.readFileSync(path.join(root, 'platform-dashboard.html'), 'utf8');
   const js = fs.readFileSync(path.join(root, 'stores-dashboard.js'), 'utf8');
   const registry = fs.readFileSync(path.join(root, 'cloudflare/api-registry.js'), 'utf8');
   assert.match(html, /data-store-section="commissions"/);

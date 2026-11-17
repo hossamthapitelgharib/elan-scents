@@ -8,7 +8,7 @@ const root = path.join(__dirname, '..');
 const rankings = require(path.join(root, 'api', 'customer-product-rankings'));
 const analyticsApi = require(path.join(root, 'api', 'guest-analytics'));
 const customerSource = fs.readFileSync(path.join(root, 'customers-dashboard.js'), 'utf8');
-const customerHtml = fs.readFileSync(path.join(root, 'customers-dashboard.html'), 'utf8');
+const customerHtml = fs.readFileSync(path.join(root, 'platform-dashboard.html'), 'utf8');
 const migration = fs.readFileSync(path.join(root, 'supabase', 'migrations', '20261017062830_customer_activity_totals_and_guest_cleanup_on_claim.sql'), 'utf8');
 
 const adminId = '45a6e52c-46c6-42e9-a730-9e5bec3dd201';
@@ -79,6 +79,7 @@ function loadDashboard() {
     URLSearchParams,
     console,
   });
+  vm.runInContext(require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'admin-common.js'), 'utf8'), context, { filename: 'admin-common.js' });
   vm.runInContext(customerSource, context, { filename: 'customers-dashboard.js' });
   return { context, nodes };
 }

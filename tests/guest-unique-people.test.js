@@ -81,6 +81,7 @@ function loadDashboard() {
   nodes.get('#guestCustomers').hidden = true;
   const document = { querySelector(selector) { return nodes.get(selector) || null; }, getElementById(id) { return nodes.get(`#${id}`) || null; }, addEventListener() {} };
   const context = vm.createContext({ document, Portal: { session: () => true, auth: () => ({}), login: async () => {} }, fetch: async () => { throw new Error('unexpected'); }, URLSearchParams, console });
+  vm.runInContext(require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'admin-common.js'), 'utf8'), context, { filename: 'admin-common.js' });
   vm.runInContext(customerSource, context, { filename: 'customers-dashboard.js' });
   return { context, nodes };
 }

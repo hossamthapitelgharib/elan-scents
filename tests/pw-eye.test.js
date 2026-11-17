@@ -26,7 +26,8 @@ test('the eye has labels in both languages and is a button that cannot submit a 
 test('every page with a password field, or a script that builds one, loads pw-eye.js under the shared version', () => {
   const pages = fs.readdirSync(root).filter((f) => f.endsWith('.html'));
   const needing = pages.filter((f) => { const h = read(f); return /type="password"/.test(h) || /src="\/(app|app-core|account|portal)\.js/.test(h); });
-  assert.ok(needing.length >= 7, 'the storefront, the account page and the five panels: ' + needing.join(', '));
+  /* The customers and stores pages now live inside platform-dashboard.html; their old addresses are bare redirects with no scripts. */
+  assert.ok(needing.length >= 5, 'the storefront, the account page and the three panels: ' + needing.join(', '));
   const version = JSON.parse(read('asset-manifest.json')).version;
   for (const f of needing) assert.match(read(f), new RegExp('<script src="/pw-eye\\.js\\?v=' + version + '" defer></script>'), f);
 });

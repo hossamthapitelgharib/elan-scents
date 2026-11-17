@@ -122,7 +122,7 @@ test('newest best-seller SQL keeps the ranking rules, tracks returns and reconci
 });
 
 test('registered-customer dashboard exposes the best-seller ranking and audit information only in the registered section', () => {
-  const html = fs.readFileSync(path.join(root, 'customers-dashboard.html'), 'utf8');
+  const html = fs.readFileSync(path.join(root, 'platform-dashboard.html'), 'utf8');
   const js = fs.readFileSync(path.join(root, 'customers-dashboard.js'), 'utf8');
   assert.match(html, /id="registeredBestSellersTitle">عطور الأكثر مبيعًا/);
   assert.match(html, /id="registeredBestSellersPeriod"/);

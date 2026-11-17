@@ -8,6 +8,7 @@ const vm = require('node:vm');
 
 const root = path.join(__dirname, '..');
 const portalSource = fs.readFileSync(path.join(root, 'portal.js'), 'utf8');
+const commonSource = fs.readFileSync(path.join(root, 'admin-common.js'), 'utf8');
 const source = fs.readFileSync(path.join(root, 'platform-dashboard.js'), 'utf8');
 
 const IDS = ['#loginForm', '#login', '#app', '#logout', '#refresh', '#message', '#stats', '#platformError', '#platformStoreError', '#platformStoreStats', '#platformAuditError', '#platformAuditList', '#platformAuditMore'];
@@ -41,8 +42,12 @@ function boot(customerAnswers) {
   context.window = context;
   context.window.addEventListener = () => {};
   vm.runInContext(portalSource, context, { filename: 'portal.js' });
+  vm.runInContext(commonSource, context, { filename: 'admin-common.js' });
   vm.runInContext(source, context, { filename: 'platform-dashboard.js' });
-  return { nodes, calls, timers, document };
+  // The shell (admin-shell.js) opens the page by calling the loader the script registered; this is that call.
+  const open = () => vm.runInContext("AdminPages.get('platform').load()", context);
+  open();
+  return { nodes, calls, timers, document, open };
 }
 const registered = (page) => (page.nodes.get('#stats').innerHTML.match(new RegExp(`<small>عملاء مسجلون</small><b>([^<]*)</b>`)) || [])[1];
 const tick = async (page) => { page.timers[0].callback(); await settle(); };
@@ -104,7 +109,7 @@ test('pressing refresh does not add a second timer, and a slow read is not overl
   const answers = [counts(12)]; answers.last = counts(12);
   const page = boot(answers);
   await settle();
-  page.nodes.get('#refresh').listeners.click();
+  page.open();   // the shell's refresh button runs the same loader again
   await settle();
   assert.equal(page.timers.length, 1, 'one timer for the page');
   const before = page.calls.length;

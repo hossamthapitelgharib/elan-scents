@@ -50,7 +50,7 @@ const ACCOUNT_IDS = ['#loginForm', '#archiveForm', '#loadMoreOrders', '#loadMore
   '#refreshOrders', '#lastUpdated', '#forgotLink', '#resetForm', '#newPasswordForm', '.auth-links'];
 const DASHBOARD_IDS = ['#authForm', '#authCard', '#authError', '#dashboard', '#ordersError', '#logout', '#lastUpdated', '#refreshBtn', '#loadMoreOrders',
   '#saveSettingsBtn', '#statusFilter', '#matchFilter', '#searchFilter', '#attentionFilter', '#stats', '#orders', '#storeSettings', '#settingsNotice'];
-const CUSTOMERS_IDS = ['#customerTabs', '#registeredAnalytics', '#guestAnalytics', '#loginForm', '#login', '#app', '#logout', '#message', '#platformError', '#stats',
+const CUSTOMERS_IDS = ['#customerTabs', '#registeredAnalytics', '#guestAnalytics', '#loginForm', '#login', '#app', '#logout', '#message', '#customerError', '#customerStats',
   '#registeredCount', '#visitorCount', '#registeredCustomers', '#guestCustomers', '#registeredPagination', '#visitorPagination'];
 
 const cancelledSession = { id: 's1', created_at: '2026-01-01T00:00:00Z', store_order_requests: [{ id: 'r1', tracking_number: 'TEST-CANCELLED-1', status: 'cancelled', subtotal: 100, total_amount: 100, currency: 'EGP', stores: { name: 'Test Store' }, store_order_request_items: [], store_order_cart_restorations: [], store_shipments: [] }] };
@@ -184,25 +184,25 @@ test('orders dashboard: failing store settings do not lock the admin out of the 
 });
 
 test('customers dashboard: a wrong account keeps the sign-in box with an Arabic message instead of an empty dashboard', async () => {
-  const { context, nodes, store } = load(['portal.js', 'customers-dashboard.js'], CUSTOMERS_IDS, async () => json(403, { ok: false, error: 'forbidden' }));
+  const { context, nodes, store } = load(['portal.js', 'admin-common.js', 'customers-dashboard.js'], CUSTOMERS_IDS, async () => json(403, { ok: false, error: 'forbidden' }));
   signIn(store);
   nodes.get('#login').hidden = false;
   nodes.get('#app').hidden = true;
   nodes.get('#logout').hidden = true;
-  nodes.get('#platformError').hidden = true;
-  await vm.runInContext('loadCustomersDashboard', context)(false).catch(vm.runInContext('reportError', context));
+  nodes.get('#customerError').hidden = true;
+  await vm.runInContext('loadCustomersDashboard', context)(false).catch(vm.runInContext('reportCustomerError', context));
   assert.equal(nodes.get('#login').hidden, false);
   assert.equal(nodes.get('#app').hidden, true);
   assert.equal(nodes.get('#logout').hidden, true);
   assert.match(nodes.get('#message').textContent, /غير مصرح/);
-  assert.equal(nodes.get('#platformError').hidden, true);
+  assert.equal(nodes.get('#customerError').hidden, true);
 });
 
 test('customers dashboard: it appears only after the data arrives, and an error after that goes to the page error box', async () => {
   const payload = { ok: true, counts: { registered: 1, visitors: 0 },
     registeredCustomers: [{ id: '11111111-1111-4111-8111-111111111111', full_name: 'عميل تجريبي', phone: '0000', created_at: '2026-01-01T00:00:00Z', cartItems: 0, cartUnits: 0 }],
     guestVisitors: [], pagination: { registered: { offset: 0, limit: 50, total: 1, hasMore: false }, visitors: { offset: 0, limit: 50, total: 0, hasMore: false } } };
-  const { context, nodes, store } = load(['portal.js', 'customers-dashboard.js'], CUSTOMERS_IDS, async () => json(200, payload));
+  const { context, nodes, store } = load(['portal.js', 'admin-common.js', 'customers-dashboard.js'], CUSTOMERS_IDS, async () => json(200, payload));
   signIn(store);
   nodes.get('#login').hidden = false;
   nodes.get('#app').hidden = true;
@@ -215,9 +215,9 @@ test('customers dashboard: it appears only after the data arrives, and an error 
   assert.equal(nodes.get('#message').textContent, '');
   assert.match(nodes.get('#registeredCustomers').innerHTML, /عميل تجريبي/);
 
-  vm.runInContext('reportError', context)(new Error('customer_data_unavailable'));
-  assert.equal(nodes.get('#platformError').hidden, false);
-  assert.match(nodes.get('#platformError').textContent, /تعذر تحميل بيانات العملاء/);
+  vm.runInContext('reportCustomerError', context)(new Error('customer_data_unavailable'));
+  assert.equal(nodes.get('#customerError').hidden, false);
+  assert.match(nodes.get('#customerError').textContent, /تعذر تحميل بيانات العملاء/);
 });
 
 test('the pages carry the elements the error handling writes to', () => {

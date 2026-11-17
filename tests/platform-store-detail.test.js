@@ -200,7 +200,7 @@ test('offers, shipments, commissions and sync logs return their bounded store-on
 test('store admin UI exposes read-only operational sections and routes detail reads through the admin API', () => {
   const fs = require('node:fs');
   const root = path.join(__dirname, '..');
-  const html = fs.readFileSync(path.join(root, 'stores-dashboard.html'), 'utf8');
+  const html = fs.readFileSync(path.join(root, 'platform-dashboard.html'), 'utf8');
   const js = fs.readFileSync(path.join(root, 'stores-dashboard.js'), 'utf8');
   for (const section of ['overview', 'catalog', 'offers', 'orders', 'shipments', 'commissions', 'sync', 'reconciliation']) assert.match(html, new RegExp(`data-store-section="${section}"`));
   assert.doesNotMatch(html, /store-order-commissions/);

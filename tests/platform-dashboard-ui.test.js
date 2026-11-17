@@ -5,10 +5,12 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 const root = path.join(__dirname, '..');
+const commonSource = fs.readFileSync(path.join(root, 'admin-common.js'), 'utf8');
 const source = fs.readFileSync(path.join(root, 'platform-dashboard.js'), 'utf8');
 const customerSource = fs.readFileSync(path.join(root, 'customers-dashboard.js'), 'utf8');
 const html = fs.readFileSync(path.join(root, 'platform-dashboard.html'), 'utf8');
-const customerHtml = fs.readFileSync(path.join(root, 'customers-dashboard.html'), 'utf8');
+// The customers page lives inside the platform panel now (customers-dashboard.html only redirects there).
+const customerHtml = html;
 const orderSummaryApi = fs.readFileSync(path.join(root, 'api', 'platform-order-summary.js'), 'utf8');
 
 function makeNode() {
@@ -23,7 +25,7 @@ function makeNode() {
 function loadDashboard(dashboard = 'customers') {
   const selectors = [
     '#customerTabs', '#refreshCustomers', '#guestAnalyticsPeriod', '#registeredAnalyticsPeriod',
-    '#loginForm', '#login', '#app', '#logout', '#refresh', '#stats', '#platformError', '#platformStoreError', '#platformStoreStats', '#platformAuditError', '#platformAuditList', '#platformAuditMore', '#platformSettlementsRefresh', '#platformSettlementError', '#platformSettlementStats', '#platformSettlementBoard', '#platformSettlementMore',
+    '#customerStats', '#customerError', '#loginForm', '#login', '#app', '#logout', '#refresh', '#stats', '#platformError', '#platformStoreError', '#platformStoreStats', '#platformAuditError', '#platformAuditList', '#platformAuditMore', '#platformSettlementsRefresh', '#platformSettlementError', '#platformSettlementStats', '#platformSettlementBoard', '#platformSettlementMore',
     '#registeredTab', '#visitorsTab', '#registeredCustomers', '#guestCustomers', '#registeredCount', '#visitorCount',
     '#registeredPagination', '#visitorPagination', '#registeredAnalytics',
     '#registeredBestSellersPeriod', '#registeredBestSellersError', '#registeredBestSellersAudit', '#registeredBestSellersTable',
@@ -46,6 +48,7 @@ function loadDashboard(dashboard = 'customers') {
     URLSearchParams,
     console,
   });
+  vm.runInContext(commonSource, context, { filename: 'admin-common.js' });
   vm.runInContext(dashboard === 'platform' ? source : customerSource, context, { filename: dashboard === 'platform' ? 'platform-dashboard.js' : 'customers-dashboard.js' });
   return { context, nodes, documentListeners };
 }
@@ -53,11 +56,12 @@ function loadDashboard(dashboard = 'customers') {
 test('platform dashboard links to detailed admin tools and contains only aggregate order/customer/store sections', () => {
   assert.doesNotMatch(html, /platformFilters|id="orders"|بيانات العميل/);
   assert.match(html, /href="\/dashboard\.html"/);
-  assert.match(html, /customers-dashboard\.html/);
+  assert.match(html, /data-page="customers"/);
   assert.match(html, /id="platformStoreStats"/);
-  assert.match(html, /href="\/stores-dashboard\.html"/);
+  assert.match(html, /href="#stores"/);
   assert.match(html, /src="\/platform-dashboard\.js\?v=/);
-  assert.doesNotMatch(html, /id="registeredCustomers"|id="guestCustomers"|id="guestTopProducts"/);
+  // The customers page is now a page of this document, with its own loader script (customers-dashboard.js), not part of platform-dashboard.js.
+  assert.match(html, /id="page-customers"[\s\S]*id="registeredCustomers"/);
   assert.doesNotMatch(source, /customer_(?:name|phone|address|email)|dashboard-orders/);
   assert.match(source, /platform-order-summary/);
   assert.doesNotMatch(orderSummaryApi, /customer_(?:name|phone|address|email)|store_order_request_items|initial_payload|customer_address/);
@@ -71,7 +75,7 @@ test('platform dashboard links to detailed admin tools and contains only aggrega
   assert.match(customerHtml, /id="registeredBestSellersTable"/);
   assert.match(customerHtml, /id="registeredBestSellersAudit"/);
   assert.match(customerHtml, /src="\/customers-dashboard\.js\?v=/);
-  assert.doesNotMatch(customerHtml, /src="\/platform-dashboard\.js\?v=/);
+  assert.match(customerHtml, /src="\/platform-dashboard\.js\?v=/);
   assert.doesNotMatch(source, /renderCustomers|loadCustomersDashboard|customerOffsets|customer_product_events/);
   assert.match(customerSource, /loadCustomersDashboard/);
   assert.match(customerHtml, /الأكثر إضافةً أو حذفًا من سلال الزوار/);
@@ -180,7 +184,7 @@ test('customer list paging renders exact totals and enables only valid previous/
     },
   };
   vm.runInContext('renderCustomers(customerFixture)', context);
-  assert.equal(nodes.get('#registeredCount').textContent, '501');
+  assert.equal(nodes.get('#registeredCount').textContent, '٥٠١');
   assert.match(nodes.get('#registeredPagination').innerHTML, /الصفحة [٠-٩]+ من [٠-٩]+/);
   assert.match(nodes.get('#registeredPagination').innerHTML, /data-offset="0"/);
   assert.match(nodes.get('#registeredPagination').innerHTML, /data-offset="100"/);

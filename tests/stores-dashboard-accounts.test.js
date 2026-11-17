@@ -57,10 +57,12 @@ function boot(routes) {
   context.addEventListener = () => {};
   context.confirm = () => true;
   const toasts = [];
-  for (const file of ['portal.js', 'stores-dashboard.js']) {
+  for (const file of ['portal.js', 'admin-common.js', 'stores-dashboard.js']) {
     vm.runInContext(read(file), context, { filename: file });
     if (file === 'portal.js') vm.runInContext('Portal.toast = (text, kind) => globalThis.__toasts.push([text, kind]);', Object.assign(context, { __toasts: toasts }));
   }
+  /* What the shell (admin-shell.js) does when the stores page opens: run the loader the script registered, hand a failure to its onError. */
+  vm.runInContext("(() => { const spec = AdminPages.get('stores'); return Promise.resolve().then(() => spec.load()).catch(error => spec.onError(error)); })()", context);
   const dispatch = (type, event) => (docListeners[type] || []).forEach(callback => callback(event));
   const click = match => dispatch('click', { target: { closest: selector => (match[selector] !== undefined ? match[selector] : null) } });
   const submit = form => { let prevented = false; dispatch('submit', { preventDefault() { prevented = true; }, target: { closest: selector => (selector === '#storeAccountForm' ? form : null) } }); return () => prevented; };

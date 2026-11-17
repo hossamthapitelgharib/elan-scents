@@ -6,6 +6,7 @@ const vm = require('node:vm');
 
 const root = path.join(__dirname, '..');
 const portalSource = fs.readFileSync(path.join(root, 'portal.js'), 'utf8');
+const commonSource = fs.readFileSync(path.join(root, 'admin-common.js'), 'utf8');
 const source = fs.readFileSync(path.join(root, 'platform-dashboard.js'), 'utf8');
 const html = fs.readFileSync(path.join(root, 'platform-dashboard.html'), 'utf8');
 
@@ -48,8 +49,12 @@ function boot(routes, { session = true } = {}) {
   context.window = context;
   context.window.addEventListener = () => {};
   vm.runInContext(portalSource, context, { filename: 'portal.js' });
+  vm.runInContext(commonSource, context, { filename: 'admin-common.js' });
   vm.runInContext(source, context, { filename: 'platform-dashboard.js' });
-  return { context, nodes, calls, storage };
+  /* What the shell (admin-shell.js) does when a page of this module opens or «تحديث» is pressed: run the registered loader, hand a failure to onError. */
+  const open = () => vm.runInContext("(() => { const spec = AdminPages.get('platform'); return Promise.resolve().then(() => spec.load()).catch(error => spec.onError(error)); })()", context);
+  open();
+  return { context, nodes, calls, storage, open };
 }
 
 const ENTRY = {
@@ -77,7 +82,7 @@ function baseRoutes(extra = {}) {
     ...extra
   };
 }
-/* The page loads itself when it opens with a saved session: let every promise of that load finish. */
+/* The shell opens the page (calls its loader) when the admin has a saved session: let every promise of that load finish. */
 async function settle() { for (let i = 0; i < 8; i++) await flush(); }
 async function start(routes, options) {
   const page = boot(routes, options);
@@ -243,12 +248,12 @@ test('a lost connection is an Arabic sentence', async () => {
 test('the refresh button reloads every section', async () => {
   const page = await start(baseRoutes());
   const before = page.calls.length;
-  await page.nodes.get('#refresh').listeners.click();
+  await page.open();   // the shell's «تحديث» runs the loader again
   await settle();
   assert.equal(page.calls.length, before + 6);
 });
 
-test('opening the page with a saved session loads it by itself; without one it only shows the sign-in card', async () => {
+test('opening the page with a saved session loads every section; without one the loader reads nothing', async () => {
   const withSession = boot(baseRoutes());
   await settle();
   assert.equal(withSession.calls.length, 6, 'loaded without a click');
