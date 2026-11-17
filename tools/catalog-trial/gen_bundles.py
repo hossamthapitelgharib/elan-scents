@@ -55,7 +55,7 @@ begin
      where sp.data_source='trial_catalog'
        and not exists (select 1 from public.offers o where o.store_id=v_afnan and o.product_size_id=sp.product_size_id and o.title='11/11 Sale');
   get diagnostics no = row_count;
-  raise notice 'discount rows %', no;
+  raise notice 'offer rows %', no;
 end $t$;
 set local role anon;
 select (select count(*) from public.public_bundles) as anon_bundles,
