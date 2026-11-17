@@ -108,6 +108,25 @@ test('something that needs a decision (a cancellation request) plays three notes
   assert.equal(page.alerts._strip()[0].href, '#messages');
 });
 
+test('the order-sending messages from stage 1: a failed attempt is shown but silent, a cancellation is heard, and each has its own name', () => {
+  const page = boot({ sound: true });
+  page.alerts._setAudio(page.device);
+  prime(page, []);
+  // up to six failed attempts per order, ten seconds apart: they must never turn into six chimes
+  arrive(page, [msg(8, { type: 'order_delivery_attempt_failed' })]);
+  arrive(page, [msg(9, { type: 'order_delivery_attempt_failed' }), msg(8, { type: 'order_delivery_attempt_failed' })]);
+  assert.deepEqual(page.played, []);
+  assert.equal(page.alerts._strip().length, 2, 'they still appear in the strip');
+  arrive(page, [msg(10, { type: 'order_cancelled' }), msg(9, { type: 'order_delivery_attempt_failed' })]);
+  assert.deepEqual(page.played, [880, 660, 880], 'the cancellation that follows is the one that is heard');
+  page.played.length = 0;
+  arrive(page, [msg(11, { type: 'order_cancel_delivery_failed' }), msg(10, { type: 'order_cancelled' })]);
+  assert.deepEqual(page.played, [880, 660, 880]);
+  const labels = Object.fromEntries(page.alerts.kinds().map(kind => [kind.type, kind.label]));
+  for (const type of ['order_delivery_attempt_failed', 'order_cancelled', 'order_cancel_delivery_failed']) assert.ok(labels[type] && labels[type] !== 'رسالة', `${type} has its own label`);
+  assert.equal(page.alerts.kindOf('order_cancelled').href, '#messages');
+});
+
 test('a new customer is shown but not heard, and an unknown kind of message is heard', () => {
   const page = boot({ sound: true });
   page.alerts._setAudio(page.device);

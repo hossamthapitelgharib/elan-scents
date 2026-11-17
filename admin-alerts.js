@@ -22,6 +22,11 @@ const AdminAlerts = (() => {
     order_cod_selected: { label: 'طلب بالدفع عند الاستلام', sound: true, href: '#first-notices', tone: 'good' },
     order_initial: { label: 'طلب جديد', sound: true, href: '#messages', tone: 'info' },
     customer_cancel_requested: { label: 'طلب إلغاء', sound: true, href: '#messages', tone: 'warn' },
+    /* Stage 1 of the purchase flow: the platform sends each order to the store itself and tells the admin when that fails.
+       A failed attempt repeats up to six times ten seconds apart, so it stays silent; the cancellation that follows is what is heard. */
+    order_delivery_attempt_failed: { label: 'فشل إرسال طلب للمتجر', sound: false, href: '#messages', tone: 'warn' },
+    order_cancelled: { label: 'طلب أُلغي', sound: true, href: '#messages', tone: 'warn' },
+    order_cancel_delivery_failed: { label: 'تعذّر إبلاغ المتجر بالإلغاء', sound: true, href: '#messages', tone: 'warn' },
     customer_registered: { label: 'عميل جديد', sound: false, href: '#customers', tone: 'info' }
   };
   const kindOf = type => KINDS[type] || { label: 'رسالة', sound: true, href: '#messages', tone: 'info' };
