@@ -1,0 +1,65 @@
+name: Live admin panel check
+
+# Opens the PUBLISHED admin panel (platform-dashboard.html) from a GitHub runner, which can reach the site (the Claude sandbox cannot), and checks
+# with scripts/admin-live-check.js that everything is connected: files, cache rules, security policy, the endpoints of the panel on the Worker, and,
+# in a real Chromium with a made-up admin session and made-up server answers, all eight pages, the first notice, the messages, the sound and the alerts.
+# It reads no secret and no real data: the made-up answers are given by the browser itself. The screenshots are kept as the "admin-live-shots" artifact.
+# Run it by hand from the Actions tab (Run workflow), or it runs when the script, the mock data or this file changes.
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: Site address to check
+        default: https://elan-scents.hossamthapitelgharib.workers.dev
+  push:
+    paths:
+      - scripts/admin-live-check.js
+      - tests/browser/admin-mock.js
+      - .github/workflows/admin-live-check.yml
+
+permissions:
+  contents: read
+
+jobs:
+  admin-panel:
+    # Pinned like the browser job in tests.yml for stable browser dependencies.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Playwright
+        run: npm ci --no-audit --no-fund
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Wait until the Worker serves this version of the panel
+        # A push starts this run while Workers Builds is still publishing the same commit; look at the page until the new script is there.
+        env:
+          SITE_URL: ${{ github.event.inputs.url || 'https://elan-scents.hossamthapitelgharib.workers.dev' }}
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fsS "$SITE_URL/platform-dashboard.html" | grep -q 'admin-shell.js'; then echo "the new panel is published"; exit 0; fi
+            echo "not published yet ($i/30)"; sleep 10
+          done
+          echo "the published page still has no admin-shell.js"; exit 1
+      - name: Check the published admin panel
+        shell: bash
+        env:
+          SITE_URL: ${{ github.event.inputs.url || 'https://elan-scents.hossamthapitelgharib.workers.dev' }}
+        run: node scripts/admin-live-check.js "$SITE_URL" admin-live-shots 2>&1 | tee admin-live-check.log; exit "${PIPESTATUS[0]}"
+      - name: Show the result in the run summary
+        if: always()
+        run: |
+          { echo '### Live admin panel check'; echo '```'; grep -E '^(FAIL|[0-9]+ problem|Everything)' admin-live-check.log || echo 'no result line (the script stopped early)'; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - name: Keep the screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: admin-live-shots
+          path: |
+            admin-live-shots
+            admin-live-check.log
+          if-no-files-found: ignore
