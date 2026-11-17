@@ -1,9 +1,9 @@
 'use strict';
-/* Offers, explicit discounts and bundles, in a real Chromium, with a Supabase that answers a small catalog (the owner's rules of 2026-11-14/15):
-   - an OFFER is a promotional message from the store, no price change; a DISCOUNT is an explicit declaration (kind = discount) -> a «خصم» tag, never a percentage;
+/* Bundles and offers, in a real Chromium, with a Supabase that answers a small catalog (the owner's rules of 2026-11-14/15 and the agreement of 2026-11-17):
+   - an OFFER is a promotional message from the store, no price change, tagged «عرض»; the platform has no discount concept, so the word «خصم» is on no page;
    - a perfume shows the message of the store whose offer it shows (the other store's message stays hidden);
    - a number a store typed as "price before / after" (original_price here) is on no page at all;
-   - «عروض وخصومات» lists store-wide messages and the bundles (cheapest eligible offer per bundle), and a bundle has no cart button yet;
+   - «باقات وعروض» lists store-wide messages and the bundles (cheapest eligible offer per bundle), and a bundle has no cart button yet;
    - everything a store wrote is escaped, and no page scrolls sideways. */
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -30,7 +30,7 @@ const ELIGIBLE = PLATFORM.concat([row('E', S1, SPA.E, 90, 4)]).map((r) => Object
 const MESSAGES = [
   { offer_id: id(200), store_id: S1, store_name: STORES[S1], product_size_id: SZ.A, kind: 'offer', title: 'اشترِ عطرين واحصل على هدية', description: 'هدية مع كل عبوتين', ends_at: null },
   { offer_id: id(201), store_id: S1, store_name: STORES[S1], product_size_id: SZ.A, kind: 'offer', title: '<img src=x onerror="window.__xss=1">', description: '', ends_at: null },
-  { offer_id: id(202), store_id: S2, store_name: STORES[S2], product_size_id: SZ.E, kind: 'discount', title: 'خصم صريح من متجر باء', description: '', ends_at: null },
+  { offer_id: id(202), store_id: S2, store_name: STORES[S2], product_size_id: SZ.E, kind: 'offer', title: '11/11 Sale', description: '', ends_at: null },
   { offer_id: id(203), store_id: S1, store_name: STORES[S1], product_size_id: SZ.E, kind: 'offer', title: 'رسالة متجر ألف على عطر هاء', description: '', ends_at: null },
   { offer_id: id(204), store_id: S1, store_name: STORES[S1], product_size_id: null, kind: 'offer', title: 'شحن مجاني فوق 1500', description: '', ends_at: null }
 ];
@@ -56,7 +56,7 @@ const TABLES = {
   public_stores: [{ id: S1, name: STORES[S1], short_description: '' }, { id: S2, name: STORES[S2], short_description: '' }],
   public_products: Object.keys(P).map((k) => ({ id: P[k], name: NAMES[k], brand_name: 'ماركة', sales_count: 0, views_count: 0, search_count: 0, average_rating: null, reviews_count: 0, short_description: '', official_description: '', composition: '', gender: 'unisex' })),
   product_sizes: Object.keys(P).map((k) => ({ id: SZ[k], size_label: '100 مل', size_ml: 100, product_id: P[k] })),
-  // the stores' own offer rows (which perfume a store promotes): what puts a perfume on the «عروض وخصومات» page
+  // the stores' own offer rows (which perfume a store promotes): what puts a perfume on the «باقات وعروض» page
   offers: [{ product_size_id: SZ.A, store_id: S1 }, { product_size_id: SZ.E, store_id: S2 }],
   catalog_platform_offers: PLATFORM,
   catalog_eligible_offers: ELIGIBLE,
@@ -85,26 +85,25 @@ const shotDir = process.env.ELAN_SHOTS;
 const shot = async (page, name) => { if (shotDir) { require('node:fs').mkdirSync(shotDir, { recursive: true }); await page.screenshot({ path: shotDir + '/' + name + '.png', fullPage: true }); } };
 const noSideScroll = (page) => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
 
-test('«عروض وخصومات»: perfumes with their own store\'s message, store-wide messages, and the bundles', async () => {
+test('«باقات وعروض»: perfumes with their own store\'s message, store-wide messages, and the bundles', async () => {
   const { context, page, errors } = await openStore(H.WIDTHS[0]);
   try {
     await page.evaluate(() => go('sec|offers'));
     await page.waitForSelector('#res .card');
     const cards = await page.evaluate(() => [...document.querySelectorAll('#res .card')].map((c) => ({
-      name: c.querySelector('h4').textContent.trim(), tag: (c.querySelector('.otag') || {}).textContent || null, discount: !!c.querySelector('.otag-d'),
+      name: c.querySelector('h4').textContent.trim(), tag: (c.querySelector('.otag') || {}).textContent || null,
       line: (c.querySelector('.pmsg') || {}).textContent || null })));
     cards.sort((a, b) => a.name.localeCompare(b.name));
     const byName = Object.fromEntries(cards.map((c) => [c.name, c]));
     assert.equal(cards.length, 2, 'both perfumes the stores promote are listed');
     assert.equal(byName[NAMES.A].tag, 'عرض');
-    assert.equal(byName[NAMES.A].discount, false);
     assert.equal(byName[NAMES.A].line, 'اشترِ عطرين واحصل على هدية', 'the first message of the store whose offer the card shows');
-    assert.equal(byName[NAMES.E].tag, 'خصم', 'an explicit declaration is tagged «خصم»');
-    assert.equal(byName[NAMES.E].discount, true);
-    assert.equal(byName[NAMES.E].line, 'خصم صريح من متجر باء', 'store B owns the platform offer of this perfume: store A\'s message about it stays hidden');
+    assert.equal(byName[NAMES.E].tag, 'عرض', 'every store message is tagged «عرض», whatever its wording');
+    assert.equal(byName[NAMES.E].line, '11/11 Sale', 'store B owns the platform offer of this perfume: store A\'s message about it stays hidden');
 
     const smsg = await page.evaluate(() => [...document.querySelectorAll('.smsg')].map((m) => m.textContent.replace(/\s+/g, ' ').trim()));
     assert.deepEqual(smsg, ['متجر ألف شحن مجاني فوق 1500'], 'a store-wide message is listed once, with its store');
+    assert.equal(await page.evaluate(() => document.body.innerText.includes('خصم') || !!document.querySelector('.otag-d')), false, 'the word «خصم» is on no part of the page');
 
     const bundles = await page.evaluate(() => [...document.querySelectorAll('.bgrid .card')].map((c) => ({
       name: c.querySelector('h4').textContent.trim(), price: c.querySelector('.price').textContent.replace(/\s+/g, ''), items: [...c.querySelectorAll('.bitems li')].map((li) => li.textContent.replace(/\s+/g, ' ').trim()),
@@ -131,7 +130,7 @@ test('no number a store typed as "price before / after" is on any page, and the 
       assert.doesNotMatch(text, /999|90\s*%|٩٩٩/, 'the claimed old price and percentage appear nowhere (' + go + ')');
     }
     const price = await page.evaluate((sz) => platformEligibleOffer(byId(sz)).price, SZ.E);
-    assert.equal(price, 80, 'a declared discount and a message never change the cheapest price');
+    assert.equal(price, 80, 'a message and a claimed old price never change the cheapest price');
     assert.deepEqual(errors, []);
   } finally { await context.close(); }
 });
@@ -141,7 +140,7 @@ test('the product page shows the messages of the store whose offer it shows, esc
   try {
     await page.evaluate((sz) => go('prod|' + sz), SZ.A);
     await page.waitForSelector('.pdo');
-    const a = await page.evaluate(() => [...document.querySelectorAll('.pdo')].map((p) => ({ text: p.textContent.replace(/\s+/g, ' ').trim(), discount: !!p.querySelector('.otag-d'), img: p.querySelectorAll('img').length })));
+    const a = await page.evaluate(() => [...document.querySelectorAll('.pdo')].map((p) => ({ text: p.textContent.replace(/\s+/g, ' ').trim(), img: p.querySelectorAll('img').length })));
     assert.equal(a.length, 2);
     assert.equal(a[0].text, 'عرض اشترِ عطرين واحصل على هدية هدية مع كل عبوتين');
     assert.ok(a[1].text.includes('<img src=x onerror="window.__xss=1">'), 'the store\'s markup is shown as text');
@@ -150,8 +149,8 @@ test('the product page shows the messages of the store whose offer it shows, esc
 
     await page.evaluate((sz) => go('prod|' + sz), SZ.E);
     await page.waitForSelector('.pdo');
-    const e = await page.evaluate(() => [...document.querySelectorAll('.pdo')].map((p) => ({ text: p.textContent.replace(/\s+/g, ' ').trim(), discount: !!p.querySelector('.otag-d') })));
-    assert.deepEqual(e, [{ text: 'خصم خصم صريح من متجر باء', discount: true }], 'only store B\'s declaration: store A\'s message on this perfume is not the page\'s offer');
+    const e = await page.evaluate(() => [...document.querySelectorAll('.pdo')].map((p) => ({ text: p.textContent.replace(/\s+/g, ' ').trim() })));
+    assert.deepEqual(e, [{ text: 'عرض 11/11 Sale' }], 'only store B\'s message: store A\'s message on this perfume is not the page\'s offer');
     await shot(page, 'product-page');
     assert.ok(await noSideScroll(page));
     assert.deepEqual(errors, []);
@@ -164,7 +163,7 @@ test('elsewhere the card carries the tag but not the message text, and nothing i
     await page.evaluate(() => go('sec|all'));
     await page.waitForSelector('#res .card');
     const r = await page.evaluate(() => ({ tags: document.querySelectorAll('#res .card .otag').length, lines: document.querySelectorAll('#res .card .pmsg').length, bundles: document.querySelectorAll('.bgrid').length, stores: document.querySelectorAll('.smsg').length }));
-    assert.deepEqual(r, { tags: 2, lines: 0, bundles: 0, stores: 0 }, 'bundles and store messages belong to «عروض وخصومات» only');
+    assert.deepEqual(r, { tags: 2, lines: 0, bundles: 0, stores: 0 }, 'bundles and store messages belong to «باقات وعروض» only');
     assert.deepEqual(errors, []);
   } finally { await context.close(); }
 });

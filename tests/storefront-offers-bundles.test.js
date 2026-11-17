@@ -1,7 +1,7 @@
-// Offers (promotional messages), explicit discounts and bundles in the storefront (owner rules of 2026-11-14/15).
-// An OFFER is a promotional message from the store and never changes a price; a DISCOUNT is an explicit declaration by the store (offers.kind, written by the
-// server only); a number a store types as "price before / after" is never read. A bundle shows its cheapest eligible offer and, until the order flow is ready,
-// has no way to be bought. Everything a store wrote is escaped.
+// Bundles and offers in the storefront (owner rules of 2026-11-14/15 and the agreement of 2026-11-17): the page is «باقات وعروض».
+// An OFFER is a promotional message from the store and never changes a price; the platform has NO discount concept (the word is gone from the storefront and a
+// perfume is never tagged or ranked by one); a number a store types as "price before / after" is never read. A bundle shows its cheapest eligible offer and,
+// until the order flow is ready, has no way to be bought. Everything a store wrote is escaped.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -9,7 +9,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 const core = fs.readFileSync(path.join(__dirname, '..', 'app-core.js'), 'utf8');
-const start = core.indexOf('/* Offers, explicit discounts and bundles');
+const start = core.indexOf('/* Bundles and offers');
 const end = core.indexOf('\nfunction strip(id)', start);
 const block = core.slice(start, end);
 const escLine = core.split('\n').find((line) => line.startsWith('function esc('));
@@ -88,29 +88,41 @@ test('everything a store wrote is escaped: bundle names, item names, store names
   assert.match(all, /&lt;img src=x onerror=alert\(1\)&gt;/);
 });
 
-test('messages: a perfume shows the message of the store whose offer it shows, discounts first, and nothing else', () => {
+test('messages: a perfume shows the message of the store whose offer it shows, and nothing else', () => {
   const offer = { storeId: 's2', store: 'متجر باء', price: 80 };
   const c = sandbox({ offerFor: (p) => (p && p.id === 'z1' ? offer : null) });
   c.__om = [
-    { offer_id: 'o1', store_id: 's1', store_name: 'متجر ألف', product_size_id: 'z1', kind: 'discount', title: 'خصم المتجر ألف', description: '', ends_at: null },
-    { offer_id: 'o2', store_id: 's2', store_name: 'متجر باء', product_size_id: 'z1', kind: 'offer', title: 'هدية مع كل عبوة', description: 'غلاف هدايا', ends_at: null },
-    { offer_id: 'o3', store_id: 's2', store_name: 'متجر باء', product_size_id: 'z1', kind: 'discount', title: 'خصم المتجر باء', description: '', ends_at: null },
-    { offer_id: 'o4', store_id: 's2', store_name: 'متجر باء', product_size_id: 'z1', kind: 'sale', title: 'نوع غريب', description: '', ends_at: null },
-    { offer_id: 'o5', store_id: 's2', store_name: 'متجر باء', product_size_id: 'zz', kind: 'offer', title: 'عطر آخر', description: '', ends_at: null },
-    { offer_id: 'o6', store_id: 's2', store_name: 'متجر باء', product_size_id: null, kind: 'offer', title: 'شحن مجاني', description: '', ends_at: null },
-    { offer_id: 'o7', store_id: null, store_name: '', product_size_id: 'z1', kind: 'offer', title: 'بلا متجر', description: '', ends_at: null },
-    { offer_id: 'o8', store_id: 's2', store_name: 'متجر باء', product_size_id: 'z1', kind: 'offer', title: '', description: '', ends_at: null }
+    { offer_id: 'o1', store_id: 's1', store_name: 'متجر ألف', product_size_id: 'z1', title: 'عرض المتجر ألف', description: '', ends_at: null },
+    { offer_id: 'o2', store_id: 's2', store_name: 'متجر باء', product_size_id: 'z1', title: 'هدية مع كل عبوة', description: 'غلاف هدايا', ends_at: null },
+    { offer_id: 'o3', store_id: 's2', store_name: 'متجر باء', product_size_id: 'z1', title: 'شحن مجاني', description: '', ends_at: null },
+    { offer_id: 'o4', store_id: 's2', store_name: 'متجر باء', product_size_id: 'z1', title: 'عينة مع الطلب', description: '', ends_at: null },
+    { offer_id: 'o5', store_id: 's2', store_name: 'متجر باء', product_size_id: 'zz', title: 'عطر آخر', description: '', ends_at: null },
+    { offer_id: 'o6', store_id: 's2', store_name: 'متجر باء', product_size_id: null, title: 'توصيل لكل المحافظات', description: '', ends_at: null },
+    { offer_id: 'o7', store_id: null, store_name: '', product_size_id: 'z1', title: 'بلا متجر', description: '', ends_at: null },
+    { offer_id: 'o8', store_id: 's2', store_name: 'متجر باء', product_size_id: 'z1', title: '', description: '', ends_at: null }
   ];
   run(c, 'buildOfferData([],[],[],__om)');
-  assert.deepEqual(JSON.parse(run(c, 'JSON.stringify(offerMsgFor({id:"z1"}).map(function(m){return[m.id,m.kind]}))')), [['o3', 'discount'], ['o2', 'offer'], ['o4', 'offer']],
-    'the other store\'s message is hidden, the discount comes first, an unknown kind is only an offer');
+  assert.deepEqual(JSON.parse(run(c, 'JSON.stringify(offerMsgFor({id:"z1"}).map(function(m){return m.id}))')), ['o2', 'o3', 'o4'],
+    'the other store\'s message is hidden, and a message with no store or no title is dropped');
   assert.equal(run(c, 'offerMsgFor({id:"nobody"}).length'), 0, 'a perfume with no offer shows no message');
-  assert.match(run(c, 'offerTag({id:"z1"})'), /otag otag-d">خصم</, 'an explicit discount is tagged «خصم» with no percentage');
+  assert.equal(run(c, 'offerTag({id:"z1"})'), '<span class="otag">عرض</span>', 'every message is tagged «عرض», nothing else');
   assert.equal(run(c, 'offerTag({id:"nobody"})'), '');
   assert.match(run(c, 'offerNote({id:"z1"})'), /هدية مع كل عبوة<\/span> <small>غلاف هدايا<\/small>/);
   assert.equal((run(c, 'offerNote({id:"z1"})').match(/class="pdo"/g) || []).length, 3, 'the page shows the three messages of its store');
-  assert.deepEqual(JSON.parse(run(c, 'JSON.stringify(OFFER_MSGS.store.map(function(m){return m.title}))')), ['شحن مجاني'], 'a store-wide message has no perfume and is listed on the offers page');
+  assert.deepEqual(JSON.parse(run(c, 'JSON.stringify(OFFER_MSGS.store.map(function(m){return m.title}))')), ['توصيل لكل المحافظات'], 'a store-wide message has no perfume and is listed on the offers page');
   assert.doesNotMatch(run(c, 'offersExtra()'), /بلا متجر|عطر آخر/);
+});
+
+test('the word «خصم» is gone from the storefront: the page is «باقات وعروض» and no code path tags, sorts or reads a discount', () => {
+  const code = block.slice(block.indexOf('*/') + 2);
+  assert.doesNotMatch(code, /خصم|discount|otag-d/i, 'the offers block has no discount tag, sort or column');
+  assert.doesNotMatch(core, /otag-d|ou\(\)\.discount|kind==='discount'/, 'the storefront never branches on a discount');
+  const texts = fs.readFileSync(path.join(__dirname, '..', 'texts.js'), 'utf8');
+  assert.doesNotMatch(texts, /عروض وخصومات|Offers & Discounts/, 'the old title is gone from both languages');
+  assert.equal((texts.match(/باقات وعروض/g) || []).length, 2, 'the Arabic menu entry and the Arabic section title');
+  assert.equal((texts.match(/Bundles & Offers/g) || []).length, 2, 'the English menu entry and the English section title');
+  assert.doesNotMatch(fs.readFileSync(path.join(__dirname, '..', 'style-3.css'), 'utf8'), /\.otag-d/, 'the discount style is gone');
+  assert.match(core, /catalog_offer_messages\?select=offer_id,store_id,store_name,product_size_id,title,description,ends_at/, 'the storefront no longer reads the kind column');
 });
 
 test('the card carries the message text only on the offers page; the tag shows everywhere', () => {
