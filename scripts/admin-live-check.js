@@ -68,10 +68,16 @@ async function partA() {
   expect(config.status === 200 && !!settings.url && !!settings.key, '/api/config gives the sign-in form its settings');
 }
 
+/* Errors the panel's own scripts raise. What Cloudflare's "are you a person" frame writes to its own console (it probes data: addresses and its own
+   policy refuses them) is not ours and not a fault of the panel, so a console line counts only when it comes from a file of this site. */
 const readErrors = page => {
   const errors = [];
   page.on('pageerror', error => errors.push(String(error).slice(0, 200)));
-  page.on('console', message => { if (message.type() === 'error') errors.push('console: ' + message.text().slice(0, 200)); });
+  page.on('console', message => {
+    if (message.type() !== 'error') return;
+    const from = (message.location() || {}).url || '';
+    if (from.startsWith(site)) errors.push('console: ' + message.text().slice(0, 200));
+  });
   return errors;
 };
 
