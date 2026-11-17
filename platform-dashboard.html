@@ -3,75 +3,297 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>لوحة Élan Scents</title>
-  <link rel="stylesheet" href="/fonts.css?v=20261116-02">
-  <link rel="stylesheet" href="/portal.css?v=20261116-02">
+  <meta name="robots" content="noindex">
+  <title>لوحة إدارة المنصة · Élan Scents</title>
+  <link rel="stylesheet" href="/fonts.css?v=20261116-01">
+  <link rel="stylesheet" href="/portal.css?v=20261116-01">
+  <link rel="stylesheet" href="/admin.css?v=20261116-01">
 </head>
-<body>
-  <header>
-    <div><small>Élan Scents · Platform</small><h1>لوحة إدارة المنصة</h1></div>
-    <nav class="dashboard-nav" aria-label="لوحات الإدارة">
-      <a href="/dashboard.html">إدارة الطلبات</a>
-      <a href="/customers-dashboard.html">إدارة العملاء</a>
-      <a href="/stores-dashboard.html">إدارة المتاجر</a>
-    </nav>
-    <button id="refresh" class="ghost" type="button" hidden>تحديث</button>
-    <button id="logout" class="ghost" hidden>تسجيل الخروج</button>
-  </header>
-  <main>
-    <section id="login" class="panel">
-      <h2>دخول إدارة المنصة</h2>
-      <form id="loginForm"><input name="email" type="email" placeholder="البريد الإلكتروني" required><input name="password" type="password" placeholder="كلمة المرور" required><button class="primary">دخول</button></form>
-      <p id="message" class="platform-error-text" role="alert"></p>
-    </section>
-    <section id="app" hidden>
-      <nav class="dashboard-nav-links" aria-label="التنقل بين لوحات الإدارة">
-        <a href="/dashboard.html">لوحة الطلبات والإشعارات التفصيلية</a>
-        <a href="/customers-dashboard.html">لوحة العملاء التفصيلية</a>
-        <a href="/stores-dashboard.html">لوحة المتاجر</a>
+<body class="admin" data-own-alerts>
+  <a class="skip-link" href="#adminMain">تخطّى إلى المحتوى</a>
+
+  <p id="boot" class="boot" role="status">جارٍ فتح اللوحة…</p>
+
+  <section id="login" class="signin" hidden>
+    <form id="loginForm" class="signin-card" aria-labelledby="signinTitle">
+      <p class="brand-mark">Élan Scents</p>
+      <h1 id="signinTitle">دخول إدارة المنصة</h1>
+      <label>البريد الإلكتروني<input name="email" type="email" autocomplete="username" required></label>
+      <label>كلمة المرور<input name="password" type="password" autocomplete="current-password" required></label>
+      <button class="primary" type="submit">دخول</button>
+      <p id="message" class="signin-message" role="alert"></p>
+    </form>
+  </section>
+
+  <div id="app" class="shell" hidden>
+    <aside id="adminSide" class="side" aria-label="أقسام اللوحة">
+      <div class="side-brand"><span class="brand-mark">Élan Scents</span><small>إدارة المنصة</small></div>
+      <nav id="adminNav" class="nav" aria-label="صفحات اللوحة">
+        <a class="nav-link" href="#overview" data-page="overview"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg><span>الرئيسية</span></a>
+        <p class="nav-group">التشغيل</p>
+        <a class="nav-link" href="#first-notices" data-page="first-notices"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 12h7M9 16h7"/></svg><span>الإشعار الأول</span></a>
+        <a class="nav-link" href="#messages" data-page="messages"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg><span>الرسائل</span><b class="nav-count" data-count-for="messages" hidden>0</b></a>
+        <a class="nav-link" href="/dashboard.html"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10l2 4v12H5V8z"/><path d="M5 8h14M9 12h6M9 16h4"/></svg><span>الطلبات وربط المتاجر</span><svg class="ic ic-ext" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M18 14v6H4V6h6"/></svg></a>
+        <p class="nav-group">الأطراف</p>
+        <a class="nav-link" href="#customers" data-page="customers"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c.5-3.6 3-5.5 6-5.5s5.5 1.900 6 5.500"/><path d="M16 5.200a3.200 3.200 0 0 1 0 5.600M18 14.800c1.800.7 3 2.400 3.300 5.200"/></svg><span>العملاء</span></a>
+        <a class="nav-link" href="#stores" data-page="stores"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9 5.500 4h13L20 9"/><path d="M4 9a3 3 0 0 0 5.300 1.900A3 3 0 0 0 14.700 10.900 3 3 0 0 0 20 9"/><path d="M5 12.500V20h14v-7.500M10 20v-4.500h4V20"/></svg><span>المتاجر</span></a>
+        <p class="nav-group">المال والمتابعة</p>
+        <a class="nav-link" href="#settlements" data-page="settlements"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M14.800 9.200c-.5-1-1.500-1.500-2.800-1.500-1.600 0-2.700.8-2.700 2 0 1.300 1.200 1.800 2.700 2.200 1.600.4 2.900.9 2.900 2.300 0 1.300-1.300 2.100-2.900 2.100-1.400 0-2.500-.6-3-1.700M12 6v1.700M12 16.300V18"/></svg><span>العمولات والتسويات</span></a>
+        <a class="nav-link" href="#rankings" data-page="rankings"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 20V11M12 20V5M17 20v-6"/></svg><span>ترتيب العطور</span></a>
+        <a class="nav-link" href="#audit" data-page="audit"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></svg><span>سجل العمليات</span></a>
       </nav>
-      <div id="stats" class="stats"></div>
-      <p id="platformError" class="platform-error" role="alert" hidden></p>
-      <section class="panel platform-settlements" aria-labelledby="platformSettlementsTitle">
-        <div class="platform-settlements-head">
-          <div><small>Commission settlements</small><h2 id="platformSettlementsTitle">تسويات العمولات</h2><p>تابع العمولات المستحقة وافصل بين تقديم إثبات التحويل واعتماد الدفع النهائي.</p></div>
-          <button id="platformSettlementsRefresh" class="ghost" type="button">تحديث التسويات</button>
+    </aside>
+    <div id="navBackdrop" class="nav-backdrop" hidden></div>
+
+    <div class="stage">
+      <div class="stage-top">
+      <div class="topbar" role="banner">
+        <button id="menuToggle" class="tool menu-tool" type="button" aria-controls="adminSide" aria-expanded="false" aria-label="القائمة"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+        <h1 id="pageTitle" class="page-title" tabindex="-1">الرئيسية</h1>
+        <div class="tools">
+          <button id="soundToggle" class="tool" type="button" aria-pressed="false"><svg class="ic ic-off" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.500v5h3.500L12 18.500v-13L7.500 9.500z"/><path d="m16 9.500 5 5M21 9.500l-5 5"/></svg><svg class="ic ic-on" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z"/><path d="M16 9.2a4 4 0 0 1 0 5.6M18.6 6.6a8 8 0 0 1 0 10.8"/></svg><span id="soundLabel">الصوت مغلق</span></button>
+          <a id="bellLink" class="tool" href="#messages" aria-label="الرسائل"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg><span>الرسائل</span><b id="bellCount" class="bell-count" hidden>0</b></a>
+          <button id="refresh" class="tool" type="button" hidden><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.300 5.700M20 4v7h-7"/></svg><span>تحديث</span></button>
+          <button id="logout" class="tool" type="button" hidden><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4H5v16h5M15 8l4 4-4 4M19 12H9"/></svg><span>خروج</span></button>
         </div>
-        <p id="platformSettlementError" class="platform-error" role="alert" hidden></p>
-        <div id="platformSettlementStats" class="stats platform-settlement-stats"></div>
-        <div id="platformSettlementBoard" class="platform-settlement-board"></div>
-        <button id="platformSettlementMore" class="ghost" type="button" hidden>عرض المزيد</button>
+      </div>
+
+      <div id="alertStrip" class="alert-strip" role="region" aria-label="تنبيهات جديدة" aria-live="polite" hidden>
+        <ul id="alertStripList" class="alert-strip-list"></ul>
+      </div>
+      </div>
+
+      <main id="adminMain" class="content" tabindex="-1">
+
+        <section class="page" id="page-overview" data-page="overview" hidden aria-label="الرئيسية">
+          <p class="page-purpose">ما ينتظرك الآن، ثم أرقام المنصة.</p>
+          <section class="attention" aria-labelledby="attentionTitle">
+            <h2 id="attentionTitle">ينتظرك الآن</h2>
+            <ul id="attentionList" class="attention-list"></ul>
+            <p id="attentionEmpty" class="attention-empty">لا شيء ينتظرك الآن.</p>
+          </section>
+          <section class="block block-first" aria-labelledby="platformStatsTitle">
+            <div class="block-head"><h2 id="platformStatsTitle">ملخص الطلبات والعملاء</h2></div>
+            <p id="platformError" class="platform-error" role="alert" hidden></p>
+            <div id="stats" class="stats" aria-label="أرقام المنصة"></div>
+          </section>
+          <section class="block" aria-labelledby="platformStoreTitle">
+            <div class="block-head"><h2 id="platformStoreTitle">المتاجر</h2><a class="more-link" href="#stores">كل المتاجر</a></div>
+            <p id="platformStoreError" class="platform-error" hidden></p>
+            <div id="platformStoreStats" class="stats platform-store-summary-stats"></div>
+          </section>
+        </section>
+
+        <section class="page" id="page-first-notices" data-page="first-notices" hidden aria-label="الإشعار الأول">
+          <p class="page-purpose">السجل الذي تكتبه المنصة لكل طلب بعد تأكيد دفعه أو اختيار الدفع عند الاستلام. للقراءة فقط: لا يُعدَّل ولا يُحذف.</p>
+          <form id="noticeFilters" class="filters" aria-label="تصفية الإشعارات الأولى">
+            <input name="q" type="search" placeholder="رقم التتبع" maxlength="60" dir="ltr" autocomplete="off">
+            <select name="store" id="noticeStoreFilter" aria-label="المتجر"><option value="">كل المتاجر</option></select>
+            <button class="ghost" type="submit">بحث</button>
+          </form>
+          <p id="noticesError" class="platform-error" role="alert" hidden></p>
+          <div id="noticesLayout" class="notices-layout">
+            <div class="notices-list-col">
+              <div id="noticeList" class="notice-list"></div>
+              <p id="noticeEmpty" class="empty-state" hidden></p>
+              <button id="noticeMore" class="ghost" type="button" hidden>عرض المزيد</button>
+            </div>
+            <article id="noticeDetail" class="notice-slip" aria-live="polite" aria-label="تفاصيل الإشعار الأول">
+              <p class="slip-empty">اختر إشعارًا من القائمة لقراءته كاملًا.</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="page" id="page-messages" data-page="messages" hidden aria-label="الرسائل">
+          <p class="page-purpose">تنبيهات المنصة: طلبات جديدة وطلبات إلغاء وتسجيل عملاء. الرسالة الجديدة تظهر أعلى اللوحة ويُسمع لها صوت حتى تقرأها.</p>
+          <div class="alert-settings" role="group" aria-label="طريقة التنبيه">
+            <button id="soundTest" class="ghost" type="button">جرّب الصوت</button>
+            <button id="desktopToggle" class="ghost" type="button" aria-pressed="false">إشعارات المتصفح: مغلقة</button>
+            <span id="alertHealth" class="alert-health" hidden>تعذّر تحديث التنبيهات، وسنعيد المحاولة.</span>
+          </div>
+          <div class="toolbar">
+            <div class="seg" role="tablist" aria-label="عرض الرسائل">
+              <button id="messagesTabAll" type="button" role="tab" aria-selected="true" data-messages-view="all">الكل</button>
+              <button id="messagesTabUnread" type="button" role="tab" aria-selected="false" data-messages-view="unread">غير المقروءة <b id="messagesUnreadCount" hidden>0</b></button>
+            </div>
+            <select id="messagesType" aria-label="نوع الرسالة"><option value="">كل الأنواع</option></select>
+            <button id="messagesReadAll" class="ghost" type="button">تعليم الكل كمقروء</button>
+          </div>
+          <p id="messagesError" class="platform-error" role="alert" hidden></p>
+          <ol id="messagesList" class="message-list"></ol>
+          <p id="messagesEmpty" class="empty-state" hidden></p>
+          <button id="messagesMore" class="ghost" type="button" hidden>عرض المزيد</button>
+        </section>
+
+        <section class="page" id="page-customers" data-page="customers" hidden aria-label="العملاء">
+          <p class="page-purpose">الزوار والعملاء المسجلون، وما يشاهدونه ويضيفونه إلى السلة.</p>
+          <div id="customerStats" class="stats"></div>
+          <p id="customerError" class="platform-error" hidden></p>
+          <section class="panel customer-management" aria-labelledby="customersTitle">
+        <div class="customer-heading"><div><h2 id="customersTitle">الزوار والعملاء المسجلون</h2></div><button id="refreshCustomers" class="ghost" type="button">تحديث</button></div>
+        <div id="customerTabs" class="customer-tabs" role="tablist" aria-label="أقسام العملاء">
+          <button id="registeredTab" type="button" role="tab" aria-selected="true" aria-controls="registeredCustomers" data-customer-tab="registered">العملاء المسجلون <b id="registeredCount">0</b></button>
+          <button id="visitorsTab" type="button" role="tab" aria-selected="false" aria-controls="guestCustomers" data-customer-tab="visitors">العملاء الزوار <b id="visitorCount">0</b></button>
+          <button id="allTab" type="button" role="tab" aria-selected="false" aria-controls="allAnalytics" data-customer-tab="all">الإجمالي</button>
+        </div>
+        <div id="registeredCustomers" class="customer-list" role="tabpanel" aria-labelledby="registeredTab"></div>
+        <div id="registeredPagination" class="customer-pagination" role="navigation" aria-label="صفحات العملاء المسجلين"></div>
+        <div id="guestCustomers" class="customer-list" role="tabpanel" aria-labelledby="visitorsTab" hidden></div>
+        <div id="visitorPagination" class="customer-pagination" role="navigation" aria-label="صفحات العملاء الزوار" hidden></div>
+        <section id="registeredAnalytics" class="guest-analytics" aria-labelledby="registeredAnalyticsTitle" hidden>
+          <div class="guest-analytics-heading">
+            <div><h3 id="registeredAnalyticsTitle">تحليلات العملاء المسجلين والمنتجات</h3></div>
+            <label class="guest-period">الفترة
+              <select id="registeredAnalyticsPeriod" aria-label="فترة تحليلات العملاء المسجلين">
+                <option value="today">اليوم</option><option value="week">آخر 7 أيام</option><option value="month">آخر 30 يومًا</option><option value="year">آخر 365 يومًا</option>
+              </select>
+            </label>
+          </div>
+          <p id="registeredAnalyticsRange" class="guest-analytics-range"></p>
+          <p id="registeredAnalyticsError" class="platform-error" hidden></p>
+          <div id="registeredAnalyticsStats" class="stats guest-analytics-stats"></div>
+          <div class="guest-analytics-grid">
+            <section class="guest-analytics-card"><h4>المنتجات الأكثر مشاهدة وبحثًا</h4><div id="registeredTopProducts" class="guest-analytics-list"></div></section>
+            <section class="guest-analytics-card"><h4>المنتجات الأكثر إضافةً وحذفًا من السلة</h4><div id="registeredBasketProducts" class="guest-analytics-list"></div></section>
+          </div>
+          <section class="guest-analytics-card best-sellers-card" aria-labelledby="registeredBestSellersTitle">
+            <div class="guest-analytics-heading"><div><small>العملاء المسجلون</small><h4 id="registeredBestSellersTitle">عطور الأكثر مبيعًا</h4></div>
+              <label class="guest-period">الفترة
+                <select id="registeredBestSellersPeriod" aria-label="فترة ترتيب العطور الأكثر مبيعًا">
+                  <option value="all">من بداية السجل</option><option value="today">اليوم</option><option value="week">آخر 7 أيام</option><option value="month">آخر 30 يومًا</option><option value="year">آخر 365 يومًا</option>
+                </select>
+              </label>
+            </div>
+            <p class="guest-analytics-note">الترتيب حسب الوحدات في طلبات العملاء المسجلين المكتملة والمطابقة أو المسلّمة دون تعارض، مع جمع الأحجام والمتاجر تحت العطر الأساسي. الفترة محسوبة من تاريخ إنشاء الطلب. يُخصم المرتجع أو المسترد المكتمل من العدد، وتظهر الوحدات المخصومة في تفاصيل التدقيق.</p>
+            <p id="registeredBestSellersError" class="platform-error" hidden></p>
+            <div id="registeredBestSellersAudit" class="stats guest-analytics-stats" aria-live="polite"></div>
+            <div id="registeredBestSellersTable" class="guest-analytics-list" aria-live="polite"></div>
+          </section>
+        </section>
+        <section id="guestAnalytics" class="guest-analytics" aria-labelledby="guestAnalyticsTitle" hidden>
+          <div class="guest-analytics-heading">
+            <div><h3 id="guestAnalyticsTitle">تحليلات الزوار والمنتجات</h3></div>
+            <label class="guest-period">الفترة
+              <select id="guestAnalyticsPeriod" aria-label="فترة تحليلات الزوار">
+                <option value="today">اليوم</option><option value="week">آخر 7 أيام</option><option value="month">آخر 30 يومًا</option><option value="year">آخر 365 يومًا</option>
+              </select>
+            </label>
+          </div>
+          <p id="guestAnalyticsRange" class="guest-analytics-range"></p>
+          <p id="guestAnalyticsError" class="platform-error" hidden></p>
+          <div id="guestAnalyticsStats" class="stats guest-analytics-stats"></div>
+          <p class="guest-analytics-note">تُرتّب المنتجات حسب المشاهدة وظهورها في نتائج البحث والإضافة إلى السلة أو حذفها/تقليلها. سجل عبارة البحث ونتائجها متاح للإدارة المخوّلة فقط، بما في ذلك عمليات البحث بلا نتائج.</p>
+          <div class="guest-analytics-grid">
+            <section class="guest-analytics-card"><h4>المنتجات الأكثر مشاهدة وبحثًا</h4><div id="guestTopProducts" class="guest-analytics-list"></div></section>
+            <section class="guest-analytics-card"><h4>الأكثر إضافةً أو حذفًا من سلال الزوار</h4><div id="guestBasketProducts" class="guest-analytics-list"></div></section>
+          </div>
+        </section>
+        <section id="allAnalytics" class="guest-analytics" aria-labelledby="allAnalyticsTitle" hidden>
+          <div class="guest-analytics-heading">
+            <div><h3 id="allAnalyticsTitle">إجمالي الزوار والعملاء المسجلين</h3></div>
+            <label class="guest-period">الفترة
+              <select id="allAnalyticsPeriod" aria-label="فترة الإجمالي">
+                <option value="today">اليوم</option><option value="week">آخر 7 أيام</option><option value="month">آخر 30 يومًا</option><option value="year">آخر 365 يومًا</option>
+              </select>
+            </label>
+          </div>
+          <p id="allAnalyticsRange" class="guest-analytics-range"></p>
+          <p id="allAnalyticsError" class="platform-error" hidden></p>
+          <div id="allAnalyticsStats" class="stats guest-analytics-stats"></div>
+          <p class="guest-analytics-note">الإجمالي = الزوار + العملاء المسجلون. عندما يسجّل الزائر تنتقل كل عملياته إلى حسابه بتواريخها الأصلية وتُحذف بصمته، فلا يُحسب أي شخص مرتين.</p>
+          <div class="guest-analytics-grid">
+            <section class="guest-analytics-card"><h4>المنتجات الأكثر مشاهدة وبحثًا</h4><div id="allTopProducts" class="guest-analytics-list"></div></section>
+            <section class="guest-analytics-card"><h4>المنتجات الأكثر إضافةً وحذفًا من السلة</h4><div id="allBasketProducts" class="guest-analytics-list"></div></section>
+          </div>
+        </section>
       </section>
-      <section class="panel platform-rankings" aria-labelledby="platformRankingsTitle">
-        <div class="platform-store-overview-head"><div><small>All-time rankings</small><h2 id="platformRankingsTitle">ترتيب العطور لكل الأوقات</h2><p>أرقام تراكمية منذ بدء التسجيل بلا نافذة زمنية، من الجدول النهائي لكل عطر. أمام كل رقم مصدره: العملاء، أو المتاجر، أو العملاء والمتاجر معًا. المتعادلان يتشاركان الرتبة.</p></div></div>
-        <p id="platformRankingsError" class="platform-error" role="alert" hidden></p>
-        <div id="platformRankingTabs" class="platform-ranking-tabs" role="tablist" aria-label="نوع الترتيب"></div>
-        <div id="platformRankingList" class="platform-ranking-list"></div>
+        </section>
+
+        <section class="page" id="page-stores" data-page="stores" hidden aria-label="المتاجر">
+          <p class="page-purpose">حالة كل متجر: حساباته وكتالوجه وطلباته وعمولاته.</p>
+          <div id="storeStats" class="stats"></div>
+          <p id="storeError" class="platform-error" hidden></p>
+                <section class="panel store-admin-panel" aria-labelledby="storesTitle">
+        <div class="customer-heading"><div><h2 id="storesTitle">المتاجر وبيانات التشغيل</h2></div><button id="refreshStores" class="ghost" type="button">تحديث</button></div>
+        <p class="muted">تُعرض بيانات المتجر والكتالوج والعروض والطلبات والشحن والعمولات والمزامنة والمطابقة. لا تظهر بيانات اتصال العملاء أو الحمولات الخام.</p>
+        <form id="storeFilters" class="platform-filters" aria-label="تصفية المتاجر">
+          <input name="search" type="search" placeholder="ابحث باسم المتجر أو رابطه">
+          <select name="status"><option value="">كل الحالات</option><option value="active">نشط</option><option value="inactive">غير نشط</option></select>
+          <button class="ghost" type="submit">تطبيق</button>
+        </form>
+        <div class="activity-table-wrap"><table class="activity-table store-admin-table"><thead><tr><th>المتجر</th><th>الحالة</th><th>الحسابات المرتبطة</th><th>المنتجات المتاحة/الكل</th><th>العروض النشطة</th><th>طلبات مفتوحة/الكل</th><th>طلبات تحتاج مراجعة</th><th>سجلات الشحن</th><th>العمولة</th><th>التفاصيل</th></tr></thead><tbody id="storesBody"></tbody></table></div>
       </section>
-      <section class="panel customer-overview" aria-labelledby="customerOverviewTitle">
-        <div><small>Customer overview</small><h2 id="customerOverviewTitle">ملخص العملاء</h2><p>تعرض هذه الصفحة أعدادًا إجمالية فقط. تفاصيل الزوار والعملاء المسجلين وسلالهم وأنشطتهم متاحة في لوحة العملاء الإدارية.</p></div>
-        <a class="primary" href="/customers-dashboard.html">فتح لوحة العملاء</a>
+      <section id="storeDetail" class="panel store-detail-panel" hidden aria-labelledby="storeDetailTitle">
+        <div class="customer-heading"><div><h2 id="storeDetailTitle">تفاصيل المتجر</h2></div><button id="closeStoreDetail" class="ghost" type="button">إغلاق التفاصيل</button></div>
+        <p id="storeDetailSummary" class="muted"></p>
+        <nav id="storeDetailTabs" class="store-detail-tabs" role="tablist" aria-label="أقسام بيانات المتجر">
+          <button type="button" role="tab" data-store-section="overview" aria-selected="true">الملخص والحسابات</button>
+          <button type="button" role="tab" data-store-section="catalog" aria-selected="false">الكتالوج والمخزون</button>
+          <button type="button" role="tab" data-store-section="offers" aria-selected="false">العروض</button>
+          <button type="button" role="tab" data-store-section="orders" aria-selected="false">الطلبات</button>
+          <button type="button" role="tab" data-store-section="shipments" aria-selected="false">الشحن</button>
+          <button type="button" role="tab" data-store-section="commissions" aria-selected="false">العمولات والتسويات</button>
+          <button type="button" role="tab" data-store-section="sync" aria-selected="false">المزامنة</button>
+          <button type="button" role="tab" data-store-section="reconciliation" aria-selected="false">المطابقة والتدقيق</button>
+        </nav>
+        <form id="storeDetailFilters" class="platform-filters" hidden>
+          <label id="storeDetailStatusLabel" for="storeDetailStatus">الحالة</label>
+          <select id="storeDetailStatus" name="status"></select>
+          <button class="ghost" type="submit">تصفية</button>
+        </form>
+        <p id="storeDetailError" class="platform-error" hidden></p>
+        <div id="storeDetailContent" aria-live="polite"></div>
+        <button id="storeDetailMore" class="ghost store-detail-more" type="button" hidden>تحميل المزيد</button>
       </section>
-      <section class="panel platform-store-overview" aria-labelledby="platformStoreTitle">
-        <div class="platform-store-overview-head"><div><small>Store overview</small><h2 id="platformStoreTitle">ملخص المتاجر</h2><p>مؤشرات تشغيلية مجمعة فقط؛ تفاصيل كل متجر متاحة في لوحة المتاجر الإدارية.</p></div><a class="primary" href="/stores-dashboard.html">فتح لوحة المتاجر</a></div>
-        <p id="platformStoreError" class="platform-error" hidden></p>
-        <div id="platformStoreStats" class="stats platform-store-summary-stats"></div>
+      <section class="panel store-admin-panel" id="unlinkedOperations" aria-labelledby="unlinkedOperationsTitle">
+        <div class="customer-heading"><div><h2 id="unlinkedOperationsTitle">سجلات التشغيل غير المرتبطة بطلب متجر</h2></div></div>
+        <p class="muted">إشعارات بلا طلب مرتبط وأحداث تشغيل من جلسات الدفع أو غيرها لم تُربط بطلب. تُعرض الحقول التشغيلية فقط دون بيانات العملاء أو الحمولات الخام.</p>
+        <p id="unlinkedStoreError" class="platform-error" hidden></p>
+        <div class="unlinked-operations-grid">
+          <section class="store-detail-block"><h3>إشعارات بلا طلب مرتبط</h3><div class="activity-table-wrap"><table class="activity-table store-detail-table"><thead><tr><th>رقم التتبع</th><th>الحدث</th><th>حالة المتجر</th><th>المطابقة</th><th>الحقول المختلفة</th><th>وقت الاستلام</th></tr></thead><tbody id="unlinkedNotificationsBody"></tbody></table></div><button id="unlinkedNotificationsMore" class="ghost" type="button" hidden>تحميل المزيد</button></section>
+          <section class="store-detail-block"><h3>أحداث تشغيل بلا طلب مرتبط</h3><div class="activity-table-wrap"><table class="activity-table store-detail-table"><thead><tr><th>جلسة الدفع</th><th>الحدث</th><th>المصدر</th><th>الدور</th><th>الوقت</th></tr></thead><tbody id="unlinkedEventsBody"></tbody></table></div><button id="unlinkedEventsMore" class="ghost" type="button" hidden>تحميل المزيد</button></section>
+        </div>
       </section>
-      <section class="panel" aria-labelledby="ordersSummaryTitle">
-        <div class="platform-store-overview-head"><div><small>Order overview</small><h2 id="ordersSummaryTitle">ملخص الطلبات</h2><p>هذه اللوحة تعرض أعدادًا مجمعة فقط. بيانات العملاء وتفاصيل الطلبات التشغيلية محفوظة في لوحة إدارة الطلبات.</p></div><a class="primary" href="/dashboard.html">فتح لوحة الطلبات</a></div>
-      </section>
-      <section class="panel platform-audit" aria-labelledby="platformAuditTitle">
-        <div class="platform-store-overview-head"><div><small>Audit log</small><h2 id="platformAuditTitle">سجل عمليات المنصة</h2><p>من ربط أو فك حساب متجر ومتى. تُسجَّل العمليات التي تتم من لوحة المتاجر، والأحدث أولًا.</p></div><a class="primary" href="/stores-dashboard.html">فتح لوحة المتاجر</a></div>
-        <p id="platformAuditError" class="platform-error" role="alert" hidden></p>
-        <div id="platformAuditList" class="platform-audit-list"></div>
-        <button id="platformAuditMore" class="ghost" type="button" hidden>عرض المزيد</button>
-      </section>
-    </section>
-  </main>
-  <script src="/auth-session.js?v=20261116-02"></script>
-  <script src="/portal.js?v=20261116-02"></script>
-  <script src="/turnstile.js?v=20261116-02"></script>
-  <script src="/pw-eye.js?v=20261116-02" defer></script>
-  <script src="/platform-dashboard.js?v=20261116-02"></script>
+        </section>
+
+        <section class="page" id="page-settlements" data-page="settlements" hidden aria-label="العمولات والتسويات">
+          <p class="page-purpose">العمولات المستحقة على المتاجر، ومراحل تحويلها: من الاستحقاق إلى اعتماد الدفع النهائي.</p>
+          <div class="block-head"><h2 id="platformSettlementsTitle">تسويات العمولات</h2><button id="platformSettlementsRefresh" class="ghost" type="button">تحديث التسويات</button></div>
+          <p id="platformSettlementError" class="platform-error" role="alert" hidden></p>
+          <div id="platformSettlementStats" class="stats platform-settlement-stats"></div>
+          <div id="platformSettlementBoard" class="platform-settlement-board"></div>
+          <button id="platformSettlementMore" class="ghost" type="button" hidden>عرض المزيد</button>
+        </section>
+
+        <section class="page" id="page-rankings" data-page="rankings" hidden aria-label="ترتيب العطور">
+          <p class="page-purpose">أرقام تراكمية منذ بدء التسجيل، لكل عطر. أمام كل رقم مصدره: العملاء أو المتاجر أو الاثنان معًا. المتعادلان يتشاركان الرتبة.</p>
+          <p id="platformRankingsError" class="platform-error" role="alert" hidden></p>
+          <div id="platformRankingTabs" class="platform-ranking-tabs" role="tablist" aria-label="نوع الترتيب"></div>
+          <div id="platformRankingList" class="platform-ranking-list"></div>
+        </section>
+
+        <section class="page" id="page-audit" data-page="audit" hidden aria-label="سجل العمليات">
+          <p class="page-purpose">من ربط حساب متجر أو فكّه، ومتى. تُسجَّل العمليات التي تتم من صفحة المتاجر، والأحدث أولًا.</p>
+          <p id="platformAuditError" class="platform-error" role="alert" hidden></p>
+          <div id="platformAuditList" class="platform-audit-list"></div>
+          <button id="platformAuditMore" class="ghost" type="button" hidden>عرض المزيد</button>
+        </section>
+
+      </main>
+    </div>
+  </div>
+
+  <script src="/auth-session.js?v=20261116-01"></script>
+  <script src="/portal.js?v=20261116-01"></script>
+  <script src="/turnstile.js?v=20261116-01"></script>
+  <script src="/pw-eye.js?v=20261116-01" defer></script>
+  <script src="/admin-common.js?v=20261116-01"></script>
+  <script src="/platform-dashboard.js?v=20261116-01"></script>
+  <script src="/customers-dashboard.js?v=20261116-01"></script>
+  <script src="/stores-dashboard.js?v=20261116-01"></script>
+  <script src="/admin-alerts.js?v=20261116-01"></script>
+  <script src="/admin-notices.js?v=20261116-01"></script>
+  <script src="/admin-messages.js?v=20261116-01"></script>
+  <script src="/admin-shell.js?v=20261116-01"></script>
 </body>
 </html>

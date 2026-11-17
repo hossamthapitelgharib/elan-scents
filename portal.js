@@ -70,6 +70,14 @@ Portal.errorMessages = {
   over_email_send_rate_limit: 'محاولات كثيرة، انتظر قليلًا ثم حاول مرة أخرى.',
   too_many_requests: 'محاولات كثيرة، انتظر قليلًا ثم حاول مرة أخرى.',
   unauthorized: 'انتهت جلسة الدخول، سجّل الدخول من جديد.',
+  first_notices_unavailable: 'تعذر تحميل الإشعارات الأولى الآن، حاول بعد قليل.',
+  platform_alerts_unavailable: 'تعذر تحديث الرسائل الآن، حاول بعد قليل.',
+  notice_not_found: 'هذا الإشعار لم يعد موجودًا.',
+  invalid_notice_id: 'رقم الإشعار غير صحيح.',
+  invalid_search: 'اكتب في البحث حروفًا إنجليزية وأرقامًا وشرطة فقط.',
+  invalid_type: 'نوع الرسالة المطلوب غير صحيح.',
+  notification_update_failed: 'تعذر تحديث حالة الرسالة، حاول مرة أخرى.',
+  notification_id_required: 'اختر الرسالة المطلوبة أولًا.',
   login_required: 'انتهت جلسة الدخول، سجّل الدخول من جديد.',
   forbidden: 'هذا الحساب غير مصرح له بفتح هذه الصفحة.',
   role_check_failed: 'تعذر التحقق من صلاحية الحساب الآن، حاول بعد قليل.',
@@ -249,6 +257,8 @@ Portal.refreshNotifications = async (announce = false) => {
 
 Portal.startNotifications = async () => {
   if (document.querySelector('#portalNotifications')) return;
+  // The admin panel has its own alert centre (admin-alerts.js: sound, messages, first-notice counter) and one bell of its own.
+  if (document.body && document.body.hasAttribute('data-own-alerts')) return;
   const header = document.querySelector('header');
   if (!header) return;
   const box = document.createElement('div');

@@ -44,7 +44,7 @@ function storeRow(store) {
   const status = labelValue(store.status);
   const website = store.website_url ? `<small>${safeLink(store.website_url, 'الموقع الرسمي')}</small>` : '';
   const commission = store.commission_rate == null ? '—' : `${nStore(store.commission_rate)}%`;
-  return `<tr><td><strong>${escStore(store.name || 'متجر')}</strong><small>${escStore(store.slug || '')}</small>${website}<small>${escStore(store.short_description || '')}</small></td><td>${status}</td><td>${nStore(summary.linked_accounts)}</td><td>${nStore(summary.available_product_count)} / ${nStore(summary.product_count)}</td><td>${nStore(summary.active_offer_count)}</td><td>${nStore(summary.open_order_count)} / ${nStore(summary.order_request_count)}</td><td>${nStore(summary.review_order_count)}</td><td>${nStore(summary.shipment_count)}</td><td>${escStore(commission)}</td><td><button class="ghost store-detail-open" type="button" data-store-detail="${escStore(store.id)}">فتح التفاصيل</button></td></tr>`;
+  return `<tr><td><strong>${escStore(store.name || 'متجر')}</strong><small>${escStore(store.slug || '')}</small>${website}<small>${escStore(store.short_description || '')}</small></td><td data-label="الحالة">${status}</td><td data-label="الحسابات المرتبطة">${nStore(summary.linked_accounts)}</td><td data-label="المنتجات المتاحة/الكل">${nStore(summary.available_product_count)} / ${nStore(summary.product_count)}</td><td data-label="العروض النشطة">${nStore(summary.active_offer_count)}</td><td data-label="طلبات مفتوحة/الكل">${nStore(summary.open_order_count)} / ${nStore(summary.order_request_count)}</td><td data-label="طلبات تحتاج مراجعة">${nStore(summary.review_order_count)}</td><td data-label="سجلات الشحن">${nStore(summary.shipment_count)}</td><td data-label="العمولة">${escStore(commission)}</td><td class="store-open-cell"><button class="ghost store-detail-open" type="button" data-store-detail="${escStore(store.id)}">فتح التفاصيل</button></td></tr>`;
 }
 function renderStoreList() {
   const form = document.querySelector('#storeFilters');
@@ -497,8 +497,5 @@ document.querySelector('#storeDetailFilters').addEventListener('submit', event =
   stateStore.offset = 0;
   loadStoreSection(stateStore.section);
 });
-document.querySelector('#loginForm').addEventListener('submit', async event => {
-  event.preventDefault();
-  try { await Portal.login(event.target); await loadStores(); } catch (error) { showStoreError(error); }
-});
-if (Portal.session()) loadStores().catch(showStoreError);
+/* The shell (admin-shell.js) opens this page through its loader the first time it is shown, and again on «تحديث». */
+AdminPages.register('stores', { load: () => loadStores(), onError: showStoreError });

@@ -1,8 +1,6 @@
-const escP = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char]));
+/* escP, numberP, dateP and $ come from admin-common.js (loaded first): the admin panel is one document and its page scripts share one global scope. */
 const eventP = { view: 'مشاهدة', search: 'ظهور في البحث', cart_add: 'إضافة للسلة', cart_remove: 'حذف/تقليل من السلة' };
 const customerOffsets = { registered: 0, visitors: 0 };
-const dateP = value => { try { return value ? new Date(value).toLocaleString('ar-EG') : '—'; } catch (_) { return '—'; } };
-function numberP(value) { return Math.max(0, Number(value) || 0).toLocaleString('ar-EG'); }
 function durationP(seconds) {
   const total = Math.max(0, Number(seconds) || 0), hours = Math.floor(total / 3600), minutes = Math.floor((total % 3600) / 60), secs = Math.floor(total % 60);
   return hours ? `${hours} س ${minutes} د` : minutes ? `${minutes} د ${secs} ث` : `${secs} ث`;
@@ -12,9 +10,9 @@ function durationP(seconds) {
 function errText(error, fallback) {
   return typeof Portal.errorText === 'function' ? Portal.errorText(error, fallback) : (error && error.message) || fallback;
 }
-function reportError(error) {
+function reportCustomerError(error) {
   const message = errText(error, 'تعذر تحميل البيانات، حاول مرة أخرى.');
-  const app = document.querySelector('#app'), box = document.querySelector('#platformError');
+  const app = document.querySelector('#app'), box = document.querySelector('#customerError');
   // Before the dashboard is shown (sign-in, wrong account) the error belongs in the sign-in box, the only part on screen.
   if (box && app && !app.hidden) { box.textContent = message; box.hidden = false; }
   else document.querySelector('#message').textContent = message;
@@ -86,15 +84,15 @@ async function fetchCustomerDetail(panel, offset, append) {
 
 function renderCustomers(data) {
   const customers = data.registeredCustomers || [], visitors = data.guestVisitors || [];
-  document.querySelector('#registeredCount').textContent = String(data.counts && data.counts.registered != null ? data.counts.registered : customers.length);
-  document.querySelector('#visitorCount').textContent = String(data.counts && data.counts.visitors != null ? data.counts.visitors : visitors.length);
+  document.querySelector('#registeredCount').textContent = numberP(data.counts && data.counts.registered != null ? data.counts.registered : customers.length);
+  document.querySelector('#visitorCount').textContent = numberP(data.counts && data.counts.visitors != null ? data.counts.visitors : visitors.length);
   document.querySelector('#registeredCustomers').innerHTML = customers.length ? customers.map(customer => {
     const target = `activity-customer-${escP(customer.id)}`;
-    return `<article class="customer-row customer-row-expanded"><div class="customer-row-main"><strong>${escP(customer.full_name || 'عميل مسجل')}</strong><small>الهاتف: ${escP(customer.phone || 'غير مسجل')} · تاريخ التسجيل: ${escP(dateP(customer.created_at))}</small><button type="button" class="ghost activity-open" data-load-activity data-kind="customer" data-id="${escP(customer.id)}" data-target="${target}">عرض السلة وسجل النشاط</button></div><div class="customer-cart"><b>${Number(customer.cartItems || 0)} صنف</b><small>${Number(customer.cartUnits || 0)} قطعة في السلة</small></div><div id="${target}" class="customer-activity-panel" hidden></div></article>`;
+    return `<article class="customer-row customer-row-expanded"><div class="customer-row-main"><strong>${escP(customer.full_name || 'عميل مسجل')}</strong><small>الهاتف: ${escP(customer.phone || 'غير مسجل')}، تاريخ التسجيل: ${escP(dateP(customer.created_at))}</small><button type="button" class="ghost activity-open" data-load-activity data-kind="customer" data-id="${escP(customer.id)}" data-target="${target}">عرض السلة وسجل النشاط</button></div><div class="customer-cart"><b>${numberP(Number(customer.cartItems || 0))} صنف</b><small>${numberP(Number(customer.cartUnits || 0))} قطعة في السلة</small></div><div id="${target}" class="customer-activity-panel" hidden></div></article>`;
   }).join('') : '<div class="empty">لا يوجد عملاء مسجلون</div>';
   document.querySelector('#guestCustomers').innerHTML = visitors.length ? visitors.map(visitor => {
     const label = String(visitor.visitor_label || ''), target = `activity-guest-${escP(visitor.id)}`;
-    return `<article class="customer-row customer-row-expanded"><div class="customer-row-main"><strong>زائر · <code>${escP(label)}</code></strong><small>أول زيارة: ${escP(dateP(visitor.first_seen_at))} · آخر نشاط: ${escP(dateP(visitor.last_seen_at))}</small><button type="button" class="ghost activity-open" data-load-activity data-kind="guest" data-id="${escP(visitor.id)}" data-target="${target}">عرض السلة وسجل النشاط</button></div><div class="customer-cart"><b>${Number(visitor.cart_items_count || 0)} صنف</b><small>${Number(visitor.cart_units || 0)} قطعة في السلة</small></div><div id="${target}" class="customer-activity-panel" hidden></div></article>`;
+    return `<article class="customer-row customer-row-expanded"><div class="customer-row-main"><strong>زائر، <code>${escP(label)}</code></strong><small>أول زيارة: ${escP(dateP(visitor.first_seen_at))}، آخر نشاط: ${escP(dateP(visitor.last_seen_at))}</small><button type="button" class="ghost activity-open" data-load-activity data-kind="guest" data-id="${escP(visitor.id)}" data-target="${target}">عرض السلة وسجل النشاط</button></div><div class="customer-cart"><b>${Number(visitor.cart_items_count || 0)} صنف</b><small>${numberP(Number(visitor.cart_units || 0))} قطعة في السلة</small></div><div id="${target}" class="customer-activity-panel" hidden></div></article>`;
   }).join('') : '<div class="empty">لا يوجد زوار نشطون</div>';
   const pagination = data.pagination || {};
   if (pagination.registered) {
@@ -113,7 +111,7 @@ function renderCustomerPagination(type, page) {
   if (!total) { root.innerHTML = '<span class="muted">لا توجد صفحات</span>'; return; }
   const currentPage = Math.floor(offset / limit) + 1, pageCount = Math.ceil(total / limit);
   const previous = Math.max(0, offset - limit), next = offset + limit;
-  root.innerHTML = `<button class="ghost" type="button" data-customer-page="${type}" data-offset="${previous}" ${offset === 0 ? 'disabled' : ''}>السابق</button><span>الصفحة ${numberP(currentPage)} من ${numberP(pageCount)} · ${numberP(total)} سجل</span><button class="ghost" type="button" data-customer-page="${type}" data-offset="${next}" ${next >= total ? 'disabled' : ''}>التالي</button>`;
+  root.innerHTML = `<button class="ghost" type="button" data-customer-page="${type}" data-offset="${previous}" ${offset === 0 ? 'disabled' : ''}>السابق</button><span>الصفحة ${numberP(currentPage)} من ${numberP(pageCount)}، ${numberP(total)} سجل</span><button class="ghost" type="button" data-customer-page="${type}" data-offset="${next}" ${next >= total ? 'disabled' : ''}>التالي</button>`;
 }
 
 const periodsP = { today: 'اليوم', week: 'آخر 7 أيام', month: 'آخر 30 يومًا', year: 'آخر 365 يومًا' };
@@ -143,7 +141,7 @@ function renderAnalytics(actor, data) {
   const topProducts = document.querySelector(`#${prefix}TopProducts`);
   const basketProducts = document.querySelector(`#${prefix}BasketProducts`);
   if (!range || !statsBox || !topProducts || !basketProducts) return;
-  range.textContent = `${periodsP[data.period] || periodsP.today} · ${data.startDate || '—'} – ${data.endDate || '—'}`;
+  range.textContent = `${periodsP[data.period] || periodsP.today}، ${data.startDate || '—'} – ${data.endDate || '—'}`;
   const stats = [[personLabel, data.people], ['جلسات نشطة الآن', data.activeSessions], ['عدد الزيارات', data.visitCount], ['الوقت النشط', durationP(data.activeSeconds)], ['مشاهدات المنتجات', data.productViews], ['نتائج بحث المنتجات', data.productSearches], ['إضافات للسلة', data.cartAdds], ['حذف/تقليل من السلة', data.cartRemoves]];
   if (actor === 'guest' && data.uniquePeople && Number.isFinite(Number(data.uniquePeople.people))) stats.splice(1, 0, ['تقدير الأشخاص بعد ربط المتصفحات المتشابهة', data.uniquePeople.people]);
   statsBox.innerHTML = stats.map((item, index) => `<div class="stat ${index === 0 ? 'gold' : ''}"><small>${item[0]}</small><b>${typeof item[1] === 'string' ? escP(item[1]) : numberP(item[1])}</b></div>`).join('');
@@ -329,8 +327,8 @@ async function loadCustomersDashboard(loadInsights = true) {
   // Shown only now: a wrong account or an expired session keeps the sign-in box (and its message) instead of an empty dashboard.
   document.querySelector('#login').hidden = true; document.querySelector('#app').hidden = false; document.querySelector('#logout').hidden = false;
   document.querySelector('#message').textContent = '';
-  document.querySelector('#platformError').hidden = true;
-  document.querySelector('#stats').innerHTML = [['العملاء المسجلون', data.counts.registered], ['العملاء الزوار', data.counts.visitors]].map(item => `<div class="stat"><small>${item[0]}</small><b>${numberP(item[1])}</b></div>`).join('');
+  document.querySelector('#customerError').hidden = true;
+  document.querySelector('#customerStats').innerHTML = [['العملاء المسجلون', data.counts.registered], ['العملاء الزوار', data.counts.visitors]].map(item => `<div class="stat"><small>${item[0]}</small><b>${numberP(item[1])}</b></div>`).join('');
   renderCustomers(data);
   if (loadInsights) {
     const actor = activeCustomerTabP === 'visitors' ? 'guest' : activeCustomerTabP === 'all' ? 'all' : 'customer';
@@ -340,7 +338,7 @@ async function loadCustomersDashboard(loadInsights = true) {
 }
 activateCustomerTabs();
 const refreshCustomers = document.querySelector('#refreshCustomers');
-if (refreshCustomers) refreshCustomers.addEventListener('click', () => loadCustomersDashboard().catch(reportError));
+if (refreshCustomers) refreshCustomers.addEventListener('click', () => loadCustomersDashboard().catch(reportCustomerError));
 const guestAnalyticsPeriod = document.querySelector('#guestAnalyticsPeriod');
 if (guestAnalyticsPeriod) guestAnalyticsPeriod.addEventListener('change', () => loadAnalytics('guest').catch(error => showAnalyticsError('guest', error)));
 const registeredAnalyticsPeriod = document.querySelector('#registeredAnalyticsPeriod');
@@ -365,7 +363,7 @@ document.addEventListener('click', event => {
     if (!['registered', 'visitors'].includes(type) || !Number.isSafeInteger(offset) || offset < 0) return;
     customerOffsets[type] = offset;
     pageButton.disabled = true;
-    loadCustomersDashboard(false).catch(reportError);
+    loadCustomersDashboard(false).catch(reportCustomerError);
     return;
   }
   const button = event.target.closest('[data-load-activity]'); if (!button) return;
@@ -375,7 +373,5 @@ document.addEventListener('click', event => {
   panel.innerHTML = '<p class="muted">جارٍ تحميل السلة وسجل النشاط…</p>'; button.disabled = true;
   fetchCustomerDetail(panel, 0, false).then(() => { panel.dataset.loaded = 'true'; }).catch(error => { panel.innerHTML = `<p class="platform-error">${escP(errText(error, 'تعذر تحميل سجل العميل، حاول مرة أخرى.'))}</p>`; }).finally(() => { button.disabled = false; });
 });
-document.querySelector('#loginForm').addEventListener('submit', async event => {
-  event.preventDefault(); try { await Portal.login(event.target); await loadCustomersDashboard(); } catch (error) { reportError(error); }
-});
-if (Portal.session()) loadCustomersDashboard().catch(reportError);
+/* The shell (admin-shell.js) opens this page through its loader the first time it is shown, and again on «تحديث». */
+AdminPages.register('customers', { load: () => loadCustomersDashboard(), onError: reportCustomerError });

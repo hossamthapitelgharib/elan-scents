@@ -4,19 +4,7 @@ const SETTLEMENT_PAGE = 100;
 const LIVE_COUNT_MS = 20000;
 const state = { rankings: null, rankingTab: 'sales', auditOffset: 0, auditHasMore: false, auditBusy: false, settlements: [], settlementOffset: 0, settlementHasMore: false, settlementBusy: false, settlementMutationBusy: false, orders: null, liveTimer: null, countBusy: false };
 
-/* The page may be opened with the API codes only; Portal.errorText turns each into a sentence (and keeps an unknown code in brackets). */
-function errorTextP(error, fallback) {
-  return typeof Portal.errorText === 'function' ? Portal.errorText(error, fallback) : (error && error.message) || fallback;
-}
-function escP(value) {
-  return String(value == null ? '' : value).replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[character]));
-}
-function numberP(value) { return Math.max(0, Number(value) || 0).toLocaleString('ar-EG'); }
-function dateP(value) {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString('ar-EG');
-}
-function $(selector) { return document.querySelector(selector); }
+/* escP, numberP, dateP, errorTextP and $ come from admin-common.js (loaded first): the admin panel is one document, so a page script never declares them again. */
 
 /* One request: the JSON answer, or an Error whose message is the API code and whose status is the HTTP status. */
 async function request(url) {
@@ -92,6 +80,7 @@ function renderSettlements(result, append = false) {
   state.settlementHasMore = Boolean(result.value.hasMore);
   const counts = Object.fromEntries(SETTLEMENT_COLUMNS.map(column => [column[0], state.settlements.filter(row => row.status === column[0]).length]));
   stats.innerHTML = statMarkup(SETTLEMENT_COLUMNS.map(column => [column[1], numberP(counts[column[0]]), column[2]]));
+  AdminAttention.set('settlements', { count: counts.payable + counts.payment_submitted, text: `${numberP(counts.payable + counts.payment_submitted)} من عمولات المتاجر تنتظر إجراءً منك`, href: '#settlements', tone: 'warn', order: 30 });
   board.innerHTML = SETTLEMENT_COLUMNS.map(column => {
     const columnRows = state.settlements.filter(row => row.status === column[0]);
     return `<section class="platform-settlement-column"><header><h3>${escP(column[1])}</h3><b>${escP(numberP(columnRows.length))}</b></header><div>${columnRows.length ? columnRows.map(settlementRowMarkup).join('') : '<p class="platform-settlement-empty">لا توجد سجلات</p>'}</div></section>`;
@@ -141,6 +130,7 @@ function renderStats(orders, customers) {
     const counts = orders.value.counts || {};
     cards.push(['طلبات المتاجر', numberP(counts.orders)], ['مكتملة', numberP(counts.completed)], ['مفتوحة', numberP(counts.open)],
       ['مرفوضة أو ملغاة', numberP(counts.cancelled)], ['تحتاج مراجعة', numberP(counts.needsReview), Number(counts.needsReview) > 0 ? 'orange' : '']);
+    AdminAttention.set('review', { count: counts.needsReview, text: `${numberP(counts.needsReview)} من الطلبات تحتاج مراجعة`, href: '/dashboard.html', tone: 'warn', order: 20 });
   } else problems.push(errorTextP(orders.reason, 'تعذر تحميل ملخص الطلبات.'));
   if (customers.status === 'fulfilled') {
     const counts = customers.value.counts || {};
@@ -309,13 +299,6 @@ function startLiveCount() {
   if (state.liveTimer && typeof state.liveTimer.unref === 'function') state.liveTimer.unref();
 }
 
-$('#loginForm').addEventListener('submit', async event => {
-  event.preventDefault();
-  $('#message').textContent = '';
-  try { await Portal.login(event.target); await loadPlatform(); }
-  catch (error) { reportError(error); }
-});
-$('#refresh').addEventListener('click', () => loadPlatform().catch(reportError));
 const rankingTabs = $('#platformRankingTabs');
 if (rankingTabs) rankingTabs.addEventListener('click', event => {
   const button = event.target.closest && event.target.closest('[data-ranking-tab]');
@@ -352,4 +335,5 @@ if (settlementBoard) settlementBoard.addEventListener('submit', event => {
   }
   mutateSettlement(form.dataset.settlementForm, data);
 });
-if (Portal.session()) loadPlatform().catch(reportError);
+/* The shell (admin-shell.js) opens the overview, settlements, rankings and audit pages through this one loader and calls it again on «تحديث». */
+AdminPages.register('platform', { load: () => loadPlatform(), onError: reportError });
