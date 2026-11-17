@@ -64,7 +64,7 @@ begin
 
   v_result := public.receive_store_order_notification(jsonb_build_object(
     'trackingNumber',v_tracking,'idempotencyKey','commission-test-' || replace(v_request::text,'-',''),
-    'status','completed','merchantOrderNumber','MERCHANT-ORDER-TEST','merchantInvoiceNumber','INVOICE-TEST','subtotal',200,'shipping',80,'total',280,'currency','EGP',
+    'status','completed','merchantOrderNumber','MERCHANT-ORDER-TEST','merchantInvoiceNumber','INVOICE-TEST','paymentReference','commission-txn-1','subtotal',200,'shipping',80,'total',280,'currency','EGP',
     'customer',jsonb_build_object('id',v_user,'name','Synthetic Commission Test','phone','+201000000000','email','commission-test@example.invalid','address','Synthetic address for rollback test'),
     'items',jsonb_build_array(jsonb_build_object('productSizeId',v_product_size,'quantity',2,'unitPrice',100,'total',200,'currency','EGP',
       'platformOrderNumber',v_platform_number,'merchantOrderReference','MERCHANT-LINE-TEST')),

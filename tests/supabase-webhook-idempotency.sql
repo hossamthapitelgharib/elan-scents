@@ -27,7 +27,7 @@ from public.store_order_requests r where r.tracking_number='TEST-IDEMPOTENCY-STO
 create temporary table idem_notice on commit drop as
 select jsonb_build_object(
   'trackingNumber','TEST-IDEMPOTENCY-STORE-20261010','status','completed','idempotencyKey','idem-event-20261010',
-  'merchantOrderNumber','MERCHANT-IDEM-20261010','merchantInvoiceNumber','INVOICE-IDEM-20261010',
+  'merchantOrderNumber','MERCHANT-IDEM-20261010','merchantInvoiceNumber','INVOICE-IDEM-20261010','paymentReference','idem-txn-20261010',
   'subtotal',c.price,'shipping',0,'total',c.price,'currency','EGP',
   'customer',jsonb_build_object('id',u.id,'name','Idempotency Customer','phone','01000000000','address','Idempotency Address'),
   'items',jsonb_build_array(jsonb_build_object(

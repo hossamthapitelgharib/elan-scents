@@ -162,7 +162,7 @@ begin
       ('bad_guard', 'Subtotal mismatch'),
       ('no_key', 'Invalid retry key'),
       ('short_key', 'Invalid retry key'),
-      ('bad_store', 'Invalid or inactive store'),
+      ('bad_store', 'Store is not connected'),
       ('other_store_key', 'Invalid retry key')
     ) t(k, m)
   loop

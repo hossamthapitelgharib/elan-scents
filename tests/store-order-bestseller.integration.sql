@@ -117,6 +117,7 @@ begin
     )),
     'merchantOrderNumber', 'MERCHANT-' || v_tracking,
     'merchantInvoiceNumber', 'INVOICE-' || v_tracking,
+    'paymentReference', 'bestseller-txn-1',
     'idempotencyKey', 'idempotent-' || v_tracking
   );
   v_result := public.receive_store_order_notification(v_notification);

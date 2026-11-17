@@ -63,6 +63,7 @@ update public.store_order_requests set status='shipped',updated_at=now() where t
 select public.receive_store_order_notification(jsonb_build_object(
   'trackingNumber','TEST-LIFECYCLE-STORE-20261009','status','completed',
   'merchantOrderNumber','MERCHANT-LIFECYCLE-20261009','merchantInvoiceNumber','INVOICE-LIFECYCLE-20261009',
+  'paymentReference','lifecycle-txn-20261009',
   'subtotal',c.price,'shipping',0,'total',c.price,'currency','EGP',
   'customer',jsonb_build_object('id',u.id,'name','Lifecycle Customer','phone','01000000000','address','Lifecycle Address'),
   'items',jsonb_build_array(jsonb_build_object(
