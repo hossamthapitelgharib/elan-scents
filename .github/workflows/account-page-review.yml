@@ -1,0 +1,51 @@
+name: Orders page review
+
+# Opens the PUBLISHED orders page («طلباتي», account.html) from a GitHub runner, which can reach the site (the Claude sandbox cannot), in a real Chromium on a phone
+# and a laptop: signed out against the live site, and signed in with a made-up session and made-up server answers (the browser itself answers every call, so nothing is
+# sent to the live site and no real data is read). scripts/account-page-review.js prints measurements, the text a customer reads and the screenshots as text lines (IMG|)
+# in the log; `node scripts/account-page-review.js --decode <log> <dir>` turns them back into pictures. It is a review: it never fails the run, read its NOTE and FAIL lines.
+# Run it by hand from the Actions tab (Run workflow), or it runs when the script or this file changes.
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: Site address to review
+        default: https://elan-scents.hossamthapitelgharib.workers.dev
+  push:
+    paths:
+      - scripts/account-page-review.js
+      - .github/workflows/account-page-review.yml
+
+permissions:
+  contents: read
+
+jobs:
+  review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Playwright
+        run: npm ci --no-audit --no-fund
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Review the published orders page
+        shell: bash
+        env:
+          SITE_URL: ${{ github.event.inputs.url || 'https://elan-scents.hossamthapitelgharib.workers.dev' }}
+        run: node scripts/account-page-review.js "$SITE_URL" account-review-shots 2>&1 | tee account-review.log; exit "${PIPESTATUS[0]}"
+      - name: Show the result in the run summary
+        if: always()
+        run: |
+          { echo '### Orders page review'; echo '```'; grep -E '^(FAIL|[0-9]+ problem|Everything)' account-review.log || echo 'no result line (the script stopped early)'; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - name: Keep the screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: account-review-shots
+          path: account-review-shots
+          if-no-files-found: ignore
