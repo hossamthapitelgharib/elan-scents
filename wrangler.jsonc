@@ -38,6 +38,10 @@
     "STATE_STORE_REQUIRED": "1"
   },
 
+  // Every minute: sends the order and cancellation messages that are due to the stores and closes payment windows whose time is up
+  // (lib/merchant-dispatcher.js). The order page's own polling does the same faster while a customer is waiting; this is the safety net.
+  "triggers": { "crons": ["* * * * *"] },
+
   // Keep query parameters out of request URLs in logs and traces on every deployment.
   "observability": { "enabled": true, "redactQueryString": true }
 }

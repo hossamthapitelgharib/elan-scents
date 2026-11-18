@@ -5,7 +5,7 @@ import core from './worker-core.js';
 import registry from './api-registry.js';
 import editorFiles from './generated/editor-files.js';
 
-const deps = { api: registry.api, editorHost: registry.editorHost, editorFiles };
+const deps = { api: registry.api, editorHost: registry.editorHost, editorFiles, scheduled: registry.scheduled };
 
 export default {
   async fetch(request, env, ctx) {
@@ -15,5 +15,9 @@ export default {
       console.error('worker error', e && e.message);
       return new Response(JSON.stringify({ error: 'server_error' }), { status: 500, headers: { 'Content-Type': 'application/json; charset=utf-8' } });
     }
+  },
+  // Cron Trigger (wrangler.jsonc): the safety net of the order flow, see lib/merchant-dispatcher.js.
+  async scheduled(controller, env, ctx) {
+    ctx.waitUntil(core.handleScheduled(env, ctx, deps));
   }
 };

@@ -170,3 +170,61 @@ test('normalized integration migration binds one config to each store and protec
   assert.match(migration, /revoke all privileges[\s\S]*from public, anon, authenticated/i);
   assert.match(migration, /grant all privileges[\s\S]*to service_role/i);
 });
+
+// Stage 1 of docs/purchase-flow-correction-plan.ar.md: the address Élan sends this store's signed orders to. With an enabled link and a
+// secret of 16 characters or more it makes the store "ready"; any other store has its order button locked.
+test('GET shows the order address and whether the store can take an order, never the secret', async () => {
+  global.fetch = authenticatedFetch(async input => {
+    const url = new URL(String(input));
+    if (url.pathname === '/rest/v1/public_stores') return response([{ id: storeId, name: 'Store A' }, { id: 'a1b2c3d4-0000-4000-8000-000000000002', name: 'Store B' }]);
+    if (url.pathname === '/rest/v1/store_integrations') return response([
+      { store_id: storeId, enabled: true, order_endpoint: 'https://orders.store-a.com/elan', webhook_secret: 'LONGENOUGHSECRET16' },
+      { store_id: 'a1b2c3d4-0000-4000-8000-000000000002', enabled: true, order_endpoint: 'https://orders.store-b.com/elan', webhook_secret: 'short' },
+    ]);
+    if (url.pathname === '/rest/v1/site_settings') return response([]);
+    throw new Error(`unexpected ${url.pathname}`);
+  });
+  const res = recorder();
+  await handler(request(), res);
+  const [a, b] = res.out.body.stores;
+  assert.deepEqual([a.orderEndpoint, a.orderReady], ['https://orders.store-a.com/elan', true]);
+  assert.deepEqual([b.orderEndpoint, b.orderReady], ['https://orders.store-b.com/elan', false], 'a secret under 16 characters is not enough');
+  assert.equal(JSON.stringify(res.out.body).includes('LONGENOUGHSECRET16'), false);
+});
+
+function putOrderEndpoint(item, existing) {
+  const requests = [];
+  global.fetch = authenticatedFetch(async (input, options = {}) => {
+    const url = new URL(String(input)); requests.push({ url, options });
+    if (url.pathname === '/rest/v1/stores') return response([{ id: storeId, name: 'Store A' }]);
+    if (url.pathname === '/rest/v1/store_integrations' && options.method === 'POST') return response(null, 201);
+    if (url.pathname === '/rest/v1/store_integrations') return response(existing ? [{ store_id: storeId, ...existing }] : []);
+    if (url.pathname === '/rest/v1/site_settings') return response([]);
+    throw new Error(`unexpected ${url.pathname}`);
+  });
+  const res = recorder();
+  return handler(request('PUT', { stores: [{ name: 'Store A', ...item }] }), res).then(() => ({ res, requests }));
+}
+const savedRow = ({ requests }) => JSON.parse(requests.find(call => call.url.pathname === '/rest/v1/store_integrations' && call.options.method === 'POST').options.body)[0];
+
+test('PUT saves an https order address; one that cannot be called safely is refused before anything is written', async () => {
+  const ok = await putOrderEndpoint({ orderEndpoint: ' https://orders.store-a.com/elan ' });
+  assert.equal(ok.res.out.status, 200);
+  assert.equal(savedRow(ok).order_endpoint, 'https://orders.store-a.com/elan');
+  for (const bad of ['http://orders.store-a.com/elan', 'https://127.0.0.1/elan', 'https://localhost/elan', 'https://orders.store-a.com:8443/elan', 'https://u:p@orders.store-a.com/elan', 'ftp://orders.store-a.com', 'orders.store-a.com/elan']) {
+    const refused = await putOrderEndpoint({ orderEndpoint: bad });
+    assert.deepEqual([refused.res.out.status, refused.res.out.body.error], [400, 'invalid_order_endpoint'], bad);
+    assert.equal(refused.requests.some(call => call.options.method === 'POST'), false, `${bad}: nothing is written`);
+  }
+  const long = await putOrderEndpoint({ orderEndpoint: `https://orders.store-a.com/${'a'.repeat(500)}` });
+  assert.equal(long.res.out.status, 400);
+});
+
+test('PUT keeps the saved order address when the form leaves it out, and removes it when the form sends an empty one', async () => {
+  const kept = await putOrderEndpoint({ notes: 'x' }, { order_endpoint: 'https://orders.store-a.com/elan' });
+  assert.equal(savedRow(kept).order_endpoint, 'https://orders.store-a.com/elan');
+  const removed = await putOrderEndpoint({ orderEndpoint: '' }, { order_endpoint: 'https://orders.store-a.com/elan' });
+  assert.equal(savedRow(removed).order_endpoint, null);
+  const never = await putOrderEndpoint({});
+  assert.equal(savedRow(never).order_endpoint, null);
+});

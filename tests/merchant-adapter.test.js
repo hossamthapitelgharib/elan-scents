@@ -53,7 +53,7 @@ function signed({ storeId = STORE_A, secret = SECRETS[STORE_A], body, eventId = 
   return { method: 'POST', headers, body: tamper ? { ...body, amount: 1 } : body };
 }
 
-const DECISION = { trackingNumber: 'ELN-20261111-000001', decision: 'approve', shipping: 30, total: 230, paymentMethods: [{ kind: 'cod', labelAr: 'الدفع عند الاستلام' }], injected: 'x', storeId: STORE_B };
+const DECISION = { trackingNumber: 'ELN-20261111-000001', decision: 'approve', shipping: 30, total: 230, paymentWindowUrl: 'https://pay.merchant.example.com/w/1', validitySeconds: 900, paymentMethods: [{ kind: 'cod' }], injected: 'x', storeId: STORE_B };
 
 test('a signed decision from the authenticated merchant reaches the database with ONLY the listed fields, its own store and the signed event id', async () => {
   const calls = installDatabase();
@@ -64,7 +64,7 @@ test('a signed decision from the authenticated merchant reaches the database wit
   assert.equal(rpc.length, 1);
   assert.equal(rpc[0].pathname, '/rest/v1/rpc/merchant_review_order');
   assert.equal(rpc[0].body.p_store_id, STORE_A, 'the merchant that authenticated, not a store id written in the body');
-  assert.deepEqual(Object.keys(rpc[0].body.p_payload).sort(), ['decision', 'eventId', 'paymentMethods', 'shipping', 'total', 'trackingNumber']);
+  assert.deepEqual(Object.keys(rpc[0].body.p_payload).sort(), ['decision', 'eventId', 'paymentWindowUrl', 'shipping', 'total', 'trackingNumber', 'validitySeconds']);
   assert.equal(rpc[0].body.p_payload.eventId, 'decision-evt-1');
   assert.equal(rpc[0].headers.Authorization, `Bearer ${SERVICE_KEY}`);
   assert.doesNotMatch(JSON.stringify(out.body), new RegExp(SERVICE_KEY));
@@ -137,7 +137,8 @@ test('every rule the database raises on purpose has its own safe answer', () => 
     'Order not found': [404, 'order_not_found'],
     'A rejection needs a reason': [422, 'reason_required'],
     'Order is not waiting for the store': [409, 'order_not_waiting'],
-    'Configure a payment method before approving orders': [409, 'payment_method_required'],
+    'An approval needs the https address of the payment window': [422, 'payment_window_url_required'],
+    'The payment window validity must be between 60 and 1800 seconds': [422, 'invalid_validity'],
     'Payment is required before shipping': [409, 'payment_required'],
     'Invalid shipping transition': [409, 'invalid_shipping_transition'],
     'Carrier and waybill are required': [422, 'carrier_and_waybill_required'],

@@ -1,4 +1,5 @@
 const { getContext, requireRoles } = require('./_auth');
+const { safeEndpoint } = require('../lib/merchant-dispatcher');
 
 const MAX_STORES = 1000;
 const FIELD_LIMITS = {
@@ -6,6 +7,7 @@ const FIELD_LIMITS = {
   cartUrl: 2048,
   apiBaseUrl: 2048,
   catalogEndpoint: 2048,
+  orderEndpoint: 500,
   apiKey: 4096,
   webhookSecret: 4096,
   notes: 10000,
@@ -51,7 +53,7 @@ async function getLegacySettings(base, key) {
 function byStoreIds(base, key, ids) {
   if (!ids.length) return Promise.resolve([]);
   const params = new URLSearchParams({
-    select: 'store_id,enabled,base_url,cart_url,api_base_url,catalog_endpoint,api_key,webhook_secret,notes',
+    select: 'store_id,enabled,base_url,cart_url,api_base_url,catalog_endpoint,order_endpoint,api_key,webhook_secret,notes',
     store_id: `in.(${ids.join(',')})`,
     limit: String(MAX_STORES),
   });
@@ -95,6 +97,10 @@ module.exports = async function storeIntegrations(req, res) {
           cartUrl: row ? row.cart_url : saved.cart_url || saved.cartUrl || '',
           apiBaseUrl: row ? row.api_base_url : saved.api_base_url || saved.apiBaseUrl || '',
           catalogEndpoint: row ? row.catalog_endpoint : saved.catalog_endpoint || saved.catalogEndpoint || '',
+          // Where Élan sends this store's signed orders (https). With the secret below and an enabled link, it is what makes the store
+          // able to take an order; without it the order button of the store is locked.
+          orderEndpoint: row && row.order_endpoint ? row.order_endpoint : '',
+          orderReady: Boolean(row && row.enabled && row.order_endpoint && String(row.webhook_secret || '').trim().length >= 16),
           webhookUrl: `${req.headers['x-forwarded-proto'] || 'https'}://${req.headers.host || ''}/api/store-order-status`,
           apiKey: '',
           webhookSecret: '',
@@ -118,6 +124,10 @@ module.exports = async function storeIntegrations(req, res) {
     if (!body.stores.length) { reply(res, 200, { ok: true, saved: [] }); return; }
     if (body.stores.some(item => !item || typeof item !== 'object' || !clean(item.name)) || body.stores.some(tooLong)) {
       reply(res, 400, { ok: false, error: 'invalid_store_settings' });
+      return;
+    }
+    if (body.stores.some(item => clean(item.orderEndpoint) && !safeEndpoint(clean(item.orderEndpoint)))) {
+      reply(res, 400, { ok: false, error: 'invalid_order_endpoint' });
       return;
     }
     const names = body.stores.map(item => clean(item.name));
@@ -151,6 +161,8 @@ module.exports = async function storeIntegrations(req, res) {
         cart_url: clean(item.cartUrl),
         api_base_url: clean(item.apiBaseUrl),
         catalog_endpoint: clean(item.catalogEndpoint),
+        // Left out of the form, the saved address stays; an empty value removes it (the store stops taking orders).
+        order_endpoint: item.orderEndpoint === undefined ? (existing && existing.order_endpoint) || null : clean(item.orderEndpoint) || null,
         api_key: clean(item.apiKey) || previousApiKey || '',
         webhook_secret: clean(item.webhookSecret) || previousWebhookSecret || '',
         notes: clean(item.notes),

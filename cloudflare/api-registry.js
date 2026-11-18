@@ -11,6 +11,8 @@ module.exports = {
     'customer-cart': () => require('../api/customer-cart.js'),
     'customer-mail': () => require('../api/customer-mail.js'),
     'customer-order-payment': () => require('../api/customer-order-payment.js'),
+    'customer-order-review': () => require('../api/customer-order-review.js'),
+    'customer-order-window': () => require('../api/customer-order-window.js'),
     'customer-orders': () => require('../api/customer-orders.js'),
     'customer-product-rankings': () => require('../api/customer-product-rankings.js'),
     'dashboard-orders': () => require('../api/dashboard-orders.js'),
@@ -21,6 +23,7 @@ module.exports = {
     'merchant-payment-event': () => require('../api/merchant-payment-event.js'),
     'merchant-shipment-event': () => require('../api/merchant-shipment-event.js'),
     'notifications': () => require('../api/notifications.js'),
+    'order-draft': () => require('../api/order-draft.js'),
     'place-store-order': () => require('../api/place-store-order.js'),
     'platform-alerts': () => require('../api/platform-alerts.js'),
     'platform-audit-log': () => require('../api/platform-audit-log.js'),
@@ -45,11 +48,14 @@ module.exports = {
     'store-catalog-figures': () => require('../api/store-catalog-figures.js'),
     'store-integrations': () => require('../api/store-integrations.js'),
     'store-order-cancelled': () => require('../api/store-order-cancelled.js'),
+    'store-order-readiness': () => require('../api/store-order-readiness.js'),
     'store-order-status': () => require('../api/store-order-status.js'),
     'store-order-update': () => require('../api/store-order-update.js'),
     'store-payment-methods': () => require('../api/store-payment-methods.js'),
     'store-shipment-update': () => require('../api/store-shipment-update.js'),
     'editor': () => require('../railway/editor.js')
   },
-  editorHost: () => require('../railway/editor-host.js')
+  editorHost: () => require('../railway/editor-host.js'),
+  // The Cron Trigger (wrangler.jsonc, every minute): due order and cancellation messages to merchants, and expired payment windows.
+  scheduled: () => require('../lib/merchant-dispatcher.js')
 };

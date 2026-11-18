@@ -230,9 +230,12 @@ function syncEnv(env, url) {
       syncedEnvKeys.delete(key);
     }
   }
-  for (const key of ORIGIN_VARS) {
-    if (!(typeof source[key] === 'string' && source[key])) process.env[key] = url.origin;
-    syncedEnvKeys.add(key);
+  // A Cron Trigger has no request, so no origin to fill in: the origin variables are only written when a request brought one.
+  if (url) {
+    for (const key of ORIGIN_VARS) {
+      if (!(typeof source[key] === 'string' && source[key])) process.env[key] = url.origin;
+      syncedEnvKeys.add(key);
+    }
   }
 }
 
@@ -392,4 +395,19 @@ async function handleRequest(request, env, ctx, deps) {
   return notFound(url);
 }
 
-module.exports = { handleRequest, NodeResponse, makeRequest, parseRange, RANGE_EXTENSIONS, BASELINE_HEADERS, REWRITES };
+/* The Cron Trigger. deps.scheduled() gives lib/merchant-dispatcher.js. Never throws: a failed minute is simply tried again in the next. */
+async function handleScheduled(env, ctx, deps) {
+  try {
+    syncEnv(env || {}, null);
+    const dispatcher = deps && typeof deps.scheduled === 'function' ? deps.scheduled() : null;
+    if (!dispatcher) return { error: 'no_scheduled_handler' };
+    const summary = await dispatcher.runScheduled(dispatcher.serviceContext(process.env));
+    if (summary.error) console.error('scheduled run', summary.error);
+    return summary;
+  } catch (e) {
+    console.error('scheduled error', e && e.message);
+    return { error: 'scheduled_failed' };
+  }
+}
+
+module.exports = { handleRequest, handleScheduled, NodeResponse, makeRequest, parseRange, RANGE_EXTENSIONS, BASELINE_HEADERS, REWRITES };
