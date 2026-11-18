@@ -1,8 +1,9 @@
 'use strict';
 /* Owner, 2026-11-11, in real Chromium and the real editor:
    1. the hero takes «أبعاد العناصر» and the stepped corner drag like every other element;
-   2. a picture or a video in an element that is resized is shown whole (never cut, never stretched) and fills the whole frame: what the frame's shape leaves over is the same
-      picture blurred, and «نفس شكل الصورة» makes the frame the picture's own shape, so nothing is left over;
+   2. a picture or a video in an element that is resized is shown whole (never cut, never stretched) inside the frame that was chosen, and «نفس شكل الصورة» makes the frame
+      the picture's own shape. Since the editor commit ff84def (2026-11-16, "fit media inside fixed editor elements") nothing is added to the element for this: no blurred copy
+      of the picture, no extra layer; the element keeps its chosen size and only the media adapts inside it (object-fit / background-size: contain);
    3. when an element's size changes everything around it moves aside by itself (the page lays itself out again), also inside a grid. */
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -108,7 +109,7 @@ test('the hero goes by the saved relative sizes with the corner handle too: the 
   } finally { await context.close(); }
 });
 
-test('a picture in a resized element is shown whole and fills the frame: contain over its own blurred copy, and «نفس شكل الصورة» leaves nothing over (phone)', async () => {
+test('a picture in a resized element is shown whole inside the chosen frame with nothing added around it, and «نفس شكل الصورة» makes the frame its own shape (phone)', async () => {
   const { context, page, frame } = await openEditor(PHONE);
   try {
     await servePicture(context, page);
@@ -118,28 +119,26 @@ test('a picture in a resized element is shown whole and fills the frame: contain
     await frame.waitForFunction((s) => { const i = document.querySelector(s + ' img'); return i && i.complete && i.naturalWidth > 0; }, sel, { timeout: 10000 });
     const natural = await rectOf(frame, sel + ' img');
     assert.ok(Math.abs(natural.w / natural.h - 2) < 0.1, 'a 2:1 picture shown in its own shape to begin with: ' + JSON.stringify(natural));
-    assert.equal(await frame.locator(sel + ' .elan-fit-back').count(), 0, 'nothing is added to an element that was not resized');
+    assert.equal(await frame.locator(sel + ' [class*="elan-fit"]').count(), 0, 'nothing is added to an element that was not resized');
 
     await chooseShape(page, frame, made, '1:1');
     const sq = await rectOf(frame, sel);
     assert.ok(Math.abs(sq.w - sq.h) <= 1, 'the block is a square now: ' + JSON.stringify(sq));
     const fit = await frame.evaluate((s) => {
       const root = document.querySelector(s), img = root.querySelector('img'), back = root.querySelector('.elan-fit-back'), rr = root.getBoundingClientRect(), ir = img.getBoundingClientRect(), cs = getComputedStyle(img);
-      const br = back && back.getBoundingClientRect(), bs = back && getComputedStyle(back);
       return { fit: cs.objectFit, imgW: ir.width, imgH: ir.height, frameW: rr.width, frameH: rr.height, imgLeft: ir.left - rr.left, imgTop: ir.top - rr.top,
-        back: !!back, backUrl: back && back.style.backgroundImage, backBlur: bs && bs.filter, backSize: bs && bs.backgroundSize, backCovers: !!br && br.left <= rr.left && br.top <= rr.top && br.right >= rr.right && br.bottom >= rr.bottom,
-        natW: img.naturalWidth, natH: img.naturalHeight, padding: getComputedStyle(root).paddingLeft };
+        back: !!back, layers: root.querySelectorAll('[class*="elan-fit"]').length, natW: img.naturalWidth, natH: img.naturalHeight, padding: getComputedStyle(root).paddingLeft };
     }, sel);
     assert.equal(fit.fit, 'contain', 'shown whole: not cut (cover) and not stretched (fill)');
     assert.ok(Math.abs(fit.imgW - fit.frameW) <= 1 && Math.abs(fit.imgH - fit.frameH) <= 1 && fit.padding === '0px', 'the picture\'s box is the whole frame: ' + JSON.stringify(fit));
-    assert.ok(fit.back && fit.backUrl.includes('fit-2to1.png') && /blur/.test(fit.backBlur) && fit.backSize === 'cover' && fit.backCovers, 'and what its shape leaves over is the same picture blurred, covering the frame: ' + JSON.stringify(fit));
+    assert.ok(!fit.back && fit.layers === 0, 'and no blurred copy or other layer is added behind it: ' + JSON.stringify(fit));
     const drawn = fit.imgW / (fit.natW / fit.natH);   // contain: the drawn height of a picture 2:1 in a square frame
     assert.ok(drawn < fit.imgH && Math.abs(drawn - fit.imgW / 2) <= 0.5, 'the drawn picture keeps its own 2:1 shape (' + Math.round(drawn) + ' high in a ' + Math.round(fit.frameH) + ' frame)');
 
     await chooseShape(page, frame, made, 'same');
     const same = await rectOf(frame, sel);
     assert.ok(Math.abs(same.w / same.h - 2) < 0.02, '«نفس شكل الصورة»: the frame is the picture\'s own shape: ' + JSON.stringify(same));
-    assert.equal(await frame.locator(sel + ' .elan-fit-back').count(), 0, 'so nothing is left over and no blurred copy is needed');
+    assert.equal(await frame.locator(sel + ' [class*="elan-fit"]').count(), 0, 'and still nothing is added around the picture');
     assert.equal(await frame.evaluate((s) => getComputedStyle(document.querySelector(s + ' img')).objectFit, sel), 'contain');
 
     await chooseShape(page, frame, made, 'auto');
@@ -148,7 +147,7 @@ test('a picture in a resized element is shown whole and fills the frame: contain
   } finally { await context.close(); }
 });
 
-test('«نفس شكل الصورة» is in the dimensions window only for an element that has a picture; a banner\'s background picture is fitted the same way (phone)', async () => {
+test('«نفس شكل الصورة» is in the dimensions window only for an element that has a picture; a banner\'s background picture is shown whole in the chosen frame (phone)', async () => {
   const { context, page, frame } = await openEditor(PHONE);
   try {
     await servePicture(context, page);
@@ -172,20 +171,21 @@ test('«نفس شكل الصورة» is in the dimensions window only for an ele
     await page.waitForTimeout(500);
     const sel = '[data-elan-id="' + banner + '"]';
     const got = await frame.evaluate((s) => {
-      const root = document.querySelector(s), front = root.querySelector('.elan-fit-front'), back = root.querySelector('.elan-fit-back'), cs = getComputedStyle(root);
-      return { bg: cs.backgroundImage, front: !!front, frontSize: front && getComputedStyle(front).backgroundSize, back: !!back, frontUrl: front && front.style.backgroundImage };
+      const root = document.querySelector(s), cs = getComputedStyle(root);
+      return { bg: cs.backgroundImage, size: cs.backgroundSize, repeat: cs.backgroundRepeat, position: cs.backgroundPosition, layers: root.querySelectorAll('[class*="elan-fit"]').length };
     }, sel);
-    assert.equal(got.bg, 'none', 'the cropped (cover) background of the banner is replaced');
-    assert.ok(got.front && got.frontSize === 'contain' && got.frontUrl.includes('fit-2to1.png'), 'by the whole picture: ' + JSON.stringify(got));
-    assert.ok(got.back, 'over a blurred copy that fills what the 4:3 frame leaves around a 2:1 picture');
+    assert.ok(got.bg.includes('fit-2to1.png') && got.size === 'contain' && got.repeat === 'no-repeat', 'the banner\'s own background is shown whole (contain), not cropped: ' + JSON.stringify(got));
+    assert.equal(got.layers, 0, 'with no extra layer or blurred copy behind it');
+    const framed = await rectOf(frame, sel);
+    assert.ok(Math.abs(framed.w / framed.h - 4 / 3) < 0.02, 'the frame is the chosen 4:3: ' + JSON.stringify(framed));
     await chooseShape(page, frame, banner, 'same');
     const same = await rectOf(frame, sel);
     assert.ok(Math.abs(same.w / same.h - 2) < 0.02, 'the banner takes the picture\'s shape: ' + JSON.stringify(same));
-    assert.equal(await frame.locator(sel + ' .elan-fit-back').count(), 0, 'and needs no blurred copy');
+    assert.equal(await frame.locator(sel + ' [class*="elan-fit"]').count(), 0, 'and still has no layer added behind it');
   } finally { await context.close(); }
 });
 
-test('a video in a resized element is shown whole and gets a blurred twin behind it only when the frame is not its shape', async () => {
+test('a video in a resized element is shown whole in the chosen frame, whatever the frame\'s shape, and no blurred twin is added behind it', async () => {
   const { context, page, frame } = await openEditor(PHONE);
   try {
     const out = await frame.evaluate(async () => {
@@ -204,9 +204,9 @@ test('a video in a resized element is shown whole and gets a blurred twin behind
       L.endLive(entry); host.remove();
       return { mismatch, off, matched };
     });
-    assert.equal(out.mismatch.fit, 'contain'); assert.equal(out.mismatch.twins, 1, 'a 16:9 video in a square frame has a blurred twin behind it'); assert.equal(out.mismatch.twinFit, 'cover');
-    assert.equal(out.off.twins, 0, 'it is all taken off again');
-    assert.equal(out.matched.twins, 0, 'a frame of the video\'s own shape needs none'); assert.equal(out.matched.fit, 'contain');
+    assert.equal(out.mismatch.fit, 'contain', 'a 16:9 video in a square frame is shown whole'); assert.equal(out.mismatch.twins, 0, 'with no blurred twin behind it');
+    assert.equal(out.off.twins, 0, 'nothing is left after the resize ends');
+    assert.equal(out.matched.twins, 0, 'a frame of the video\'s own shape has none either'); assert.equal(out.matched.fit, 'contain');
   } finally { await context.close(); }
 });
 

@@ -113,8 +113,10 @@ test('a row never holds more than four: the fifth in a line is only freed from i
   } finally { await context.close(); }
 });
 
+/* a test design with one section pulled by hand: the published page's own design changes whenever the owner saves from the editor, so it cannot be what a test counts on */
+const PULLED = { version: 1, edits: { all: { 'sec:offers': { dy: -25 } } } };
 test('it is an item of the right-click menu (not a header button), and choosing it says what it did', async () => {
-  const { context, page, frame } = await openEditor();
+  const { context, page, frame } = await openEditor(PULLED);
   try {
     assert.equal(await page.locator('#fixSpacing').count(), 0, 'no header button any more');
     assert.deepEqual(await page.evaluate(() => Array.from(document.querySelectorAll('#editorHeaderActions>button')).map((b) => b.id)), ['undo', 'redo', 'save', 'restorePrev', 'library', 'editorLogout'], 'the header keeps its six buttons');
@@ -133,6 +135,6 @@ test('it is an item of the right-click menu (not a header button), and choosing 
     await item.click();
     /* the answer shows on the page itself (the platform's own message line), like every other menu tool */
     await frame.waitForFunction(() => /ظبّطت المسافات: شلت الإزاحة اليدوية|المسافات مظبوطة أصلًا/.test(document.body.textContent), null, { timeout: 8000 });
-    assert.match(await frame.evaluate(() => document.body.textContent), /ظبّطت المسافات: شلت الإزاحة اليدوية/, 'the real page has hand offsets, so it says what it removed');
+    assert.match(await frame.evaluate(() => document.body.textContent), /ظبّطت المسافات: شلت الإزاحة اليدوية/, 'the design has a hand offset, so it says what it removed');
   } finally { await context.close(); }
 });

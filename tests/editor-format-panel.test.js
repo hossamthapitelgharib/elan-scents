@@ -56,7 +56,9 @@ test('the storefront loads an extra web font only when a saved design uses it', 
   b.layer.set(design); b.layer.applyEdits();
   assert.equal(fontLinks().length, 1, 'load each used web font once; never load device fonts');
   assert.match(fontLinks()[0].href, /family=Cairo:wght@400;700/);
-  assert.match(b.document.querySelector('#intro .magic').style.fontFamily, /Cairo/);
+  /* The font goes on the text itself (the h2 inside the hero label): styling only the wrapper is overridden by the storefront CSS. */
+  assert.match(b.document.querySelector('#intro .magic h2').style.fontFamily, /Cairo/);
+  assert.equal(b.document.querySelector('#intro .magic').style.fontFamily || '', '', 'the wrapper keeps no font of its own');
 });
 
 test('the library button opens the archive and image library in live mode', async () => {

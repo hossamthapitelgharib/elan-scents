@@ -62,7 +62,8 @@ test('the editor still finds the title and the counters under their old ids', ()
   const b = designBrowser();
   b.layer.set({ version: 1, edits: { all: { 'hero:magic': { style: { fontFamily: 'Tahoma' } } } } });
   b.layer.applyEdits();
-  assert.match(b.document.querySelector('#intro .magic').style.fontFamily, /Tahoma/);
+  /* Text formatting lands on the h2 inside the label (design-layer.js textTarget), not on the wrapper around it. */
+  assert.match(b.document.querySelector('#intro .magic h2').style.fontFamily, /Tahoma/);
 });
 
 test('the saved home design carries no white colour or old offset for the moved title and counters', () => {
