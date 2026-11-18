@@ -166,3 +166,9 @@ test('production Worker requires shared rate-limit state and redacts query strin
   assert.equal(config.vars.TURNSTILE_SITE_KEY, '0x4AAAAAAFzPlh6-a4P9h66k', 'the public key must match the managed Cloudflare widget');
   assert.equal(JSON.stringify(config).includes('TURNSTILE_SECRET'), false, 'the matching secret must never be stored in Worker vars or git');
 });
+
+test('developer folders (tools, scripts, tests, docs, supabase) are never published to the site', () => {
+  // tools/catalog-trial holds Python scripts and store-page fixtures: they are for the team, not for visitors
+  const served = build.listPublicFiles(path.join(__dirname, '..')).filter((rel) => /^(tools|scripts|tests|docs|supabase|railway|cloudflare)\//.test(rel));
+  assert.deepEqual(served, [], 'these developer files would be served at a public address');
+});
