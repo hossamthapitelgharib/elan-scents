@@ -172,34 +172,37 @@ test('a new message appears at the top at once with a chime, the opening poll st
     await panel.page.waitForSelector('#app:not([hidden])');
     assert.equal(await panel.page.locator('#alertStrip').isHidden(), true, 'what was already waiting is not announced as news');
     assert.equal(await notes(panel.page), 0);
-    // turning the sound on is a click, which is what lets the browser start audio; it plays the test chime (two notes)
-    await panel.page.click('#soundToggle');
+    // nobody presses the sound button: the sound counts as on from the start, and the first click anywhere lets the browser start the audio, silently
+    assert.equal(await panel.page.evaluate(() => AdminAlerts.state().soundOn), true);
+    assert.equal(await panel.page.evaluate(() => localStorage.getItem('elan_admin_sound')), null, 'it chose nothing for the admin');
+    await panel.page.mouse.click(3, 3);
     await panel.page.waitForFunction(() => document.querySelector('#soundToggle').dataset.state === 'on');
-    assert.equal(await notes(panel.page), 2);
-    assert.equal(await panel.page.evaluate(() => localStorage.getItem('elan_admin_sound')), '1');
+    assert.equal(await notes(panel.page), 0, 'starting the audio plays nothing');
 
     panel.world.alerts.unshift({ id: id(50), type: 'order_payment_recorded', title: 'دفع جديد وصل', body: 'الطلب ELN-TEST-0050', isRead: false, createdAt: ago(0), trackingNumber: 'ELN-TEST-0050', requestId: id(150), storeId: id(91) });
     await panel.page.evaluate(() => AdminAlerts.pollOnce());
     await panel.page.waitForSelector('#alertStrip:not([hidden]) .alert-item');
     assert.match(await panel.page.textContent('#alertStripList'), /دفع جديد وصل/);
-    assert.equal(await notes(panel.page), 4, 'two more notes for news');
+    assert.equal(await notes(panel.page), 2, 'two notes for news');
     assert.match(await panel.page.title(), /^\(٣\) /, 'the tab title carries the unread count');
 
     panel.world.alerts.unshift({ id: id(51), type: 'customer_cancel_requested', title: 'عميل يطلب الإلغاء', body: 'الطلب ELN-TEST-0051', isRead: false, createdAt: ago(0), trackingNumber: 'ELN-TEST-0051', requestId: id(151), storeId: id(91) });
     await panel.page.evaluate(() => AdminAlerts.pollOnce());
     await panel.page.waitForFunction(() => document.querySelectorAll('#alertStripList .alert-item').length === 2);
-    assert.equal(await notes(panel.page), 7, 'three notes for something that needs a decision');
+    assert.equal(await notes(panel.page), 5, 'three more notes for something that needs a decision');
 
     // the same message is not announced twice
     await panel.page.evaluate(() => AdminAlerts.pollOnce());
-    assert.equal(await notes(panel.page), 7);
-    // turning the sound off keeps the strip but stays quiet
+    assert.equal(await notes(panel.page), 5);
+    // pressing the button a while after the audio started is a choice: it turns the sound off, keeps the strip, and stays quiet
+    await panel.page.waitForTimeout(800);
     await panel.page.click('#soundToggle');
     await panel.page.waitForFunction(() => document.querySelector('#soundToggle').dataset.state === 'off');
+    assert.equal(await panel.page.evaluate(() => localStorage.getItem('elan_admin_sound')), '0');
     panel.world.alerts.unshift({ id: id(52), type: 'order_initial', title: 'طلب بلا صوت', body: '', isRead: false, createdAt: ago(0), trackingNumber: 'ELN-TEST-0052', requestId: id(152), storeId: id(91) });
     await panel.page.evaluate(() => AdminAlerts.pollOnce());
     await panel.page.waitForFunction(() => document.querySelectorAll('#alertStripList .alert-item').length === 3);
-    assert.equal(await notes(panel.page), 7);
+    assert.equal(await notes(panel.page), 5);
 
     // reading from the strip removes the card and tells the server
     await panel.page.click(`[data-alert-read="${id(50)}"]`);

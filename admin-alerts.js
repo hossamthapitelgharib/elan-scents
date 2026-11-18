@@ -2,8 +2,10 @@
    - It asks /api/platform-alerts every 15 seconds while the tab is in front (every minute in the background) and silently remembers what is
      already there. Only what arrives AFTER that is an alert: a short two-note chime (when sound is on), a card at the top of the panel that stays until
      it is read or hidden, the number on the «الرسائل» bell and in the tab title, and, if the admin allowed it, a browser notification while the tab is hidden.
-   - Sound is made with the Web Audio API (no file to load). A browser only lets a page make sound after the person has touched it, so «الصوت» is
-     a switch the admin turns on once; after a reload the panel waits for the first tap anywhere and says so on the button («اضغط لتفعيل الصوت»).
+   - Sound is made with the Web Audio API (no file to load). It is ON by default: the admin never has to press the sound button to get it. A browser
+     only lets a page make sound after the person has touched it, so the panel starts the audio itself the moment the page is allowed to (at once where
+     the browser permits, otherwise on the first click, tap or key press ANYWHERE on the page, silently) and until then the button says
+     «اضغط أي مكان لتشغيل الصوت». The button only turns the sound OFF (and back on); that choice is remembered.
    - The choice (sound, browser notifications) is kept in this browser only. It is a convenience, not data: when storage is blocked the panel works
      and simply asks again next time.
    Other pages add their own alerts by calling AdminAttention.set(...) (the overview lists them); this file only owns the platform's messages. */
@@ -33,7 +35,7 @@ const AdminAlerts = (() => {
 
   const state = {
     primed: false, seen: new Set(), unread: 0, firstNotices: 0, strip: [], failures: 0,
-    timer: null, started: false, polling: false, audio: null, soundOn: false, locked: false, desktopOn: false, authHandler: null
+    timer: null, started: false, polling: false, audio: null, soundOn: true, locked: false, gestureAt: 0, desktopOn: false, authHandler: null
   };
   const listeners = [];
 
@@ -98,13 +100,31 @@ const AdminAlerts = (() => {
     if (!on) { state.locked = false; render(); return Promise.resolve(false); }
     return unlock().then(ok => { state.locked = !ok; if (ok) chime('info'); render(); return ok; });
   }
+  /* Sound is on unless the admin turned it off, so the first touch anywhere on the page starts the audio, silently. gestureAt lets the sound button tell
+     that its own press was that first touch (and play the test chime instead of switching the sound off). */
+  const GESTURES = ['pointerdown', 'keydown', 'touchstart'];
+  let gestureHandler = null;
+  function disarmUnlock() {
+    if (!gestureHandler) return;
+    GESTURES.forEach(name => document.removeEventListener(name, gestureHandler, true));
+    gestureHandler = null;
+  }
   function armUnlock() {
-    const gestures = ['pointerdown', 'keydown', 'touchstart'];
-    const handler = () => {
+    if (gestureHandler) return;
+    gestureHandler = () => {
       if (!state.soundOn) return;
-      unlock().then(ok => { state.locked = !ok; if (ok) gestures.forEach(name => document.removeEventListener(name, handler, true)); render(); });
+      unlock().then(ok => {
+        state.locked = !ok;
+        if (ok) { state.gestureAt = Date.now(); disarmUnlock(); }
+        render();
+      });
     };
-    gestures.forEach(name => document.addEventListener(name, handler, true));
+    GESTURES.forEach(name => document.addEventListener(name, gestureHandler, true));
+  }
+  /* Where the browser already allows sound (an installed app, a site the person uses a lot) the audio starts without any touch at all. */
+  function tryStartNow() {
+    if (!(window.AudioContext || window.webkitAudioContext)) return;
+    unlock().then(ok => { if (ok) { state.locked = false; disarmUnlock(); render(); } });
   }
 
   /* ---- browser notifications (only while the tab is hidden: when it is open the card at the top is enough) ---- */
@@ -255,7 +275,7 @@ const AdminAlerts = (() => {
       sound.dataset.state = mode;
       sound.setAttribute('aria-pressed', String(state.soundOn));
       const label = $('#soundLabel');
-      if (label) label.textContent = mode === 'off' ? 'الصوت مغلق' : mode === 'locked' ? 'اضغط لتفعيل الصوت' : 'الصوت يعمل';
+      if (label) label.textContent = mode === 'off' ? 'الصوت مغلق' : mode === 'locked' ? 'اضغط أي مكان لتشغيل الصوت' : 'الصوت يعمل';
     }
     const desktop = $('#desktopToggle');
     if (desktop) {
@@ -276,14 +296,14 @@ const AdminAlerts = (() => {
 
   /* ---- wiring ---- */
   function bind() {
-    state.soundOn = recall(SOUND_KEY) === '1';
+    state.soundOn = recall(SOUND_KEY) !== '0';   // on unless the admin chose off in this browser
     state.locked = state.soundOn;
     state.desktopOn = recall(DESKTOP_KEY) === '1' && desktopSupported() && Notification.permission === 'granted';
-    if (state.soundOn) armUnlock();
+    if (state.soundOn) { armUnlock(); tryStartNow(); }
     const sound = $('#soundToggle');
     if (sound) sound.addEventListener('click', () => {
       if (!state.soundOn) setSound(true);
-      else if (state.locked) unlock().then(ok => { state.locked = !ok; if (ok) chime('info'); render(); });
+      else if (state.locked || Date.now() - state.gestureAt < 700) unlock().then(ok => { state.locked = !ok; if (ok) chime('info'); render(); });
       else setSound(false);
     });
     const test = $('#soundTest');
@@ -314,6 +334,7 @@ const AdminAlerts = (() => {
     state: publicState,
     /* for the unit test */
     _ingest: ingest, _strip: () => state.strip.slice(), _chime: chime, _setAudio(context) { state.audio = context; },
-    _soundOn(value) { state.soundOn = !!value; }
+    _soundOn(value) { state.soundOn = !!value; },
+    _gestureLongAgo() { state.gestureAt = 0; }
   };
 })();

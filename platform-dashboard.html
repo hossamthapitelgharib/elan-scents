@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="robots" content="noindex">
   <title>لوحة إدارة المنصة · Élan Scents</title>
-  <link rel="stylesheet" href="/fonts.css?v=20261117-04">
-  <link rel="stylesheet" href="/portal.css?v=20261117-04">
-  <link rel="stylesheet" href="/admin.css?v=20261117-04">
+  <link rel="stylesheet" href="/fonts.css?v=20261118-01">
+  <link rel="stylesheet" href="/portal.css?v=20261118-01">
+  <link rel="stylesheet" href="/admin.css?v=20261118-01">
 </head>
 <body class="admin" data-own-alerts>
   <a class="skip-link" href="#adminMain">تخطّى إلى المحتوى</a>
@@ -51,7 +51,7 @@
         <button id="menuToggle" class="tool menu-tool" type="button" aria-controls="adminSide" aria-expanded="false" aria-label="القائمة"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
         <h1 id="pageTitle" class="page-title" tabindex="-1">الرئيسية</h1>
         <div class="tools">
-          <button id="soundToggle" class="tool" type="button" aria-pressed="false"><svg class="ic ic-off" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.500v5h3.500L12 18.500v-13L7.500 9.500z"/><path d="m16 9.500 5 5M21 9.500l-5 5"/></svg><svg class="ic ic-on" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z"/><path d="M16 9.2a4 4 0 0 1 0 5.6M18.6 6.6a8 8 0 0 1 0 10.8"/></svg><span id="soundLabel">الصوت مغلق</span></button>
+          <button id="soundToggle" class="tool" type="button" aria-pressed="true" data-state="locked"><svg class="ic ic-off" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.500v5h3.500L12 18.500v-13L7.500 9.500z"/><path d="m16 9.500 5 5M21 9.500l-5 5"/></svg><svg class="ic ic-on" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z"/><path d="M16 9.2a4 4 0 0 1 0 5.6M18.6 6.6a8 8 0 0 1 0 10.8"/></svg><span id="soundLabel">اضغط أي مكان لتشغيل الصوت</span></button>
           <a id="bellLink" class="tool" href="#messages" aria-label="الرسائل"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg><span>الرسائل</span><b id="bellCount" class="bell-count" hidden>0</b></a>
           <button id="refresh" class="tool" type="button" hidden><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.300 5.700M20 4v7h-7"/></svg><span>تحديث</span></button>
           <button id="logout" class="tool" type="button" hidden><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4H5v16h5M15 8l4 4-4 4M19 12H9"/></svg><span>خروج</span></button>
@@ -283,17 +283,17 @@
     </div>
   </div>
 
-  <script src="/auth-session.js?v=20261117-04"></script>
-  <script src="/portal.js?v=20261117-04"></script>
-  <script src="/turnstile.js?v=20261117-04"></script>
-  <script src="/pw-eye.js?v=20261117-04" defer></script>
-  <script src="/admin-common.js?v=20261117-04"></script>
-  <script src="/platform-dashboard.js?v=20261117-04"></script>
-  <script src="/customers-dashboard.js?v=20261117-04"></script>
-  <script src="/stores-dashboard.js?v=20261117-04"></script>
-  <script src="/admin-alerts.js?v=20261117-04"></script>
-  <script src="/admin-notices.js?v=20261117-04"></script>
-  <script src="/admin-messages.js?v=20261117-04"></script>
-  <script src="/admin-shell.js?v=20261117-04"></script>
+  <script src="/auth-session.js?v=20261118-01"></script>
+  <script src="/portal.js?v=20261118-01"></script>
+  <script src="/turnstile.js?v=20261118-01"></script>
+  <script src="/pw-eye.js?v=20261118-01" defer></script>
+  <script src="/admin-common.js?v=20261118-01"></script>
+  <script src="/platform-dashboard.js?v=20261118-01"></script>
+  <script src="/customers-dashboard.js?v=20261118-01"></script>
+  <script src="/stores-dashboard.js?v=20261118-01"></script>
+  <script src="/admin-alerts.js?v=20261118-01"></script>
+  <script src="/admin-notices.js?v=20261118-01"></script>
+  <script src="/admin-messages.js?v=20261118-01"></script>
+  <script src="/admin-shell.js?v=20261118-01"></script>
 </body>
 </html>

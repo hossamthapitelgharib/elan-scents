@@ -14,25 +14,29 @@ function makeNode() {
 }
 const msg = (n, extra = {}) => ({ id: `m${n}`, type: 'order_payment_recorded', title: `تنبيه ${n}`, body: `نص ${n}`, isRead: false, createdAt: '2026-11-15T10:00:00Z', trackingNumber: `ELN-TEST-000${n}`, requestId: null, storeId: null, ...extra });
 
-function boot({ sound = false, hidden = false, permission = 'default', storage = {}, brokenStorage = false } = {}) {
+function boot({ sound = false, hidden = false, permission = 'default', storage = {}, brokenStorage = false, audio = 'running' } = {}) {
   const nodes = new Map(IDS.map(id => [id, makeNode()]));
   nodes.get('#app').hidden = false;
   const countNodes = [makeNode()];
   const store = { ...storage };
-  if (sound) store.elan_admin_sound = '1';
+  // sound: true = chosen on, false = chosen off, 'default' = never chosen (the panel's own default, which is on)
+  if (sound !== 'default') store.elan_admin_sound = sound ? '1' : '0';
+  const registered = [];   // what the page asked the document to listen for
   const document = {
     hidden,
     querySelector: selector => nodes.get(selector) || null,
     querySelectorAll: selector => (selector === '[data-count-for="messages"]' ? countNodes : []),
-    addEventListener() {}, removeEventListener() {}
+    addEventListener(name, fn) { registered.push({ name, fn }); },
+    removeEventListener(name, fn) { const at = registered.findIndex(entry => entry.name === name && entry.fn === fn); if (at >= 0) registered.splice(at, 1); }
   };
   const notifications = [];
   class FakeNotification { constructor(title, options) { this.title = title; this.options = options; notifications.push(this); } close() {} static requestPermission() { return Promise.resolve(FakeNotification.permission); } }
   FakeNotification.permission = permission;
   const played = [];
   const device = {
-    state: 'running', currentTime: 0, destination: {}, resumed: 0,
-    resume() { this.resumed++; this.state = 'running'; return Promise.resolve(); },
+    // audio: 'running' = the browser already allows sound; 'suspended' = like a fresh tab, it starts only after a touch (device.allowed)
+    state: audio, allowed: false, currentTime: 0, destination: {}, resumed: 0,
+    resume() { this.resumed++; if (this.state !== 'running' && !this.allowed) return new Promise(() => {}); this.state = 'running'; return Promise.resolve(); },
     createOscillator() { const o = { frequency: { setValueAtTime: frequency => played.push(frequency) }, connect() {}, start() {}, stop() {} }; return o; },
     createGain() { return { gain: { setValueAtTime() {}, exponentialRampToValueAtTime() {} }, connect() {} }; }
   };
@@ -57,7 +61,19 @@ function boot({ sound = false, hidden = false, permission = 'default', storage =
   vm.runInContext(`${read('admin-alerts.js')}\nglobalThis.AdminAlerts = AdminAlerts;`, context, { filename: 'admin-alerts.js' });
   const alerts = context.AdminAlerts;
   alerts.bind();
-  return { alerts, nodes, countNodes, store, played, device, notifications, calls, context, FakeNotification };
+  const page = {
+    alerts, nodes, countNodes, store, played, device, notifications, calls, context, FakeNotification,
+    // the names of the touches the page waits for (the visibility listener is not one of them)
+    get gestures() { return registered.map(entry => entry.name).filter(name => name !== 'visibilitychange'); },
+    // a click, tap or key press: the browser now allows sound and the page's listener runs
+    async touch() {
+      device.allowed = true;
+      const entry = registered.find(item => item.name === 'pointerdown');
+      if (entry) entry.fn();
+      await new Promise(resolve => setImmediate(resolve));
+    }
+  };
+  return page;
 }
 /* The page is open and its first read happened: this is the baseline every later message is compared with. */
 /* What a poll does with an answer: read it, then draw. */
@@ -161,9 +177,9 @@ test('the sound button says what is happening: off, waiting for a tap, or on', a
   assert.equal(off.nodes.get('#soundLabel').textContent, 'الصوت مغلق');
   assert.equal(off.nodes.get('#soundToggle').attributes['aria-pressed'], 'false');
 
-  const waiting = boot({ sound: true });   // sound was on before the reload: the browser needs one tap
+  const waiting = boot({ sound: true, audio: 'suspended' });   // sound was on before the reload: the browser needs one tap
   assert.equal(waiting.nodes.get('#soundToggle').dataset.state, 'locked');
-  assert.equal(waiting.nodes.get('#soundLabel').textContent, 'اضغط لتفعيل الصوت');
+  assert.equal(waiting.nodes.get('#soundLabel').textContent, 'اضغط أي مكان لتشغيل الصوت');
 
   const click = boot({ sound: false });
   await click.alerts.setSound(true);
@@ -174,6 +190,54 @@ test('the sound button says what is happening: off, waiting for a tap, or on', a
   await click.alerts.setSound(false);
   assert.equal(click.store.elan_admin_sound, '0');
   assert.equal(click.nodes.get('#soundToggle').dataset.state, 'off');
+});
+
+test('the sound is on by itself: nobody has to press the sound button, the first touch anywhere starts it silently', async () => {
+  const fresh = boot({ sound: 'default', audio: 'suspended' });
+  assert.equal(fresh.store.elan_admin_sound, undefined, 'nothing was ever chosen');
+  assert.equal(fresh.alerts.state().soundOn, true, 'it counts as on');
+  assert.equal(fresh.nodes.get('#soundToggle').dataset.state, 'locked', 'until the browser allows audio it says so');
+  assert.equal(fresh.nodes.get('#soundLabel').textContent, 'اضغط أي مكان لتشغيل الصوت');
+  // the first click, tap or key press anywhere on the page
+  assert.deepEqual(fresh.gestures, ['pointerdown', 'keydown', 'touchstart'], 'it waits for exactly those touches, anywhere on the document');
+  await fresh.touch();
+  assert.equal(fresh.nodes.get('#soundToggle').dataset.state, 'on');
+  assert.equal(fresh.nodes.get('#soundLabel').textContent, 'الصوت يعمل');
+  assert.deepEqual(fresh.gestures, [], 'once the audio runs the page stops listening');
+  assert.deepEqual(fresh.played, [], 'starting the audio is silent: a chime would startle the admin for nothing');
+  assert.equal(fresh.store.elan_admin_sound, undefined, 'and it chooses nothing for the admin');
+  // news that comes after that is heard with no button ever pressed
+  prime(fresh, []);
+  arrive(fresh, [msg(1)]);
+  assert.deepEqual(fresh.played, [660, 880]);
+});
+
+test('before the first touch the card still shows and the chime does not throw; a stored «off» beats the default', () => {
+  const locked = boot({ sound: 'default', audio: 'suspended' });
+  prime(locked, []);
+  assert.doesNotThrow(() => arrive(locked, [msg(1)]));
+  assert.deepEqual(locked.played, []);
+  assert.equal(locked.alerts._strip().length, 1);
+  const off = boot({ sound: false });
+  assert.equal(off.nodes.get('#soundToggle').dataset.state, 'off');
+  assert.equal(off.gestures.length, 0, 'an admin who turned it off is not listened for');
+});
+
+test('pressing the sound button as the very first touch plays the test chime instead of switching the sound off', async () => {
+  const page = boot({ sound: 'default', audio: 'suspended' });
+  await page.touch();                    // the pointerdown of that same press starts the audio
+  assert.equal(page.nodes.get('#soundToggle').dataset.state, 'on');
+  page.nodes.get('#soundToggle').listeners.click();   // ...and then the click arrives
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(page.nodes.get('#soundToggle').dataset.state, 'on', 'still on');
+  assert.deepEqual(page.played, [660, 880], 'the admin hears what to expect');
+  assert.notEqual(page.store.elan_admin_sound, '0');
+  // a press a moment later is a real choice: it turns the sound off
+  page.alerts._gestureLongAgo();
+  page.nodes.get('#soundToggle').listeners.click();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(page.store.elan_admin_sound, '0');
+  assert.equal(page.nodes.get('#soundToggle').dataset.state, 'off');
 });
 
 test('a message read elsewhere leaves the card; a card the admin hid does not come back', () => {
@@ -307,7 +371,7 @@ test('blocked browser storage never breaks the panel', () => {
   const page = boot({ brokenStorage: true });
   assert.doesNotThrow(() => { prime(page, []); arrive(page, [msg(1)]); page.alerts.noticesSeen(1); });
   assert.equal(page.alerts._strip().length, 1, 'the card still shows');
-  assert.equal(page.nodes.get('#soundToggle').dataset.state, 'off');
+  assert.equal(page.nodes.get('#soundToggle').dataset.state, 'locked', 'with storage blocked nothing can be remembered, so the default (on) applies');
 });
 
 test('the script keeps its names to itself: one global, no inline handler, no audio file, no network but the alerts API', () => {

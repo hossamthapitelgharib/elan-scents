@@ -7,7 +7,7 @@
    with no sign-in or a made-up one (a 404, an HTML page or a 5xx there means the Worker does not have the endpoint).
    Part B (real Chromium): the sign-in card shows and nothing is blocked; then, with a made-up admin session and made-up answers for every /api call
    (tests/browser/admin-mock.js), all eight pages open on a laptop and a phone, the first notice opens in full, a message is marked read, the
-   sound button plays the chime, and news that arrives appears in the strip with a chime. The made-up answers are given by the browser itself, so no
+   sound starts by itself after the first click anywhere (nobody presses the sound button), and news that arrives appears in the strip with a chime. The made-up answers are given by the browser itself, so no
    real customer, order or account is read or changed. What this cannot check is a real sign-in: that needs the owner's password and the
    "are you a person" box, which no robot gets. Exits 1 when something is not as expected. It uses no secret. */
 const fs = require('node:fs');
@@ -178,17 +178,18 @@ async function fakeSession(browser, size, label) {
   await step(`${label}: sound and news`, async () => {
     if (phone) return;
     expect(await page.evaluate(() => window.__notes) === 0, `${label}: the opening poll was silent`);
-    await page.click('#soundToggle');
+    expect(await page.evaluate(() => AdminAlerts.state().soundOn === true), `${label}: the sound is on without anybody pressing the sound button`);
+    await page.mouse.click(3, 3);
     await page.waitForFunction(() => document.querySelector('#soundToggle').dataset.state === 'on', null, { timeout: 5000 });
-    expect(await page.evaluate(() => window.__notes) === 2, `${label}: the sound button plays the two-note test chime`);
+    expect(await page.evaluate(() => window.__notes) === 0, `${label}: the first click anywhere starts the audio silently`);
     world.alerts.unshift({ id: M.id(50), type: 'order_payment_recorded', title: 'دفع جديد وصل', body: 'الطلب ELN-TEST-0050', isRead: false, createdAt: M.ago(0), trackingNumber: 'ELN-TEST-0050', requestId: M.id(150), storeId: M.id(91) });
     await page.evaluate(() => AdminAlerts.pollOnce());
     await page.waitForSelector('#alertStrip:not([hidden]) .alert-item', { timeout: 8000 });
-    expect(await page.evaluate(() => window.__notes) === 4, `${label}: news that arrives shows a card and plays a chime`);
+    expect(await page.evaluate(() => window.__notes) === 2, `${label}: news that arrives shows a card and plays a chime`);
     world.alerts.unshift({ id: M.id(51), type: 'order_cancelled', title: 'طلب أُلغي', body: 'الطلب ELN-TEST-0051', isRead: false, createdAt: M.ago(0), trackingNumber: 'ELN-TEST-0051', requestId: M.id(151), storeId: M.id(91) });
     await page.evaluate(() => AdminAlerts.pollOnce());
     await page.waitForFunction(() => document.querySelectorAll('#alertStripList .alert-item').length === 2, null, { timeout: 8000 });
-    expect(await page.evaluate(() => window.__notes) === 7, `${label}: a cancellation (stage 1 message) plays the three-note warning`);
+    expect(await page.evaluate(() => window.__notes) === 5, `${label}: a cancellation (stage 1 message) plays the three-note warning`);
     await shot('alert-strip');
   });
 

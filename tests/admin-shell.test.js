@@ -108,7 +108,7 @@ test('the page has no inline script or handler, and the shell owns the five ids 
 });
 
 test('the sound, bell and page-title controls are reachable by keyboard and readers', () => {
-  assert.match(html, /<button id="soundToggle"[^>]*aria-pressed="false"/);
+  assert.match(html, /<button id="soundToggle"[^>]*aria-pressed="true"/);
   assert.match(html, /<a id="bellLink"[^>]*aria-label="[^"]+"/);
   assert.match(html, /<button id="menuToggle"[^>]*aria-controls="adminSide"[^>]*aria-expanded="false"/);
   assert.match(html, /<h1 id="pageTitle"[^>]*tabindex="-1"/);
