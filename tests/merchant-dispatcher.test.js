@@ -60,7 +60,15 @@ test('an endpoint must be https on the default port with a real host name; addre
 test('the message is the frozen order for an order, and only the order, the reason and the time for a cancellation', () => {
   const order = dispatcher.buildMessage(job());
   assert.equal(order.event, 'order');
-  assert.deepEqual(JSON.parse(order.body), ORDER_PAYLOAD);
+  assert.deepEqual(JSON.parse(order.body), {
+    ...ORDER_PAYLOAD,
+    returnUrls: {
+      success: `https://elan-scents.hossamthapitelgharib.workers.dev/payment-return.html?o=${REQUEST_ID}&r=success`,
+      cancel: `https://elan-scents.hossamthapitelgharib.workers.dev/payment-return.html?o=${REQUEST_ID}&r=cancel`
+    }
+  }, 'the order and the two addresses the merchant window sends the customer back to');
+  const custom = dispatcher.returnUrls(REQUEST_ID, 'https://shop.example.com/');
+  assert.equal(custom.success, `https://shop.example.com/payment-return.html?o=${REQUEST_ID}&r=success`);
   const cancel = dispatcher.buildMessage(job({ kind: 'cancel', payload: ORDER_PAYLOAD, cancel: { reason: 'payment_window_closed', cancelledAt: '2026-11-17T10:05:00Z' } }));
   assert.equal(cancel.event, 'order_cancelled');
   assert.deepEqual(JSON.parse(cancel.body), {
