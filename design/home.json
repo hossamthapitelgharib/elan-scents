@@ -3,6 +3,7 @@
   "sections": {},
   "order": [
     "brands",
+    "x-z0l8k",
     "x-qj1gf",
     "x-ikbdf",
     "x-xx3h6",
@@ -146,6 +147,15 @@
         "size": "md"
       },
       "ref": "x-c66m3"
+    },
+    {
+      "id": "x-z0l8k",
+      "type": "smart",
+      "style": {
+        "align": "center",
+        "size": "md"
+      },
+      "ref": "x-pqj72"
     }
   ],
   "texts": {},
@@ -401,6 +411,26 @@
       "card:7fseha": {
         "style": {
           "media": "https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/uploads/2026/a3587284d6c3e7436f94.jpg"
+        }
+      },
+      "card:w4e29p": {
+        "style": {
+          "media": "https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/uploads/2026/5da5aa967433bb5c74cc.jpg"
+        }
+      },
+      "card:12k701n": {
+        "style": {
+          "media": "https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/uploads/2026/016a3c0e701c264111d0.jpg"
+        }
+      },
+      "card:17ag1bx": {
+        "style": {
+          "media": "https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/uploads/2026/0d946e07f0a7d8b09e72.jpg"
+        }
+      },
+      "card:1tl3yp1": {
+        "style": {
+          "media": "https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/uploads/2026/5d651118594be08e7c3f.webp"
         }
       }
     },
