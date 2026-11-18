@@ -432,6 +432,9 @@
         "style": {
           "media": "https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/uploads/2026/5d651118594be08e7c3f.webp"
         }
+      },
+      "x-z0l8k": {
+        "archived": true
       }
     },
     "mobile": {
