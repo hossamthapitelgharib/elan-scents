@@ -163,8 +163,8 @@ async function main() {
         await page.goto(SITE + '/account.html', { waitUntil: 'load' });
         await page.waitForSelector('#app:not([hidden]) .acct-order', { timeout: 20000 }).then(() => ok(`${label}: the orders show`), () => bad(`${label}: the orders did not show`));
         await page.waitForTimeout(1200);
-        log(`HEADLINE ${label}: ` + (await page.locator('#ordersHeadline').innerText().catch(() => '(none)')).replace(/\s+/g, ' '));
-        log(`STATS ${label}: ` + (await page.locator('#stats .acct-stat').allInnerTexts().catch(() => [])).map((t) => t.replace(/\s+/g, ' ').trim()).join(' | '));
+        log(`SUMMARY ${label}: ` + ((await page.locator('.acct-summary, #ordersHeadline, #stats, #archiveSearch, .acct-foot').count()) === 0 ? 'the removed blocks are gone' : 'STILL ON THE PAGE'));
+        log(`CART ${label}: href=${await page.locator('#cartShortcut').getAttribute('href')} icon=${await page.locator('#cartShortcut svg').count()}`);
         const cards = await page.evaluate(() => Array.from(document.querySelectorAll('.acct-order')).map((card) => ({
           list: card.closest('#activeOrders') ? 'active' : card.closest('#recentOrders') ? 'recent' : 'other', past: card.classList.contains('is-past'),
           steps: Array.from(card.querySelectorAll('.acct-steps li')).map((li) => li.className).join(','),

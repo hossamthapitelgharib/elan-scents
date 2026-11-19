@@ -46,8 +46,8 @@ const signIn = store => { store.elan_auth_session = JSON.stringify({ access_toke
 const json = (status, body) => ({ ok: status >= 200 && status < 300, status, headers: { get: () => '' }, json: async () => body });
 
 const ACCOUNT_IDS = ['#loginForm', '#archiveForm', '#loadMoreOrders', '#loadMoreArchive', '#message', '#appMessage', '#login', '#app', '#logout',
-  '#ordersCount', '#stats', '#activeOrders', '#recentOrders', '#archiveOrders', '#archiveSearch', '#archiveYear', '#cartShortcut',
-  '#refreshOrders', '#lastUpdated', '#forgotLink', '#resetForm', '#newPasswordForm', '.auth-links'];
+  '#activeOrders', '#recentOrders', '#archiveOrders', '#archiveYear', '#cartShortcut',
+  '#forgotLink', '#resetForm', '#newPasswordForm', '.auth-links'];
 const DASHBOARD_IDS = ['#authForm', '#authCard', '#authError', '#dashboard', '#ordersError', '#logout', '#lastUpdated', '#refreshBtn', '#loadMoreOrders',
   '#saveSettingsBtn', '#statusFilter', '#matchFilter', '#searchFilter', '#attentionFilter', '#stats', '#orders', '#storeSettings', '#settingsNotice'];
 const CUSTOMERS_IDS = ['#customerTabs', '#registeredAnalytics', '#guestAnalytics', '#loginForm', '#login', '#app', '#logout', '#message', '#customerError', '#customerStats',
@@ -119,7 +119,6 @@ test('my orders: a failed archive search never leaves "searching…" on screen, 
     ? json(502, { ok: false, error: 'supabase_read_failed' })
     : json(200, { sessions: [cancelledSession], pagination: { total: 1, hasMore: false } })));
   nodes.get('#app').hidden = false;
-  nodes.get('#archiveSearch').value = ' TEST ';
 
   await vm.runInContext('loadArchive', context)(null, false).catch(vm.runInContext('showMessage', context));
   const box = nodes.get('#archiveOrders');

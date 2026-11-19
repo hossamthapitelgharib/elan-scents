@@ -20,8 +20,6 @@ const shippingBadgeA = status => { const value = shippingA[status] || ['غير �
 const numA = amount => { const n = Number(amount); return (Number.isFinite(n) ? n : 0).toLocaleString('en-US', { maximumFractionDigits: 2 }); };
 const currencyA = currency => (!currency || currency === 'EGP' ? 'ج.م' : String(currency));
 const moneyA = (amount, currency = 'EGP') => `${numA(amount)} ${escA(currencyA(currency))}`;
-// Arabic counts: one, two, 3-10 plural, 11 and more singular accusative.
-const countA = (n, one, two, few, many) => (n === 1 ? one : n === 2 ? two : n >= 3 && n <= 10 ? `${n} ${few}` : `${n} ${many}`);
 const stateA = request => { const restoration = (request.store_order_cart_restorations || [])[0]; if (restoration && restoration.status === 'restored') return 'restored'; return request.status || 'awaiting_store_confirmation'; };
 const shipmentA = request => (request.store_shipments || [])[0] || null;
 // Cancellation is a REQUEST to the store. What the customer sees is derived from the order itself: the request is
@@ -218,26 +216,12 @@ function fillYears() {
   select.innerHTML = '<option value="">كل السنوات</option>' + years.map(year => `<option value="${year}">${year}</option>`).join('');
   select.dataset.yearsReady = '1';
 }
-// The sentence at the top of the page: what the customer most wants to know first.
-function headlineTextA(requests, active, delivered) {
-  if (!requests.length) return 'لم تطلب شيئًا بعد. عطورك القادمة ستظهر هنا.';
-  // "everything reached you" is said only when that is true: a cancelled order among them keeps the plain sentence.
-  if (!active.length) return delivered.length === requests.length ? 'وصلتك كل طلباتك. نتمنى أن تنال العطور إعجابك.' : 'لا توجد طلبات جارية الآن.';
-  if (active.length === 1) return stateA(active[0]) === 'shipped' ? 'طلبك في الطريق إليك.' : 'عندك طلب واحد قيد المتابعة.';
-  return `عندك ${countA(active.length, '', 'طلبان', 'طلبات', 'طلبًا')} قيد المتابعة.`;
-}
 function renderAccount(sessions) {
   const requests = flatten(sessions);
   const active = requests.filter(request => !terminalA.has(stateA(request)));
   const past = requests.filter(request => terminalA.has(stateA(request))).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-  const completed = past.filter(request => ['completed', 'delivered'].includes(stateA(request)));
   if (cancelDraft && !requests.some(request => String(request.id) === String(cancelDraft.id) && stateA(request) === 'awaiting_store_confirmation' && !cancelAskedA(request))) cancelDraft = null;   // the order moved on: its box is gone
   const restored = requests.filter(request => stateA(request) === 'restored').length;
-  const cancelled = requests.filter(request => cancelEndedA.has(stateA(request))).length;
-  document.querySelector('#ordersCount').textContent = requests.length ? countA(requests.length, 'طلب واحد', 'طلبان', 'طلبات', 'طلبًا') : '';
-  const headline = document.querySelector('#ordersHeadline');
-  if (headline) headline.textContent = headlineTextA(requests, active, completed);
-  document.querySelector('#stats').innerHTML = [['جارية', active.length, 'gold'], ['وصلت', completed.length, 'green'], ['ملغاة', cancelled, 'grey']].filter(item => item[1] > 0).map(item => `<span class="acct-stat ${item[2]}"><b>${item[1]}</b> ${item[0]}</span>`).join('');
   renderList(document.querySelector('#activeOrders'), active, 'لا توجد طلبات جارية الآن.<a href="/">تصفّح العطور</a>');
   renderList(document.querySelector('#recentOrders'), past.slice(0, recentShown), 'لا توجد طلبات سابقة بعد.');
   const more = document.querySelector('#loadMoreOrders');
@@ -261,7 +245,8 @@ async function loadArchive(event, append = false) {
   if (event) event.preventDefault();
   if (archiveLoading) return;
   if (!append) {
-    archiveQuery = { q: document.querySelector('#archiveSearch').value.trim(), year: document.querySelector('#archiveYear').value };
+    const search = document.querySelector('#archiveSearch');   // the order-number box was removed from the page; the query stays a year filter
+    archiveQuery = { q: search ? search.value.trim() : '', year: document.querySelector('#archiveYear').value };
     archiveSessions = []; archiveOffset = 0; archiveTotal = null;
     const box = document.querySelector('#archiveOrders'); box.hidden = false; box.innerHTML = '<div class="empty">جارٍ البحث…</div>';
     document.querySelector('#loadMoreArchive').hidden = true;
@@ -305,8 +290,6 @@ async function loadAccount(append = false, quiet = false) {
     document.querySelector('#logout').hidden = false;
     renderAccount(accountSessions);
     showMessage('');
-    const stamp = document.querySelector('#lastUpdated');
-    if (stamp) stamp.textContent = `آخر تحديث: ${new Date().toLocaleTimeString(LATN, { hour: '2-digit', minute: '2-digit' })}`;
   } finally { more.disabled = false; accountLoading = false; }
 }
 
@@ -425,10 +408,6 @@ document.querySelector('#loadMoreOrders').addEventListener('click', () => {
   loadAccount(true).catch(showMessage);
 });
 document.querySelector('#loadMoreArchive').addEventListener('click', () => loadArchive(null, true).catch(showMessage));
-document.querySelector('#refreshOrders').addEventListener('click', async event => {
-  const button = event.currentTarget; button.disabled = true;
-  try { await loadAccount(); } catch (error) { showMessage(error); } finally { button.disabled = false; }
-});
 document.addEventListener('click', event => { const button = event.target.closest('[data-reorder]'); if (button) reorder(button.dataset.reorder); });
 document.addEventListener('click', event => { const button = event.target.closest('[data-pay-method]'); if (button) payOrder(button.dataset.payRequest, button.dataset.payMethod, button); });
 document.addEventListener('click', event => { const button = event.target.closest('[data-cancel]'); if (button) openCancel(button.dataset.cancel); });

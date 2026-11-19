@@ -423,7 +423,11 @@ if(window.ELAN_EDITOR_PREVIEW){
 window.addEventListener('elan-auth-refreshed',function(e){if(AUTH&&e.detail)AUTH=e.detail});
 window.addEventListener('elan-auth-expired',function(){if(!AUTH)return;AUTH=null;buildMenu();try{toast('انتهت جلسة الدخول، سجّل الدخول من جديد')}catch(e){}});
 window.addEventListener('storage',crossTabAuth);
-render();cartBadge();showFlash();readConfirmLink();loadData();setInterval(function(){if(AUTH&&!document.hidden){if(CART_LOCAL_DIRTY)pushCartToCloud();else syncCartFromCloud(!CART_FIRST_SYNC_DONE)}},5000);setTimeout(restoreCancelledStoreItemsFromToken,1200);var HIDDEN_AT=0;setInterval(function(){if(!document.hidden)loadData()},60000);document.addEventListener('visibilitychange',function(){if(document.hidden){HIDDEN_AT=Date.now()}else if(HIDDEN_AT&&Date.now()-HIDDEN_AT>60000){HIDDEN_AT=0;loadData()}});
+/* A "#cart" link (the cart button on the orders page) opens the cart once the catalog has loaded, so its lines already have names and prices; the hash is cleared so a refresh does not reopen it. */
+var WANT_CART=!window.ELAN_EDITOR_PREVIEW&&/^#cart$/.test(String(location.hash||''));
+if(WANT_CART)try{history.replaceState(null,'',location.pathname+location.search)}catch(e){}
+function openCartFromLink(){if(!WANT_CART)return;WANT_CART=false;try{sheet('cart')}catch(e){}}
+render();cartBadge();showFlash();readConfirmLink();loadData().then(openCartFromLink,openCartFromLink);setInterval(function(){if(AUTH&&!document.hidden){if(CART_LOCAL_DIRTY)pushCartToCloud();else syncCartFromCloud(!CART_FIRST_SYNC_DONE)}},5000);setTimeout(restoreCancelledStoreItemsFromToken,1200);var HIDDEN_AT=0;setInterval(function(){if(!document.hidden)loadData()},60000);document.addEventListener('visibilitychange',function(){if(document.hidden){HIDDEN_AT=Date.now()}else if(HIDDEN_AT&&Date.now()-HIDDEN_AT>60000){HIDDEN_AT=0;loadData()}});
 
 /* Follow Us text links removed; social icons kept */
 (function () {

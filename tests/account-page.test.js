@@ -76,7 +76,7 @@ function page({ hash = '', session = null, cart = [], responder } = {}) {
 const tick = () => new Promise(resolve => setImmediate(resolve));
 
 test('account.html has every element the page script drives, with no inline script or handler', () => {
-  for (const id of ['forgotLink', 'resetForm', 'newPasswordForm', 'refreshOrders', 'lastUpdated', 'loginForm']) assert.match(html, new RegExp(`id="${id}"`), id);
+  for (const id of ['forgotLink', 'resetForm', 'newPasswordForm', 'loginForm']) assert.match(html, new RegExp(`id="${id}"`), id);
   assert.doesNotMatch(html, /<script(?![^>]*\bsrc=)[^>]*>/i, 'no inline <script>');
   assert.doesNotMatch(html, /\son[a-z]+\s*=/i, 'no inline event handler');
   assert.match(html, /id="newPasswordForm"[^>]*hidden/);
@@ -189,11 +189,10 @@ test('the order list refreshes once a minute, backs off while the service fails,
   assert.equal(orderCalls.length, 6);
   assert.match(orderCalls[1], /limit=20/);
 
-  // The first success returns to the one-minute rhythm and stamps the time.
+  // The first success returns to the one-minute rhythm.
   failing = false;
   await fireTimer();
   assert.equal(p.timers.at(-1), 60000);
-  assert.match(p.el('#lastUpdated').textContent, /^آخر تحديث/);
 });
 
 test('"order again" merges the order into the saved cart, caps each line at 99 and goes to the store', () => {

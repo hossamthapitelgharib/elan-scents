@@ -58,7 +58,7 @@ test('the sign-up form carries no policy sentence (owner decision of 2026-11-03,
   assert.ok(!core.includes('auth-consent'), 'and the form no longer draws it');
   assert.ok(!/t\.ac\b/.test(core));
   assert.match(core, /document\.getElementById\('fbar'\)\.innerHTML=[^;]*href="\/privacy\.html"/, 'the footer (drawn by app-core.js) still links to the policy');
-  assert.match(read('account.html'), /href="\/privacy\.html"/, 'so does the account page');
+  assert.doesNotMatch(read('account.html'), /privacy\.html/, 'the account page does not (owner, 18 Nov 2026: the link was removed from "my orders"; the shop footer is the way to the policy)');
 });
 
 test('the only choice on the policy page is to refuse: no accept button, in Arabic or English', () => {
@@ -86,7 +86,7 @@ test('every page that loads the identity script loads the consent script first, 
     assert.match(html, /<link rel="stylesheet" href="\/consent\.css\?v=/, file + ' loads consent.css');
     assert.doesNotMatch(html, /data-consent-open|elan-consent/, file + ' has no consent notice or opener');
   }
-  assert.match(read('account.html'), /<p class="privacy-links"><a href="\/privacy\.html">[^<]+<\/a><\/p>/, 'the account page links the policy');
+  assert.doesNotMatch(read('account.html'), /privacy-links/, 'and the account page carries no policy link of its own');
 });
 
 test('the shop footer links the policy in both languages, and offers no consent button', () => {

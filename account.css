@@ -36,12 +36,12 @@ body.acct:has(#app[hidden]) #portalNotifications { display: none; }
 body.acct .acct-shop { padding: 6px 10px; border-radius: 999px; color: var(--ink); font-size: 13px; font-weight: 600; text-decoration: none; }
 body.acct .acct-shop:hover { background: var(--gold-soft); }
 
-body.acct .cart-shortcut {
-  position: static; inset: auto; display: inline-flex; align-items: center; gap: 8px; padding: 6px 7px 6px 13px; border: 1px solid #d7ad55; border-radius: 999px;
-  background: var(--dark); color: #fff7e5; box-shadow: none; font-size: 13px; font-weight: 600; text-decoration: none; white-space: nowrap;
-}
-body.acct .cart-shortcut b { display: grid; place-items: center; min-width: 24px; height: 24px; padding: 0 5px; border-radius: 999px; background: #c28b28; color: #fff; font-size: 12px; }
-body.acct .cart-shortcut.has-restored span { color: #f5d788; }
+/* the cart shortcut is a "ghost" pill like the logout button (it carries the .ghost class too), with a cart icon and the item count */
+body.acct .cart-shortcut { position: static; inset: auto; display: inline-flex; align-items: center; gap: 6px; box-shadow: none; text-decoration: none; white-space: nowrap; }
+body.acct .cart-shortcut .cart-icon { flex: none; width: 16px; height: 16px; }
+body.acct .cart-shortcut b { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 999px; background: var(--gold); color: #fff; font-size: 11px; font-weight: 700; }
+body.acct .cart-shortcut.has-restored { background: var(--gold-soft); }
+body.acct .cart-shortcut.has-restored span { color: var(--ink); font-weight: 700; }
 
 /* buttons */
 body.acct .ghost, body.acct .primary, body.acct .notification-bell {
@@ -95,23 +95,6 @@ body.acct #message { margin: 12px 0 0; color: var(--red); font-size: 13px; line-
 body.acct #message:empty { display: none; }
 body.acct .platform-error { margin: 14px 0 0; padding: 11px 14px; border: 1px solid #e8c0b8; border-radius: 12px; background: #fff3f0; color: var(--red); font-size: 13px; }
 
-/* the summary at the top of the orders */
-body.acct .acct-summary { position: relative; overflow: hidden; margin: 16px 0 6px; padding: 20px 20px 18px; border: 1px solid #e5d2a7; border-radius: 18px; background: linear-gradient(135deg, #fffdf8, var(--cream)); }
-body.acct .acct-summary::before { content: ''; position: absolute; inset: 0 0 auto 0; height: 4px; background: linear-gradient(90deg, #f3c94f, #c8962a, #8a5e0c); }
-body.acct .acct-headline { margin: 0; font: 700 22px/1.45 'El Messiri', 'IBM Plex Sans Arabic', sans-serif; }
-body.acct .acct-headline:empty { display: none; }
-body.acct .acct-summary-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 12px; }
-body.acct .acct-chip { padding: 3px 12px; border: 1px solid var(--line-strong); border-radius: 999px; background: #fff; color: var(--gold-deep); font-size: 12px; font-weight: 700; white-space: nowrap; }
-body.acct .acct-chip:empty { display: none; }
-body.acct .acct-stats { display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--muted); font-size: 13px; }
-body.acct .acct-stat { display: inline-flex; align-items: center; gap: 6px; }
-body.acct .acct-stat::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #b8b0a0; }
-body.acct .acct-stat.gold::before { background: var(--gold); }
-body.acct .acct-stat.green::before { background: #3f9b62; }
-body.acct .acct-stat b { color: var(--ink); font-size: 15px; }
-body.acct .acct-refresh-row { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
-body.acct .acct-refresh-row .ghost { min-height: 32px; padding: 4px 14px; font-size: 12px; }
-body.acct .acct-refresh-row small { font-size: 12px; }
 body.acct .muted { color: var(--muted); }
 
 /* sections */
@@ -230,30 +213,21 @@ body.acct .order-reorder:hover:not(:disabled) { background: linear-gradient(135d
 body.acct .order-detail .order-reorder { justify-self: start; margin-top: 4px; }
 
 /* looking for an older order */
-body.acct .archive-form { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; margin: 0 0 14px; }
-body.acct .archive-form input, body.acct .archive-form select {
+body.acct .archive-form { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin: 0 0 14px; }
+body.acct .archive-form select {
   min-width: 0; min-height: 44px; padding: 8px 14px; border: 1px solid var(--line-strong); border-radius: 999px; background: #fff; color: var(--ink); font: 400 15px 'IBM Plex Sans Arabic', sans-serif;
 }
-body.acct .archive-form input:focus, body.acct .archive-form select:focus { border-color: var(--gold); outline: 3px solid #c8962a33; outline-offset: 0; }
+body.acct .archive-form select:focus { border-color: var(--gold); outline: 3px solid #c8962a33; outline-offset: 0; }
 body.acct .archive-form .ghost { min-height: 44px; padding-inline: 22px; }
-
-/* the end of the page */
-body.acct .acct-foot { padding: 6px 16px 34px; text-align: center; }
-body.acct .privacy-links { margin: 0; font-size: 12px; }
-body.acct .privacy-links a { color: var(--muted); }
 
 @media (max-width: 600px) {
   body.acct .acct-top { padding-block: 10px; }
   body.acct .acct-nav { order: 3; flex: 1 1 100%; justify-content: space-between; padding-top: 8px; border-top: 1px solid #efe4cf; }
   body.acct .acct-mark b { font-size: 30px; }
   body.acct .acct-h1 { margin-top: 18px; font-size: 30px; }
-  body.acct .acct-summary { padding: 15px 16px; }
-  body.acct .acct-headline { font-size: 19px; }
   body.acct .acct-order { padding: 15px; border-radius: 16px; }
   body.acct .acct-order h3 { font-size: 18px; }
   body.acct .acct-total b { font-size: 17px; }
   body.acct .acct-steps li { font-size: 11px; }
-  body.acct .archive-form { grid-template-columns: 1fr auto; }
-  body.acct .archive-form input { grid-column: 1 / -1; }
   body.acct .acct-order.is-past .acct-order-top { align-items: flex-start; }
 }

@@ -167,9 +167,10 @@ test('6. signed-in account page renders active order, shipping area and order co
   try {
     const page = await openPage(c, '/account.html');
     await page.waitForSelector('#app:not([hidden])');
-    assert.match(await page.locator('#ordersCount').innerText(), /واحد/);
-    assert.match(await page.locator('#ordersHeadline').innerText(), /عندك طلب واحد/);
     assert.match(await page.locator('#activeOrders').innerText(), /ELN-TEST-0001/);
+    // owner, 18 Nov 2026: no rectangle (sentence, count, little stats, refresh button) under the title, no policy link at the bottom
+    assert.equal(await page.locator('.acct-summary, #ordersHeadline, #ordersCount, #stats, #refreshOrders, #lastUpdated').count(), 0);
+    assert.equal(await page.locator('a[href="/privacy.html"], .acct-foot').count(), 0);
     // An order the store has not confirmed yet: its sentence, the four steps with the second one "now", its total, and no empty shipping box.
     assert.match(await page.locator('#activeOrders .acct-order h3').first().innerText(), /المتجر يراجع طلبك/);
     assert.equal(await page.locator('#activeOrders .acct-steps li').count(), 4);
@@ -179,6 +180,11 @@ test('6. signed-in account page renders active order, shipping area and order co
     // The page is styled by its own sheet (the gold wordmark and the card), and the cart link sits in the top bar, not over the content.
     assert.equal(await page.locator('link[href^="/account.css"]').count(), 1);
     assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('#cartShortcut')).position), 'static');
+    // the cart button is the same outline pill as «تسجيل الخروج», with a cart icon, and it points at the shop's cart
+    assert.equal(await page.locator('#cartShortcut').getAttribute('href'), '/#cart');
+    assert.equal(await page.locator('#cartShortcut svg.cart-icon').count(), 1);
+    const look = id => page.evaluate(sel => { const cs = getComputedStyle(document.querySelector(sel)); return [cs.borderTopColor, cs.borderTopWidth, cs.backgroundColor, cs.color, cs.borderTopLeftRadius, cs.fontSize, cs.fontWeight, cs.minHeight].join('|'); }, id);
+    assert.equal(await look('#cartShortcut'), await look('#logout'), 'the cart button looks like the logout button');
     assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.acct-order')).borderRadius !== '0px'), true);
   } finally { await c.context.close(); }
 });
@@ -188,7 +194,9 @@ test('7. account archive search uses the customer order endpoint and does not ex
   try {
     const page = await openPage(c, '/account.html');
     await page.waitForSelector('#app:not([hidden])');
-    await page.locator('#archiveSearch').fill('ELN-TEST-0001');
+    assert.equal(await page.locator('#archiveSearch').count(), 0, 'the order-number box was removed (owner, 18 Nov 2026)');
+    assert.equal(await page.locator('#archiveForm').innerText().then(text => text.includes('ابحث برقم الطلب')), false);
+    assert.equal(await page.locator('#app').innerText().then(text => text.includes('كل طلباتك محفوظة')), false);
     await page.locator('#archiveForm button[type="submit"]').click();
     await page.waitForTimeout(100);
     assert.equal(await page.locator('#archiveOrders').isVisible(), true);
@@ -708,8 +716,8 @@ test('21. the orders page shows every state in the shop\'s own look on a phone: 
     await page.route('**/api/customer-orders*', route => H.safeFulfill(route, { status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, sessions: [{ id: 's1', store_order_requests: orders }], pagination: { total: 4, hasMore: false } }) }));
     await page.goto(H.SITE + '/account.html', { waitUntil: 'load' });
     await page.waitForSelector('#app:not([hidden]) .acct-order');
-    assert.match(await page.locator('#ordersHeadline').innerText(), /عندك طلبان قيد المتابعة/);
-    assert.deepEqual(await page.locator('#stats .acct-stat').allInnerTexts().then(list => list.map(text => text.replace(/\s+/g, ' ').trim())), ['2 جارية', '1 وصلت', '1 ملغاة']);
+    assert.equal(await page.locator('#activeOrders .acct-order').count(), 2);
+    assert.equal(await page.locator('#recentOrders .acct-order').count(), 2);
 
     // shipped: three steps done, the last one "now"; the shipment box and only the first three items (the rest is behind "details")
     const shipped = page.locator('#activeOrders .acct-order').nth(0);
@@ -730,8 +738,7 @@ test('21. the orders page shows every state in the shop\'s own look on a phone: 
     assert.equal(await page.locator('#activeOrders').innerText().then(text => text.includes('ELN-TEST-DDDD')), false);
     // the details the customer opened stay open when the page draws the list again
     assert.equal(await past.locator('details').evaluate(node => node.open), true);
-    await page.click('#refreshOrders');
-    await page.waitForFunction(() => document.querySelector('#refreshOrders').disabled === false);
+    await page.evaluate(() => loadAccount());
     assert.equal(await page.locator('#recentOrders .acct-order.is-past').first().locator('details').evaluate(node => node.open), true, 'an opened card is not shut by a refresh');
 
     // the look: the wordmark in gold, the order cards rounded and white, nothing wider than the phone
@@ -778,9 +785,8 @@ test('21c. asking to cancel an order: the box opens inside the card (no browser 
     assert.match(await page.locator('.cancel-open').innerText(), /ما سبب طلب الإلغاء/);
     assert.equal(bodies.length, 0, 'opening the box sends nothing');
     await page.fill('#cancelReason', 'اخترت المقاس الخطأ');
-    // the list drawn again (a refresh by hand) keeps the box and what was typed
-    await page.click('#refreshOrders');
-    await page.waitForFunction(() => document.querySelector('#refreshOrders').disabled === false);
+    // the list drawn again (the automatic refresh) keeps the box and what was typed
+    await page.evaluate(() => loadAccount());
     assert.equal(await page.inputValue('#cancelReason'), 'اخترت المقاس الخطأ');
     // back closes it, the button is back, and nothing was sent
     await page.click('[data-cancel-back="w1"]');
@@ -797,5 +803,31 @@ test('21c. asking to cancel an order: the box opens inside the card (no browser 
     assert.match(await page.locator('#activeOrders .cancel-pending').innerText(), /بانتظار رده/);
     assert.equal(await page.locator('#cancelReason').count(), 0);
     assert.deepEqual(dialogs, [], 'no browser dialog was shown');
+  } finally { await c.context.close(); }
+});
+
+test('22. the cart button on the orders page opens the shop\'s cart: the shop reads «#cart», opens the cart once the catalog is loaded, and clears the hash so a reload does not reopen it', async () => {
+  const c = await context({ session: CUSTOMER_SESSION });
+  try {
+    const page = await openPage(c, '/account.html');
+    await page.waitForSelector('#app:not([hidden])');
+    await Promise.all([page.waitForURL(url => url.pathname === '/'), page.click('#cartShortcut')]);
+    await page.waitForSelector('#sheet:not([hidden])');
+    assert.equal(await page.locator('#sheet').isVisible(), true, 'the cart is open on arrival');
+    assert.equal(await page.locator('#sheetB .sheet-close').count(), 1);
+    assert.equal(await page.evaluate(() => location.hash), '', 'the hash is cleared');
+    // closing it and reloading does not open it again
+    await page.locator('#sheetB .sheet-close').click();
+    await page.reload({ waitUntil: 'load' });
+    await page.waitForTimeout(400);
+    assert.equal(await page.locator('#sheet').isHidden(), true, 'a reload does not reopen the cart');
+    // an ordinary visit never opens it by itself
+    const plain = await openPage(c, '/');
+    await plain.waitForTimeout(400);
+    assert.equal(await plain.locator('#sheet').isHidden(), true);
+    // and any other hash is not taken for the cart
+    const other = await openPage(c, '/#carts');
+    await other.waitForTimeout(400);
+    assert.equal(await other.locator('#sheet').isHidden(), true);
   } finally { await c.context.close(); }
 });

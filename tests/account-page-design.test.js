@@ -1,5 +1,5 @@
-// The redesigned orders page (account.html + account.css + the render half of account.js): the four steps of an order, the sentence at the top,
-// money and dates in the shop's digits, Arabic counts, what each kind of card shows (and what it must not), and the sheet's own rules.
+// The redesigned orders page (account.html + account.css + the render half of account.js): the four steps of an order, the cart button in the top bar,
+// money and dates in the shop's digits, what each kind of card shows (and what it must not), and the sheet's own rules.
 // account.js runs in a stub page; every order below is made up.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -120,36 +120,21 @@ test('money reads "3,450 ج.م" and dates use the shop\'s digits; a broken date 
   assert.equal(p.run("dateTimeA(undefined)"), '');
 });
 
-test('Arabic counts: one, two, three to ten, eleven and more', () => {
+test('the lists follow the orders, and the old summary rectangle (sentence, count, little stats) is gone for good (owner, 18 Nov 2026)', () => {
   const p = load();
-  const count = n => p.run(`countA(${n}, 'طلب واحد', 'طلبان', 'طلبات', 'طلبًا')`);
-  assert.deepEqual([1, 2, 3, 10, 11, 25].map(count), ['طلب واحد', 'طلبان', '3 طلبات', '10 طلبات', '11 طلبًا', '25 طلبًا']);
-});
-
-test('the sentence at the top and the little counts follow the orders', () => {
-  const p = load();
-  const render = requests => { p.run(`renderAccount([{ id: 's', store_order_requests: ${JSON.stringify(requests)} }])`); return { headline: p.el('#ordersHeadline').textContent, count: p.el('#ordersCount').textContent, stats: p.el('#stats').innerHTML, active: p.el('#activeOrders').innerHTML, recent: p.el('#recentOrders').innerHTML }; };
+  const render = requests => { p.run(`renderAccount([{ id: 's', store_order_requests: ${JSON.stringify(requests)} }])`); return { active: p.el('#activeOrders').innerHTML, recent: p.el('#recentOrders').innerHTML }; };
   const none = render([]);
-  assert.match(none.headline, /لم تطلب شيئًا بعد/);
-  assert.equal(none.count, '');
-  assert.equal(none.stats, '');
   assert.match(none.active, /لا توجد طلبات جارية الآن\.<a href="\/">تصفّح العطور<\/a>/, 'an empty list points back to the shop');
   assert.match(none.recent, /لا توجد طلبات سابقة بعد/);
 
-  const one = render([order({ status: 'processing' })]);
-  assert.equal(one.headline, 'عندك طلب واحد قيد المتابعة.');
-  assert.equal(one.count, 'طلب واحد');
-  assert.equal(render([order({ status: 'shipped' })]).headline, 'طلبك في الطريق إليك.');
-  assert.equal(render([order({ id: 'a' }), order({ id: 'b', status: 'processing' })]).headline, 'عندك طلبان قيد المتابعة.');
-  assert.equal(render([1, 2, 3].map(n => order({ id: `x${n}` }))).headline, 'عندك 3 طلبات قيد المتابعة.');
-
   const mixed = render([order({ id: 'a' }), order({ id: 'b', status: 'delivered' }), order({ id: 'c', status: 'delivered' }), order({ id: 'd', status: 'store_cancelled' })]);
-  assert.equal(mixed.count, '4 طلبات');
-  assert.deepEqual([...mixed.stats.matchAll(/<b>(\d+)<\/b> ([^<]+)</g)].map(match => `${match[1]} ${match[2]}`), ['1 جارية', '2 وصلت', '1 ملغاة']);
-  const allDone = render([order({ status: 'delivered' })]);
-  assert.match(allDone.headline, /وصلتك كل طلباتك/);
-  assert.equal(allDone.stats.includes('جارية'), false, 'a count of zero is not shown');
-  assert.match(render([order({ status: 'store_cancelled' })]).headline, /لا توجد طلبات جارية الآن/);
+  assert.equal((mixed.active.match(/data-id="/g) || []).length, 1, 'one order is still running');
+  assert.equal((mixed.recent.match(/data-id="/g) || []).length, 3, 'delivered and cancelled ones sit together in the recent list');
+
+  for (const gone of ['ordersHeadline', 'ordersCount', 'id="stats"', 'refreshOrders', 'lastUpdated', 'acct-summary', 'acct-chip', 'acct-stat', 'acct-refresh']) assert.equal(html.includes(gone), false, `${gone} is not on the page`);
+  assert.doesNotMatch(css, /acct-summary|acct-headline|acct-chip|acct-stat|acct-refresh/, 'and its rules are not left in the sheet');
+  const script = fs.readFileSync(path.join(root, 'account.js'), 'utf8');
+  for (const dead of ['#ordersHeadline', '#ordersCount', "'#stats'", '#refreshOrders', '#lastUpdated', 'headlineTextA']) assert.equal(script.includes(dead), false, `${dead} is not left in account.js`);
 });
 
 test('every value in the new cards is escaped (store, number, items, shipment, notes)', () => {
@@ -169,13 +154,35 @@ test('account.html is the new page: its own sheet and wordmark, the same ids the
   assert.ok(html.indexOf('/account.css') > html.indexOf('/portal.css'), 'the page sheet comes after the shared one so it wins');
   assert.match(html, /<h1 class="acct-h1">طلباتي<\/h1>/);
   assert.match(html, /THE HOME OF GULF FRAGRANCES/);
-  for (const id of ['login', 'loginForm', 'app', 'appMessage', 'ordersHeadline', 'ordersCount', 'stats', 'refreshOrders', 'lastUpdated', 'activeOrders', 'recentOrders', 'loadMoreOrders', 'archiveForm', 'archiveSearch', 'archiveYear', 'archiveOrders', 'loadMoreArchive', 'cartShortcut', 'logout']) assert.match(html, new RegExp(`id="${id}"`), id);
+  for (const id of ['login', 'loginForm', 'app', 'appMessage', 'activeOrders', 'recentOrders', 'loadMoreOrders', 'archiveForm', 'archiveYear', 'archiveOrders', 'loadMoreArchive', 'cartShortcut', 'logout']) assert.match(html, new RegExp(`id="${id}"`), id);
   assert.equal(html.includes('orders-welcome'), false);
   assert.equal(html.includes('مساحة مختصرة'), false);
   assert.ok(html.indexOf('<header') < html.indexOf('<main'), 'the first <header> is the top bar: the notification bell is added to it by portal.js');
   assert.equal((html.match(/<header/g) || []).length, 1);
   assert.ok(html.indexOf('id="cartShortcut"') < html.indexOf('<main'), 'the cart link is in the top bar, not floating over the orders');
-  assert.match(html, /<footer class="acct-foot">\s*<p class="privacy-links"><a href="\/privacy\.html">[^<]+<\/a><\/p>\s*<\/footer>/);
+  // owner, 18 Nov 2026: no privacy link on this page, no order-number box and no "everything is kept" line over the search
+  assert.equal(html.includes('privacy.html'), false);
+  assert.equal(html.includes('acct-foot'), false);
+  assert.equal(html.includes('archiveSearch'), false);
+  assert.equal(html.includes('كل طلباتك محفوظة'), false);
+  assert.match(html, /<h2 id="archiveTitle">ابحث في طلباتك<\/h2>/, 'the search block keeps its heading');
+  assert.match(html, /<select id="archiveYear"[^>]*>[\s\S]*?<button class="ghost" type="submit">بحث<\/button>/, 'the year filter and the search button stay');
+});
+
+test('the cart button: an outline pill like «تسجيل الخروج» (it carries the same .ghost class), a cart icon, the count, and a link that opens the shop\'s cart (owner, 18 Nov 2026)', () => {
+  const tag = html.match(/<a id="cartShortcut"[^>]*>([\s\S]*?)<\/a>/);
+  assert.ok(tag, 'the cart link exists');
+  assert.match(tag[0], /class="cart-shortcut ghost"/);
+  assert.match(tag[0], /href="\/#cart"/, 'it opens the cart, not just the shop front page');
+  assert.match(tag[1], /<svg class="cart-icon"[^>]*aria-hidden="true"/, 'with a cart icon that screen readers skip');
+  assert.match(tag[1], /<span>السلة<\/span><b>0<\/b>/, 'the word and the count stay');
+  assert.match(html, /<button id="logout" class="ghost" hidden>/, 'the logout button is the model of the look');
+  // it is not the old dark pill any more
+  const rule = (css.match(/body\.acct \.cart-shortcut \{[^}]*\}/) || [''])[0];
+  assert.match(rule, /position: static/);
+  assert.doesNotMatch(rule, /background|border:|color:/, 'colours and border come from .ghost, like the logout button');
+  assert.doesNotMatch(css, /var\(--dark\)/, 'no dark pill is left in the sheet');
+  assert.match(css, /body\.acct \.acct-nav \.ghost \{[^}]*min-height: 36px/, 'the pills in the top bar share one size');
 });
 
 test('account.css keeps the identity of the shop, is served as an immutable shared file, and touches nothing outside this page', () => {
@@ -200,9 +207,9 @@ test('account.css keeps the identity of the shop, is served as an immutable shar
   assert.match(css, /prefers-reduced-motion/, 'the pulse of the current step respects reduced motion');
 });
 
-test('a cancelled order is listed with the finished ones (newest first), and the sentence on top does not claim everything arrived', () => {
+test('a cancelled order is listed with the finished ones (newest first)', () => {
   const p = load();
-  const render = requests => { p.run(`renderAccount([{ id: 's', store_order_requests: ${JSON.stringify(requests)} }])`); return { headline: p.el('#ordersHeadline').textContent, recent: p.el('#recentOrders').innerHTML }; };
+  const render = requests => { p.run(`renderAccount([{ id: 's', store_order_requests: ${JSON.stringify(requests)} }])`); return { recent: p.el('#recentOrders').innerHTML }; };
   const mixed = render([
     order({ id: 'old', tracking_number: 'ELN-OLD', status: 'delivered', created_at: '2026-09-01T10:00:00Z' }),
     order({ id: 'gone', tracking_number: 'ELN-GONE', status: 'store_cancelled', created_at: '2026-10-20T10:00:00Z' }),
@@ -212,8 +219,6 @@ test('a cancelled order is listed with the finished ones (newest first), and the
   assert.match(mixed.recent, /أُلغي الطلب وأُعيدت المنتجات/);
   assert.match(mixed.recent, /عادت المنتجات إلى السلة/);
   assert.match(mixed.recent, /تم التسليم/);
-  assert.equal(mixed.headline, 'لا توجد طلبات جارية الآن.', 'a cancelled order among them: no "everything reached you"');
-  assert.match(render([order({ id: 'a', status: 'delivered' }), order({ id: 'b', status: 'completed' })]).headline, /وصلتك كل طلباتك/);
 });
 
 test('the list of finished orders shows five, "show older orders" adds five more from what is already read, and asks the server only when nothing is left', async () => {

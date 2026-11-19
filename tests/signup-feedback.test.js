@@ -240,7 +240,7 @@ test('ordinary addresses are not touched: menu anchors, a link of another kind a
 });
 
 test('the page starts the check when it loads, and the editor preview never does', () => {
-  assert.match(CORE, /render\(\);cartBadge\(\);showFlash\(\);readConfirmLink\(\);loadData\(\);/);
+  assert.match(CORE, /render\(\);cartBadge\(\);showFlash\(\);readConfirmLink\(\);loadData\(\)(\.then\(openCartFromLink,openCartFromLink\))?;/);
   const c = confirmPage(LINK);
   c.context.ELAN_EDITOR_PREVIEW = true;
   return c.run().then((result) => { assert.equal(result, false); assert.equal(c.log.fetched.length, 0); });
