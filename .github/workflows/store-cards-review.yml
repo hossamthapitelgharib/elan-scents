@@ -1,0 +1,51 @@
+name: Store cards review
+
+# Opens the PUBLISHED home page from a GitHub runner, which can reach the site (the Claude sandbox cannot), in a real Chromium on a phone and a laptop and measures
+# every card of every section (brands, categories, occasions, notes, master pieces, stores) and every banner: the picture's own size, how it is fitted, how much of it is
+# cut off or left empty, and the text written inside the card. scripts/store-cards-review.js prints those lines and one screenshot per section as text (IMG|) in the log;
+# `node scripts/store-cards-review.js --decode <log> <dir>` turns them back into pictures. It only reads the public site, never fails the run, and sends nothing.
+# Run it by hand from the Actions tab (Run workflow), or it runs when the script or this file changes.
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: Site address to review
+        default: https://elan-scents.hossamthapitelgharib.workers.dev
+  push:
+    paths:
+      - scripts/store-cards-review.js
+      - .github/workflows/store-cards-review.yml
+
+permissions:
+  contents: read
+
+jobs:
+  review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Playwright
+        run: npm ci --no-audit --no-fund
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Review the published home page cards
+        shell: bash
+        env:
+          SITE_URL: ${{ github.event.inputs.url || 'https://elan-scents.hossamthapitelgharib.workers.dev' }}
+        run: node scripts/store-cards-review.js "$SITE_URL" store-cards-shots 2>&1 | tee store-cards.log; exit "${PIPESTATUS[0]}"
+      - name: Show the result in the run summary
+        if: always()
+        run: |
+          { echo '### Store cards review'; echo '```'; grep -E '^(FAIL|[0-9]+ problem|Everything)' store-cards.log || echo 'no result line (the script stopped early)'; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - name: Keep the screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: store-cards-shots
+          path: store-cards-shots
+          if-no-files-found: ignore
