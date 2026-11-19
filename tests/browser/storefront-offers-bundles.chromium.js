@@ -34,22 +34,23 @@ const MESSAGES = [
   { offer_id: id(203), store_id: S1, store_name: STORES[S1], product_size_id: SZ.E, kind: 'offer', title: 'رسالة متجر ألف على عطر هاء', description: '', ends_at: null },
   { offer_id: id(204), store_id: S1, store_name: STORES[S1], product_size_id: null, kind: 'offer', title: 'شحن مجاني فوق 1500', description: '', ends_at: null }
 ];
+// A bundle stands on its own: the store's OWN title and full description (with line breaks) and pieces written as the store listed them, with no catalog id.
 const BUNDLE_OFFERS = [
-  { store_bundle_id: id(300), bundle_id: B1, store_id: S1, store_name: STORES[S1], price: '300.00', currency: 'EGP', stock_quantity: 5, price_includes_tax: true, price_includes_shipping: false },
-  { store_bundle_id: id(301), bundle_id: B2, store_id: S2, store_name: STORES[S2], price: '450.00', currency: 'EGP', stock_quantity: 2, price_includes_tax: true, price_includes_shipping: false },
-  { store_bundle_id: id(302), bundle_id: B3, store_id: S1, store_name: STORES[S1], price: '10.00', currency: 'EGP', stock_quantity: 0, price_includes_tax: true, price_includes_shipping: false }
+  { store_bundle_id: id(300), bundle_id: B1, store_id: S1, store_name: STORES[S1], title: 'باقة الهدايا (عنوان المتجر)', description: 'السطر الأول\nالسطر الثاني <img src=x onerror="window.__xss=2">', price: '300.00', currency: 'EGP', stock_quantity: 5, price_includes_tax: true, price_includes_shipping: false },
+  { store_bundle_id: id(301), bundle_id: B2, store_id: S2, store_name: STORES[S2], title: 'باقة مع قطعة إضافية', description: null, price: '450.00', currency: 'EGP', stock_quantity: 2, price_includes_tax: true, price_includes_shipping: false },
+  { store_bundle_id: id(302), bundle_id: B3, store_id: S1, store_name: STORES[S1], title: 'باقة نفدت', description: '', price: '10.00', currency: 'EGP', stock_quantity: 0, price_includes_tax: true, price_includes_shipping: false }
 ];
 const BUNDLES = [
-  { id: B1, brand_name: 'ماركة', name: 'باقة الهدايا', slug: 'gifts', description: '', has_extra_items: false },
-  { id: B2, brand_name: 'ماركة', name: 'باقة مع قطعة إضافية', slug: 'extra', description: '', has_extra_items: true },
-  { id: B3, brand_name: 'ماركة', name: 'باقة نفدت', slug: 'gone', description: '', has_extra_items: false }
+  { id: B1, brand_name: 'ماركة', name: 'اسم داخلي ١', slug: 'gifts', has_extra_items: false },
+  { id: B2, brand_name: 'ماركة', name: 'اسم داخلي ٢', slug: 'extra', has_extra_items: true },
+  { id: B3, brand_name: 'ماركة', name: 'باقة نفدت', slug: 'gone', has_extra_items: false }
 ];
 const ITEMS = [
-  { bundle_id: B1, product_size_id: SZ.A, quantity: 2, product_name: NAMES.A, size_label: '100 مل' },
-  { bundle_id: B1, product_size_id: SZ.E, quantity: 1, product_name: NAMES.E, size_label: '100 مل' },
-  { bundle_id: B2, product_size_id: SZ.A, quantity: 1, product_name: NAMES.A, size_label: '100 مل' },
-  { bundle_id: B2, product_size_id: SZ.E, quantity: 1, product_name: NAMES.E, size_label: '100 مل' },
-  { bundle_id: B3, product_size_id: SZ.A, quantity: 1, product_name: NAMES.A, size_label: '100 مل' }
+  { bundle_id: B1, quantity: 2, brand_name: 'ماركة', product_name: NAMES.A, size_ml: 100 },
+  { bundle_id: B1, quantity: 1, brand_name: null, product_name: NAMES.E, size_ml: 30 },
+  { bundle_id: B2, quantity: 1, brand_name: 'ماركة', product_name: NAMES.A, size_ml: 100 },
+  { bundle_id: B2, quantity: 1, brand_name: null, product_name: NAMES.E, size_ml: 12 },
+  { bundle_id: B3, quantity: 1, brand_name: 'ماركة', product_name: NAMES.A, size_ml: 100 }
 ];
 const TABLES = {
   public_brands: [{ name: 'ماركة', slug: 'brand' }],
@@ -108,12 +109,19 @@ test('«باقات وعروض»: perfumes with their own store\'s message, store
     const bundles = await page.evaluate(() => [...document.querySelectorAll('.bgrid .card')].map((c) => ({
       name: c.querySelector('h4').textContent.trim(), price: c.querySelector('.price').textContent.replace(/\s+/g, ''), items: [...c.querySelectorAll('.bitems li')].map((li) => li.textContent.replace(/\s+/g, ' ').trim()),
       cart: c.querySelectorAll('button, [data-add], .cartb, [data-go]').length, extra: !!c.querySelector('.bextra'), tag: c.querySelector('.otag').textContent })));
-    assert.deepEqual(bundles.map((b) => [b.name, b.price]), [['باقة الهدايا', '300EGP'], ['باقة مع قطعة إضافية', '450EGP']], 'cheapest first; the sold-out bundle is nowhere');
-    assert.deepEqual(bundles[0].items, ['2× عطر ألف · 100 مل', '1× عطر هاء · 100 مل']);
+    assert.deepEqual(bundles.map((b) => [b.name, b.price]), [['باقة الهدايا (عنوان المتجر)', '300EGP'], ['باقة مع قطعة إضافية', '450EGP']], 'the store\'s own titles, cheapest first; the sold-out bundle is nowhere');
+    assert.deepEqual(bundles[0].items, ['2× ماركة عطر ألف · 100 مل', '1× عطر هاء · 30 مل'], 'the pieces as the store listed them, a size that no single perfume has included');
     assert.equal(bundles[0].extra, false);
     assert.equal(bundles[1].extra, true, 'a package with extra pieces says so');
     assert.deepEqual(bundles.map((b) => b.cart), [0, 0], 'a bundle cannot be bought yet: no button, no link');
     assert.deepEqual(bundles.map((b) => b.tag), ['باقة', 'باقة']);
+    // the store's own description: only the bundle whose store wrote one has the block; it starts closed and opens to the whole text, line breaks kept
+    const blocks = await page.evaluate(() => [...document.querySelectorAll('.bgrid .card')].map((c) => { const d = c.querySelector('details.bdesc'); return d ? { open: d.open, summary: d.querySelector('summary').textContent.trim(), imgs: d.querySelectorAll('img').length } : null; }));
+    assert.deepEqual(blocks, [{ open: false, summary: 'تفاصيل الباقة كما كتبها المتجر', imgs: 0 }, null], 'a closed details block only on the bundle that has a store description; nothing from the store became markup');
+    await page.click('.bgrid .card:first-child details.bdesc summary');
+    const text = await page.evaluate(() => document.querySelector('.bgrid .card:first-child .btext').innerText);
+    assert.equal(text, 'السطر الأول\nالسطر الثاني <img src=x onerror="window.__xss=2">', 'the whole description, exactly as the store wrote it, markup shown as text');
+    assert.equal(await page.evaluate(() => window.__xss), undefined, 'nothing a store wrote ran');
     await shot(page, 'offers-page');
     assert.ok(await noSideScroll(page), 'no sideways scroll on the offers page');
     assert.deepEqual(errors, []);

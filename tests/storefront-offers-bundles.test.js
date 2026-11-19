@@ -21,28 +21,30 @@ function sandbox({ lang = 'ar', F = { sec: '' }, offerFor = () => null } = {}) {
 }
 const run = (context, code) => vm.runInContext(code, context);
 
+// A bundle row has the STORE's own title and description and its pieces are plain text (brand, name, size in ml): no link to the perfume catalog.
 const bundleRows = () => ({
   po: [
-    { store_bundle_id: 'sb2', bundle_id: 'b2', store_id: 's2', store_name: 'متجر باء', price: '450.00', currency: 'EGP', stock_quantity: 2 },
-    { store_bundle_id: 'sb1', bundle_id: 'b1', store_id: 's1', store_name: 'متجر ألف', price: '300.00', currency: 'EGP', stock_quantity: 5 },
-    { store_bundle_id: 'sb3', bundle_id: 'b3', store_id: 's1', store_name: 'متجر ألف', price: '100.00', currency: 'EGP', stock_quantity: 0 },
-    { store_bundle_id: 'sb4', bundle_id: 'b4', store_id: 's1', store_name: 'متجر ألف', price: '90.00', currency: 'USD', stock_quantity: 4 },
-    { store_bundle_id: 'sb5', bundle_id: 'b5', store_id: 's1', store_name: 'متجر ألف', price: '80.00', currency: 'EGP', stock_quantity: 4 },
-    { store_bundle_id: 'sb6', bundle_id: 'b1', store_id: 's2', store_name: 'متجر باء', price: '250.00', currency: 'EGP', stock_quantity: 4 }
+    { store_bundle_id: 'sb2', bundle_id: 'b2', store_id: 's2', store_name: 'متجر باء', title: 'باقة بقطعة إضافية', description: null, price: '450.00', currency: 'EGP', stock_quantity: 2 },
+    { store_bundle_id: 'sb1', bundle_id: 'b1', store_id: 's1', store_name: 'متجر ألف', title: 'باقة <b>الهدايا</b>', description: 'السطر الأول\nالسطر الثاني <script>x</script>', price: '300.00', currency: 'EGP', stock_quantity: 5 },
+    { store_bundle_id: 'sb3', bundle_id: 'b3', store_id: 's1', store_name: 'متجر ألف', title: 'نفدت', description: '', price: '100.00', currency: 'EGP', stock_quantity: 0 },
+    { store_bundle_id: 'sb4', bundle_id: 'b4', store_id: 's1', store_name: 'متجر ألف', title: 'دولار', description: '', price: '90.00', currency: 'USD', stock_quantity: 4 },
+    { store_bundle_id: 'sb5', bundle_id: 'b5', store_id: 's1', store_name: 'متجر ألف', title: 'بلا بنود', description: '', price: '80.00', currency: 'EGP', stock_quantity: 4 },
+    { store_bundle_id: 'sb6', bundle_id: 'b1', store_id: 's2', store_name: 'متجر باء', title: 'عنوان متجر باء', description: 'وصف آخر', price: '250.00', currency: 'EGP', stock_quantity: 4 }
   ],
   pb: [
-    { id: 'b1', brand_name: 'ماركة', name: 'باقة <b>الهدايا</b>', has_extra_items: false },
-    { id: 'b2', brand_name: null, name: 'باقة بقطعة إضافية', has_extra_items: true },
+    { id: 'b1', brand_name: 'ماركة', name: 'اسم داخلي', has_extra_items: false },
+    { id: 'b2', brand_name: null, name: 'باقة بقطعة إضافية (اسم المنصة)', has_extra_items: true },
     { id: 'b3', brand_name: 'ماركة', name: 'نفدت', has_extra_items: false },
     { id: 'b4', brand_name: 'ماركة', name: 'دولار', has_extra_items: false },
     { id: 'b5', brand_name: 'ماركة', name: 'بلا بنود', has_extra_items: false }
   ],
   pi: [
-    { bundle_id: 'b1', product_size_id: 'z1', quantity: 2, product_name: 'عطر <img src=x onerror=alert(1)>', size_label: '100 مل' },
-    { bundle_id: 'b1', product_size_id: 'z2', quantity: 1, product_name: 'عطر ثان', size_label: '50 مل' },
-    { bundle_id: 'b2', product_size_id: 'z1', quantity: 3, product_name: 'عطر ثالث', size_label: '' },
-    { bundle_id: 'b3', product_size_id: 'z1', quantity: 1, product_name: 'x', size_label: '1' },
-    { bundle_id: 'b4', product_size_id: 'z1', quantity: 1, product_name: 'x', size_label: '1' }
+    { bundle_id: 'b1', quantity: 2, brand_name: 'ماركة', product_name: 'عطر <img src=x onerror=alert(1)>', size_ml: 100 },
+    { bundle_id: 'b1', quantity: 1, brand_name: null, product_name: 'عطر ثان', size_ml: 30 },
+    { bundle_id: 'b1', quantity: 1, brand_name: 'ماركة', product_name: '', size_ml: 5 },
+    { bundle_id: 'b2', quantity: 3, brand_name: null, product_name: 'عطر ثالث', size_ml: null },
+    { bundle_id: 'b3', quantity: 1, brand_name: null, product_name: 'x', size_ml: 1 },
+    { bundle_id: 'b4', quantity: 1, brand_name: null, product_name: 'x', size_ml: 1 }
   ]
 });
 
@@ -58,23 +60,44 @@ test('the block is the only place the storefront reads offers, bundles and disco
   assert.match(core, /h\+=\(x\.id=='soon'\?'':x\.id=='master'\?chips\(\):filterPanel\(l\)\)\+'<div id="res" class="grid"><\/div>'\+\(x\.id=='offers'\?offersExtra\(\):''\)/, 'the bundles and store messages sit below the perfumes of «عروض وخصومات» only');
 });
 
-test('bundles: only real offers with items, one per bundle, cheapest first, no way to buy yet', () => {
+test('bundles: only real offers with pieces, one per bundle, cheapest first, no way to buy yet', () => {
   const c = sandbox();
   const { po, pb, pi } = bundleRows();
   c.__po = po; c.__pb = pb; c.__pi = pi;
   run(c, 'buildOfferData(__po,__pb,__pi,[])');
   assert.deepEqual(JSON.parse(run(c, 'JSON.stringify(BUNDLES.map(function(b){return[b.id,b.price,b.store]}))')), [['b1', 300, 'متجر ألف'], ['b2', 450, 'متجر باء']],
-    'sold out, non-EGP, item-less rows never show; the first (cheapest, as the database ordered it) offer per bundle wins');
+    'sold out, non-EGP, piece-less rows never show; the first (cheapest, as the database ordered it) offer per bundle wins');
   const html = run(c, 'BUNDLES.map(bundleCard).join("")');
   assert.doesNotMatch(html, /data-add|cartb|<button|data-go/, 'a bundle card has no cart button and goes nowhere until the order flow is ready');
-  assert.match(html, /<b>2×<\/b>/);
-  assert.match(html, /<b>3×<\/b> عطر ثالث<\/li>/, 'an empty size label leaves no dangling separator');
+  assert.match(html, /<b>2×<\/b> <span class="bbr">ماركة<\/span> عطر .* · 100 مل<\/li>/, 'a piece shows its quantity, brand, name and size exactly as the store listed it');
+  assert.match(html, /<b>1×<\/b> عطر ثان · 30 مل<\/li>/, 'a piece with no brand shows no empty brand tag');
+  assert.match(html, /<b>3×<\/b> عطر ثالث<\/li>/, 'a piece with no size leaves no dangling separator');
+  assert.equal((html.match(/<li><b>/g) || []).length, 3, 'a piece with no name is skipped');
   assert.match(html, /bextra/, 'a package with extra pieces says so');
   assert.equal((html.match(/bextra/g) || []).length, 1, 'only the package that has extra pieces');
   assert.match(html, /<span class="price">300<small>EGP<\/small><\/span>/);
 });
 
-test('everything a store wrote is escaped: bundle names, item names, store names, messages', () => {
+test('a bundle is shown with the store\'s OWN title and its FULL description, never a platform wording', () => {
+  const c = sandbox();
+  const { po, pb, pi } = bundleRows();
+  c.__po = po; c.__pb = pb; c.__pi = pi;
+  run(c, 'buildOfferData(__po,__pb,__pi,[])');
+  const html = run(c, 'BUNDLES.map(bundleCard).join("")');
+  assert.match(html, /<h4>باقة &lt;b&gt;الهدايا&lt;\/b&gt;<\/h4>/, 'the title is the store\'s, not the platform\'s internal name');
+  assert.doesNotMatch(html, /اسم داخلي|عنوان متجر باء/, 'neither the platform name nor the title of a store whose offer is not shown');
+  assert.match(html, /<h4>باقة بقطعة إضافية<\/h4>/);
+  assert.match(html, /<details class="bdesc"><summary>تفاصيل الباقة كما كتبها المتجر<\/summary><div class="btext">السطر الأول\nالسطر الثاني &lt;script&gt;x&lt;\/script&gt;<\/div><\/details>/,
+    'the description is kept whole, with its line breaks, escaped, behind one closed details block');
+  assert.equal((html.match(/<details/g) || []).length, 1, 'a bundle whose store wrote no description has no details block');
+  const noTitle = sandbox();
+  noTitle.__po = [{ store_bundle_id: 'x', bundle_id: 'b1', store_id: 's1', store_name: 'متجر', title: null, description: null, price: '10', currency: 'EGP', stock_quantity: 1 }];
+  noTitle.__pb = [pb[0]]; noTitle.__pi = [pi[0]];
+  run(noTitle, 'buildOfferData(__po,__pb,__pi,[])');
+  assert.match(run(noTitle, 'BUNDLES.map(bundleCard).join("")'), /<h4>اسم داخلي<\/h4>/, 'only if the offer carries no title at all does the card fall back to the bundle\'s own name');
+});
+
+test('everything a store wrote is escaped: bundle titles, descriptions, pieces, store names, messages', () => {
   const c = sandbox({ offerFor: () => ({ storeId: 's1' }) });
   const { po, pb, pi } = bundleRows();
   c.__po = po; c.__pb = pb; c.__pi = pi;
@@ -157,4 +180,24 @@ test('with no data at all the offers page still renders (nothing breaks when the
   assert.equal(run(c, 'BUNDLES.length'), 0);
   assert.match(run(c, 'offersExtra()'), /لا توجد باقات متاحة الآن/);
   assert.doesNotMatch(run(c, 'offersExtra()'), /osec">عروض المتاجر/, 'no store-message heading when there is no message');
+});
+
+test('the English page says «ml» and the details label in English', () => {
+  const c = sandbox({ lang: 'en' });
+  const { po, pb, pi } = bundleRows();
+  c.__po = po; c.__pb = pb; c.__pi = pi;
+  run(c, 'buildOfferData(__po,__pb,__pi,[])');
+  const html = run(c, 'BUNDLES.map(bundleCard).join("")');
+  assert.match(html, / · 100 ml<\/li>/);
+  assert.match(html, /<summary>The bundle details, as written by the store<\/summary>/);
+});
+
+test('the storefront asks for exactly the columns of the stand-alone bundle views and builds pieces without any catalog id', () => {
+  const loader = core.slice(core.indexOf('async function loadData(){'), core.indexOf('\nvar FT=', core.indexOf('async function loadData(){')));
+  assert.ok(loader.includes("ga('catalog_platform_bundle_offers?select=store_bundle_id,bundle_id,store_id,store_name,title,description,price,currency,stock_quantity,price_includes_tax,price_includes_shipping&order=bundle_id.asc')"));
+  assert.ok(loader.includes("ga('public_bundles?select=id,brand_name,name,slug,has_extra_items&order=id.asc')"));
+  assert.ok(loader.includes("ga('public_bundle_items?select=bundle_id,quantity,brand_name,product_name,size_ml&order=bundle_id.asc,product_name.asc,size_ml.asc')"));
+  const line = block.split('\n').find((l) => l.startsWith('(pi||[]).forEach('));
+  assert.ok(line, 'the piece-building line is found');
+  assert.doesNotMatch(line, /product_size_id|size_label/, 'a piece has no link to the perfume catalog');
 });

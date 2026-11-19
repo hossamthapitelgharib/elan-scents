@@ -2,8 +2,9 @@
 -- Run on the live database as the project owner inside this one transaction; every fixture row is synthetic and the final
 -- ROLLBACK discards all of it.
 --
---   * the four public bundle views are security_invoker views over granted functions, and public_bundle_items names each perfume
---     (a perfume sold only inside a bundle has no standalone offer, so the storefront could not name it otherwise);
+--   * the four public bundle views are security_invoker views over granted functions, and public_bundle_items lists each piece as the
+--     store wrote it (brand, name, size in ml: since 20261119112905 a bundle stands on its own and is never tied to the perfume catalog,
+--     so a perfume sold only inside a bundle, or an exclusive size, is named by the bundle's own text);
 --   * an OFFER (عرض) is a promotional MESSAGE of the store with no price change; the public view carries the message only (trimmed
 --     and capped), never a discount number, and shows exactly what the offers table already showed publicly (active, inside its
 --     dates, active store) minus messages on perfumes that are not published;
@@ -66,11 +67,13 @@ begin
 
   -- 1. the bundle views --------------------------------------------------------------------------------------------------------------
   insert into public.bundles (id, brand_id, name, slug, status) values (v_bundle, v_brand, 'Messages package', 'msg-bnd-' || v_bundle::text, 'published');
-  insert into public.bundle_items (bundle_id, product_size_id, quantity) values (v_bundle, v_s1, 2), (v_bundle, v_s2, 1);
-  insert into public.store_bundles (store_id, bundle_id, price, stock_quantity, is_available, sync_status) values (v_a, v_bundle, 500, 3, true, 'synced');
+  insert into public.bundle_items (bundle_id, item_brand, item_name, size_ml, quantity) values
+    (v_bundle, 'Offer Messages Contract', 'Messages Perfume One', 100, 2), (v_bundle, 'Offer Messages Contract', 'Messages Perfume Two', 50, 1);
+  insert into public.store_bundles (store_id, bundle_id, title, description, price, stock_quantity, is_available, sync_status) values (v_a, v_bundle, 'Messages package (the store''s title)', 'The store''s own text', 500, 3, true, 'synced');
   insert into public.bundles (id, brand_id, name, slug, status) values (v_bundle_h, v_brand, 'Messages hidden package', 'msg-bndh-' || v_bundle_h::text, 'published');
-  insert into public.bundle_items (bundle_id, product_size_id, quantity) values (v_bundle_h, v_sh, 1), (v_bundle_h, v_s2, 1);
-  insert into public.store_bundles (store_id, bundle_id, price, stock_quantity, is_available, sync_status) values (v_a, v_bundle_h, 400, 3, true, 'synced');
+  insert into public.bundle_items (bundle_id, item_brand, item_name, size_ml, quantity) values
+    (v_bundle_h, 'Offer Messages Contract', 'Messages Hidden Perfume', 100, 1), (v_bundle_h, 'Offer Messages Contract', 'Messages Perfume Two', 50, 1);
+  insert into public.store_bundles (store_id, bundle_id, title, price, stock_quantity, is_available, sync_status) values (v_a, v_bundle_h, 'Messages package with a hidden perfume', 400, 3, true, 'synced');
 
   select count(*) into v_inv from pg_class c join pg_namespace n on n.oid = c.relnamespace
    where n.nspname = 'public' and c.relkind = 'v'
@@ -79,29 +82,24 @@ begin
   perform pg_temp.must(v_inv = 5, 'every bundle view and the offer-message view is a security_invoker view (got ' || v_inv || ' of 5)');
 
   select string_agg(column_name, ',' order by ordinal_position) into v_cols from information_schema.columns where table_schema = 'public' and table_name = 'public_bundles';
-  perform pg_temp.must(v_cols = 'id,brand_id,brand_name,name,slug,description,has_extra_items', 'public_bundles keeps its columns (got ' || coalesce(v_cols, 'NULL') || ')');
+  perform pg_temp.must(v_cols = 'id,brand_id,brand_name,name,slug,has_extra_items', 'public_bundles keeps its columns (got ' || coalesce(v_cols, 'NULL') || ')');
   select string_agg(column_name, ',' order by ordinal_position) into v_cols from information_schema.columns where table_schema = 'public' and table_name = 'public_bundle_items';
-  perform pg_temp.must(v_cols = 'bundle_id,product_size_id,quantity,product_id,product_name,brand_name,size_ml,size_label',
-    'public_bundle_items names each perfume (got ' || coalesce(v_cols, 'NULL') || ')');
+  perform pg_temp.must(v_cols = 'bundle_id,quantity,brand_name,product_name,size_ml',
+    'public_bundle_items lists each piece as the store wrote it (got ' || coalesce(v_cols, 'NULL') || ')');
 
-  select * into v_row from public.public_bundle_items where bundle_id = v_bundle and product_size_id = v_s1;
-  perform pg_temp.must(v_row.quantity = 2 and v_row.product_id = v_p1 and v_row.product_name = 'Messages Perfume One'
-                         and v_row.brand_name = 'Offer Messages Contract' and v_row.size_ml = 100 and v_row.size_label = '100 ml',
-    'a package item carries its quantity, perfume, brand and size');
+  select * into v_row from public.public_bundle_items where bundle_id = v_bundle and product_name = 'Messages Perfume One';
+  perform pg_temp.must(v_row.quantity = 2 and v_row.brand_name = 'Offer Messages Contract' and v_row.size_ml = 100,
+    'a package piece carries its quantity, name, brand and size as the store wrote them');
   perform pg_temp.must((select count(*) from public.public_bundle_items where bundle_id = v_bundle) = 2, 'the package lists its two sizes');
   perform pg_temp.must(exists (select 1 from public.public_bundles where id = v_bundle and brand_name = 'Offer Messages Contract'), 'the package is public with its brand name');
-  perform pg_temp.must(not exists (select 1 from public.public_bundles where id = v_bundle_h) and not exists (select 1 from public.public_bundle_items where bundle_id = v_bundle_h),
-    'a package that holds an unpublished perfume is hidden, items included');
-  update public.products set status = 'published' where id = v_ph;
   perform pg_temp.must(exists (select 1 from public.public_bundles where id = v_bundle_h) and (select count(*) from public.public_bundle_items where bundle_id = v_bundle_h) = 2,
-    'it appears with its items when the perfume is published');
-  update public.products set status = 'draft' where id = v_ph;
+    'a package naming an unpublished perfume still shows with its items (the perfumes are never consulted)');
 
   select count(*) into v_n from public.catalog_platform_bundle_offers where bundle_id = v_bundle and store_id = v_a and price = 500;
   perform pg_temp.must(v_n = 1, 'the platform bundle offer still works through the invoker view');
   select string_agg(column_name, ',' order by ordinal_position) into v_cols from information_schema.columns where table_schema = 'public' and table_name = 'catalog_eligible_bundle_offers';
-  perform pg_temp.must(v_cols = 'store_bundle_id,bundle_id,store_id,store_name,price,currency,stock_quantity,price_includes_tax,price_includes_shipping,last_synced_at',
-    'the eligible bundle offers carry no commission, no priority and no claimed old price (got ' || coalesce(v_cols, 'NULL') || ')');
+  perform pg_temp.must(v_cols = 'store_bundle_id,bundle_id,store_id,store_name,title,description,price,currency,stock_quantity,price_includes_tax,price_includes_shipping,last_synced_at',
+    'the eligible bundle offers carry the store''s own words but no commission, no priority and no claimed old price (got ' || coalesce(v_cols, 'NULL') || ')');
   perform pg_temp.must(not has_function_privilege('anon', 'private.fn_catalog_eligible_bundle_offers()', 'execute')
                          and not has_function_privilege('authenticated', 'private.fn_catalog_eligible_bundle_offers()', 'execute'),
     'the internal bundle offers (with commission and priority) are not callable by the browser roles');

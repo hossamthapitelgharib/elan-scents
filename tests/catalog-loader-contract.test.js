@@ -117,7 +117,8 @@ test('active promotions are scoped to the same store as the canonical offer, wit
   assert.match(core, /d\[14\]\.forEach\(function\(r\)\{if\(!r\.product_size_id\|\|!r\.store_id/);
   assert.match(promotionScopeMigration, /GRANT SELECT \(store_id\) ON TABLE public\.offers TO anon, authenticated;/);
   assert.match(promotionScopeRollback, /REVOKE SELECT \(store_id\) ON TABLE public\.offers FROM anon, authenticated;/);
-  assert.doesNotMatch(core, /offers\?select=[^'\n]*(discount_value|description|title)/);
+  // the promotions TABLE (`offers`) is never read for these columns; a bundle offer VIEW (`catalog_platform_bundle_offers`) carries the store's own title and description on purpose
+  assert.doesNotMatch(core, /(?<![A-Za-z_])offers\?select=[^'\n]*(discount_value|description|title)/);
 });
 
 test('platformEligibleOffer is the same eligible row for price, store, and cart/order IDs', () => {

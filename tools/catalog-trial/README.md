@@ -11,5 +11,7 @@ Run order, in an empty working folder (the scripts read and write the current fo
     python3 -I plan.py                                 # merge the two stores into products, sizes and listings -> plan.json
     python3 -I gen_sql2.py 120                         # idempotent atomic loader chunks load_chunk_N.sql (data_source = 'trial_catalog')
     python3 -I gen_bundles.py rollback                 # bundles and offers loader, first as a dry run that ends in ROLLBACK
+                                                       # (the bundle pieces are plain text, the title and the FULL description are the store's own, read from
+                                                       #  CATALOG_FEEDS_DIR; needs the migration 20261119112905_catalog_bundles_standalone)
 
 Everything loaded carries `data_source = 'trial_catalog'` and is removed in one step (see `docs/handoff.ar.md`). Trial rows never enter a real order.

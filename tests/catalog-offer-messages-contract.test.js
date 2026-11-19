@@ -36,9 +36,9 @@ test('the real-database test runs in one transaction and leaves no row behind', 
 test('every owner rule has its assertion', () => {
   const rules = [
     [/every bundle view and the offer-message view is a security_invoker view/, 'no definer view is added'],
-    [/public_bundle_items names each perfume/, 'a perfume sold only inside a package can be named'],
-    [/a package item carries its quantity, perfume, brand and size/, 'the items are readable'],
-    [/a package that holds an unpublished perfume is hidden, items included/, 'a package follows its perfumes'],
+    [/public_bundle_items lists each piece as the store wrote it/, 'a piece the catalog does not hold is named by the bundle\'s own text'],
+    [/a package piece carries its quantity, name, brand and size as the store wrote them/, 'the pieces are readable'],
+    [/a package naming an unpublished perfume still shows with its items \(the perfumes are never consulted\)/, 'a package does not follow the perfume catalog'],
     [/the platform bundle offer still works through the invoker view/, 'the platform bundle offer keeps working'],
     [/the internal bundle offers \(with commission and priority\) are not callable by the browser roles/, 'commission never leaks'],
     [/an offer is a plain message unless the server says otherwise/, 'an offer is the default kind'],
