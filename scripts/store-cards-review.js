@@ -38,8 +38,9 @@ const measure = () => {
   const sizeOf = (url) => new Promise((resolve) => {
     if (!url) return resolve(null);
     const i = new Image();
-    i.onload = () => resolve({ w: i.naturalWidth, h: i.naturalHeight });
-    i.onerror = () => resolve(null);
+    const timer = setTimeout(() => resolve(null), 4000);
+    i.onload = () => { clearTimeout(timer); resolve({ w: i.naturalWidth, h: i.naturalHeight }); };
+    i.onerror = () => { clearTimeout(timer); resolve(null); };
     i.src = url;
   });
   const bgUrl = (cs) => { const m = /url\(["']?([^"')]+)["']?\)/.exec(cs.backgroundImage || ''); return m ? m[1] : ''; };
@@ -98,18 +99,19 @@ const measure = () => {
   })();
 };
 
-async function shootElement(page, handle, name) {
+/* A screenshot of a part of the page by its box (not element.screenshot: that waits for the element to be "stable" and never gets it on a moving strip). */
+async function shootBox(page, box, name) {
   try {
     fs.mkdirSync(SHOTS, { recursive: true });
-    await handle.scrollIntoViewIfNeeded();
-    await page.waitForTimeout(300);
-    const buffer = await handle.screenshot({ type: 'jpeg', quality: 55 });
+    const clip = { x: Math.max(0, box.x), y: Math.max(0, box.y), width: Math.min(box.width, 1400), height: Math.min(Math.max(box.height, 20), 2400) };
+    const buffer = await page.screenshot({ type: 'jpeg', quality: 55, fullPage: true, clip, animations: 'disabled', timeout: 15000 });
     fs.writeFileSync(path.join(SHOTS, name + '.jpg'), buffer);
     const text = buffer.toString('base64'), size = 3000, total = Math.ceil(text.length / size);
     for (let i = 0; i < total; i++) log(`IMG|${name}|${i}|${total}|${text.slice(i * size, (i + 1) * size)}`);
     log(`shot ${name}: ${Math.round(buffer.length / 1024)} KB`);
   } catch (error) { log('NOTE no screenshot for ' + name + ': ' + String(error.message).slice(0, 120)); }
 }
+const boxOf = (page, selector, index = 0) => page.evaluate(([sel, i]) => { const e = document.querySelectorAll(sel)[i]; if (!e) return null; const r = e.getBoundingClientRect(); return { x: r.left + scrollX, y: r.top + scrollY, width: r.width, height: r.height }; }, [selector, index]);
 
 async function main() {
   const browser = await chromium.launch({ args: ['--no-sandbox'] });
@@ -141,13 +143,12 @@ async function main() {
       if (!s.shown || n >= 14) continue;
       const sel = s.id && /^[A-Za-z][\w-]*$/.test(s.id) ? '#' + s.id : null;
       if (!sel) continue;
-      const handle = await page.$(sel);
-      if (handle) { await shootElement(page, handle, `${size.name}-${s.id}`); n++; }
+      const box = await boxOf(page, sel);
+      if (box && box.height > 0) { await shootBox(page, box, `${size.name}-${s.id}`); n++; }
     }
     // the owner's own blocks (banners)
-    const blocks = await page.$$('#main > .elan-block');
-    let b = 0;
-    for (const handle of blocks.slice(0, 6)) { await shootElement(page, handle, `${size.name}-block${++b}`); }
+    const count = await page.evaluate(() => document.querySelectorAll('#main > .elan-block').length);
+    for (let k = 0; k < Math.min(count, 6); k++) { const box = await boxOf(page, '#main > .elan-block', k); if (box && box.height > 0) await shootBox(page, box, `${size.name}-block${k + 1}`); }
     await ctx.close();
   }
   await browser.close();
