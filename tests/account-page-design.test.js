@@ -15,13 +15,13 @@ const SIZE = '3f2f7d1e-6a58-4a38-9d0c-0c1f7d3a9b11';
 function node() {
   return { hidden: false, textContent: '', innerHTML: '', value: '', disabled: false, dataset: {}, classList: { add() {}, remove() {}, toggle() {} }, handlers: {}, addEventListener(type, handler) { (this.handlers[type] = this.handlers[type] || []).push(handler); }, querySelector: () => node(), querySelectorAll: () => [], closest: () => null, reset() {}, focus() {} };
 }
-function load() {
+function load(extra = {}) {
   const nodes = new Map();
   const document = { hidden: false, querySelector(selector) { if (!nodes.has(selector)) nodes.set(selector, node()); return nodes.get(selector); }, addEventListener() {} };
   const context = { document, console, URLSearchParams, Date, Math, Number, String, JSON, Set, Array, Object, Promise, Error, encodeURIComponent, isNaN,
     localStorage: { getItem: () => null, setItem() {}, removeItem() {} }, location: { hash: '', pathname: '/account.html', search: '', origin: 'https://shop.example.invalid' }, history: { replaceState() {} },
     Portal: { errorMessages: {}, session: () => null, auth: () => ({}), errorText: (e, f) => (e && e.message) || f },
-    setTimeout: () => 0, fetch: async () => { throw new Error('no network in this test'); } };
+    setTimeout: () => 0, setInterval: () => 0, fetch: async () => { throw new Error('no network in this test'); }, ...extra };
   context.window = context;
   vm.createContext(context);
   vm.runInContext(read('account.js'), context, { filename: 'account.js' });
@@ -245,24 +245,79 @@ test('every card carries its id (a card the customer opened is found again after
   for (const status of ['processing', 'delivered', 'store_cancelled']) assert.match(card(p, order({ id: 'card-7', status })), /<article class="acct-order is-(active|past)" data-id="card-7"/);
 });
 
-test('the cancellation box in the card: closed by default, opened with the reason field, never a browser dialog', () => {
+test('there is no cancel button, no reason box and no browser dialog on this page: the customer never cancels an order from here', () => {
   const source = read('account.js');
   assert.doesNotMatch(source, /window\.prompt|\bprompt\(|\bconfirm\(|\balert\(/, 'no native dialog on this page');
+  assert.doesNotMatch(source, /data-cancel|cancelDraft|cancelOrder|openCancel|request-store-order-cancellation|<textarea/, 'no cancellation code left');
+  assert.doesNotMatch(css, /\.cancel-open|\.order-cancel|\.cancel-pending|\.cancel-declined/, 'and none of its styles');
   const p = load();
-  const closed = card(p, order({ status: 'awaiting_store_confirmation' }));
-  assert.match(closed, /data-cancel="r1"/);
-  assert.equal(closed.includes('data-cancel-reason'), false);
-  p.run("cancelDraft = { id: 'r1', text: 'a < b', error: 'oops' }");
-  const open = card(p, order({ status: 'awaiting_store_confirmation' }));
-  assert.match(open, /<textarea id="cancelReason" data-cancel-reason maxlength="500"/);
-  assert.match(open, /a &lt; b<\/textarea>/);
-  assert.match(open, /role="alert">oops<\/p>/);
-  assert.match(open, /اختياري/);
-  assert.match(open, /ولن يُلغى إلا إذا وافق عليه/);
-  assert.equal(open.includes('data-cancel="r1"'), false, 'the opening button is replaced by send and back');
-  assert.match(open, /data-cancel-send="r1"/);
-  assert.match(open, /data-cancel-back="r1"/);
-  // a box is opened for one order only
-  assert.equal(card(p, order({ id: 'r2', status: 'awaiting_store_confirmation' })).includes('data-cancel-reason'), false);
-  assert.match(read('account.css'), /\.cancel-open textarea/);
+  for (const status of ['awaiting_store_confirmation', 'store_confirmed', 'processing', 'shipped']) {
+    const markup = card(p, order({ status }));
+    assert.equal(/data-cancel|cancel-box|<textarea|ما سبب/.test(markup), false, status);
+  }
+});
+
+test('a refused, unanswered or cancelled order says how it ended, in plain words, and the cart is not lost', () => {
+  const p = load();
+  const refused = card(p, order({ status: 'store_rejected', rejection_reason: 'نفد <b>المخزون</b>' }));
+  assert.match(refused, /سبب رفض المتجر/);
+  assert.match(refused, /نفد &lt;b&gt;المخزون&lt;\/b&gt;/, 'the store\'s reason is escaped');
+  const silent = card(p, order({ status: 'cancelled', cancel_reason: 'store_unresponsive' }));
+  assert.match(silent, /نعتذر عن تنفيذ طلبك في الوقت الحالي، برجاء إعادة المحاولة بعد ساعة/);
+  assert.match(silent, /badge red">المتجر لم يستجب</);
+  for (const why of ['payment_window_closed', 'payment_window_cancelled']) {
+    const byYou = card(p, order({ status: 'cancelled', cancel_reason: why }));
+    assert.match(byYou, /ملغاة من طرفك/, why);
+    assert.match(byYou, /منتجاتك ما زالت في سلتك/);
+    assert.match(byYou, /badge red">ملغاة من طرفك</);
+  }
+  const late = card(p, order({ status: 'cancelled', cancel_reason: 'payment_window_expired' }));
+  assert.match(late, /انتهت مهلة الدفع/);
+  // a cancelled order can be ordered again, never paid
+  for (const markup of [silent, late]) { assert.match(markup, /data-reorder/); assert.equal(markup.includes('data-pay-window'), false); }
+});
+
+test('an approved order shows the store\'s payment window: «الدفع», the time left and the rule; the window\'s address is never on the page', () => {
+  const p = load();
+  const approved = status => order({ status: 'store_confirmed', payable_amount: 3510, payment_status: 'not_started', payment_window: { state: 'issued', expires_at: new Date(Date.now() + 20 * 60 * 1000 + 30000).toISOString() }, ...status });
+  const open = card(p, approved({}));
+  assert.match(open, /<button class="ghost order-pay" type="button" data-pay-window="r1">الدفع<\/button>/);
+  assert.match(open, /data-pay-left="[^"]+">2[01]:\d\d<\/b>/, 'about twenty minutes are left');
+  assert.match(open, /المبلغ المستحق 3,510 ج\.م/);
+  assert.match(open, /إغلاق نافذة الدفع قبل إتمام الدفع يلغي الطلب/);
+  assert.doesNotMatch(open, /data-pay-method|data-pay-request|https:\/\/|اختر طريقة الدفع/, 'no chooser of methods, and no address');
+  // the window ran out: nothing to press, the order is about to be closed
+  const over = card(p, approved({ payment_window: { state: 'opened', expires_at: new Date(Date.now() - 5000).toISOString() } }));
+  assert.equal(over.includes('data-pay-window'), false);
+  assert.match(over, /انتهت مهلة نافذة الدفع/);
+  // the customer came back claiming success: a claim, not a payment
+  const claimed = card(p, approved({ payment_window: { state: 'success_claimed', expires_at: new Date(Date.now() + 60000).toISOString() } }));
+  assert.match(claimed, /نتحقق من الدفع/);
+  assert.equal(claimed.includes('data-pay-window'), false);
+  assert.equal(/تم دفع/.test(claimed), false, 'not paid before the neutral confirmation');
+  // confirmed
+  assert.match(card(p, approved({ payment_status: 'paid', paid_at: '2026-11-18T10:00:00Z' })), /تم دفع 3,510 ج\.م/);
+  assert.match(card(p, approved({ payment_status: 'cod_selected' })), /الدفع عند الاستلام/);
+  // an order the store has not answered yet has no window
+  assert.equal(card(p, order({ status: 'awaiting_store_confirmation' })).includes('data-pay-window'), false);
+  assert.match(html, /<script src="\/pay-window\.js\?v=[^"]+"><\/script>\s*<script src="\/account\.js/, 'the shared window file loads before the page\'s own');
+});
+
+test('«الدفع» opens the window from the tap itself, and the orders are read again when the customer comes back', async () => {
+  const opened = [];
+  let reads = 0;
+  const p = load({
+    Portal: { errorMessages: {}, session: () => ({ access_token: 'tok' }), auth: () => ({}), errorText: (e, f) => (typeof e === 'string' ? e : (e && e.message) || f) },
+    ElanPay: { open: options => { opened.push(options); } },
+    fetch: async () => { reads += 1; return { ok: true, json: async () => ({ sessions: [], pagination: {} }) }; }
+  });
+  p.run("startPay('r1', null)");
+  assert.equal(opened.length, 1, 'opened synchronously, inside the tap');
+  assert.equal(opened[0].orderId, 'r1');
+  p.run("startPay('r1', null)");
+  assert.equal(opened.length, 1, 'a second tap while one window is open does nothing');
+  opened[0].onError('popup_blocked');
+  assert.match(p.el('#appMessage').textContent, /اسمح للموقع بفتح النوافذ/);
+  p.run("startPay('r1', null)");
+  assert.equal(opened.length, 2, 'after a failure the customer can try again');
 });

@@ -22,25 +22,26 @@ const currencyA = currency => (!currency || currency === 'EGP' ? 'ج.م' : Strin
 const moneyA = (amount, currency = 'EGP') => `${numA(amount)} ${escA(currencyA(currency))}`;
 const stateA = request => { const restoration = (request.store_order_cart_restorations || [])[0]; if (restoration && restoration.status === 'restored') return 'restored'; return request.status || 'awaiting_store_confirmation'; };
 const shipmentA = request => (request.store_shipments || [])[0] || null;
-// Cancellation is a REQUEST to the store. What the customer sees is derived from the order itself: the request is
-// waiting while the store has not answered, accepted when the store rejected/cancelled the order, declined when it went on.
-const cancelAskedA = request => ((request.store_order_cancellation_requests || [])[0]) || null;
-const cancelEndedA = new Set(['store_rejected', 'cancelled', 'store_cancelled', 'restored']);
-function cancelLine(request) {
-  const state = stateA(request), asked = cancelAskedA(request);
-  if (asked) {
-    if (state === 'awaiting_store_confirmation') return `<div class="cancel-box cancel-pending" role="status"><b>طلب الإلغاء</b><span>تم إرسال طلب الإلغاء إلى المتجر وهو بانتظار رده. لن يُلغى الطلب إلا إذا وافق المتجر.</span></div>`;
-    if (cancelEndedA.has(state)) return `<div class="cancel-box cancel-accepted" role="status"><b>طلب الإلغاء</b><span>وافق المتجر وأُلغي الطلب.</span></div>`;
-    return `<div class="cancel-box cancel-declined" role="status"><b>طلب الإلغاء</b><span>أكمل المتجر تنفيذ الطلب قبل أن يصله طلب الإلغاء، فلم يُلغَ. للاستفسار تواصل مع المتجر.</span></div>`;
-  }
-  if (state === 'awaiting_store_confirmation' && cancelDraft && String(cancelDraft.id) === String(request.id)) return cancelFormA(request);
-  if (state === 'awaiting_store_confirmation') return `<div class="cancel-box"><span>يمكنك طلب الإلغاء قبل أن يؤكد المتجر طلبك.</span><button class="ghost order-cancel" type="button" data-cancel="${escA(request.id)}">اطلب إلغاء الطلب</button></div>`;
+// There is no cancel button on this page: the customer never cancels an order from here (docs/purchase-flow-final.ar.md). An unpaid order ends only
+// by the store turning it down, the store not answering, or the payment window being closed, cancelled or timing out; this says which, in plain words.
+const cancelledByCustomerA = new Set(['payment_window_cancelled', 'payment_window_closed', 'customer_requested_before_payment']);
+function cancelNoteA(request) {
+  if (stateA(request) !== 'cancelled') return '';
+  const why = request.cancel_reason;
+  if (why === 'store_unresponsive') return `<div class="cancel-box cancel-accepted" role="status"><b>تعذر تنفيذ الطلب الآن</b><span>نعتذر عن تنفيذ طلبك في الوقت الحالي، برجاء إعادة المحاولة بعد ساعة. منتجاتك ما زالت في سلتك.</span></div>`;
+  if (why === 'payment_window_expired') return `<div class="cancel-box cancel-accepted" role="status"><b>انتهت مهلة الدفع</b><span>انتهت مهلة نافذة الدفع قبل إتمام الدفع فأُلغي الطلب. منتجاتك ما زالت في سلتك ويمكنك طلبها مرة أخرى.</span></div>`;
+  if (cancelledByCustomerA.has(why)) return `<div class="cancel-box cancel-accepted" role="status"><b>ملغاة من طرفك</b><span>أُلغي الطلب لأن نافذة الدفع أُغلقت أو أُلغي الدفع فيها. منتجاتك ما زالت في سلتك ويمكنك طلبها مرة أخرى.</span></div>`;
   return '';
 }
-// The cancellation box opened inside the card: an optional reason, send, or go back. What is typed survives the page refreshing itself (cancelDraft).
-function cancelFormA(request) {
-  const id = escA(request.id);
-  return `<div class="cancel-box cancel-open"><label for="cancelReason"><b>ما سبب طلب الإلغاء؟</b> <small>اختياري</small></label><textarea id="cancelReason" data-cancel-reason maxlength="500" rows="3" placeholder="مثال: غيّرت رأيي، أو اخترت المقاس الخطأ">${escA(cancelDraft.text)}</textarea><p class="cancel-note">سيصل طلبك إلى المتجر، ولن يُلغى إلا إذا وافق عليه.</p>${cancelDraft.error ? `<p class="cancel-error" role="alert">${escA(cancelDraft.error)}</p>` : ''}<div class="cancel-actions"><button class="ghost order-cancel" type="button" data-cancel-send="${id}">إرسال طلب الإلغاء</button><button class="ghost" type="button" data-cancel-back="${id}">تراجع</button></div></div>`;
+// The badge of a cancelled order says how it ended, not only that it did.
+function badgeOfA(request, state) {
+  if (state === 'cancelled') {
+    const why = request.cancel_reason;
+    if (why === 'store_unresponsive') return '<span class="badge red">المتجر لم يستجب</span>';
+    if (why === 'payment_window_expired') return '<span class="badge red">انتهت مهلة الدفع</span>';
+    if (cancelledByCustomerA.has(why)) return '<span class="badge red">ملغاة من طرفك</span>';
+  }
+  return badgeA(state);
 }
 // Dates and times with the digits the rest of the shop uses (1, 2, 3); the year only when it is not this year.
 const LATN = 'ar-EG-u-nu-latn';
@@ -62,7 +63,6 @@ let archiveQuery = {};
 let archiveLoading = false;
 let recentShown = 5;          // how many finished orders the list shows; "show older orders" adds five more
 let accountHasMore = false;   // the server has older orders than the ones read so far
-let cancelDraft = null;       // { id, text, error }: the order whose cancellation box is open on the page, and what was typed in it
 
 function cartSnapshot() { try { return JSON.parse(localStorage.getItem('elan_cart') || '[]').reduce((total, item) => total + (Number(item.q) || 0), 0); } catch (_) { return 0; } }
 function updateCartShortcut(restored = 0) { const element = document.querySelector('#cartShortcut'); if (!element) return; element.querySelector('b').textContent = cartSnapshot(); element.classList.toggle('has-restored', restored > 0); element.querySelector('span').textContent = restored ? 'السلة · عادت منتجاتك' : 'السلة'; }
@@ -87,18 +87,16 @@ function shipmentLine(request) {
     : '';
   return `<div class="shipment-box"><div class="shipment-head"><div><small>شركة الشحن</small><strong>${escA(shipment.carrier_name || 'لم تُحدَّد بعد')}</strong></div>${shippingBadgeA(shipment.shipping_status)}</div><div class="shipment-meta"><span>رقم تتبع الشحنة</span><b dir="ltr">${escA(shipment.tracking_code || 'لم يُضَف بعد')}</b></div>${shipment.estimated_delivery_at ? `<div class="shipment-meta"><span>موعد التسليم المتوقع</span><b>${dateA(shipment.estimated_delivery_at)}</b></div>` : ''}${deliveryVerification ? `<p class="shipment-note">${escA(deliveryVerification)}</p>` : ''}${shipment.status_note ? `<p class="shipment-note">${escA(shipment.status_note)}</p>` : ''}<small class="shipment-updated">آخر تحديث: ${dateTimeA(shipment.updated_at)}</small></div>`;
 }
-// ---- phase 2: payment, the store's reason and the shipping timeline -------------------------------------------------------
-// The customer chooses how to pay only after the store approved the order; the choices and the amount are the terms frozen at approval
-// (api/customer-orders). A card choice sends the customer to the merchant's payment page, but the page proves nothing: the order is paid
-// only when the merchant's signed payment event reaches the platform, and «طلباتي» then shows it.
-const payStatusA = { not_started: ['بانتظار اختيار طريقة الدفع', 'gold'], awaiting_payment: ['بانتظار نتيجة الدفع', 'gold'], paid: ['تم الدفع', 'green'], cod_selected: ['الدفع عند الاستلام', 'blue'], failed: ['تعذر الدفع', 'orange'] };
+// ---- the merchant's payment window, the store's reason and the shipping timeline ------------------------------------------
+// The store answers an order by itself; when it accepts, it issues ITS OWN payment window, valid for a limited time. «الدفع» opens that window (pay-window.js).
+// Closing it before paying cancels the order. What the browser reports on return proves nothing: the order is paid only when a neutral confirmation
+// of the payment reaches the platform, and «طلباتي» then shows it.
+const payStatusA = { not_started: ['بانتظار الدفع', 'gold'], awaiting_payment: ['بانتظار تأكيد الدفع', 'gold'], paid: ['تم الدفع', 'green'], cod_selected: ['الدفع عند الاستلام', 'blue'], failed: ['تعذر الدفع', 'orange'] };
 const payKindA = { card: 'بطاقة', cod: 'الدفع عند الاستلام', other: 'طريقة أخرى' };
-const eventSourceA = { merchant_api: 'من المتجر', merchant_notice: 'من المتجر', store_dashboard: 'من المتجر', platform_admin: 'من المنصة' };
-const payKeysA = new Map();
 let paying = false;
-function canChoosePayment(request) {
-  return stateA(request) === 'store_confirmed' && ['not_started', 'awaiting_payment', 'failed'].includes(request.payment_status || 'not_started') && (request.payment_options || []).length > 0;
-}
+const payWindowOpenA = request => { const win = request.payment_window; return stateA(request) === 'store_confirmed' && !!win && ['issued', 'opened'].includes(win.state) && !['paid', 'cod_selected'].includes(request.payment_status || 'not_started'); };
+const leftA = request => { const end = request.payment_window && Date.parse(request.payment_window.expires_at); return end ? end - Date.now() : null; };
+const clockA = ms => { const seconds = Math.max(0, Math.ceil(ms / 1000)); return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`; };
 function rejectionLine(request) {
   if (stateA(request) !== 'store_rejected' || !request.rejection_reason) return '';
   return `<div class="cancel-box cancel-accepted" role="status"><b>سبب رفض المتجر</b><span>${escA(request.rejection_reason)}</span></div>`;
@@ -111,10 +109,15 @@ function paymentLine(request) {
   if (status === 'cod_selected') {
     return `<div class="pay-box pay-done" role="status"><b>الدفع عند الاستلام</b><span>تدفع ${moneyA(amount, request.currency)} للمندوب عند التسليم.</span></div>`;
   }
-  if (!canChoosePayment(request)) return '';
-  const note = status === 'awaiting_payment' ? 'بانتظار نتيجة الدفع من المتجر. إن لم تُكمل الدفع يمكنك المحاولة من جديد.' : status === 'failed' ? 'تعذر الدفع. اختر طريقة الدفع من جديد.' : 'أكّد المتجر طلبك. اختر طريقة الدفع لإكمال الطلب.';
-  const buttons = request.payment_options.map(option => `<button class="ghost order-pay" type="button" data-pay-request="${escA(request.id)}" data-pay-method="${escA(option.id)}">${escA(option.labelAr || payKindA[option.kind] || 'ادفع')}</button>`).join('');
-  return `<div class="pay-box" role="status"><div><b>المبلغ المستحق ${moneyA(amount, request.currency)}</b><span>${note}</span></div><div class="pay-actions">${buttons}</div></div>`;
+  const win = request.payment_window;
+  if (stateA(request) === 'store_confirmed' && win && win.state === 'success_claimed') {
+    return `<div class="pay-box" role="status"><div><b>نتحقق من الدفع</b><span>عدت من نافذة الدفع. ننتظر تأكيد الدفع من جهة محايدة، ولا يُعدّ الطلب مدفوعًا قبل ذلك.</span></div></div>`;
+  }
+  if (!payWindowOpenA(request)) return '';
+  const left = leftA(request), due = amount != null ? `المبلغ المستحق ${moneyA(amount, request.currency)}` : 'أكّد المتجر طلبك';
+  if (left != null && left <= 0) return `<div class="pay-box" role="status"><div><b>${due}</b><span>انتهت مهلة نافذة الدفع، ننتظر إغلاق الطلب.</span></div></div>`;
+  const clock = left == null ? '' : ` خلال <b class="pay-left" dir="ltr" data-pay-left="${escA(request.payment_window.expires_at)}">${clockA(left)}</b>`;
+  return `<div class="pay-box" role="status"><div><b>${due}</b><span>قبل المتجر طلبك. أكمل الدفع من نافذة المتجر${clock}. إغلاق نافذة الدفع قبل إتمام الدفع يلغي الطلب.</span></div><div class="pay-actions"><button class="ghost order-pay" type="button" data-pay-window="${escA(request.id)}">الدفع</button></div></div>`;
 }
 function timelineLine(request) {
   const events = request.store_shipment_events || [];
@@ -127,42 +130,34 @@ function paymentRows(request) {
   const value = payStatusA[status] || payStatusA.not_started;
   return `<div><span>حالة الدفع</span><b>${value[0]}</b></div>`;
 }
-const payErrors = {
-  order_not_approved: 'المتجر لم يؤكد الطلب بعد، لا يمكن الدفع الآن.',
-  payment_already_settled: 'سُجّل الدفع لهذا الطلب بالفعل.',
-  payment_method_not_offered: 'طريقة الدفع هذه غير متاحة لهذا الطلب.',
+const payErrorsA = {
+  popup_blocked: 'لم تُفتح نافذة الدفع. اسمح للموقع بفتح النوافذ ثم اضغط «الدفع» مرة أخرى.',
+  unauthorized: 'انتهت جلسة الدخول، سجّل الدخول من جديد.',
   order_not_found: 'لم نجد هذا الطلب، حدّث الصفحة وحاول مرة أخرى.',
-  order_no_amount: 'لا يوجد مبلغ مستحق لهذا الطلب.',
-  unauthorized: 'انتهت جلسة الدخول، سجّل الدخول من جديد.'
+  default: 'تعذر فتح نافذة الدفع الآن، حدّث الصفحة وحاول مرة أخرى.'
 };
-async function payOrder(requestId, methodId, button) {
-  if (paying) return;
-  const request = flatten([...accountSessions, ...archiveSessions]).find(item => String(item.id) === String(requestId));
-  if (!request || !canChoosePayment(request)) return;
-  const option = (request.payment_options || []).find(item => String(item.id) === String(methodId));
-  if (!option) return;
+// Called from the tap itself: the window must be opened inside it or the browser blocks it (pay-window.js opens it first and points it at the store after).
+function startPay(requestId, button) {
+  if (paying || !window.ElanPay) return;
   const session = Portal.session();
   if (!session || !session.access_token) { showMessage('انتهت جلسة الدخول، سجّل الدخول من جديد.'); return; }
-  // One retry key per order and method for as long as the page is open: a double tap or a retry after a lost answer is the same choice.
-  const keyName = `${request.id}:${option.id}`;
-  if (!payKeysA.has(keyName)) payKeysA.set(keyName, (window.crypto && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}-pay`).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64).padEnd(8, 'x'));
   paying = true; if (button) button.disabled = true;
-  try {
-    const response = await fetch('/api/customer-order-payment', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ requestId: request.id, methodId: option.id, idempotencyKey: payKeysA.get(keyName) })
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(payErrors[data.error] || 'تعذر تنفيذ اختيار طريقة الدفع، حاول مرة أخرى.');
-    if (data.paymentUrl) { location.assign(data.paymentUrl); return; }
-    if (option.kind !== 'cod') throw new Error('صفحة الدفع لدى المتجر غير متاحة الآن، حاول لاحقًا أو اختر طريقة أخرى.');
-    await loadAccount();
-  } catch (error) {
-    await loadAccount().catch(() => {});
-    showMessage(error);
-  } finally { paying = false; if (button) button.disabled = false; }
+  const finish = () => { paying = false; if (button) button.disabled = false; };
+  window.ElanPay.open({
+    orderId: requestId,
+    onState: () => { finish(); loadAccount().catch(showMessage); },
+    onError: key => { finish(); showMessage(payErrorsA[key] || payErrorsA.default); loadAccount(false, true).catch(() => {}); }
+  });
 }
+// The countdown on an order awaiting payment moves every second without redrawing the card; when it reaches zero the orders are read again.
+let zeroReadAt = 0;
+setInterval(() => {
+  document.querySelectorAll('[data-pay-left]').forEach(element => {
+    const left = Date.parse(element.dataset.payLeft) - Date.now(), text = clockA(left);
+    if (element.textContent !== text) element.textContent = text;
+    if (left <= 0 && !document.hidden && Date.now() - zeroReadAt > 4000) { zeroReadAt = Date.now(); loadAccount(false, true).catch(() => {}); }
+  });
+}, 1000);
 function itemLine(item) {
   const label = [item.brand_name, item.product_name, item.size_label].filter(Boolean).map(escA).join(' · ');
   const unit = item.unit_price != null && Number(item.quantity) > 1 ? ` <small class="muted">(${moneyA(item.unit_price, item.currency)} للواحدة)</small>` : '';
@@ -192,10 +187,10 @@ function requestLine(request) {
     // Over (delivered, cancelled ...): one compact row, "order again" within reach, everything else behind "details".
     const names = items.slice(0, 2).map(item => `${escA(item.product_name)}${Number(item.quantity) > 1 ? ` × ${item.quantity}` : ''}`).join('، ');
     const more = items.length > 2 ? ` <span class="muted">+${items.length - 2} أخرى</span>` : '';
-    return `<article class="acct-order is-past" data-id="${escA(request.id)}" data-state="${escA(state)}"><div class="acct-order-top"><div class="acct-order-title"><h3>${names || 'تفاصيل المنتجات داخل الطلب'}${more}</h3><p class="acct-sub">من ${store} · ${number} · ${dateA(request.created_at)}</p></div><div class="acct-side">${badgeA(state)}${totalBoxA(request)}</div></div>${rejectionLine(request)}${cancelLine(request)}<div class="acct-past-actions">${reorder}${detailsA(request, items, shipmentLine(request))}</div></article>`;
+    return `<article class="acct-order is-past" data-id="${escA(request.id)}" data-state="${escA(state)}"><div class="acct-order-top"><div class="acct-order-title"><h3>${names || 'تفاصيل المنتجات داخل الطلب'}${more}</h3><p class="acct-sub">من ${store} · ${number} · ${dateA(request.created_at)}</p></div><div class="acct-side">${badgeOfA(request, state)}${totalBoxA(request)}</div></div>${rejectionLine(request)}${cancelNoteA(request)}<div class="acct-past-actions">${reorder}${detailsA(request, items, shipmentLine(request))}</div></article>`;
   }
   // Still being followed: what is happening now (the sentence, the four steps, the shipment), then what was ordered.
-  return `<article class="acct-order is-active" data-id="${escA(request.id)}" data-state="${escA(state)}"><div class="acct-order-top"><div class="acct-order-title"><h3>${headlineA[state] || 'طلبك قيد المتابعة'}</h3><p class="acct-sub">من ${store} · ${number}</p></div>${totalBoxA(request)}</div>${trackerA(request)}${paymentLine(request)}${shipmentLine(request)}${itemsPreviewA(items)}${cancelLine(request)}<div class="acct-order-foot"><span>تاريخ الطلب: ${dateA(request.created_at)}</span>${detailsA(request, items, '', reorder)}</div></article>`;
+  return `<article class="acct-order is-active" data-id="${escA(request.id)}" data-state="${escA(state)}"><div class="acct-order-top"><div class="acct-order-title"><h3>${headlineA[state] || 'طلبك قيد المتابعة'}</h3><p class="acct-sub">من ${store} · ${number}</p></div>${totalBoxA(request)}</div>${trackerA(request)}${paymentLine(request)}${shipmentLine(request)}${itemsPreviewA(items)}<div class="acct-order-foot"><span>تاريخ الطلب: ${dateA(request.created_at)}</span>${detailsA(request, items, '', reorder)}</div></article>`;
 }
 function flatten(sessions) { return sessions.flatMap(session => (session.store_order_requests || []).map(request => ({ ...request, session }))); }
 function mergeSessions(newer, older) {
@@ -220,7 +215,6 @@ function renderAccount(sessions) {
   const requests = flatten(sessions);
   const active = requests.filter(request => !terminalA.has(stateA(request)));
   const past = requests.filter(request => terminalA.has(stateA(request))).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-  if (cancelDraft && !requests.some(request => String(request.id) === String(cancelDraft.id) && stateA(request) === 'awaiting_store_confirmation' && !cancelAskedA(request))) cancelDraft = null;   // the order moved on: its box is gone
   const restored = requests.filter(request => stateA(request) === 'restored').length;
   renderList(document.querySelector('#activeOrders'), active, 'لا توجد طلبات جارية الآن.<a href="/">تصفّح العطور</a>');
   renderList(document.querySelector('#recentOrders'), past.slice(0, recentShown), 'لا توجد طلبات سابقة بعد.');
@@ -271,7 +265,6 @@ async function loadArchive(event, append = false) {
 async function loadAccount(append = false, quiet = false) {
   const session = Portal.session();
   if (!session || accountLoading || resettingPassword) return;
-  if (quiet && cancelDraft) return;   // someone is typing a reason: the automatic refresh waits
   if (!guestCartClaimed && window.GuestIdentity) { try { await GuestIdentity.claim(session.access_token); guestCartClaimed = true; } catch (_) {} }
   accountLoading = true;
   const offset = append ? accountOffset : 0;
@@ -314,62 +307,6 @@ function reorder(requestId) {
   location.href = '/';
 }
 
-let cancelling = false;
-const cancelErrors = [
-  ['order_not_waiting', 'المتجر بدأ في معالجة الطلب، فلم يعد إلغاؤه ممكنًا من هنا. تواصل مع المتجر.'],
-  ['reason_too_long', 'سبب الإلغاء طويل، اختصره وحاول مرة أخرى.'],
-  ['order_not_found', 'لم نجد هذا الطلب، حدّث الصفحة وحاول مرة أخرى.'],
-  ['unauthorized', 'انتهت جلسة الدخول، سجّل الدخول من جديد.'],
-  ['no longer waiting', 'المتجر بدأ في معالجة الطلب، فلم يعد إلغاؤه ممكنًا من هنا. تواصل مع المتجر.'],
-  ['Reason is too long', 'سبب الإلغاء طويل، اختصره وحاول مرة أخرى.'],
-  ['Order not found', 'لم نجد هذا الطلب، حدّث الصفحة وحاول مرة أخرى.'],
-  ['Authentication required', 'انتهت جلسة الدخول، سجّل الدخول من جديد.'],
-  ['JWT', 'انتهت جلسة الدخول، سجّل الدخول من جديد.']
-];
-const requestById = id => flatten([...accountSessions, ...archiveSessions]).find(item => String(item.id) === String(id));
-const cancellableA = request => !!request && stateA(request) === 'awaiting_store_confirmation' && !cancelAskedA(request);
-// "Ask to cancel" opens the box inside the card (no browser dialog); nothing is sent until the customer presses send.
-function openCancel(requestId) {
-  const request = requestById(requestId);
-  if (!cancellableA(request)) return;
-  const session = Portal.session();
-  if (!session || !session.access_token) { showMessage('انتهت جلسة الدخول، سجّل الدخول من جديد.'); return; }
-  cancelDraft = { id: String(request.id), text: '', error: '' };
-  renderAccount(accountSessions);
-  const area = document.querySelector('#cancelReason');
-  if (area && typeof area.focus === 'function') area.focus();
-}
-function closeCancel() { if (!cancelDraft) return; cancelDraft = null; renderAccount(accountSessions); }
-async function cancelOrder(requestId, button) {
-  if (cancelling) return;
-  const request = requestById(requestId);
-  if (!cancellableA(request)) return;
-  const session = Portal.session();
-  if (!session || !session.access_token) { showMessage('انتهت جلسة الدخول، سجّل الدخول من جديد.'); return; }
-  const reason = cancelDraft && String(cancelDraft.id) === String(request.id) ? cancelDraft.text : '';
-  cancelling = true; if (button) button.disabled = true;
-  try {
-    const response = await fetch('/api/request-store-order-cancellation', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ requestId: request.id, reason: String(reason).trim().slice(0, 500) || null })
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      const text = String(data.message || data.error || '');
-      const hit = cancelErrors.find(row => text.includes(row[0]));
-      throw new Error(hit ? hit[1] : 'تعذر إرسال طلب الإلغاء، حاول مرة أخرى.');
-    }
-    cancelDraft = null;
-    await loadAccount();
-  } catch (error) {
-    // The reason typed stays in the box, with the failure written under it; the orders are read again first (the order may have moved on).
-    if (cancelDraft) cancelDraft.error = Portal.errorText(error, 'تعذر إرسال طلب الإلغاء، حاول مرة أخرى.');
-    await loadAccount().catch(() => {});
-    showMessage(error);
-  } finally { cancelling = false; if (button) button.disabled = false; }
-}
-
 async function authConfig() {
   const response = await fetch('/api/config');
   const config = await response.json();
@@ -409,11 +346,7 @@ document.querySelector('#loadMoreOrders').addEventListener('click', () => {
 });
 document.querySelector('#loadMoreArchive').addEventListener('click', () => loadArchive(null, true).catch(showMessage));
 document.addEventListener('click', event => { const button = event.target.closest('[data-reorder]'); if (button) reorder(button.dataset.reorder); });
-document.addEventListener('click', event => { const button = event.target.closest('[data-pay-method]'); if (button) payOrder(button.dataset.payRequest, button.dataset.payMethod, button); });
-document.addEventListener('click', event => { const button = event.target.closest('[data-cancel]'); if (button) openCancel(button.dataset.cancel); });
-document.addEventListener('click', event => { const button = event.target.closest('[data-cancel-send]'); if (button) cancelOrder(button.dataset.cancelSend, button); });
-document.addEventListener('click', event => { if (event.target.closest('[data-cancel-back]')) closeCancel(); });
-document.addEventListener('input', event => { const area = event.target.closest && event.target.closest('[data-cancel-reason]'); if (area && cancelDraft) { cancelDraft.text = String(area.value || ''); cancelDraft.error = ''; } });
+document.addEventListener('click', event => { const button = event.target.closest('[data-pay-window]'); if (button) startPay(button.dataset.payWindow, button); });
 
 document.querySelector('#forgotLink').addEventListener('click', event => {
   event.preventDefault();

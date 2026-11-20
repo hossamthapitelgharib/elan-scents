@@ -164,25 +164,12 @@ body.acct .acct-items li b { color: var(--ink); font-weight: 600; }
 body.acct .acct-items li em { flex: none; color: var(--muted); font-style: normal; font-size: 13px; }
 body.acct .acct-items .more { color: var(--muted); font-size: 13px; justify-content: flex-start; }
 
-/* cancelling */
+/* how an unpaid order ended (refused, no answer, payment window closed or timed out), and the countdown of the store's payment window */
+body.acct .pay-left { display: inline-block; min-width: 50px; padding: 0 8px; border-radius: 999px; background: #f6efe0; color: var(--gold-deep); font-variant-numeric: tabular-nums; text-align: center; }
 body.acct .acct-order .cancel-box { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; margin-top: 16px; padding: 11px 14px; border: 1px dashed var(--line-strong); border-radius: 14px; background: var(--paper); color: var(--muted); font-size: 13px; line-height: 1.7; }
 body.acct .acct-order .cancel-box b { color: var(--gold-deep); white-space: nowrap; }
-body.acct .acct-order .cancel-pending { border-style: solid; border-color: #e5c26e; background: #fff9e8; }
 body.acct .acct-order .cancel-accepted { border-style: solid; border-color: #d9c9a8; background: #f6f2ea; }
-body.acct .acct-order .cancel-declined { border-style: solid; border-color: #e4d7c0; }
-body.acct .order-cancel { min-height: 34px; padding: 4px 14px; border-color: #d9aaa0; background: #fff; color: #8c3a30; font-size: 12px; }
-body.acct .order-cancel:hover:not(:disabled) { background: #fdf0ed; }
 
-/* the cancellation box once it is opened inside the card */
-body.acct .acct-order .cancel-open { display: grid; gap: 8px; justify-content: stretch; border-style: solid; border-color: #e5c26e; background: #fffdf5; }
-body.acct .acct-order .cancel-open label { display: flex; align-items: baseline; gap: 8px; color: var(--ink); }
-body.acct .acct-order .cancel-open label small { color: var(--muted); font-size: 12px; }
-body.acct .acct-order .cancel-open textarea { width: 100%; min-height: 84px; padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: 12px; background: #fff; color: var(--ink); font: 400 15px/1.6 'IBM Plex Sans Arabic', sans-serif; resize: vertical; }
-body.acct .acct-order .cancel-open textarea:focus { border-color: var(--gold); outline: 3px solid #c8962a33; outline-offset: 0; }
-body.acct .acct-order .cancel-note { margin: 0; color: var(--muted); font-size: 12px; }
-body.acct .acct-order .cancel-error { margin: 0; padding: 8px 12px; border-radius: 10px; background: #fff3f0; color: var(--red); font-size: 13px; }
-body.acct .acct-order .cancel-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-body.acct .acct-order .cancel-actions .ghost:last-child { border-color: var(--line-strong); color: var(--muted); }
 
 /* the foot of a card, and the details */
 body.acct .acct-order-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 14px; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
