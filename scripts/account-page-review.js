@@ -43,11 +43,11 @@ const line = (name, q, price) => ({ product_name: name, brand_name: 'Test Brand'
 const order = (id, no, status, extra = {}) => ({
   id, tracking_number: no, status, subtotal: 3450, shipping_amount: 60, total_amount: 3510, currency: 'EGP', created_at: '2026-11-12T10:00:00Z',
   stores: { name: 'متجر تجريبي' }, store_order_request_items: [line('عطر تجريبي', 1, 3450)], store_shipments: [], store_order_cart_restorations: [],
-  store_order_cancellation_requests: [], store_shipment_events: [], payment_status: 'not_started', payment_options: [], ...extra
+  store_order_cancellation_requests: [], store_shipment_events: [], payment_status: 'not_started', payment_window: null, cancel_reason: null, ...extra
 });
 const ORDERS = [
   order('o1', 'ELN-REVIEW-0001', 'awaiting_store_confirmation'),
-  order('o2', 'ELN-REVIEW-0002', 'store_confirmed', { approved_at: '2026-11-13T09:00:00Z', payable_amount: 3510, payment_options: [{ id: 'm1', kind: 'card', labelAr: 'ادفع بالبطاقة' }, { id: 'm2', kind: 'cod', labelAr: 'الدفع عند الاستلام' }] }),
+  order('o2', 'ELN-REVIEW-0002', 'store_confirmed', { approved_at: '2026-11-13T09:00:00Z', payable_amount: 3510, payment_window: { state: 'opened', expires_at: new Date(Date.now() + 22 * 60 * 1000).toISOString() } }),
   order('o3', 'ELN-REVIEW-0003', 'processing', { approved_at: '2026-11-13T09:00:00Z', payment_status: 'paid', payment_method: 'card', paid_at: '2026-11-13T09:10:00Z', payable_amount: 3510 }),
   order('o4', 'ELN-REVIEW-0004', 'shipped', {
     approved_at: '2026-11-10T09:00:00Z', payment_status: 'cod_selected', payable_amount: 3510,
@@ -57,7 +57,9 @@ const ORDERS = [
   }),
   order('o5', 'ELN-REVIEW-0005', 'delivered', { payment_status: 'paid', payment_method: 'card', paid_at: '2026-10-30T10:00:00Z', created_at: '2026-10-29T10:00:00Z', store_shipments: [{ carrier_name: 'شركة شحن تجريبية', tracking_code: 'TC-2', shipping_status: 'delivered', delivery_verified_at: '2026-11-02T10:00:00Z', updated_at: '2026-11-02T10:00:00Z' }] }),
   order('o6', 'ELN-REVIEW-0006', 'store_rejected', { rejection_reason: 'المنتج غير متوفر حاليًا', created_at: '2026-10-25T10:00:00Z' }),
-  order('o7', 'ELN-REVIEW-0007', 'store_cancelled', { created_at: '2026-10-20T10:00:00Z', store_order_cancellation_requests: [{ id: 'c1', created_at: '2026-10-20T11:00:00Z' }] })
+  order('o7', 'ELN-REVIEW-0007', 'store_cancelled', { created_at: '2026-10-20T10:00:00Z' }),
+  order('o8', 'ELN-REVIEW-0008', 'cancelled', { created_at: '2026-10-19T10:00:00Z', cancel_reason: 'payment_window_closed' }),
+  order('o9', 'ELN-REVIEW-0009', 'cancelled', { created_at: '2026-10-18T10:00:00Z', cancel_reason: 'store_unresponsive' })
 ];
 
 const json = (route, body, status = 200) => route.fulfill({ status, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(body) });
