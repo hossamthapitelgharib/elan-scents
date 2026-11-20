@@ -1,6 +1,6 @@
 name: Fetch public store feeds (temporary)
 
-# Temporary: saves the PUBLIC pages about offers, bundles and discounts of the two trial stores (Afnan Egypt, Emarati Scents), because the
+# Temporary (owner approved on 2026-11-20): saves the PUBLIC product pages of the two trial stores (Afnan Egypt, Emarati Scents), because the
 # working session cannot open those sites. Runs only on the temporary branch tmp/fetch-store-feeds, reads public pages only (no login,
 # no secret), few requests with a pause between them. The result goes to the temporary branch tmp/store-feeds-data, which is emptied afterwards.
 
@@ -18,16 +18,15 @@ jobs:
     steps:
       - name: Download the public pages
         run: |
-          mkdir -p offers
+          mkdir -p feeds offers
           cat > fetch.py <<'PY'
-          import json, re, time, os, urllib.request, urllib.error
+          import json, time, urllib.request, urllib.error
           UA = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36'
           STORES = {'afnan-egypt': 'https://egypt.afnan.com', 'emarati-scents': 'https://emaratiscents.com'}
-          PAT = re.compile(r'black|friday|sale|offer|deal|bundle|discount|gift|pack|combo|clearance|عرض|عروض|خصم|خصومات|باقة|باقات|تخفيض|هدية|هدايا', re.I)
-          def get(url, accept='application/json'):
+          def get(url):
               for attempt in range(3):
                   try:
-                      req = urllib.request.Request(url, headers={'User-Agent': UA, 'Accept': accept})
+                      req = urllib.request.Request(url, headers={'User-Agent': UA, 'Accept': 'application/json'})
                       with urllib.request.urlopen(req, timeout=60) as r:
                           return r.status, r.read()
                   except urllib.error.HTTPError as e:
@@ -39,45 +38,34 @@ jobs:
               open(path, 'wb').write(data); print('saved', path, len(data), 'bytes')
           for name, base in STORES.items():
               print('==', name)
-              st, html = get(base + '/', 'text/html'); print(' home', st); save(f'offers/{name}-home.html', html); time.sleep(2)
-              cols, page = [], 1
-              while page <= 10:
-                  st, raw = get(f'{base}/collections.json?limit=250&page={page}')
+              page = 1
+              while page <= 30:
+                  st, raw = get(f'{base}/products.json?limit=250&page={page}')
                   if st != 200: break
-                  d = json.loads(raw).get('collections', [])
+                  d = json.loads(raw).get('products', [])
                   if not d: break
-                  cols += d; page += 1; time.sleep(2)
-              print(' collections:', len(cols))
-              save(f'offers/{name}-collections.json', json.dumps(cols, ensure_ascii=False).encode())
-              sel = [c for c in cols if PAT.search(c.get('handle', '')) or PAT.search(c.get('title', ''))]
-              print(' selected:', [(c['handle'], c.get('products_count')) for c in sel])
-              for c in sel[:40]:
-                  items, page = [], 1
-                  while page <= 8:
-                      st, raw = get(f"{base}/collections/{c['handle']}/products.json?limit=250&page={page}")
-                      if st != 200: break
-                      ps = json.loads(raw).get('products', [])
-                      if not ps: break
-                      for p in ps:
-                          items.append({'id': p['id'], 'handle': p['handle'], 'title': p['title'], 'tags': p.get('tags'),
-                                        'variants': [{'price': v['price'], 'compare_at_price': v.get('compare_at_price'), 'available': v['available'], 'title': v.get('title')} for v in p['variants']],
-                                        'body_text': re.sub(r'\s+', ' ', re.sub(r'<[^>]+>', ' ', p.get('body_html') or ''))[:600]})
-                      page += 1; time.sleep(2)
-                  save(f"offers/{name}-col-{c['handle']}.json", json.dumps({'collection': c, 'products': items}, ensure_ascii=False).encode())
+                  save(f'feeds/{name}-page-{page}.json', raw)
+                  page += 1; time.sleep(2)
+              print(' pages:', page - 1)
+          st, raw = get('https://egypt.afnan.com/collections/11-11-sale/products.json?limit=250')
+          if st == 200:
+              ps = json.loads(raw).get('products', [])
+              save('offers/afnan-egypt-col-11-11-sale.json', json.dumps({'collection': {'handle': '11-11-sale'}, 'products': [{'handle': p['handle'], 'title': p['title']} for p in ps]}, ensure_ascii=False).encode())
+              print(' sale products:', len(ps))
           PY
           python3 fetch.py
-          ls -l offers | head -80
+          ls -l feeds offers
       - name: Hand the files to the working session (temporary data branch)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -eu
-          gzip -9 offers/*
-          mkdir handoff && cp -r offers handoff/offers
+          gzip -9 feeds/* offers/*
+          mkdir handoff && cp -r feeds offers handoff/
           cd handoff
           git init -q -b tmp/store-feeds-data
           git config user.name 'github-actions'
           git config user.email 'github-actions@users.noreply.github.com'
-          git add offers
-          git commit -qm 'tmp: public offer pages of the two trial stores (to be emptied)'
+          git add feeds offers
+          git commit -qm 'tmp: public product pages of the two trial stores (to be emptied)'
           git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" tmp/store-feeds-data
