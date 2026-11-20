@@ -487,3 +487,24 @@ header .ic button[data-sheet="cart"] svg{width:20px!important;height:20px!import
 .pdoffers{display:grid;gap:8px}
 .pdo{margin:0;padding:10px 12px;border:1px solid #eadfc6;border-radius:12px;background:#fff;font-size:13px;color:#2b2418;display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px}
 .pdo small{flex-basis:100%;color:#85775c;font-size:12px}.pdo .oend{flex-basis:auto}
+
+/* the order page (order-page.js): the order's own number, the store, the numbered lines, the totals, the customer's details and the two buttons;
+   then the same card shows where the order stands (waiting for the store, refused, cancelled, approved with the payment countdown, verifying, confirmed) */
+.op{display:grid;gap:12px}.op>h3{margin:0}
+.op-meta{display:grid;gap:8px;padding:10px 12px;border:1px solid #ead9b1;border-radius:14px;background:#fff}.op-meta>div{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-size:12px;line-height:1.7}.op-meta span{color:var(--gray);white-space:nowrap}.op-meta b{color:#3b2a08;text-align:end;overflow-wrap:anywhere}.op-trk{color:var(--gold3);font-size:13px;letter-spacing:.3px}
+.op-lines{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.op-line{display:grid;grid-template-columns:1fr auto;gap:4px 10px;align-items:center;padding:10px 12px;border:1px solid #ead9b1;border-radius:14px;background:#fff}
+.op-no{grid-column:1/-1;justify-self:start;padding:0 8px;border-radius:999px;background:#fff;border:1px solid #ead9b1;color:var(--gold3);font-size:11px;font-weight:600;direction:ltr;unicode-bidi:isolate}
+.op-name{display:grid;gap:2px;min-width:0}.op-name b{font-size:13px;line-height:1.5;overflow-wrap:anywhere}.op-name small{color:var(--gray);font-size:11px}
+.op-q{display:flex;align-items:center;gap:8px;justify-self:end}.op-q button{width:30px;height:30px;border:1px solid #d9bf7c;border-radius:50%;background:#fff;color:var(--gold3);font:inherit;font-size:16px;line-height:1;cursor:pointer}.op-q button[disabled]{opacity:.4;cursor:default}.op-q span{min-width:18px;text-align:center;font-size:13px;font-weight:600}
+.op-amt{grid-column:1/-1;display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:12px}.op-amt small{color:var(--gray)}.op-amt b{color:#3b2a08}
+.op-totals{display:grid;gap:6px;padding:10px 12px;border:1px solid #ead9b1;border-radius:14px;background:#fff}.op-totals>div{display:flex;justify-content:space-between;gap:10px;font-size:12px;line-height:1.7}.op-totals span{color:var(--gray)}.op-totals b{color:#3b2a08}.op-totals .op-total{padding-top:6px;border-top:1px solid #ead9b1;font-size:14px}.op-totals .op-total b{color:var(--gold3)}
+.op-acct{display:grid;gap:6px;padding:10px 12px;border:1px solid #ead9b1;border-radius:14px;background:#fff}.op-acct h4{margin:0 0 2px;font-size:13px;color:var(--gold3)}.op-row{display:flex;justify-content:space-between;gap:10px;font-size:12px;line-height:1.7}.op-row span{color:var(--gray);white-space:nowrap}.op-row b{color:#3b2a08;text-align:end;overflow-wrap:anywhere}.op-lock{font-style:normal;font-size:10px;opacity:.7}
+.op-actions{display:grid;gap:8px}.op-actions:empty{display:none}.op-actions .btn[disabled]{opacity:.6;cursor:progress}.op-actions .op-link{text-decoration:none;text-align:center}
+.op-state{text-align:center;justify-items:center}.op-state p{margin:0;font-size:13px;line-height:1.8}.op-state .op-actions{width:100%}
+.op-trkline{color:var(--gray)}.op-trkline b{color:var(--gold3)}.op-attempt{color:var(--gray)}.op-reason{padding:9px 12px;border-radius:12px;background:#fff;border:1px solid #ead9b1;text-align:start}.op-reason span{color:var(--gold3);font-weight:600}
+.op-count{display:inline-block;min-width:54px;padding:0 10px;border-radius:999px;background:#fff;border:1px solid #ead9b1;color:var(--gold3);font-size:16px;font-variant-numeric:tabular-nums}
+.op-bad>h3{color:#9b2c1f}.op-ok>h3,.op-pay>h3{color:var(--gold3)}
+.op-spin{width:34px;height:34px;border:3px solid #ead9b1;border-top-color:#c8962a;border-radius:50%;animation:op-turn .9s linear infinite}
+@keyframes op-turn{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.op-spin{animation:none}}

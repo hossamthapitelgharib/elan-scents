@@ -24,7 +24,7 @@
       ]
     },
     {
-      "source": "/(index.html|privacy.html|account.html|dashboard.html|store-dashboard.html|platform-dashboard.html|customers-dashboard.html|stores-dashboard.html)",
+      "source": "/(index.html|privacy.html|account.html|dashboard.html|store-dashboard.html|platform-dashboard.html|customers-dashboard.html|stores-dashboard.html|payment-return.html)",
       "headers": [
         {
           "key": "Cache-Control",
@@ -33,7 +33,7 @@
       ]
     },
     {
-      "source": "/(index.html|privacy.html|account.html|dashboard.html|store-dashboard.html|platform-dashboard.html|customers-dashboard.html|stores-dashboard.html)",
+      "source": "/(index.html|privacy.html|account.html|dashboard.html|store-dashboard.html|platform-dashboard.html|customers-dashboard.html|stores-dashboard.html|payment-return.html)",
       "headers": [
         {
           "key": "Content-Security-Policy",
@@ -42,7 +42,7 @@
       ]
     },
     {
-      "source": "/(style.css|style-3.css|fonts.css|portal.css|account.css|dashboard.css|app.js|hero-video.js|hero-early.js|consent.js|turnstile.js|pw-eye.js|consent.css|privacy.css|app-core.js|guest-identity.js|auth-session.js|texts.js|portal.js|account.js|dashboard.js|store-dashboard.js|platform-dashboard.js|design-schema.js|design-layer.js|edit-boot.js|edit-mode.js|elan-host-bridge.js|customers-dashboard.js|stores-dashboard.js|footer-9x16.css|admin.css|admin-common.js|admin-alerts.js|admin-notices.js|admin-messages.js|admin-shell.js)",
+      "source": "/(style.css|style-3.css|fonts.css|portal.css|account.css|dashboard.css|app.js|hero-video.js|hero-early.js|consent.js|turnstile.js|pw-eye.js|consent.css|privacy.css|app-core.js|guest-identity.js|auth-session.js|texts.js|portal.js|account.js|dashboard.js|store-dashboard.js|platform-dashboard.js|design-schema.js|design-layer.js|edit-boot.js|edit-mode.js|elan-host-bridge.js|customers-dashboard.js|stores-dashboard.js|footer-9x16.css|admin.css|admin-common.js|admin-alerts.js|admin-notices.js|admin-messages.js|admin-shell.js|pay-window.js|order-page.js|payment-return.js|payment-return.css)",
       "headers": [
         {
           "key": "Cache-Control",

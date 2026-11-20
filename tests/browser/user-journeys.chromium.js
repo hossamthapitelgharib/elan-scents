@@ -52,7 +52,9 @@ async function mockPage(page) {
     return H.safeFulfill(route, { status: 200, contentType: 'application/json', body: JSON.stringify(body.action === 'claim' ? carry.claimAnswer : { ok: true }) });
   });
   await page.route('**/api/customer-cart', route => H.safeFulfill(route, { status: 200, contentType: 'application/json', body: '{"ok":true,"items":[],"revision":0}' }));
-  await page.route('**/api/request-store-order-cancellation', route => H.safeFulfill(route, { status: 200, contentType: 'application/json', body: '{"requestId":"request-1","duplicate":false}' }));
+  // The order page (phase 1 stage 1): the tracking number reserved for the draft, and which stores can take an order.
+  await page.route('**/api/order-draft', route => H.safeFulfill(route, { status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, draftId: '5b1c2d3e-4f50-4a61-8b72-9c83d4e5f607', trackingNumber: 'ELN-TEST-0001', expiresAt: '2099-01-01T00:00:00Z' }) }));
+  await page.route('**/api/store-order-readiness', route => H.safeFulfill(route, { status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, stores: {} }) }));
   await page.route('**/sbgdtuqfrnfeggkwqtrw.supabase.co/**', async route => {
     const request = route.request(), url = new URL(request.url());
     if (url.pathname === '/auth/v1/token') return H.safeFulfill(route, { status: 200, contentType: 'application/json', body: JSON.stringify(tokenUser ? { ...CUSTOMER_SESSION, user: tokenUser } : CUSTOMER_SESSION) });
@@ -157,7 +159,7 @@ test('5. cart-to-checkout route requires authentication and shows the account pa
     await page.locator('[data-sheet="cart"]').click();
     assert.equal(await page.locator('#sheet').isVisible(), true);
     assert.match(await page.locator('#sheetB').innerText(), /سلتك فارغة/);
-    assert.equal(await page.locator('[data-store-order-form]').count(), 0);
+    assert.equal(await page.locator('.op, [data-store-order-form]').count(), 0);
     assert.equal(await page.locator('a[href="/account.html"]').count(), 1);
   } finally { await c.context.close(); }
 });
@@ -400,14 +402,15 @@ test('15. «حسابي»: under sign out in the menu, written once, saved on the
       ship_same: false, ship_governorate: 'الجيزة', ship_city: 'المعادي', ship_address: 'شارع النيل، بجوار الصيدلية', ship_building_no: '5', ship_floor_no: null, ship_apartment_no: '2', ship_lat: null, ship_lng: null,
       recipient_name: 'منى سيد', recipient_phone: '01112223334', delivery_notes: 'اتصل قبل الوصول' });
     // 5. "place order" with a complete «حسابي» opens the read-only review first (phase 1: no editable order form any more); «تعديل بياناتي» opens «حسابي» with a way back
-    //    to the cart. The catalogue is empty in this mocked page, so the cart line the review needs is given by the page's own cartGroups().
+    //    to the cart. The catalogue is empty in this mocked page, so the cart line the order page needs is given by the page's own cartGroups().
     await page.evaluate(() => {
       window.cartGroups = function () { return { 'Test Store': [{ c: { q: 1 }, p: { name: 'Test Perfume', brand: 'Test Brand', sz: '50 ml' }, b: { store: 'Test Store', storeId: 'store-1', storeProductId: 'sp-1', price: 150, cur: 'EGP', review: false } }] }; };
       openStoreOrder('Test Store');
     });
-    await page.waitForSelector('[data-store-order-form]');
-    assert.equal(await page.locator('#sheet .acct-wrap').count(), 0, 'a complete account goes straight to the review, not to the editing form');
-    assert.equal(await page.locator('[data-store-order-form] input, [data-store-order-form] textarea').count(), 0, 'the review is read only: the form holds the order button alone');
+    await page.waitForSelector('.op [data-op-approve]');
+    assert.equal(await page.locator('#sheet .acct-wrap').count(), 0, 'a complete account goes straight to the order page, not to the editing form');
+    assert.equal(await page.locator('.op input, .op textarea').count(), 0, 'the order page is read only: only the quantity buttons can change anything');
+    assert.equal(await page.locator('.op .op-trk').innerText(), 'ELN-TEST-0001', 'the tracking number comes from the server');
     await page.locator('[data-acct-edit]').click();
     await page.waitForSelector('#sheet .acct-wrap [data-back-cart]', { state: 'attached' });
     assert.equal(await page.locator('#acct-full_name').inputValue(), 'أحمد محمد علي حسن');
@@ -422,17 +425,21 @@ test('15. «حسابي»: under sign out in the menu, written once, saved on the
     assert.equal(await page.locator('#acct-recipient_phone').inputValue(), '01112223334');
     await page.locator('#acct-recipient_phone').fill('01099998888');
     await page.locator('#sheet [data-acct-form] button[type="submit"]').click();
-    await page.waitForSelector('[data-store-order-form]');
+    await page.waitForSelector('.op [data-op-approve]');
     assert.equal(acctWrites.length, 2, 'the change was saved');
     assert.equal(acctWrites[1].body.recipient_phone, '01099998888');
-    // 6. the review shows what «حسابي» holds: the store delivers to the recipient, at the delivery address, and still sees who bought
-    const review = await page.locator('.order-review').innerText();
-    assert.match(review, /منى سيد/, 'the recipient');
-    assert.match(review, /01099998888/, 'with the changed phone');
+    // 6. the order page shows what «حسابي» holds (read only; the server builds the order from the same account, not from this page)
+    const review = await page.locator('.op-acct').innerText();
+    assert.match(review, /أحمد محمد علي حسن/, 'the buyer');
     assert.match(review, /customer@example\.test/);
+    assert.match(review, /01012345678/);
     assert.match(review, /الجيزة، المعادي، شارع النيل، بجوار الصيدلية، مبنى 5، شقة 2/, 'the courier reads it in order: governorate, city, street, building, flat');
-    assert.match(review, /المشتري: أحمد محمد علي حسن - 01012345678/);
+    assert.match(review, /منى سيد - 01099998888/, 'the recipient, with the changed phone');
     assert.match(review, /اتصل قبل الوصول/);
+    assert.equal(await page.locator('.op-totals').innerText().then(t => /يُحدَّد لاحقًا/.test(t)), true, 'shipping is decided later');
+    // «إلغاء» goes back to the cart: it is not a cancelled purchase
+    await page.locator('[data-op-cancel]').click();
+    await page.waitForSelector('#sheet[data-kind="cart"]');
     assert.deepEqual(csp, [], 'the policy let the map, the address lookup and the location request through');
   } finally { await c.context.close(); }
 });
@@ -763,45 +770,47 @@ test('21b. the sign-in state of the orders page is centred in the same look, and
 });
 
 
-test('21c. asking to cancel an order: the box opens inside the card (no browser dialog), the typed reason is kept when the list is drawn again, going back closes it, send posts it once', async () => {
+test('21c. the payment window: the card has a «الدفع» button and a live countdown but no cancel button; the merchant opens in its own window; shutting it cancels the order at once and the card says «ملغاة من طرفك»', async () => {
   const c = await context({ session: CUSTOMER_SESSION });
   try {
     const page = await c.context.newPage();
     const dialogs = [];
     page.on('dialog', dialog => { dialogs.push(dialog.type()); dialog.dismiss().catch(() => {}); });
     await mockPage(page);
-    const bodies = [];
+    // the merchant's page: a different origin that the context answers for, so the popup can load it
+    await c.context.route('https://merchant.example.test/**', route => H.safeFulfill(route, { status: 200, contentType: 'text/html', body: '<!doctype html><title>merchant</title><p>pay here</p>' }));
+    const windowCalls = [];
     let cancelled = false;
-    const waiting = { id: 'w1', tracking_number: 'ELN-TEST-WAIT', status: 'awaiting_store_confirmation', subtotal: 150, shipping_amount: 0, total_amount: 150, currency: 'EGP', created_at: '2026-11-10T10:00:00Z', stores: { name: 'Test Store' },
+    const expires = new Date(Date.now() + 20 * 60 * 1000).toISOString();
+    const approved = { id: 'w1', tracking_number: 'ELN-TEST-WAIT', status: 'store_confirmed', payment_status: 'not_started', payable_amount: 150, subtotal: 150, shipping_amount: 0, total_amount: 150, currency: 'EGP', created_at: '2026-11-10T10:00:00Z', stores: { name: 'Test Store' },
       store_order_request_items: [{ product_name: 'Test Perfume', brand_name: 'Test Brand', size_label: '100 ml', quantity: 1, unit_price: 150, line_total: 150, currency: 'EGP' }], store_shipments: [], store_order_cart_restorations: [] };
-    await page.route('**/api/customer-orders*', route => H.safeFulfill(route, { status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, sessions: [{ id: 's1', store_order_requests: [{ ...waiting, store_order_cancellation_requests: cancelled ? [{ id: 'c1', status: 'requested' }] : [] }] }], pagination: { total: 1, hasMore: false } }) }));
-    await page.route('**/api/request-store-order-cancellation', route => { bodies.push(JSON.parse(route.request().postData() || '{}')); cancelled = true; return H.safeFulfill(route, { status: 200, contentType: 'application/json', body: '{"requestId":"w1","duplicate":false}' }); });
+    await page.route('**/api/customer-orders*', route => H.safeFulfill(route, { status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, sessions: [{ id: 's1', store_order_requests: [cancelled
+      ? { ...approved, status: 'cancelled', cancel_reason: 'payment_window_closed', payment_window: null }
+      : { ...approved, payment_window: { state: 'opened', expires_at: expires } }] }], pagination: { total: 1, hasMore: false } }) }));
+    await page.route('**/api/customer-order-window', route => {
+      const body = JSON.parse(route.request().postData() || '{}');
+      windowCalls.push(body);
+      if (body.action === 'open') return H.safeFulfill(route, { status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, state: 'opened', url: 'https://merchant.example.test/pay?w=1', expiresAt: expires }) });
+      if (body.action === 'return') { cancelled = true; return H.safeFulfill(route, { status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, status: 'cancelled', cancelReason: 'payment_window_closed' }) }); }
+      return H.safeFulfill(route, { status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) });
+    });
     await page.goto(H.SITE + '/account.html', { waitUntil: 'load' });
-    await page.waitForSelector('#activeOrders .order-cancel');
+    await page.waitForSelector('[data-pay-window="w1"]');
+    assert.equal(await page.locator('[data-cancel], .order-cancel, #cancelReason').count(), 0, 'the customer has no cancel control');
+    assert.match(await page.locator('[data-pay-left]').first().innerText(), /\d\d:\d\d/, 'the countdown shows the time left');
 
-    await page.click('#activeOrders [data-cancel="w1"]');
-    await page.waitForSelector('#cancelReason');
-    assert.equal(await page.evaluate(() => document.activeElement && document.activeElement.id), 'cancelReason', 'the cursor is in the reason field');
-    assert.match(await page.locator('.cancel-open').innerText(), /ما سبب طلب الإلغاء/);
-    assert.equal(bodies.length, 0, 'opening the box sends nothing');
-    await page.fill('#cancelReason', 'اخترت المقاس الخطأ');
-    // the list drawn again (the automatic refresh) keeps the box and what was typed
-    await page.evaluate(() => loadAccount());
-    assert.equal(await page.inputValue('#cancelReason'), 'اخترت المقاس الخطأ');
-    // back closes it, the button is back, and nothing was sent
-    await page.click('[data-cancel-back="w1"]');
-    assert.equal(await page.locator('#cancelReason').count(), 0);
-    assert.equal(await page.locator('[data-cancel="w1"]').count(), 1);
-    assert.equal(bodies.length, 0);
-    // open again (empty), type, send: one request with the reason, then the card shows that the request is waiting
-    await page.click('[data-cancel="w1"]');
-    assert.equal(await page.inputValue('#cancelReason'), '');
-    await page.fill('#cancelReason', 'غيّرت رأيي');
-    await page.click('[data-cancel-send="w1"]');
-    await page.waitForSelector('#activeOrders .cancel-pending');
-    assert.deepEqual(bodies, [{ requestId: 'w1', reason: 'غيّرت رأيي' }]);
-    assert.match(await page.locator('#activeOrders .cancel-pending').innerText(), /بانتظار رده/);
-    assert.equal(await page.locator('#cancelReason').count(), 0);
+    const [popup] = await Promise.all([page.waitForEvent('popup'), page.click('[data-pay-window="w1"]')]);
+    await popup.waitForURL('https://merchant.example.test/**');
+    assert.deepEqual(windowCalls.map(call => call.action), ['open'], 'opening the window asked the server once');
+    assert.equal(await page.locator('[data-pay-window="w1"]').isDisabled(), true, 'locked while the window is open');
+    assert.deepEqual(windowCalls.filter(call => call.action === 'return'), [], 'nothing is cancelled while the window is open');
+    // A window shut within a few seconds of the merchant's page loading is not trusted as a deliberate close (a merchant page can cut the
+    // link to this page); one that stays open and is then shut is.
+    await page.waitForTimeout(8700);
+    await popup.close();
+    await page.waitForFunction(() => document.body.innerText.includes('ملغاة من طرفك'), null, { timeout: 8000 });
+    assert.deepEqual(windowCalls.filter(call => call.action === 'return').map(call => call.outcome), ['closed'], 'shutting the window was reported once');
+    assert.equal(await page.locator('[data-pay-window]').count(), 0, 'a cancelled order has no payment button');
     assert.deepEqual(dialogs, [], 'no browser dialog was shown');
   } finally { await c.context.close(); }
 });

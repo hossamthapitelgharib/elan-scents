@@ -63,7 +63,7 @@ test('frontend order persistence uses the authenticated Supabase identity', () =
   const migration = fs.readFileSync(path.join(root, 'supabase/migrations/20261010014304_harden_order_user_binding.sql'), 'utf8');
   assert.match(core, /function authUserId\(\)\{return AUTH&&AUTH\.user&&AUTH\.user\.id\|\|''\}/);
   assert.match(core, /Authorization:'Bearer '\+\(AUTH&&AUTH\.access_token\|\|SB\.key\)/);
-  assert.match(core, /\/api\/place-store-order/);
+  assert.match(fs.readFileSync(path.join(root, 'order-page.js'), 'utf8'), /\/api\/place-store-order/, 'the order page makes the one server call');
   assert.doesNotMatch(core, /\/rpc\/create_checkout_session|\/rpc\/create_store_order_request/, 'the browser makes one server call; the two older functions are not used');
   assert.match(migration, /v_user uuid := auth\.uid\(\)/);
   assert.match(migration, /c\.id = v_checkout_session_id and c\.user_id = v_user_id/);
@@ -111,30 +111,13 @@ test('platform, store and customer dashboard APIs enforce their scopes', async (
   delete process.env.DASHBOARD_TOKEN;
 });
 
-test('store dashboard and order update require store ownership or platform role', async () => {
+test('the store dashboard list requires store ownership or platform role (the dashboard is read-only: there is no store update door any more)', async () => {
   process.env.SUPABASE_URL = 'https://test.supabase.co'; process.env.SUPABASE_SERVICE_ROLE_KEY = 'service';
-  global.fetch = async (url, options = {}) => { if (url.includes('/auth/v1/user')) return jsonResponse({ id: 'store-user' }); if (url.includes('/profiles')) return jsonResponse([{ id: 'store-user', role: 'store_admin' }]); if (url.includes('/store_accounts')) return jsonResponse([{ store_id: 'store-a' }]); if (url.includes('/store_order_requests?select=id,store_id,tracking_number,status')) return jsonResponse([{ id: 'request-1', store_id: 'store-a', tracking_number: 'T-1', status: 'store_confirmed' }]); if (options.method === 'PATCH') return jsonResponse([{ id: 'request-1', store_id: 'store-a', tracking_number: 'T-1', status: 'processing' }]); return jsonResponse([{ id: 'request-1', store_id: 'store-a', status: 'processing' }]); };
+  global.fetch = async (url, options = {}) => { if (url.includes('/auth/v1/user')) return jsonResponse({ id: 'store-user' }); if (url.includes('/profiles')) return jsonResponse([{ id: 'store-user', role: 'store_admin' }]); if (url.includes('/store_accounts')) return jsonResponse([{ store_id: 'store-a' }]); return jsonResponse([]); };
   const orders = await invoke(api('store-dashboard-orders'), baseRequest()); assert.equal(orders.status, 200);
-  const update = await invoke(api('store-order-update'), { method: 'PATCH', headers: { authorization: 'Bearer test-token' }, body: { requestId: 'request-1', status: 'processing' } }); assert.equal(update.status, 200); assert.equal(update.body.ok, true); assert.equal(update.body.order, undefined); assert.equal(update.body.customer_phone, undefined);
-});
-
-test('store shipment updates stay scoped to the store order and never call a carrier API', async () => {
-  process.env.SUPABASE_URL = 'https://test.supabase.co'; process.env.SUPABASE_SERVICE_ROLE_KEY = 'service';
-  let saved; const calls = [];
-  global.fetch = async (url, options = {}) => {
-    calls.push({ url, options });
-    if (url.includes('/auth/v1/user')) return jsonResponse({ id: 'store-user' });
-    if (url.includes('/profiles')) return jsonResponse([{ id: 'store-user', role: 'store_admin' }]);
-    if (url.includes('/store_order_requests?')) return jsonResponse([{ id: 'request-1', store_id: 'store-a', tracking_number: 'T-1', status: 'processing' }]);
-    if (url.includes('/store_accounts?')) return jsonResponse([{ store_id: 'store-a' }]);
-    if (url.includes('/store_shipments?') && !options.method) return jsonResponse([]);
-    if (url.includes('/store_shipments?') && options.method === 'POST') { saved = JSON.parse(options.body); return jsonResponse([{ id: 'shipment-1', ...saved }], 201); }
-    if (url.includes('/store_order_notifications')) return jsonResponse({});
-    throw new Error(`unexpected ${url}`);
-  };
-  const result = await invoke(api('store-shipment-update'), { method: 'PATCH', headers: { authorization: 'Bearer test-token' }, body: { requestId: 'request-1', carrierName: 'شركة المتجر', trackingCode: 'LOCAL-1', shippingStatus: 'in_transit', estimatedDeliveryAt: '2026-10-15', statusNote: 'في الطريق' } });
-  assert.equal(result.status, 200); assert.equal(saved.store_id, 'store-a');
-  assert.equal(calls.some(x => /carrier|shipping-provider/i.test(x.url)), false);
+  for (const gone of ['store-order-update', 'store-shipment-update', 'store-payment-methods', 'customer-order-payment', 'request-store-order-cancellation']) {
+    assert.equal(fs.existsSync(path.join(root, 'api', gone + '.js')), false, gone + ' is retired: the merchant answers through its technical link, the customer pays in the merchant window');
+  }
 });
 
 test('shipping UI and migration keep carrier integration out of the platform', () => {
@@ -143,7 +126,7 @@ test('shipping UI and migration keep carrier integration out of the platform', (
   const store = fs.readFileSync(path.join(root, 'store-dashboard.js'), 'utf8');
   assert.match(migration, /request_id uuid not null unique references public\.store_order_requests/);
   assert.doesNotMatch(migration, /api_key|webhook_url|carrier_endpoint/i);
-  assert.match(customer, /store_shipments/); assert.match(store, /store-shipment-update/);
+  assert.match(customer, /store_shipments/); assert.doesNotMatch(store, /store-shipment-update/);
 });
 
 test('notification API returns only UI fields and marks only the customer’s own notification', async () => {
@@ -216,7 +199,9 @@ test('polling timers skip hidden tabs and catch up once when the tab comes back'
   assert.match(core, /addEventListener\('visibilitychange'/);
   // The orders page polls with a self-rescheduling timer (a minute, backing off on failure): a hidden tab is skipped.
   assert.match(account, /if \(!document\.hidden && Portal\.session\(\) && !resettingPassword\) \{\s*try \{ await loadAccount\(false, true\)/);
-  assert.doesNotMatch(account, /setInterval/);
+  // The only interval is the one-second countdown of a payment window: it moves text, and reads the orders again only at zero and never while hidden.
+  assert.equal((account.match(/setInterval\(/g) || []).length, 1);
+  assert.match(account, /left <= 0 && !document\.hidden/);
   assert.match(account, /addEventListener\('visibilitychange'/);
 });
 

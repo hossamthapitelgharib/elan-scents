@@ -37,7 +37,10 @@ test('orders are made only by place_store_order: the older functions and the leg
 test('the storefront does not call any of the closed functions', () => {
   const core = fs.readFileSync(path.join(root, 'app-core.js'), 'utf8');
   assert.doesNotMatch(core, /create_checkout_session|create_store_order_request/);
-  assert.match(core, /api\/place-store-order/);
+  // the one server call now lives in the order page (order-page.js), which app-core.js opens through showOrderForm
+  const page = fs.readFileSync(path.join(root, 'order-page.js'), 'utf8');
+  assert.match(page, /api\/place-store-order/);
+  assert.doesNotMatch(page, /create_checkout_session|create_store_order_request/);
 });
 
 test('the data rules are CHECK constraints that the rollback removes', () => {

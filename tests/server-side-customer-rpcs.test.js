@@ -40,15 +40,16 @@ test('the migration exposes only service-role wrappers which preserve the verifi
 
 test('the browser uses same-origin APIs and never calls the four Supabase RPCs', () => {
   assert.match(app, /fetch\('\/api\/customer-cart'/);
-  assert.match(app, /fetch\('\/api\/place-store-order'/);
-  assert.match(account, /fetch\('\/api\/request-store-order-cancellation'/);
+  assert.match(fs.readFileSync(path.join(root, 'order-page.js'), 'utf8'), /fetch\('\/api\/place-store-order'/, 'the order page (order-page.js) makes the one server call');
+  assert.doesNotMatch(account, /request-store-order-cancellation/, 'the customer no longer cancels: the retired door is not called');
   for (const name of ['confirm_store_order_purchase', 'place_store_order', 'replace_customer_cart', 'request_store_order_cancellation']) {
     assert.doesNotMatch(app + account, new RegExp(`/rest/v1/rpc/${name}`));
   }
 });
 
-test('the four API handlers exist and are not served as static files', () => {
-  for (const file of ['customer-cart.js', 'place-store-order.js', 'request-store-order-cancellation.js', 'confirm-store-order-purchase.js']) {
+test('the API handlers that remain exist, and the cancellation door is retired with the customer cancel button', () => {
+  for (const file of ['customer-cart.js', 'place-store-order.js', 'confirm-store-order-purchase.js']) {
     assert.equal(fs.existsSync(path.join(root, 'api', file)), true, file);
   }
+  assert.equal(fs.existsSync(path.join(root, 'api', 'request-store-order-cancellation.js')), false);
 });

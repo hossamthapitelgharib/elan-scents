@@ -266,15 +266,15 @@ test('the menu has «حسابي» under the sign-out item, and "place order" ope
   assert.match(menu, /data-menu-note="notin">'\+t\.menu\[15\]\+'<\/a><a class="off" data-menu-note="notin">'\+\(t\.menu\[16\]/, 'signed out: greyed, like sign out');
   assert.match(oneLine('function openStoreOrder'), /openAccount\(store\)\}$/, 'a signed-in customer goes through «حسابي» first');
   assert.match(oneLine('function openStoreOrder'), /PENDING_STORE=store;sheet\('signup'\)/, 'a visitor still creates an account first');
-  // Phase 1: the customer's data is read from the account, never typed again. The order sheet is a read-only review.
-  const form = oneLine('function orderFormHTML');
-  assert.match(form, /acctOrderPrefill\(\)/, 'the review shows what the account holds');
-  assert.match(form, /row=function\(k,v\)\{return v\?'<div class="orv-row"><span>'\+esc\(k\)\+'<\/span><b>'\+esc\(v\)\+'<\/b>/, 'every value shown from the account is escaped');
-  assert.doesNotMatch(form, /<input|<textarea|<select/, 'no field to type in: the data comes from the account');
-  assert.match(form, /data-acct-edit=/, 'a wrong detail is corrected in «حسابي»');
-  const send = oneLine('function sendStoreOrder');
-  assert.doesNotMatch(send, /form\.elements|customer=|unitPrice|lines=/, 'the browser sends no customer data, no lines and no prices');
-  assert.match(send, /payload:\{storeId:storeId,idempotencyKey:form\.dataset\.orderKey,expectedSubtotal:subtotal\}/, 'the browser sends the store, the retry key and the total it showed');
+  // The customer's data is read from the account, never typed again. The order page (order-page.js) shows it read-only.
+  const page = read('order-page.js');
+  assert.match(page, /acctOrderPrefill\(\)/, 'the order page shows what the account holds');
+  assert.match(page, /function row\(label, value, locked\)[\s\S]*?esc\(label\)[\s\S]*?esc\(value\)/, 'every value shown from the account is escaped');
+  assert.doesNotMatch(page, /<input|<textarea|<select/, 'no field to type in: the data comes from the account');
+  assert.match(page, /data-acct-edit=/, 'a wrong detail is corrected in «حسابي»');
+  assert.match(page, /payload: \{ storeId: OP\.storeId, idempotencyKey: [^}]*expectedSubtotal: subtotal, draftId: OP\.draft\.id \}/, 'the browser sends the store, the retry key, the total it showed and the draft');
+  const sent = page.slice(page.indexOf("fetch('/api/place-store-order'"), page.indexOf("fetch('/api/place-store-order'") + 420);
+  assert.doesNotMatch(sent, /customer|unitPrice|lines|items|currency/, 'the browser sends no customer data, no lines and no prices');
   assert.match(core, /if\(next&&!edit&&!failed&&acctComplete\(row\)\)\{showOrderForm\(next\);return\}/, 'a complete account goes straight to the review');
 });
 
