@@ -220,3 +220,17 @@ test('the status list holds every status the API accepts, and the page has the n
   assert.doesNotMatch(html, /<script(?![^>]*\bsrc=)/i);
   assert.doesNotMatch(html, /\son[a-z]+=/i);
 });
+
+test('the store link form has the order address field and says whether the store can take an order yet; saving sends the address with the other fields', async () => {
+  const store = (extra) => ({ id: 's1', name: 'Store A', shortDescription: '', enabled: true, baseUrl: '', cartUrl: '', apiBaseUrl: '', catalogEndpoint: '', orderEndpoint: '', orderReady: false, webhookUrl: 'https://shop.example.invalid/api/store-order-status', hasApiKey: false, hasWebhookSecret: false, notes: '', ...extra });
+  const closed = await start(baseRoutes({ 'GET /api/store-integrations': json(200, { ok: true, stores: [store({})] }) }));
+  const closedHtml = closed.nodes.get('#storeSettings').innerHTML;
+  assert.match(closedHtml, /data-setting="orderEndpoint"/);
+  assert.match(closedHtml, /order-ready off[^>]*>غير جاهز لاستقبال الطلبات/);
+  const open = await start(baseRoutes({ 'GET /api/store-integrations': json(200, { ok: true, stores: [store({ orderEndpoint: 'https://merchant.example.invalid/elan/<orders>', orderReady: true })] }) }));
+  const openHtml = open.nodes.get('#storeSettings').innerHTML;
+  assert.match(openHtml, /order-ready ok[^>]*>جاهز لاستقبال الطلبات/);
+  assert.match(openHtml, /value="https:\/\/merchant\.example\.invalid\/elan\/&lt;orders&gt;"/, 'the saved address is escaped in the field');
+  assert.doesNotMatch(openHtml, /elan\/<orders>/);
+  assert.match(require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'dashboard.js'), 'utf8'), /orderEndpoint: get\('orderEndpoint'\)\.value/, 'the form sends the address back');
+});

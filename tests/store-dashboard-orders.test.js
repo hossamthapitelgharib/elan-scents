@@ -159,28 +159,10 @@ test('the store sees the customer cancellation request (reason included) and not
   assert.equal((await readWith(undefined)).order.store_order_cancellation_requests.length, 0);
 });
 
-test('the store card tells the store how to answer a cancellation request, escapes the reason, and shows nothing without a request', () => {
-  const vm = require('node:vm');
-  const root = path.join(__dirname, '..');
-  const script = fs.readFileSync(path.join(root, 'store-dashboard.js'), 'utf8');
-  const code = [script.match(/^const escS = .*$/m)[0], script.match(/^const labelS = .*$/m)[0], script.match(/function cancelNoticeS[\s\S]*?\n}\n/)[0]].join('\n');
-  const context = vm.createContext({});
-  vm.runInContext(code, context);
-  const notice = (status, requests) => vm.runInContext(`cancelNoticeS(${JSON.stringify({ status, store_order_cancellation_requests: requests })})`, context);
-  const asked = [{ reason: '<img src=x onerror=1>', created_at: 'x' }];
-  assert.equal(notice('awaiting_store_confirmation', []), '');
-  assert.equal(notice('processing', undefined), '');
-  const waiting = notice('awaiting_store_confirmation', asked);
-  assert.match(waiting, /cancel-pending/);
-  assert.match(waiting, /«مرفوض»/);
-  assert.match(waiting, /«تم التأكيد»/);
-  assert.equal(waiting.includes('<img'), false, 'the reason is escaped');
-  assert.match(waiting, /&lt;img/);
-  assert.match(notice('store_rejected', asked), /cancel-accepted/);
-  assert.match(notice('processing', asked), /cancel-declined/);
-  assert.match(notice('awaiting_store_confirmation', [{ reason: null }]), /cancel-pending/);
-  assert.equal(notice('awaiting_store_confirmation', [{ reason: null }]).includes('السبب'), false, 'no reason line when none was given');
-  assert.match(script, /\$\{cancelNoticeS\(order\)\}/, 'the card shows the notice');
+test('the store card no longer asks the store to answer a cancellation request: the customer has no cancel button and the store answers nothing by hand', () => {
+  const script = fs.readFileSync(path.join(__dirname, '..', 'store-dashboard.js'), 'utf8');
+  assert.doesNotMatch(script, /cancelNoticeS|cancel-pending|cancel-declined|«مرفوض»|«تم التأكيد»/, 'no instruction to answer by pressing a status button');
+  assert.doesNotMatch(script, /<button|<form/, 'the card draws no control');
 });
 
 test('the search box is a plain "contains" match inside the store scope, and cannot inject filter syntax', async () => {
