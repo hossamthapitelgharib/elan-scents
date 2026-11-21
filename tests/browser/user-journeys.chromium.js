@@ -401,45 +401,55 @@ test('15. «حسابي»: under sign out in the menu, written once, saved on the
     assert.deepEqual(w.body, { user_id: 'customer-1', full_name: 'أحمد محمد علي حسن', phone: '01012345678', governorate: 'القاهرة', city: 'وسط البلد', address: 'شارع التحرير', building_no: '12', floor_no: '3', apartment_no: '8', address_lat: 30.0444, address_lng: 31.2357,
       ship_same: false, ship_governorate: 'الجيزة', ship_city: 'المعادي', ship_address: 'شارع النيل، بجوار الصيدلية', ship_building_no: '5', ship_floor_no: null, ship_apartment_no: '2', ship_lat: null, ship_lng: null,
       recipient_name: 'منى سيد', recipient_phone: '01112223334', delivery_notes: 'اتصل قبل الوصول' });
-    // 5. "place order" with a complete «حسابي» opens the read-only review first (phase 1: no editable order form any more); «تعديل بياناتي» opens «حسابي» with a way back
-    //    to the cart. The catalogue is empty in this mocked page, so the cart line the order page needs is given by the page's own cartGroups().
+    // 5. "place order" with a complete «حسابي» opens the order page first. It shows the same fields as «حسابي», editable (the name and the email are locked),
+    //    read fresh from the account. The catalogue is empty in this mocked page, so the cart line the order page needs is given by the page's own cartGroups().
+    await page.route('**/api/customer-order-review', (route) => H.safeFulfill(route, { status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, id: 'request-1', trackingNumber: 'ELN-TEST-0001', status: 'awaiting_store_confirmation', paymentStatus: 'not_started', delivery: { state: 'pending', attempts: 1, maxAttempts: 6 } }) }));
     await page.evaluate(() => {
       window.cartGroups = function () { return { 'Test Store': [{ c: { q: 1 }, p: { name: 'Test Perfume', brand: 'Test Brand', sz: '50 ml' }, b: { store: 'Test Store', storeId: 'store-1', storeProductId: 'sp-1', price: 150, cur: 'EGP', review: false } }] }; };
       openStoreOrder('Test Store');
     });
     await page.waitForSelector('.op [data-op-approve]');
     assert.equal(await page.locator('#sheet .acct-wrap').count(), 0, 'a complete account goes straight to the order page, not to the editing form');
-    assert.equal(await page.locator('.op input, .op textarea').count(), 0, 'the order page is read only: only the quantity buttons can change anything');
     assert.equal(await page.locator('.op .op-trk').innerText(), 'ELN-TEST-0001', 'the tracking number comes from the server');
-    await page.locator('[data-acct-edit]').click();
-    await page.waitForSelector('#sheet .acct-wrap [data-back-cart]', { state: 'attached' });
-    assert.equal(await page.locator('#acct-full_name').inputValue(), 'أحمد محمد علي حسن');
-    assert.equal(await page.locator('#acct-phone').inputValue(), '01012345678');
-    assert.equal(await page.locator('#acct-address').inputValue(), 'شارع التحرير');
-    assert.equal(await page.locator('#acct-city').inputValue(), 'وسط البلد');
-    assert.equal(await page.locator('#acct-apartment_no').inputValue(), '8');
-    assert.equal(await page.locator('input[name="ship_same"]').isChecked(), false);
-    assert.equal(await page.locator('#acct-ship_city').inputValue(), 'المعادي');
-    assert.equal(await page.locator('#acct-ship_address').inputValue(), 'شارع النيل، بجوار الصيدلية');
-    assert.equal(await page.locator('#acct-ship_building_no').inputValue(), '5');
-    assert.equal(await page.locator('#acct-recipient_phone').inputValue(), '01112223334');
-    await page.locator('#acct-recipient_phone').fill('01099998888');
-    await page.locator('#sheet [data-acct-form] button[type="submit"]').click();
-    await page.waitForSelector('.op [data-op-approve]');
-    assert.equal(acctWrites.length, 2, 'the change was saved');
-    assert.equal(acctWrites[1].body.recipient_phone, '01099998888');
-    // 6. the order page shows what «حسابي» holds (read only; the server builds the order from the same account, not from this page)
-    const review = await page.locator('.op-acct').innerText();
-    assert.match(review, /أحمد محمد علي حسن/, 'the buyer');
-    assert.match(review, /customer@example\.test/);
-    assert.match(review, /01012345678/);
-    assert.match(review, /الجيزة، المعادي، شارع النيل، بجوار الصيدلية، مبنى 5، شقة 2/, 'the courier reads it in order: governorate, city, street, building, flat');
-    assert.match(review, /منى سيد - 01099998888/, 'the recipient, with the changed phone');
-    assert.match(review, /اتصل قبل الوصول/);
-    assert.equal(await page.locator('.op-totals').innerText().then(t => /يُحدَّد لاحقًا/.test(t)), true, 'shipping is decided later');
-    // «إلغاء» goes back to the cart: it is not a cancelled purchase
+    assert.equal(await page.locator('.op [data-op-form] [data-acct-form]').count() + await page.locator('.op [data-acct-form]').count(), 0, 'the order page form is not the «حسابي» sheet form');
+    assert.equal(await page.locator('.op #acct-full_name').inputValue(), 'أحمد محمد علي حسن');
+    assert.equal(await page.locator('.op #acct-full_name').getAttribute('readonly'), '', 'the name is locked');
+    assert.equal(await page.locator('.op #acct-email').inputValue(), 'customer@example.test');
+    assert.equal(await page.locator('.op #acct-email').getAttribute('readonly'), '', 'the email is locked');
+    assert.equal(await page.locator('.op #acct-phone').inputValue(), '01012345678');
+    assert.equal(await page.locator('.op #acct-city').inputValue(), 'وسط البلد');
+    assert.equal(await page.locator('.op #acct-apartment_no').inputValue(), '8');
+    assert.equal(await page.locator('.op input[name="ship_same"]').isChecked(), false);
+    assert.equal(await page.locator('.op #acct-ship_city').inputValue(), 'المعادي');
+    assert.equal(await page.locator('.op #acct-ship_address').inputValue(), 'شارع النيل، بجوار الصيدلية');
+    assert.equal(await page.locator('.op #acct-recipient_phone').inputValue(), '01112223334');
+    assert.match(await page.locator('.op-totals').innerText(), /يحدده المتجر في نافذة الدفع/, 'the store decides the shipping inside its payment window');
+    // 6. editing here writes nothing until «موافق»; «إلغاء» throws the edits away
+    await page.locator('.op #acct-recipient_phone').fill('01099998888');
+    await page.locator('.op #acct-delivery_notes, .op textarea[name="delivery_notes"]').first().fill('اتصل قبل الوصول بساعة');
+    assert.equal(acctWrites.length, 1, 'typing saved nothing');
     await page.locator('[data-op-cancel]').click();
     await page.waitForSelector('#sheet[data-kind="cart"]');
+    assert.equal(acctWrites.length, 1, '«إلغاء»: nothing saved');
+    await page.evaluate(() => openStoreOrder('Test Store'));
+    await page.waitForSelector('.op [data-op-approve]');
+    assert.equal(await page.locator('.op #acct-recipient_phone').inputValue(), '01112223334', 'the discarded edit is gone');
+    // 7. a wrong value stops «موافق»: the message sits under the field, nothing is saved or sent
+    await page.locator('.op #acct-phone').fill('12345');
+    await page.locator('[data-op-approve]').click();
+    assert.match(await page.locator('.op .op-field-error').innerText(), /رقم موبايل مصري/, 'the message is under the wrong field');
+    assert.equal(acctWrites.length, 1, 'nothing saved');
+    // 8. «موافق» saves the edits to «حسابي» (and so «حسابي» shows them), then sends the order
+    await page.locator('.op #acct-phone').fill('٠١٢٢٢٢٢٣٣٣٣');
+    await page.locator('.op #acct-recipient_phone').fill('01099998888');
+    await page.locator('[data-op-approve]').click();
+    await page.waitForSelector('.op-wait');
+    assert.equal(acctWrites.length, 2, '«موافق» saved the details');
+    assert.equal(acctWrites[1].body.phone, '01222223333');
+    assert.equal(acctWrites[1].body.recipient_phone, '01099998888');
+    assert.equal(acctWrites[1].auth, 'Bearer customer-test-token', 'with the customer\'s own token');
+    assert.equal(acctRow.phone, '01222223333', 'and «حسابي» now holds them');
+    assert.match(await page.locator('.op-wait').innerText(), /ELN-TEST-0001/);
     assert.deepEqual(csp, [], 'the policy let the map, the address lookup and the location request through');
   } finally { await c.context.close(); }
 });

@@ -1,14 +1,19 @@
 /* Élan Scents: the order page (steps 2 to 6 of docs/purchase-flow-final.ar.md), shown in the storefront's sheet after «تنفيذ الطلب».
-   1. The page is filled from «حسابي» and from the cart. It shows the order's own tracking number (reserved by /api/order-draft, so the number
-      the customer saw is the number the order gets), the store, the date and time, every line with the number it will carry (the tracking number
-      then -01, -02 ... in the byte order of the store product id, the same order the database numbers them in), the prices, the shipping
-      ("يُحدَّد لاحقًا") and the total. Only the quantity is editable here, within the stock; the customer's own details change in «حسابي».
-   2. «موافق» sends the order (/api/place-store-order). «إلغاء» only goes back to the cart: nothing was placed, so nothing is cancelled.
+   1. The page is filled from «حسابي» (read fresh every time it opens) and from the cart. It shows the order's own tracking number (reserved by
+      /api/order-draft, so the number the customer saw is the number the order gets), the store, the date and time, every line with the number it
+      will carry (the tracking number then -01, -02 ... in the byte order of the store product id, the same order the database numbers them in),
+      the prices, the shipping (the store decides it inside its payment window) and the total of the products.
+      The customer can edit here the same details «حسابي» holds (phone, address, shipping address, another recipient, delivery notes; the name
+      and the e-mail are locked) and the quantities, within the stock. Edits live in the page only: nothing is written until «موافق».
+   2. «موافق» first saves the details to «حسابي» (a save that fails stops everything: the order is not sent), then sends the order
+      (/api/place-store-order), which the server builds from that account. «إلغاء» throws the edits away and goes back to the cart: nothing was
+      saved, nothing was placed, so nothing is cancelled.
    3. The order goes to the store by itself and the store answers by itself in seconds. The page waits and shows the answer: refused (with the
-      store's reason), no answer (an apology and "try again in an hour"), or approved with the store's own payment window and its countdown.
-   4. «الدفع» opens that window (pay-window.js). Nothing the browser says proves a payment: after the window the page shows "verifying" until a
-      neutral confirmation arrives. There is no customer cancel button anywhere: closing the window before paying cancels the order, and the
-      products stay in the cart.
+      store's reason), no answer (an apology and "try again in an hour"), or approved with the store's own payment window.
+   4. «الدفع» opens that window (pay-window.js). The window, what is inside it, its shipping cost and its duration belong to the store and its
+      payment provider; Élan Scents sets no time and shows no countdown. Nothing the browser says proves a payment: after the window the page
+      shows "verifying" until a neutral confirmation arrives. There is no customer cancel button anywhere: closing the window before paying
+      cancels the order, and the products stay in the cart.
    Everything shown that came from the catalog, the account or the store goes through esc(). The functions it uses (cartGroups, esc, sheet...) are
    the storefront's, defined in app-core.js and looked up when called. window.ElanOrderPage = { show(store), ready(storeId), warm(), strings, state() }. */
 (function () {
@@ -23,10 +28,9 @@
     ar: {
       title: 'مراجعة طلبك', loading: 'جارٍ تجهيز صفحة طلبك…', trackNo: 'رقم تتبع Élan Scents', store: 'المتجر', when: 'التاريخ والوقت',
       lines: 'منتجات الطلب', lineNo: 'رقم السطر', qtyLess: 'إنقاص الكمية', qtyMore: 'زيادة الكمية', egp: 'ج.م',
-      subtotal: 'إجمالي المنتجات', shipping: 'الشحن', shippingLater: 'يُحدَّد لاحقًا', total: 'الإجمالي (قبل الشحن)',
-      mine: 'بياناتك', locked: 'من حسابك ولا تُعدَّل هنا', name: 'الاسم', email: 'البريد الإلكتروني', phone: 'رقم الهاتف', address: 'عنوان الشحن', recipient: 'المستلم', notes: 'ملاحظات التوصيل',
-      editAcct: 'تعديل بياناتي', approve: 'موافق', cancel: 'إلغاء',
-      hint: 'بالضغط على «موافق» يصل طلبك إلى المتجر ويراجعه تلقائيًا خلال لحظات. «إلغاء» يعيدك إلى السلة وتبقى منتجاتك فيها.',
+      subtotal: 'إجمالي المنتجات', shipping: 'الشحن', shippingLater: 'يحدده المتجر في نافذة الدفع', total: 'إجمالي المنتجات',
+      approve: 'موافق', cancel: 'إلغاء',
+      hint: 'بالضغط على «موافق» تُحفظ بياناتك في «حسابي» ويصل طلبك إلى المتجر ويراجعه تلقائيًا خلال لحظات. «إلغاء» يتجاهل أي تعديل أجريته هنا ويعيدك إلى السلة وتبقى منتجاتك فيها.',
       unavailableTitle: 'غير متاح حاليًا', unavailableText: 'تنفيذ الطلب من هذا المتجر غير متاح حاليًا. منتجاتك باقية في سلتك، حاول لاحقًا.',
       retry: 'إعادة المحاولة', backCart: 'العودة للسلة', myOrders: 'طلباتي', close: 'إغلاق', again: 'حاول مرة أخرى',
       eExpired: 'انتهت صلاحية صفحة الطلب. حدّثها ثم اضغط «موافق» من جديد.', eLoad: 'تعذر تجهيز صفحة الطلب الآن. حاول مرة أخرى.', refresh: 'تحديث الصفحة',
@@ -35,11 +39,11 @@
       rejectedTitle: 'اعتذر المتجر عن تنفيذ طلبك', rejectedKeep: 'منتجاتك ما زالت في سلتك.', reasonLabel: 'سبب المتجر',
       unresponsiveTitle: 'تعذر تنفيذ طلبك الآن', unresponsive: 'نعتذر عن تنفيذ طلبك في الوقت الحالي، برجاء إعادة المحاولة بعد ساعة',
       byYouTitle: 'ملغاة من طرفك', byYou: 'أُلغي الطلب لأن نافذة الدفع أُغلقت أو أُلغي الدفع فيها. منتجاتك ما زالت في سلتك ويمكنك طلبها مرة أخرى.',
-      expiredTitle: 'انتهت مهلة الدفع', expired: 'انتهت مهلة نافذة الدفع قبل إتمام الدفع فأُلغي الطلب. منتجاتك ما زالت في سلتك ويمكنك طلبها مرة أخرى.',
+      expiredTitle: 'انتهت مهلة الدفع', expired: 'انتهت مهلة نافذة الدفع لدى المتجر قبل إتمام الدفع فأُلغي الطلب. منتجاتك ما زالت في سلتك ويمكنك طلبها مرة أخرى.',
       cancelledTitle: 'أُلغي الطلب', cancelledText: 'أُلغي هذا الطلب. منتجاتك ما زالت في سلتك.',
-      approvedTitle: 'قبل المتجر طلبك', approvedText: 'أكمل الدفع من نافذة المتجر. الوقت المتبقي:', pay: 'الدفع',
-      payNote: 'إغلاق نافذة الدفع قبل إتمام الدفع يلغي الطلب.', timeUp: 'انتهت المهلة، ننتظر إغلاق الطلب…',
-      payingTitle: 'نافذة الدفع مفتوحة', payingText: 'أكمل الدفع في نافذة المتجر، وستعود إلى Élan Scents تلقائيًا. الوقت المتبقي:',
+      approvedTitle: 'قبل المتجر طلبك', approvedText: 'أكمل الدفع من نافذة المتجر. المتجر هو من يحدد ما في النافذة من طرق الدفع وتكلفة الشحن والإجمالي النهائي ومدة بقائها مفتوحة.', pay: 'الدفع',
+      payNote: 'إغلاق نافذة الدفع قبل إتمام الدفع يلغي الطلب.',
+      payingTitle: 'نافذة الدفع مفتوحة', payingText: 'أكمل الدفع في نافذة المتجر، وستعود إلى Élan Scents تلقائيًا.',
       ePopup: 'لم تُفتح نافذة الدفع. اسمح للموقع بفتح النوافذ ثم اضغط «الدفع» مرة أخرى.', ePay: 'تعذر فتح نافذة الدفع الآن. اضغط «الدفع» مرة أخرى.',
       verifyTitle: 'نتحقق من الدفع', verifyText: 'عدت من نافذة الدفع. ننتظر تأكيد الدفع من جهة محايدة ولا يُعدّ الطلب مدفوعًا قبل ذلك.',
       paidTitle: 'تم تأكيد طلبك', paidText: 'وصلنا تأكيد الدفع، وسيجهّز المتجر طلبك. تابع حالته من «طلباتي».'
@@ -47,10 +51,9 @@
     en: {
       title: 'Review your order', loading: 'Preparing your order page…', trackNo: 'Élan Scents tracking number', store: 'Store', when: 'Date and time',
       lines: 'Order items', lineNo: 'Line number', qtyLess: 'Decrease quantity', qtyMore: 'Increase quantity', egp: 'EGP',
-      subtotal: 'Products total', shipping: 'Shipping', shippingLater: 'Set later', total: 'Total (before shipping)',
-      mine: 'Your details', locked: 'From your account; not editable here', name: 'Name', email: 'Email', phone: 'Phone', address: 'Shipping address', recipient: 'Recipient', notes: 'Delivery notes',
-      editAcct: 'Edit my details', approve: 'Agree', cancel: 'Cancel',
-      hint: 'Pressing “Agree” sends your order to the store, which reviews it automatically within moments. “Cancel” takes you back to the cart and your items stay in it.',
+      subtotal: 'Products total', shipping: 'Shipping', shippingLater: 'Set by the store in its payment window', total: 'Products total',
+      approve: 'Agree', cancel: 'Cancel',
+      hint: 'Pressing “Agree” saves your details to My account and sends your order to the store, which reviews it automatically within moments. “Cancel” discards any change you made here and takes you back to the cart; your items stay in it.',
       unavailableTitle: 'Not available right now', unavailableText: 'Placing orders with this store is not available right now. Your items stay in your cart; please try later.',
       retry: 'Try again', backCart: 'Back to cart', myOrders: 'My orders', close: 'Close', again: 'Try again',
       eExpired: 'The order page has expired. Refresh it and press “Agree” again.', eLoad: 'The order page could not be prepared right now. Please try again.', refresh: 'Refresh the page',
@@ -59,22 +62,23 @@
       rejectedTitle: 'The store declined your order', rejectedKeep: 'Your items are still in your cart.', reasonLabel: 'The store’s reason',
       unresponsiveTitle: 'Your order could not be placed now', unresponsive: 'We are sorry we could not place your order right now. Please try again in an hour.',
       byYouTitle: 'Cancelled by you', byYou: 'The order was cancelled because the payment window was closed or payment was cancelled in it. Your items are still in your cart and you can order them again.',
-      expiredTitle: 'Payment time is over', expired: 'The payment window timed out before payment was completed, so the order was cancelled. Your items are still in your cart and you can order them again.',
+      expiredTitle: 'Payment time is over', expired: 'The store’s payment window timed out before payment was completed, so the order was cancelled. Your items are still in your cart and you can order them again.',
       cancelledTitle: 'Order cancelled', cancelledText: 'This order was cancelled. Your items are still in your cart.',
-      approvedTitle: 'The store accepted your order', approvedText: 'Complete the payment in the store’s window. Time left:', pay: 'Pay',
-      payNote: 'Closing the payment window before paying cancels the order.', timeUp: 'Time is up; waiting for the order to be closed…',
-      payingTitle: 'The payment window is open', payingText: 'Complete the payment in the store’s window; you will return to Élan Scents automatically. Time left:',
+      approvedTitle: 'The store accepted your order', approvedText: 'Complete the payment in the store’s window. The store decides what is in the window: the payment methods, the shipping cost, the final total and how long it stays open.', pay: 'Pay',
+      payNote: 'Closing the payment window before paying cancels the order.',
+      payingTitle: 'The payment window is open', payingText: 'Complete the payment in the store’s window; you will return to Élan Scents automatically.',
       ePopup: 'The payment window did not open. Allow this site to open windows, then press “Pay” again.', ePay: 'The payment window could not be opened now. Press “Pay” again.',
       verifyTitle: 'Verifying the payment', verifyText: 'You are back from the payment window. We are waiting for a neutral confirmation of the payment; the order is not paid before that.',
       paidTitle: 'Your order is confirmed', paidText: 'The payment confirmation arrived and the store will prepare your order. Follow it in My orders.'
     }
   };
 
-  var OP = { seq: 0, run: 0, store: '', storeId: '', draft: null, order: null, state: null, paying: false, payError: '', busy: false, failedPolls: 0, poll: 0, tick: 0 };
+  var OP = { seq: 0, run: 0, store: '', storeId: '', draft: null, order: null, state: null, edits: null, paying: false, payError: '', busy: false, failedPolls: 0, poll: 0, tick: 0 };
   var READY = { map: null, at: 0, loading: false };
 
   function U() { return UI[lang === 'en' ? 'en' : 'ar']; }
   function O() { return ORDER_UI[lang === 'en' ? 'en' : 'ar']; }
+  function A() { return ACCT_UI[lang === 'en' ? 'en' : 'ar']; }
   function host() { var s = document.getElementById('sheet'), b = document.getElementById('sheetB'); return s && b ? { s: s, b: b } : null; }
   function mounted(seq) { var h = host(); return !!h && seq === OP.seq && !h.s.hidden && h.s.dataset.kind === 'order'; }
   function paint(html) { var h = host(); if (h) h.b.innerHTML = sheetX() + html; }
@@ -91,7 +95,6 @@
       return p.day + '/' + p.month + '/' + p.year + ' ' + p.hour + ':' + p.minute;
     } catch (_) { return new Date().toISOString().slice(0, 16).replace('T', ' '); }
   }
-  function clock(ms) { var s = Math.max(0, Math.ceil(ms / 1000)); return pad2(Math.floor(s / 60)) + ':' + pad2(s % 60); }
 
   function storeIdFor(store) {
     var row = ST.filter(function (x) { return String(x[2]) === String(store); })[0] || ST.filter(function (x) { return x[0] === store; })[0] || [];
@@ -107,16 +110,29 @@
   function subtotalOf(items) { return +items.reduce(function (a, x) { return a + +(x.b.price * x.c.q).toFixed(2); }, 0).toFixed(2); }
 
   /* ---------- the order page ---------- */
-  function row(label, value, locked) {
-    if (!value) return '';
-    return '<div class="op-row"><span>' + esc(label) + '</span><b>' + esc(value) + (locked ? ' <i class="op-lock" title="' + esc(U().locked) + '" aria-label="' + esc(U().locked) + '">🔒</i>' : '') + '</b></div>';
+  /* The customer's details, editable. The values shown are «حسابي» as it is now, with whatever the customer has typed here on top of it
+     (OP.edits survives a quantity change that redraws the page). Nothing is written to «حسابي» until «موافق». */
+  function formEl() { var h = host(); return h && h.b.querySelector('[data-op-form]'); }
+  function captureEdits() {
+    var f = formEl(); if (!f) return;
+    var e = {};
+    Array.prototype.forEach.call(f.elements, function (el) { if (el.name) e[el.name] = el.type === 'checkbox' ? !!el.checked : el.value; });
+    OP.edits = e;
   }
-  function accountBlock() {
-    var u = U(), a = typeof acctMine === 'function' && acctMine() || {}, pf = acctOrderPrefill(), email = AUTH && AUTH.user && AUTH.user.email || pf.email || '';
-    var rn = a.recipient_name || '', rp = a.recipient_phone || '';
-    return '<section class="op-acct"><h4>' + esc(u.mine) + '</h4>' + row(u.name, a.full_name || pf.name, true) + row(u.email, email, true) + row(u.phone, a.phone || pf.phone) +
-      row(u.address, String(pf.address || '').split('\n')[0]) + ((rn || rp) ? row(u.recipient, [rn, rp].filter(Boolean).join(' - ')) : '') + row(u.notes, a.delivery_notes) +
-      '<button class="back-cart" type="button" data-acct-edit="' + esc(OP.store) + '">' + esc(u.editAcct) + '</button></section>';
+  function fieldsHTML() {
+    var a = Object.assign({}, typeof acctMine === 'function' && acctMine() || {}, OP.edits || {});
+    return '<form class="acct-form op-form" data-op-form novalidate><fieldset class="op-fields">' + acctSections(a, true) + '</fieldset></form>';
+  }
+  function clearFieldErrors() { var f = formEl(); if (f) f.querySelectorAll('.op-field-error').forEach(function (n) { n.remove(); }); }
+  function showFieldError(res) {
+    var f = formEl(), el = f && f.elements[res.field];
+    clearFieldErrors();
+    if (!f || !el) { var box = boxFor(); if (box) { box.textContent = res.error; box.hidden = false; } return; }
+    var wrap = el.closest('.acct-field') || el.parentNode, p = document.createElement('p');
+    p.className = 'op-field-error'; p.setAttribute('role', 'alert'); p.textContent = res.error;
+    wrap.appendChild(p);
+    try { el.focus(); } catch (_) { /* a hidden field cannot take focus */ }
+    if (p.scrollIntoView) try { p.scrollIntoView({ block: 'nearest' }); } catch (_) { /* old browsers */ }
   }
   function pageHTML() {
     var u = U(), items = lineList(OP.store), trk = OP.draft.trackingNumber, sub = subtotalOf(items), name = items[0] && items[0].b.store || OP.store;
@@ -134,7 +150,7 @@
       '<ul class="op-lines" aria-label="' + esc(u.lines) + '">' + lines + '</ul>' +
       '<div class="op-totals"><div><span>' + esc(u.subtotal) + '</span><b>' + money(sub) + '</b></div><div><span>' + esc(u.shipping) + '</span><b>' + esc(u.shippingLater) + '</b></div>' +
       '<div class="op-total"><span>' + esc(u.total) + '</span><b>' + money(sub) + '</b></div></div>' +
-      accountBlock() + '<p class="orv-note">' + esc(u.hint) + '</p><p class="order-error op-error" role="alert" hidden></p>' +
+      fieldsHTML() + '<p class="orv-note">' + esc(u.hint) + '</p><p class="order-error op-error" role="alert" hidden></p>' +
       '<div class="op-actions"><button class="btn" type="button" data-op-approve>' + esc(u.approve) + '</button><button class="btn ghost" type="button" data-op-cancel>' + esc(u.cancel) + '</button></div></div>';
   }
 
@@ -160,9 +176,6 @@
     var u = U();
     return '<button class="btn" type="button" data-back-cart>' + esc(u.backCart) + '</button><a class="btn ghost op-link" href="/account.html">' + esc(u.myOrders) + '</a>';
   }
-  function remaining(s) { var t = s && s.window && Date.parse(s.window.expiresAt); return t ? t - Date.now() : null; }
-  function countText(s) { var r = remaining(s); return r == null ? '' : r > 0 ? clock(r) : '00:00'; }
-
   function stateHTML() {
     var u = U(), s = OP.state || {}, kind = kindOf(s), trk = '<p class="op-trkline">' + esc(u.trackNo) + ': <b dir="ltr">' + esc(s.trackingNumber || OP.order && OP.order.trackingNumber || '') + '</b></p>';
     if (kind === 'waiting') {
@@ -180,33 +193,28 @@
       return card('op-bad', title, trk + '<p>' + esc(text) + '</p>', backButtons());
     }
     if (kind === 'approved' || kind === 'paying') {
-      var left = remaining(s), over = left != null && left <= 0, err = OP.payError ? '<p class="order-error" role="alert">' + esc(OP.payError === 'popup_blocked' ? u.ePopup : u.ePay) + '</p>' : '';
-      var count = left == null ? '' : '<b class="op-count" dir="ltr" data-op-count>' + esc(countText(s)) + '</b>';
-      if (kind === 'paying') return card('op-pay', u.payingTitle, trk + '<div class="op-spin" role="status" aria-live="polite"></div><p>' + esc(u.payingText) + ' ' + count + '</p>' + err, '');
-      return card('op-pay', u.approvedTitle, trk + '<p>' + esc(over ? u.timeUp : u.approvedText) + ' ' + (over ? '' : count) + '</p>' + err + '<p class="orv-note">' + esc(u.payNote) + '</p>',
-        over ? '' : '<button class="btn" type="button" data-op-pay>' + esc(u.pay) + '</button>');
+      var err = OP.payError ? '<p class="order-error" role="alert">' + esc(OP.payError === 'popup_blocked' ? u.ePopup : u.ePay) + '</p>' : '';
+      if (kind === 'paying') return card('op-pay', u.payingTitle, trk + '<div class="op-spin" role="status" aria-live="polite"></div><p>' + esc(u.payingText) + '</p>' + err, '');
+      return card('op-pay', u.approvedTitle, trk + '<p>' + esc(u.approvedText) + '</p>' + err + '<p class="orv-note">' + esc(u.payNote) + '</p>',
+        '<button class="btn" type="button" data-op-pay>' + esc(u.pay) + '</button>');
     }
     if (kind === 'verifying') return card('op-wait', u.verifyTitle, trk + '<div class="op-spin" role="status" aria-live="polite"></div><p>' + esc(u.verifyText) + '</p>', '');
     return card('op-ok', u.paidTitle, trk + '<p>' + esc(u.paidText) + '</p>', '<a class="btn" href="/account.html">' + esc(u.myOrders) + '</a>');
   }
 
-  /* One tick a second keeps the clock on the page and the countdown moving without redrawing anything. */
+  /* One tick every few seconds keeps the date and time on the page current without redrawing anything. */
   function startTick(seq) {
     clearInterval(OP.tick);
     OP.tick = setInterval(function () {
       if (!mounted(seq)) { clearInterval(OP.tick); return; }
-      var h = host(), t = h.b.querySelector('[data-op-time]'), c = h.b.querySelector('[data-op-count]');
+      var t = host().b.querySelector('[data-op-time]');
       if (t) { var text = nowText(); if (t.textContent !== text) t.textContent = text; }
-      if (c) {
-        var text2 = countText(OP.state);
-        if (c.textContent !== text2) c.textContent = text2;
-        if (text2 === '00:00' && !OP.timeUp) { OP.timeUp = true; draw(seq); }
-      }
-    }, 1000);
+    }, 5000);
   }
 
   function draw(seq) {
     if (!mounted(seq)) return;
+    if (!OP.order) captureEdits();
     if (OP.order) { paint(stateHTML()); } else if (OP.draft) { paint(pageHTML()); }
     startTick(seq);
   }
@@ -219,7 +227,7 @@
       .catch(function () { return null; })
       .then(function (answer) {
         if (run !== OP.run || seq !== OP.seq) return null;
-        if (answer) { OP.state = answer; OP.failedPolls = 0; if (kindOf(answer) !== 'approved') OP.timeUp = false; } else OP.failedPolls += 1;
+        if (answer) { OP.state = answer; OP.failedPolls = 0; } else OP.failedPolls += 1;
         return answer;
       });
   }
@@ -236,7 +244,7 @@
       });
     }, slow ? SLOW_POLL_MS : POLL_MS);
   }
-  function watch(seq) { OP.run += 1; OP.timeUp = false; draw(seq); poll(seq, OP.run); }
+  function watch(seq) { OP.run += 1; draw(seq); poll(seq, OP.run); }
 
   /* ---------- opening the page ---------- */
   function errorOf(err) {
@@ -257,18 +265,23 @@
     if (window.ELAN_EDITOR_PREVIEW) return;
     stopTimers();
     var seq = ++OP.seq;
-    OP.run += 1; OP.store = store; OP.storeId = storeIdFor(store); OP.draft = null; OP.order = null; OP.state = null; OP.paying = false; OP.payError = ''; OP.busy = false; OP.failedPolls = 0; OP.timeUp = false;
+    OP.run += 1; OP.store = store; OP.storeId = storeIdFor(store); OP.draft = null; OP.order = null; OP.state = null; OP.edits = null; OP.paying = false; OP.payError = ''; OP.busy = false; OP.failedPolls = 0;
     if (!(cartGroups()[store] || []).length) { sheet('cart'); return; }
     var h = host(); if (!h) return;
     h.s.hidden = false; h.s.dataset.kind = 'order'; document.body.classList.add('sheet-open');
     paint('<div class="op op-state"><h3>' + esc(U().title) + '</h3><div class="op-spin" role="status" aria-live="polite"></div><p>' + esc(U().loading) + '</p></div>');
     if (!token()) { failView(seq, 'eAuth'); return; }
-    fetch('/api/order-draft', { method: 'POST', headers: headers(), body: JSON.stringify({ storeId: OP.storeId }) })
-      .then(function (r) { return r.json().catch(function () { return null; }).then(function (b) { return { ok: r.ok, body: b }; }); })
-      .then(function (res) {
+    /* «حسابي» is read again every time the page opens, so what the customer saved there a moment ago is what the page shows. */
+    var acctP = acctWithin(acctLoad(), 6000).then(function (r) { return { row: r, failed: false }; }, function () { return { row: acctMine(), failed: true }; });
+    var draftP = fetch('/api/order-draft', { method: 'POST', headers: headers(), body: JSON.stringify({ storeId: OP.storeId }) })
+      .then(function (r) { return r.json().catch(function () { return null; }).then(function (b) { return { ok: r.ok, body: b }; }); });
+    Promise.all([draftP, acctP])
+      .then(function (both) {
         if (!mounted(seq)) return;
-        var b = res.body;
+        var res = both[0], acct = both[1], b = res.body;
         if (!res.ok || !b || b.ok === false || !b.draftId || !b.trackingNumber) { failView(seq, errorOf(new Error(b && (b.message || b.error) || 'draft_failed'))); return; }
+        if (acct.failed && !acct.row) { failView(seq, 'load'); return; }
+        if (!acct.failed && !acctComplete(acct.row)) { openAccount(store, true); return; }
         OP.draft = { id: b.draftId, trackingNumber: b.trackingNumber, expiresAt: b.expiresAt };
         draw(seq);
       })
@@ -279,7 +292,7 @@
   function boxFor() { var h = host(); return h && h.b.querySelector('.op-error'); }
   function lock(on) {
     var h = host(); if (!h) return;
-    h.b.querySelectorAll('[data-op-approve],[data-op-cancel],[data-op-q],[data-acct-edit]').forEach(function (b) { b.disabled = on; });
+    h.b.querySelectorAll('[data-op-approve],[data-op-cancel],[data-op-q],.op-fields').forEach(function (b) { b.disabled = on; });
   }
   function fail(key) {
     var o = O(), u = U(), box = boxFor();
@@ -294,6 +307,11 @@
     if (OP.busy || !OP.draft) return;
     var seq = OP.seq, store = OP.store, box = boxFor();
     if (box) box.hidden = true;
+    var form = formEl(), au = A();
+    if (!form) return fail('eGen');
+    var read = acctRead(form, au);
+    if (read.error) { showFieldError(read); return; }
+    clearFieldErrors();
     if (reconcileCart(true)) { sheet('cart'); toast(O().cartMoved, 4200); return; }
     var items = cartGroups()[store] || [];
     if (!items.length) { sheet('cart'); return; }
@@ -301,6 +319,16 @@
     if (items.some(function (x) { return !x.b.storeProductId; }) || !token() || !OP.storeId) return fail(token() ? 'eGen' : 'eAuth');
     var subtotal = subtotalOf(items), data;
     OP.busy = true; lock(true);
+    /* The details are saved to «حسابي» first, and only on «موافق». If that fails nothing goes to the store. */
+    try { await acctSave(read.row); } catch (err) {
+      if (seq !== OP.seq) { OP.busy = false; return; }
+      OP.busy = false; lock(false);
+      var sbox = boxFor();
+      if (sbox) { sbox.textContent = err && err.message === 'acct_auth' ? au.eAuth : err instanceof TypeError ? au.eNet : au.eSave; sbox.hidden = false; }
+      return;
+    }
+    if (seq !== OP.seq) { OP.busy = false; return; }
+    OP.edits = null;
     try {
       if (!(await cartFlush())) { var unsaved = new Error('cart_not_saved'); unsaved.network = true; throw unsaved; }
       var response = await fetch('/api/place-store-order', {
@@ -324,6 +352,7 @@
   function qty(spec) {
     if (OP.busy || !OP.draft || OP.order) return;
     var seq = OP.seq;
+    captureEdits();
     cartQty(spec, function () { draw(seq); });
   }
 
@@ -336,7 +365,7 @@
       onState: function () {
         if (seq !== OP.seq) return;
         OP.paying = false;
-        refreshState(seq, run).then(function () { if (seq === OP.seq) { OP.timeUp = false; draw(seq); poll(seq, run); } });
+        refreshState(seq, run).then(function () { if (seq === OP.seq) { draw(seq); poll(seq, run); } });
       },
       onError: function (key) { if (seq !== OP.seq) return; OP.paying = false; OP.payError = key || 'network'; draw(seq); }
     });
@@ -349,9 +378,16 @@
     var q = t.closest('[data-op-q]');
     if (q) { e.preventDefault(); qty(q.dataset.opQ); return; }
     if (t.closest('[data-op-approve]')) { e.preventDefault(); approve(); return; }
-    if (t.closest('[data-op-cancel]')) { e.preventDefault(); stopTimers(); OP.seq += 1; sheet('cart'); return; }
+    if (t.closest('[data-op-cancel]')) { e.preventDefault(); stopTimers(); OP.seq += 1; OP.edits = null; sheet('cart'); return; }
     if (t.closest('[data-op-pay]')) { e.preventDefault(); pay(); return; }
     if (t.closest('[data-op-retry]')) { e.preventDefault(); show(OP.store); return; }
+  });
+
+  /* The details form has no submit button of its own: «موافق» is the only way to save, and Enter in a field must not submit anything. */
+  document.addEventListener('submit', function (e) { if (e.target && e.target.closest && e.target.closest('[data-op-form]')) e.preventDefault(); });
+  document.addEventListener('input', function (e) {
+    var t = e.target, w = t && t.closest && t.closest('[data-op-form]') && t.closest('.acct-field'), er = w && w.querySelector('.op-field-error');
+    if (er) er.remove();
   });
 
   /* ---------- which stores can take an order at all (the cart's button says so before the customer tries) ---------- */

@@ -266,12 +266,17 @@ test('the menu has «حسابي» under the sign-out item, and "place order" ope
   assert.match(menu, /data-menu-note="notin">'\+t\.menu\[15\]\+'<\/a><a class="off" data-menu-note="notin">'\+\(t\.menu\[16\]/, 'signed out: greyed, like sign out');
   assert.match(oneLine('function openStoreOrder'), /openAccount\(store\)\}$/, 'a signed-in customer goes through «حسابي» first');
   assert.match(oneLine('function openStoreOrder'), /PENDING_STORE=store;sheet\('signup'\)/, 'a visitor still creates an account first');
-  // The customer's data is read from the account, never typed again. The order page (order-page.js) shows it read-only.
+  // The order page (order-page.js) shows the same fields «حسابي» holds, built by the same function (acctSections), so a field exists in one place only.
+  // They are editable there, saved to «حسابي» at «موافق» (never before), and the name and the email are locked.
   const page = read('order-page.js');
-  assert.match(page, /acctOrderPrefill\(\)/, 'the order page shows what the account holds');
-  assert.match(page, /function row\(label, value, locked\)[\s\S]*?esc\(label\)[\s\S]*?esc\(value\)/, 'every value shown from the account is escaped');
-  assert.doesNotMatch(page, /<input|<textarea|<select/, 'no field to type in: the data comes from the account');
-  assert.match(page, /data-acct-edit=/, 'a wrong detail is corrected in «حسابي»');
+  assert.match(page, /acctSections\(a, true\)/, 'the order page draws the account fields with the very function «حسابي» uses, name locked');
+  assert.match(page, /await acctSave\(read\.row\)/, 'they are saved with the same save as «حسابي»');
+  assert.ok(page.indexOf('await acctSave(read.row)') < page.indexOf("fetch('/api/place-store-order'"), 'and the save comes before the order is sent');
+  assert.doesNotMatch(page, /<input|<textarea|<select/, 'no markup of its own for the fields');
+  assert.doesNotMatch(page, /data-acct-edit|acctOrderPrefill|localStorage/, 'it does not send the customer away and keeps no copy');
+  assert.match(oneLine('function acctSections'), /^function acctSections\(a,lockName\)\{/, 'one function draws the five sections');
+  assert.match(core, /data-acct-form data-next="'\+esc\(next\|\|''\)\+'" novalidate>'\+acctSections\(a,false\)/, '«حسابي» draws them with the name editable');
+  assert.match(core, /c\.closest\('\[data-acct-form\],\[data-op-form\]'\)/, 'the shipping-address checkbox works in both forms');
   assert.match(page, /payload: \{ storeId: OP\.storeId, idempotencyKey: [^}]*expectedSubtotal: subtotal, draftId: OP\.draft\.id \}/, 'the browser sends the store, the retry key, the total it showed and the draft');
   const sent = page.slice(page.indexOf("fetch('/api/place-store-order'"), page.indexOf("fetch('/api/place-store-order'") + 420);
   assert.doesNotMatch(sent, /customer|unitPrice|lines|items|currency/, 'the browser sends no customer data, no lines and no prices');

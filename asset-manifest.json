@@ -1,5 +1,5 @@
 {
-  "version": "20261121-03",
+  "version": "20261121-04",
   "files": {
     "account.css": "e9ab94b5ae478a1c",
     "account.js": "0a211f8b2673cebf",
@@ -9,8 +9,8 @@
     "admin-notices.js": "6b6077b913460c52",
     "admin-shell.js": "52bd6d2b65ce21df",
     "admin.css": "9f777c2e8fee5fb2",
-    "app-core.js": "5ca8d5367400055f",
-    "app.js": "62c437b701b2f863",
+    "app-core.js": "e9f2392672031965",
+    "app.js": "99382bf8dcdaff6f",
     "auth-session.js": "005394b4b936cdb2",
     "consent.css": "79e25a99fc582a15",
     "consent.js": "48af0c55d9cb872e",
@@ -27,7 +27,7 @@
     "guest-identity.js": "cacce8164dc69451",
     "hero-early.js": "d8c19f6ae161bf72",
     "hero-video.js": "df4dbe08e2d9eea3",
-    "order-page.js": "88453786865143f5",
+    "order-page.js": "ae9978537c9eaa5b",
     "pay-window.js": "d40ee987319fa5f6",
     "payment-return.css": "61a891875a0f50ff",
     "payment-return.js": "2faa47091d7ddb4f",
@@ -38,7 +38,7 @@
     "pw-eye.js": "6bec44ed621467c4",
     "store-dashboard.js": "c95fe9c37e4a6cbd",
     "stores-dashboard.js": "9f1bdcbc0638b3fe",
-    "style-3.css": "4e7b44bcff8ad121",
+    "style-3.css": "87cb0c320710622d",
     "style.css": "1e69297994b2a429",
     "texts.js": "84098e4a8ec574da",
     "turnstile.js": "1188b085c589e6d1"
