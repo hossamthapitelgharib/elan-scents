@@ -15,7 +15,7 @@ async function visit(size) {
   const errors = []; const page = await context.newPage(); H.watchErrors(page, errors);
   await page.goto(H.SITE + '/', { waitUntil: 'load' });
   await page.waitForSelector('#hero', { state: 'attached' });
-  await page.waitForTimeout(1200);
+  await H.quiet(page, null, { min: 600 });
   return { context, page, errors, problems };
 }
 

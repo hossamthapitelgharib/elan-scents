@@ -26,7 +26,7 @@ async function openEditor(size) {
     if (!frame) await page.waitForTimeout(250);
   }
   assert.ok(frame, 'the editor opened the storefront preview');
-  await page.waitForTimeout(1500);
+  await H.quiet(page, frame);
   return { context, page, frame };
 }
 const barState = (frame) => frame.evaluate(() => {

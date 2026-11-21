@@ -25,7 +25,7 @@ async function openEditor(size) {
     if (!frame) await page.waitForTimeout(250);
   }
   assert.ok(frame, 'the platform loaded inside the editor');
-  await page.waitForTimeout(1500);               // the frame is fitted a moment after it loads
+  await H.quiet(page, frame);               // the frame is fitted a moment after it loads
   return { context, page, frame, errors, problems };
 }
 
@@ -74,7 +74,7 @@ for (const size of H.WIDTHS) {
         await page.goto(H.SITE + '/', { waitUntil: 'load' });
         await page.waitForSelector('#hero', { state: 'attached' });
         await page.addStyleTag({ content: 'html{scrollbar-width:none}' });   // a phone has no scrollbar track
-        await page.waitForTimeout(1500);
+        await H.quiet(page, null);
         await page.evaluate(ARRIVED);
         const onPhone = await page.evaluate(SHAPE);
         assert.equal(onPhone.inner, 390);

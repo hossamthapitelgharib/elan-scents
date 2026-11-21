@@ -104,4 +104,25 @@ async function loginAsOwner(context, server) {
   await context.addCookies([{ name: 'elan_sess', value: m[1], domain: 'elan.test', path: '/', secure: true, httpOnly: true, sameSite: 'Strict' }]);
 }
 
-module.exports = { SITE, WIDTHS, loadPlaywright, startServer, openContext, watchErrors, safeFulfill, loginAsOwner };
+/* Wait until a page (or the platform frame inside the editor) has stopped changing, instead of sleeping a fixed second and a half after every load: the height and width of the page, how many
+   elements and loaded pictures it has, the font state and the root classes (hero-pending and the like) must be the same on several samples in a row, and in the editor the frame's own box too.
+   It returns as soon as that holds (normally a few hundred milliseconds), never before `min`, and gives up quietly after `max` like the sleep it replaces (the test's own checks follow). */
+const QUIET_SIGNATURE = () => {
+  const d = document, de = d.documentElement;
+  return [de.scrollHeight, de.scrollWidth, d.getElementsByTagName('*').length, Array.from(d.images).filter((i) => i.complete).length, d.fonts ? d.fonts.status : '', de.className, d.body ? d.body.className : ''].join('|');
+};
+async function quiet(page, frame, options) {
+  const o = Object.assign({ min: 500, max: 6000, same: 4, step: 100 }, options || {}), started = Date.now();
+  let last = null, run = 0;
+  while (Date.now() - started < o.max) {
+    const inner = await (frame || page).evaluate(QUIET_SIGNATURE).catch(() => 'x');
+    let outer = '';
+    if (frame) { const b = await page.locator('iframe').first().boundingBox().catch(() => null); outer = b ? [b.x, b.y, b.width, b.height].join(',') : ''; }
+    const now = inner + '#' + outer;
+    run = now === last ? run + 1 : 0; last = now;
+    if (run >= o.same - 1 && Date.now() - started >= o.min) return;
+    await page.waitForTimeout(o.step);
+  }
+}
+
+module.exports = { SITE, WIDTHS, loadPlaywright, startServer, openContext, watchErrors, safeFulfill, loginAsOwner, quiet };

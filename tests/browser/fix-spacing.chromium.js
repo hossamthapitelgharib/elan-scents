@@ -29,7 +29,7 @@ async function openEditor(design) {
     if (!frame) await page.waitForTimeout(250);
   }
   assert.ok(frame, 'the editor opened the storefront preview');
-  await page.waitForTimeout(1500);
+  await H.quiet(page, frame);
   return { context, page, frame };
 }
 const run = (frame, action, p) => frame.evaluate(async ({ action, p }) => JSON.parse(JSON.stringify(await window.ElanEditMode.execute(action, p || {}) || null)), { action, p });

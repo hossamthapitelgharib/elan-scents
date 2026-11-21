@@ -62,7 +62,7 @@ async function openEditor(size, cloud) {
     if (!frame) await page.waitForTimeout(250);
   }
   assert.ok(frame, 'the platform loaded inside the editor');
-  await page.waitForTimeout(1500);
+  await H.quiet(page, frame);
   return { context, page, frame, errors, problems, calls, deleted, uploads, saves, lib };
 }
 
@@ -568,10 +568,10 @@ test('with automatic left as it is, the section is created as before: no fixed s
   } finally { await context.close(); }
 });
 
-test('the store and perfume card panels have their own dimensions field: «أبعاد كارت المتجر», «أبعاد كروت العطور»; the brand card panel has none, a brand card takes the shape of its own picture', async () => {
+test('the store and perfume card panels have their own dimensions field: «أبعاد كارت المتجر», «أبعاد كروت العطور»; the brand card panel has none, a brand card is made in the strip with the frame of the strip', async () => {
   const { context, page, frame, errors } = await openEditor();
   try {
-    /* a brand card is the picture alone and takes the picture's own shape (2026-11-19): no shape to choose when it is created */
+    /* a brand card is the picture alone, in the strip's own frame (2026-11-19): no shape to choose when it is created */
     await chooseTool(page, frame, /إنشاء كارت براند/);
     await page.waitForSelector('dialog[open]');
     assert.equal(await page.locator('dialog[open] .ratioField').count(), 0, 'the brand panel has no dimensions field');

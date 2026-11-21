@@ -135,7 +135,7 @@ async function openEditor(size) {
     if (!frame) await page.waitForTimeout(250);
   }
   assert.ok(frame, 'the editor opened the storefront preview');
-  await page.waitForTimeout(1500);
+  await H.quiet(page, frame);
   return { context, page, frame };
 }
 const savedEdit = (frame, id) => frame.evaluate((elementId) => { const st = window.ElanEditMode.state(), e = (st.design.edits || {}); const out = {}; Object.keys(e).forEach((dev) => { if (e[dev][elementId]) out[dev] = JSON.parse(JSON.stringify(e[dev][elementId])); }); return out; }, id);

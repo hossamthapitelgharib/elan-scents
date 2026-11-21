@@ -35,7 +35,7 @@ test('an element that has a picture gets «نفس شكل الصورة» first in
   await b.mode.execute('element.select', { elementId: made });
   const first = sizeEntry(b).sizes[0].sizes[0];
   assert.deepEqual(plain(first), { media: true, ratio: [1200, 800], label: 'نفس شكل الصورة' });
-  assert.equal(sizeEntry(b).sizes[0].sizes.length, 1, 'and that is its only choice: a picture always has its own shape (2026-11-19), so the common shapes would change nothing for it');
+  assert.equal(sizeEntry(b).sizes[0].sizes.length, G.RATIOS.length + 1, 'and the common shapes after it');
   const got = await b.mode.execute('element.resize', { elementId: made, size: { media: true } });
   assert.ok(Math.abs(got.w / got.h - 1200 / 800) < 0.01, 'the picture\'s shape: ' + JSON.stringify(got));
   const again = await b.mode.execute('element.resize', { elementId: made, size: { media: true } });
@@ -65,7 +65,7 @@ test('the hero is resized like any element: a saved size is painted on it (so th
   assert.equal(hero.style.getPropertyValue('height'), '', 'automatic: nothing of it is left on the hero');
 });
 
-test('a picture in a resized element fills the whole frame: the frame keeps the width chosen for it and takes the picture\'s shape (never cut, never stretched, no colour behind)', async () => {
+test('a picture in a resized element adapts inside the fixed frame: contain (never cut, never stretched)', async () => {
   const b = await editor();
   alwaysPixels(b, 400, 200);
   const made = (await b.mode.execute('element.create', { kind: 'image', src: '/assets/cards/a.webp' })).elementId;
@@ -74,13 +74,9 @@ test('a picture in a resized element fills the whole frame: the frame keeps the 
   const root = b.document.querySelector('[data-elan-id="' + made + '"]');
   assert.equal(root.hasAttribute('data-elan-fit'), true);
   const now = root.querySelector('img');
-  assert.equal(now.style.getPropertyValue('object-fit'), 'fill'); assert.equal(now.style.getPropertyPriority('object-fit'), 'important');
+  assert.equal(now.style.getPropertyValue('object-fit'), 'contain'); assert.equal(now.style.getPropertyPriority('object-fit'), 'important');
   assert.equal(now.style.getPropertyValue('width'), '100%'); assert.equal(now.style.getPropertyValue('height'), '100%');
   assert.match(root.style.getPropertyValue('padding'), /^0(px)?$/, 'the block\'s side gutter would leave a strip beside the picture');
-  assert.match(root.style.getPropertyValue('width'), /px$/, 'the width chosen for it stays');
-  assert.equal(root.style.getPropertyValue('height'), 'auto', 'the height is the picture\'s: a 1:1 frame would cut it or leave bars');
-  assert.equal(root.style.getPropertyPriority('height'), 'important');
-  assert.equal(root.style.getPropertyValue('aspect-ratio').replace(/\s/g, ''), '400/200', 'the frame has the picture\'s own shape');
   assert.equal(root.querySelectorAll('.elan-fit-back,.elan-fit-front').length, 0, 'no artificial background layer is added');
   await b.mode.execute('history.undo', {});
   const back = b.document.querySelector('[data-elan-id="' + made + '"]');

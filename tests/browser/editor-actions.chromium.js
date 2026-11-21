@@ -28,7 +28,7 @@ async function openEditor(size, routes) {
     if (!frame) await page.waitForTimeout(250);
   }
   assert.ok(frame, 'the platform loaded inside the editor');
-  await page.waitForTimeout(1500);
+  await H.quiet(page, frame);
   return { context, page, frame, errors, problems };
 }
 const message = (page) => page.evaluate(() => document.getElementById('bridgeStatus').textContent);
