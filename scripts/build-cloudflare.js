@@ -13,6 +13,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const pageHashes = require('../railway/editor-page-hashes.js');
+const assetVersion = require('../lib/asset-version.js');
 
 const ROOT = path.resolve(__dirname, '..');
 
@@ -288,6 +289,13 @@ function build(options) {
     fs.mkdirSync(path.dirname(to), { recursive: true });
     fs.copyFileSync(path.join(opts.root, ...rel.split('/')), to);
   }
+  // The real asset version goes into every page now (the source pages carry the constant placeholder, lib/asset-version.js): the fingerprint
+  // of the shared scripts and stylesheets, so a changed file always gets a new address and an unchanged set keeps its own.
+  const version = assetVersion.computeVersion(opts.root);
+  for (const rel of files.filter((f) => f.endsWith('.html'))) {
+    const to = path.join(opts.outDir, ...rel.split('/'));
+    fs.writeFileSync(to, assetVersion.stamp(fs.readFileSync(to, 'utf8'), version, opts.root));
+  }
   // Copies of the hero picture (fetched by fetchHeroPictures before the build; none when the option is not given).
   const mirror = opts.heroMirror instanceof Map ? opts.heroMirror : new Map();
   for (const copy of mirror.values()) {
@@ -303,7 +311,10 @@ function build(options) {
   }
 
   const editorFiles = {};
-  for (const name of PRIVATE_EDITOR_FILES) editorFiles[name] = fs.readFileSync(path.join(opts.root, 'editor', name), 'utf8');
+  for (const name of PRIVATE_EDITOR_FILES) {
+    const text = fs.readFileSync(path.join(opts.root, 'editor', name), 'utf8');
+    editorFiles[name] = name.endsWith('.html') ? assetVersion.stamp(text, version, opts.root) : text;
+  }
   // CSP hashes of the editor page, computed here so the Worker does not spend CPU scanning the page on its first request.
   editorFiles['elan-editor.hashes.json'] = JSON.stringify(pageHashes.scan(editorFiles['elan-editor.html']));
   fs.mkdirSync(opts.generatedDir, { recursive: true });

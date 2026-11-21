@@ -411,6 +411,5 @@ test('the editor login page loads the check, has a place for it in both boxes, a
 test('every page with a sign-in or sign-up form loads turnstile.js under the shared version', () => {
   const pages = ['index.html', 'account.html', 'dashboard.html', 'store-dashboard.html', 'platform-dashboard.html'];
   for (const page of pages) assert.match(read(page), /<script src="\/turnstile\.js\?v=[0-9A-Za-z-]+"><\/script>/, page);
-  const manifest = JSON.parse(read('asset-manifest.json'));
-  assert.ok(manifest.files['turnstile.js'], 'turnstile.js is an immutable, hashed asset like the other shared scripts');
+  assert.ok(require('../lib/asset-version').immutableFiles().includes('turnstile.js'), 'turnstile.js is an immutable asset covered by the fingerprint, like the other shared scripts');
 });

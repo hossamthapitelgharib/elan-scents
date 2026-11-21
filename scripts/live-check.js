@@ -33,6 +33,9 @@ async function probe(base, fetchImpl) {
 
   const home = await call('/');
   add('the storefront page is served', REQUIRED, home.status === 200 && /<html/i.test(home.text), home.status);
+  // The pages carry the placeholder ?v=dev in the repository; the build puts the real version (the fingerprint of the shared files) in. A published page with the placeholder left in would keep a stale script for a year.
+  const assetVersions = [...String(home.text).matchAll(/\.(?:css|js)\?v=([0-9A-Za-z-]+)/g)].map((m) => m[1]);
+  add('the storefront page carries one real asset version (never the placeholder)', REQUIRED, assetVersions.length > 10 && new Set(assetVersions).size === 1 && !assetVersions.includes('dev'), [...new Set(assetVersions)].join(', ') || 'no versioned asset');
 
   // The pages carry a Content-Security-Policy that allows scripts from the site itself and from Cloudflare's Turnstile check only (vercel.json -> _headers on Cloudflare).
   const TURNSTILE_HOST = 'https://challenges.cloudflare.com';

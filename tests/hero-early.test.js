@@ -373,7 +373,7 @@ test('the Cloudflare build writes the hero picture into the storefront page, so 
     build.build({ root, outDir: out, generatedDir: gen });
     const page = fs.readFileSync(path.join(out, 'index.html'), 'utf8');
     assert.ok(page.includes('<!--hero-first-->') && page.startsWith('<!DOCTYPE html>\n<html lang="ar" dir="rtl" class="hero-img">'));
-    assert.equal(build.withoutHeroFirstPaint(page), index);
+    assert.equal(build.withoutHeroFirstPaint(page), require('../lib/asset-version.js').stamp(index, require('../lib/asset-version.js').computeVersion(root), root), 'apart from the block it is the source page, stamped with the asset version');
     for (const other of ['privacy.html', 'account.html']) if (fs.existsSync(path.join(out, other))) assert.doesNotMatch(fs.readFileSync(path.join(out, other), 'utf8'), /hero-first/, other);
     assert.doesNotMatch(index, /hero-first/, 'the source page stays as the editor and Railway serve it');
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }

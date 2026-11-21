@@ -6,7 +6,9 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
+const crypto = require('crypto');
 const editorHost = require('./editor-host.js');
+const assetVersion = require('../lib/asset-version.js');
 
 const ROOT = path.resolve(__dirname, '..');
 const PORT = Number(process.env.PORT) || 3000;
@@ -189,9 +191,49 @@ function notModified(req, etag, stat) {
   return Number.isFinite(since) && Math.floor(stat.mtimeMs / 1000) * 1000 <= since;
 }
 
+/* A page is served with the real asset version in its script and stylesheet addresses (lib/asset-version.js): the files on disk carry the
+   constant placeholder, and the version is the fingerprint of the shared scripts and stylesheets. The stamped page, its validator and its
+   compressed copies are kept per (file, version), so a changed script gives every page a new validator at once and nothing stale is revalidated. */
+const pageCache = new Map();
+function stampedPage(file, stat) {
+  const version = assetVersion.currentVersion(ROOT);
+  const key = file + '|' + stat.size + '|' + stat.mtimeMs + '|' + version;
+  let page = pageCache.get(key);
+  if (!page) {
+    const body = Buffer.from(assetVersion.stamp(fs.readFileSync(file, 'utf8'), version, ROOT));
+    page = { body, etag: 'W/"' + crypto.createHash('sha1').update(body).digest('hex').slice(0, 20) + '"', encoded: {} };
+    if (pageCache.size >= 60) pageCache.delete(pageCache.keys().next().value);
+    pageCache.set(key, page);
+  }
+  return page;
+}
+function serveHtml(req, res, file, stat) {
+  const page = stampedPage(file, stat);
+  if (!res.getHeader('Content-Type')) res.setHeader('Content-Type', MIME['.html']);
+  if (!res.getHeader('Cache-Control')) res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('ETag', page.etag);
+  const none = req.headers['if-none-match'];
+  if (none && (none.trim() === '*' || none.split(',').some((v) => v.trim().replace(/^W\//, '') === page.etag.replace(/^W\//, '')))) { res.statusCode = 304; return res.end(); }
+  let body = page.body;
+  if (body.length >= 1024) {
+    res.setHeader('Vary', 'Accept-Encoding');
+    const encoding = pickEncoding(req.headers['accept-encoding']);
+    if (encoding) {
+      body = page.encoded[encoding] || (page.encoded[encoding] = encoding === 'br'
+        ? zlib.brotliCompressSync(page.body, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 6, [zlib.constants.BROTLI_PARAM_SIZE_HINT]: page.body.length } })
+        : zlib.gzipSync(page.body, { level: 6 }));
+      res.setHeader('Content-Encoding', encoding);
+    }
+  }
+  res.statusCode = 200;
+  res.setHeader('Content-Length', body.length);
+  res.end(req.method === 'HEAD' ? undefined : body);
+}
+
 function serveStatic(req, res, file) {
   const stat = fs.statSync(file);
   const ext = path.extname(file).toLowerCase();
+  if (ext === '.html') return serveHtml(req, res, file, stat);
   const type = MIME[ext] || 'application/octet-stream';
   if (!res.getHeader('Content-Type')) res.setHeader('Content-Type', type);
   res.setHeader('Accept-Ranges', 'bytes');

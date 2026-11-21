@@ -192,8 +192,8 @@ test('account.css keeps the identity of the shop, is served as an immutable shar
   assert.match(css, /Playfair Display/);
   const vercel = JSON.parse(read('vercel.json'));
   const immutable = vercel.headers.find(rule => rule.headers.some(header => /immutable/.test(header.value)) && /portal\.css/.test(rule.source));
-  assert.ok(immutable && /\|account\.css\|/.test(immutable.source), 'account.css is on the immutable list (asset-manifest.json carries its fingerprint)');
-  assert.ok(JSON.parse(read('asset-manifest.json')).files['account.css'] || JSON.parse(read('asset-manifest.json'))['account.css'], 'its fingerprint is recorded');
+  assert.ok(immutable && /\|account\.css\|/.test(immutable.source), 'account.css is on the immutable list (its address carries the fingerprint of the shared files)');
+  assert.ok(require('../lib/asset-version').immutableFiles().includes('account.css'), 'and the fingerprint covers it' );
   // every selector starts with body.acct (portal.css is shared with the dashboards; this sheet is loaded by one page, but a loose rule would still be a trap)
   const rules = css.replace(/\/\*[\s\S]*?\*\//g, '');
   const loose = [];

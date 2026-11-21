@@ -16,9 +16,11 @@ test('storefront html links versioned css/js bundles', () => {
   assert.match(html, /src="\/app\.js\?v=[0-9A-Za-z-]+"/);
 });
 
-test('app.js loads versioned app-core', () => {
+test('app.js loads app-core under the version of its own address, and carries no version number itself', () => {
   const app = read('app.js');
-  assert.match(app, /\/app-core\.js\?v=[0-9A-Za-z-]+/);
+  assert.match(app, /var CORE='\/app-core\.js\?v='\+ASSET_V;/);
+  assert.match(app, /var ASSET_V=\(\(document\.currentScript&&document\.currentScript\.src\|\|''\)\.match\(\/\[\?&\]v=\(\[0-9A-Za-z-\]\+\)\/\)\|\|\[\]\)\[1\]\|\|'';/);
+  assert.doesNotMatch(app, /\?v=\d/, 'a number written into app.js would change the file (and conflict) whenever the version moved');
 });
 
 test('the storefront loads its theme sheets in parallel, versioned, in cascade order (no @import chain)', () => {

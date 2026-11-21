@@ -116,7 +116,8 @@ test('the built folder uses the copy: the file itself, the page\'s first frame, 
     assert.ok(css.includes('@media (min-width: 1024px){:root{--hero-img:url("' + copy + '")}}'));
     assert.ok(css.includes(':root{--hero-map:"' + SUPA + ' ' + copy + '"}'), 'hero-early.js is told which address the copy stands for');
     assert.ok(!css.includes('--hero-map:"' + mobile), 'a picture that was not copied is not in the map');
-    assert.equal(build.withoutHeroFirstPaint(page), index, 'taking the block out gives back the source page');
+    const assetVersion = require('../lib/asset-version.js');
+    assert.equal(build.withoutHeroFirstPaint(page), assetVersion.stamp(index, assetVersion.computeVersion(dir), dir), 'taking the block out gives back the source page (stamped with the asset version)');
 
     const headers = fs.readFileSync(path.join(out, '_headers'), 'utf8');
     const rules = headers.split('\n\n');

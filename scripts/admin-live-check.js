@@ -37,6 +37,7 @@ async function partA() {
   const assets = [...html.matchAll(/(?:src|href)="(\/[A-Za-z0-9._-]+\.(?:js|css))\?v=([0-9A-Za-z-]+)"/g)].map(match => ({ file: match[1], version: match[2] }));
   const versions = new Set(assets.map(asset => asset.version));
   expect(versions.size === 1, `one ?v= number on every file (${[...versions].join(', ')})`);
+  expect(!versions.has('dev'), 'the page was stamped with the real asset version (the placeholder ?v=dev must never be published)');
   for (const wanted of ['/admin.css', '/admin-common.js', '/admin-alerts.js', '/admin-notices.js', '/admin-messages.js', '/admin-shell.js']) {
     expect(assets.some(asset => asset.file === wanted), `the page loads ${wanted}`);
   }

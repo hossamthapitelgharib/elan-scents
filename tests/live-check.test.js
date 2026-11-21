@@ -5,13 +5,15 @@ const http = require('node:http');
 const { probe, summarize } = require('../scripts/live-check.js');
 
 /* A fake site that answers like the Worker does, with or without its service-role key and webhook secret. */
-function fakeSite({ serviceKey, webhookSecret, csp = "default-src 'self'; script-src 'self'; script-src-attr 'none'", inlineScript = false, consent = true, refuseButton = true }) {
+/* A storefront page the way the server stamps it: a dozen shared files under one real version (assetVersion: 'dev' is the placeholder that must never reach a visitor). */
+const stampedAssets = (version) => Array.from({ length: 12 }, (_, i) => `<script src="/shared-${i}.js?v=${version}"></script>`).join('');
+function fakeSite({ serviceKey, webhookSecret, csp = "default-src 'self'; script-src 'self'; script-src-attr 'none'", inlineScript = false, consent = true, refuseButton = true, assetVersion = '0123456789ab' }) {
   return http.createServer((req, res) => {
     req.resume();
     const send = (status, body, headers) => { res.writeHead(status, Object.assign({ 'Content-Type': 'application/json' }, headers)); res.end(body); };
     if (req.url === '/health') return send(200, 'ok', { 'Content-Type': 'text/plain' });
     if (req.url === '/api/config') return send(200, JSON.stringify({ url: 'https://example.supabase.co', key: 'public-anon' }));
-    if (req.url === '/') return send(200, '<html lang="ar">' + (inlineScript ? '<script>alert(1)</script>' : '<script src="/hero-video.js"></script>') + '</html>', Object.assign({ 'Content-Type': 'text/html' }, csp ? { 'Content-Security-Policy': csp } : {}));
+    if (req.url === '/') return send(200, '<html lang="ar">' + (inlineScript ? '<script>alert(1)</script>' : '<script src="/hero-video.js"></script>') + stampedAssets(assetVersion) + '</html>', Object.assign({ 'Content-Type': 'text/html' }, csp ? { 'Content-Security-Policy': csp } : {}));
     if (req.url === '/privacy.html') return send(200, refuseButton ? '<html><button type="button" data-consent-refuse>refuse</button></html>' : '<html>policy text only</html>', Object.assign({ 'Content-Type': 'text/html' }, csp ? { 'Content-Security-Policy': csp } : {}));
     if (consent && req.url === '/consent.js') return send(200, 'window.ElanConsent = {}', { 'Content-Type': 'text/javascript' });
     if (/^\/(index|account|dashboard|store-dashboard|platform-dashboard)\.html$/.test(req.url)) return send(200, '<html></html>', Object.assign({ 'Content-Type': 'text/html' }, csp ? { 'Content-Security-Policy': csp } : {}));
@@ -70,6 +72,14 @@ test('a storefront without the page policy, with unsafe-inline scripts or with a
     assert.equal(summary.ok, false, JSON.stringify(options));
     assert.ok(summary.failed.map((r) => r.name).includes('the storefront is served with a Content-Security-Policy that allows scripts from the site itself and the Turnstile check only'), JSON.stringify(options));
   }
+});
+
+test('a storefront page served with the placeholder version fails the check, one stamped with a real version passes', async () => {
+  const name = 'the storefront page carries one real asset version (never the placeholder)';
+  const placeholder = summarize(await runAgainst({ serviceKey: true, webhookSecret: false, assetVersion: 'dev' }));
+  assert.ok(placeholder.failed.map((r) => r.name).includes(name), 'the placeholder reached a visitor');
+  const healthy = summarize(await runAgainst({ serviceKey: true, webhookSecret: false }));
+  assert.equal(healthy.failed.map((r) => r.name).includes(name), false, 'a page stamped with one real version passes');
 });
 
 test('the policy with Cloudflare\'s Turnstile check as the one outside script source passes', async () => {

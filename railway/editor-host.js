@@ -39,7 +39,11 @@ function setFileProvider(fn) { fileProvider = typeof fn === 'function' ? fn : nu
 /* Text of a file in editor/ (null when missing): from the provider when one is set, otherwise from the repository on disk. */
 function editorFile(name) {
   if (fileProvider) { const text = fileProvider(name); return text === undefined || text === null ? null : String(text); }
-  try { return fs.readFileSync(path.join(ROOT, 'editor', name), 'utf8'); } catch (_) { return null; }
+  try {
+    const text = fs.readFileSync(path.join(ROOT, 'editor', name), 'utf8');
+    // The pages on disk carry the placeholder asset version; the Cloudflare bundle is stamped when it is built (scripts/build-cloudflare.js).
+    return name.endsWith('.html') ? require('../lib/asset-version.js').stampPage(text, ROOT) : text;
+  } catch (_) { return null; }
 }
 
 const sha = pageHashes.sha;

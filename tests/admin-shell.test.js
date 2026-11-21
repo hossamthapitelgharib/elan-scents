@@ -50,18 +50,18 @@ test('scripts load in an order where each one finds what it needs, and every fil
   assert.equal(order[order.length - 1], 'admin-shell.js', 'the shell starts last, when everything it opens is registered');
   const versions = new Set(list.map(script => script.version));
   assert.equal(versions.size, 1);
-  const manifest = JSON.parse(read('asset-manifest.json'));
-  assert.equal([...versions][0], manifest.version);
+  const placeholder = require('../lib/asset-version').PLACEHOLDER;
+  assert.equal([...versions][0], placeholder, 'the source carries the placeholder; the real version is put in when the page is served');
   for (const script of list) assert.ok(fs.existsSync(path.join(root, script.file)), script.file);
-  assert.match(html, new RegExp(`<link rel="stylesheet" href="/portal\\.css\\?v=${manifest.version}">\\s*<link rel="stylesheet" href="/admin\\.css\\?v=${manifest.version}">`), 'admin.css loads after portal.css');
+  assert.match(html, new RegExp(`<link rel="stylesheet" href="/portal\\.css\\?v=${placeholder}">\\s*<link rel="stylesheet" href="/admin\\.css\\?v=${placeholder}">`), 'admin.css loads after portal.css');
 });
 
-test('the shared scripts and the new stylesheet are served immutable and tracked by the manifest', () => {
+test('the shared scripts and the new stylesheet are served immutable and covered by the asset fingerprint', () => {
   const vercel = read('vercel.json');
-  const manifest = JSON.parse(read('asset-manifest.json'));
+  const shared = require('../lib/asset-version').immutableFiles();
   for (const file of ['admin.css', 'admin-common.js', 'admin-alerts.js', 'admin-notices.js', 'admin-messages.js', 'admin-shell.js']) {
     assert.match(vercel, new RegExp(`\\|${file.replace('.', '\\.')}[|)]`), `${file} is in the immutable rule`);
-    assert.ok(manifest.files[file], `${file} is in asset-manifest.json`);
+    assert.ok(shared.includes(file), `${file} is in the fingerprinted set`);
   }
 });
 

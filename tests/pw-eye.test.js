@@ -28,11 +28,11 @@ test('every page with a password field, or a script that builds one, loads pw-ey
   const needing = pages.filter((f) => { const h = read(f); return /type="password"/.test(h) || /src="\/(app|app-core|account|portal)\.js/.test(h); });
   /* The customers and stores pages now live inside platform-dashboard.html; their old addresses are bare redirects with no scripts. */
   assert.ok(needing.length >= 5, 'the storefront, the account page and the three panels: ' + needing.join(', '));
-  const version = JSON.parse(read('asset-manifest.json')).version;
+  const version = require('../lib/asset-version').PLACEHOLDER; // the sources carry the placeholder; the real version is put in when a page is served
   for (const f of needing) assert.match(read(f), new RegExp('<script src="/pw-eye\\.js\\?v=' + version + '" defer></script>'), f);
 });
 
-test('pw-eye.js is served like the other shared scripts (immutable under its ?v= URL) and is tracked by the asset manifest', () => {
+test('pw-eye.js is served like the other shared scripts (immutable under its ?v= URL) and is covered by the asset fingerprint', () => {
   assert.match(read('vercel.json'), /\|pw-eye\.js\|/);
-  assert.ok(JSON.parse(read('asset-manifest.json')).files['pw-eye.js'], 'asset-manifest.json carries its hash (run node scripts/bump-asset-version.js)');
+  assert.ok(require('../lib/asset-version').immutableFiles().includes('pw-eye.js'), 'the fingerprint covers it');
 });

@@ -1,4 +1,7 @@
 (function(){
+/* The version of the shared scripts is the one on this script's own address (/app.js?v=...): the page was stamped with it when it was served, so
+   nothing is written into this file and it never changes just because the version did. */
+var ASSET_V=((document.currentScript&&document.currentScript.src||'').match(/[?&]v=([0-9A-Za-z-]+)/)||[])[1]||'';
 function loadScript(src, cb){
   var s=document.createElement('script');
   s.src=src;
@@ -90,6 +93,6 @@ function applyArtAndHero(){
   watchSheet();
   watchMenu();
 }
-var CORE='/app-core.js?v=20261121-04';
+var CORE='/app-core.js?v='+ASSET_V;
 loadScript(CORE, applyArtAndHero);
 })();

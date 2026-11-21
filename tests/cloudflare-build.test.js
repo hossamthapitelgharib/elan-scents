@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const assetVersion = require('../lib/asset-version.js');
 const build = require('../scripts/build-cloudflare.js');
 const server = require('../railway/server.js');
 const root = path.resolve(__dirname, '..');
@@ -61,7 +62,7 @@ test('the Cloudflare asset folder holds exactly the files railway/server.js serv
       assert.equal(built.has(rel), served, rel + (served ? ' is public on Railway but missing from dist' : ' is private on Railway but would be public on Cloudflare'));
       // The one deliberate difference: the build writes the hero picture of the design into the storefront page (first frame).
       const unmarked = (file) => (rel === 'index.html' ? Buffer.from(build.withoutHeroFirstPaint(file.toString('utf8'))) : file);
-      if (served) assert.ok(Buffer.from(await response.arrayBuffer()).equals(unmarked(fs.readFileSync(path.join(dist, ...rel.split('/'))))), rel + ' differs from the served file');
+      if (served) assert.ok(Buffer.from(await response.arrayBuffer()).equals(unmarked(fs.readFileSync(path.join(dist, ...rel.split('/'))))), rel + ' differs from the served file (the build and the server must stamp the same asset version)');
       else await response.arrayBuffer();
     }
     for (const rel of built) assert.ok(repoFiles.includes(rel), rel + ' is not a repository file');
@@ -94,7 +95,10 @@ test('every file of editor/ is either public, bundled into the Worker, or the RE
       const isBundled = Object.prototype.hasOwnProperty.call(bundled, name) && name !== 'elan-editor.hashes.json';
       assert.ok(isPublic || isBundled || name === 'README.md', 'editor/' + name + ' is neither served nor bundled');
       assert.ok(!(isPublic && isBundled), 'editor/' + name + ' must not be both');
-      if (isBundled) assert.equal(bundled[name], fs.readFileSync(path.join(root, 'editor', name), 'utf8'));
+      if (isBundled) {
+        const source = fs.readFileSync(path.join(root, 'editor', name), 'utf8');
+        assert.equal(bundled[name], name.endsWith('.html') ? assetVersion.stamp(source, assetVersion.computeVersion(root), root) : source, name + ' is the source file (its pages stamped with the asset version)');
+      }
     }
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
