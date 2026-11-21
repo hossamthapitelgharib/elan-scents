@@ -1,0 +1,42 @@
+name: Site look review
+
+# Opens the PUBLISHED site from a GitHub runner, which can reach it (the Claude sandbox cannot), in a real Chromium on a phone and a laptop as an ordinary visitor, and reports the
+# overall look (fonts, overflow, headings, spacing, tap targets, broken pictures, console errors) with screenshots, then opens the menu and taps «طلباتي» and reports what it shows.
+# scripts/site-look-review.js prints LOOK| measurement lines and IMG| screenshot lines in the log; `node scripts/store-cards-review.js --decode <log> <dir>` turns the latter back into
+# pictures. It only reads the public site, signs nobody in, never fails the run and sends nothing. Run it by hand from the Actions tab (Run workflow).
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: Site address to review
+        default: https://elan-scents.hossamthapitelgharib.workers.dev
+
+permissions:
+  contents: read
+
+jobs:
+  review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Playwright
+        run: npm ci --no-audit --no-fund
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Review the published site
+        shell: bash
+        env:
+          SITE_URL: ${{ github.event.inputs.url || 'https://elan-scents.hossamthapitelgharib.workers.dev' }}
+        run: node scripts/site-look-review.js "$SITE_URL" site-look-shots 2>&1 | tee site-look.log; exit "${PIPESTATUS[0]}"
+      - name: Keep the screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: site-look-shots
+          path: site-look-shots
+          if-no-files-found: ignore
