@@ -16,6 +16,8 @@ mode = sys.argv[1] if len(sys.argv) > 1 else ''
 assert mode in ('rollback', 'commit'), 'usage: gen_bundles.py rollback|commit'
 FEEDS = os.environ.get('CATALOG_FEEDS_DIR', 'feeds/feeds')
 OFFERS = os.environ.get('CATALOG_OFFERS_DIR', 'offers/offers')
+DESC_CAP = int(os.environ.get('CATALOG_DESC_CAP', '0'))
+assert not (DESC_CAP and mode == 'commit'), 'a capped description is never committed'
 
 # [platform name, slug, platform brand or '', has_extra_items, [[brand, perfume, ml, qty], ...], store price, store product handle]
 # The pieces are the store's own wording of what the bundle holds. A bundle with extra pieces (deodorant, gift box...) keeps only its main perfume here
@@ -30,6 +32,30 @@ B = [
     ["Nebras Gift Set", "nebras-gift-set", "LATTAFA", True, [["LATTAFA", "Nebras", 100, 1]], 2250, "nebras-gift-set"],
     ["Teriaq Gift Set", "teriaq-gift-set", "LATTAFA", True, [["LATTAFA", "Teriaq", 100, 1]], 2350, "teriaq-gift-set"],
 ]
+
+B2 = [
+    # --- the second group (prepared 2026-11-20, dry run only until the owner approves): Emarati bundles of the original platform brands. Pieces are
+    # read from each store page's own contents list; a set with extras (spray, hair mist, shower gel, powder, incense, bags) keeps its perfumes only and is
+    # flagged has_extra_items, like the three gift sets above. Availability and price come from the store page itself (a sold-out bundle is stored, hidden).
+    ["The Alpha Bundle", "the-alpha-bundle", "", False, [["AFNAN", "Supremacy Collector's Edition", 100, 1], ["ARMAF", "Club De Nuit Intense Man", 105, 1]], 4200, "the-alpha-bundle"],
+    ["Frankel Collection", "frankel-collection-300-ml", "ASSAF", False, [["ASSAF", "Frankel Aventus", 100, 1], ["ASSAF", "Frankel Afternoon", 100, 1], ["ASSAF", "Frankel Imagination", 100, 1]], 2800, "frankel-collection-300-ml"],
+    ["Aura Collection", "aura-collection", "ASSAF", False, [["ASSAF", "Aura", 100, 1], ["ASSAF", "Aura Black", 100, 1], ["ASSAF", "Aura Blue", 100, 1]], 4200, "aura-collection"],
+    ["Risk Collection", "risk-collection-set", "ASSAF", False, [["ASSAF", "Lure Risk", 150, 1], ["ASSAF", "Risk Comete", 150, 1]], 4250, "risk-collection-set"],
+    ["Lady Collection", "assaf-lady-collection-300-ml", "ASSAF", False, [["ASSAF", "Miss Flora", 100, 1], ["ASSAF", "Pink Lady", 100, 1], ["ASSAF", "Miss Sakura", 100, 1]], 2800, "assaf-lady-collection-300-ml"],
+    ["Zeina's Bloom Bundle", "zeinas-bloom-bundle", "", False, [["LATTAFA", "Mohra Silky Rose", 100, 1], ["LATTAFA", "Badee Al Oud Noble Blush", 100, 1], ["IBRAHIM AL QURASHI", "Powder Musk", 75, 1]], 3620, "zeinas-bloom-bundle"],
+    ["Zeina's Breeze Bundle", "zeinas-breeze-bundle", "", False, [["LATTAFA", "Layaan", 75, 1], ["LATTAFA", "Delilah Blanc", 100, 1], ["IBRAQ", "Pink Diamond Sakura", 150, 1]], 4150, "zeina-s-breeze-bundle"],
+    ["Genesis Perfume Set", "genesis-perfume-set", "FRENCH AVENUE", False, [["FRENCH AVENUE", "Genesis " + z, 30, 1] for z in ("Pisces", "Taurus", "Capricorn", "Leo", "Cancer", "Aquarius", "Aries", "Libra", "Gemini", "Scorpio", "Sagittarius", "Virgo")], 9500, "genesis-perfumes-elite-set"],
+    ["Emotions Collection Set", "emotions-collection-set", "ARMAF", False, [["ARMAF", "Emotions Heart", 100, 1]] + [["ARMAF", "Emotions " + e, 15, 1] for e in ("Confident", "Dynamic", "Fresh", "Hypnotic", "Relax", "Romantic")], 3650, "emotions-collection-set"],
+    ["Oraneo Summer Edition Set", "oraneo-summer-edition-set", "GISSAH", True, [["GISSAH", "Oraneo", 75, 1]], 4850, "oraneo-summer-edition-set"],
+    ["Yelloneo Summer Edition Set", "yelloneo-summer-edition-set", "GISSAH", True, [["GISSAH", "Yelloneo", 75, 1]], 4850, "yelloneo-summer-edition-set"],
+    ["Club De Nuit Intense Man Gift Set", "club-de-nuit-intense-man-gift-set", "ARMAF", True, [["ARMAF", "Club De Nuit Intense Man", 105, 1]], 2350, "club-de-nuit-intense-man-gift-set"],
+    ["Bakhur Eid Assaf Set", "bakhur-eid-assaf-set", "ASSAF", True, [["ASSAF", "Aroqat Comet", 150, 1]], 4350, "bakhur-eid-assaf-set-340-ml"],
+    ["Musk Assaf Collection", "musk-assaf-collection", "ASSAF", True, [["ASSAF", "Garden Musk", 125, 1], ["ASSAF", "Garden Musk", 25, 1], ["ASSAF", "Jasmine Musk", 125, 1], ["ASSAF", "Jasmine Musk", 25, 1]], 3950, "assaf-gardern-musk-jasmine-musk-bundle-powder"],
+    ["The Kingdom Men Gift Set", "the-kingdom-men-gift-set", "LATTAFA", True, [["LATTAFA", "The Kingdom", 100, 1]], 2450, "the-kingdom-men-gift-set"],
+]
+# the default group is the eight bundles the owner approved on 2026-11-17; CATALOG_BUNDLES=all adds the second group (for the dry run shown to the owner)
+if os.environ.get('CATALOG_BUNDLES') == 'all':
+    B = B + B2
 
 
 def text(h):
@@ -66,7 +92,10 @@ for name, slug, brand, extra, pieces, price, handle in B:
     title, description = (page['title'] or '').strip(), text(page.get('body_html'))
     assert 1 <= len(title) <= 300, f'{handle}: the store title is {len(title)} characters'
     assert len(description) <= 20000, f'{handle}: the store description is {len(description)} characters'
-    bundles.append({'name': name, 'slug': slug, 'brand': brand, 'extra': extra, 'pieces': pieces, 'price': price, 'handle': handle,
+    if DESC_CAP:   # dry run only: a shorter text keeps the pasted SQL small; length limits were asserted on the full text above
+        description = description[:DESC_CAP]
+    avail = bool(page['variants'][0]['available'])
+    bundles.append({'name': name, 'slug': slug, 'brand': brand, 'extra': extra, 'pieces': pieces, 'price': price, 'handle': handle, 'available': avail,
                     'title': title, 'description': description})
 
 sale = json.load(open(os.path.join(OFFERS, 'afnan-egypt-col-11-11-sale.json'), encoding='utf-8'))
@@ -100,7 +129,7 @@ begin
     end loop;
     -- the store's own title and full description travel with its offer
     insert into public.store_bundles(store_id,bundle_id,title,description,price,currency,stock_quantity,is_available,data_source,sync_status,last_synced_at,product_url)
-      values (v_emarati, v_bundle, b->>'title', nullif(b->>'description',''), (b->>'price')::numeric, 'EGP', 10, true, 'trial_catalog', 'synced', now(), 'https://emaratiscents.com/products/'||(b->>'handle'))
+      values (v_emarati, v_bundle, b->>'title', nullif(b->>'description',''), (b->>'price')::numeric, 'EGP', case when (b->>'available')::boolean then 10 else 0 end, (b->>'available')::boolean, 'trial_catalog', 'synced', now(), 'https://emaratiscents.com/products/'||(b->>'handle'))
       on conflict (store_id,bundle_id) do update set title=excluded.title, description=excluded.description, price=excluded.price, stock_quantity=excluded.stock_quantity, is_available=excluded.is_available, last_synced_at=now(), product_url=excluded.product_url
         where store_bundles.data_source='trial_catalog';
     nsb := nsb+1;

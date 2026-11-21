@@ -48,6 +48,16 @@ test('gen_bundles.py writes pieces as text and carries the store\'s own title an
   assert.doesNotMatch(code, /insert into public\.bundles\([^)]*description/, 'the platform writes no bundle description');
 });
 
+test('gen_bundles.py: the second group of bundles is dry-run only until approved, availability is the store\'s, a capped text is never committed', () => {
+  const src = fs.readFileSync(path.join(root, 'tools', 'catalog-trial', 'gen_bundles.py'), 'utf8');
+  const code = src.replace(/#[^\n]*/g, '');
+  assert.match(code, /B2 = \[/, 'the second group is a separate list');
+  assert.match(code, /if os\.environ\.get\('CATALOG_BUNDLES'\) == 'all':\s*\n\s*B = B \+ B2/, 'it joins the load only when asked for explicitly');
+  assert.match(code, /'available': avail/, 'availability is read from the store page');
+  assert.match(code, /case when \(b->>'available'\)::boolean then 10 else 0 end, \(b->>'available'\)::boolean/, 'a sold-out bundle is stored sold out (hidden by eligibility), never as available');
+  assert.match(code, /assert not \(DESC_CAP and mode == 'commit'\)/, 'a shortened text is never written for real');
+});
+
 test('the html-to-text step keeps the store\'s words, line breaks and bullets and nothing else', { skip: hasPython ? false : 'python3 is not installed here' }, () => {
   const src = fs.readFileSync(path.join(root, 'tools', 'catalog-trial', 'gen_bundles.py'), 'utf8');
   const start = src.indexOf('def text(h):');
