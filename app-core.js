@@ -296,41 +296,6 @@ function card(cls,h,s,st,go,art){return '<div class="card '+cls+(art?' art':'')+
 var DATA_READY=false;
 function waitNote(){return DATA_READY&&!PERFUMES.length?(T().wait||''):''}
 function brandCard(b){var w=waitNote();return '<div class="card brandc'+(w?'':' nw')+'" data-go="brand|'+b+'"><div class="bcap"><h4 class="en" style="font-size:16px"><span class="gold" style="font-weight:700">'+b+'</span></h4>'+(w?'<span class="st">'+w+'</span>':'')+'</div></div>'}
-/* A picture or a video fills its card (or banner) WHOLE (owner, 19 Nov 2026): not cut, not stretched, and no colour behind it to make up for what a cut would take.
-   That is only possible when the frame has the picture's own shape, so the card keeps the width the page gives it and its height follows the picture (a brand card in a strip keeps its
-   height and takes the width instead). The shape is written on the card as --cr («width / height», read from the picture once it has arrived); style.css does the rest for any card that has it.
-   Product cards (.pf) keep their own photo frame. A card the owner sized himself in the editor (data-elan-fit) keeps the size he chose. */
-var CF_SEL='.card:not(.pf),.elan-banner',CF_KEY='elan_card_shapes_v1',CF_SIZES={};
-/* The shape of each picture is remembered (by its address, on this device: nothing about the visitor), so a returning visitor's cards have their final shape before the pictures arrive and the page does not jump. */
-try{CF_SIZES=JSON.parse(localStorage.getItem(CF_KEY)||'{}')||{}}catch(e){CF_SIZES={}}
-function cfNote(u,w,h){if(!u||u.length>300||/^(data|blob):/.test(u)||(CF_SIZES[u]&&CF_SIZES[u][0]===w&&CF_SIZES[u][1]===h))return;CF_SIZES[u]=[w,h];try{var ks=Object.keys(CF_SIZES);if(ks.length>400)delete CF_SIZES[ks[0]];localStorage.setItem(CF_KEY,JSON.stringify(CF_SIZES))}catch(e){}}
-function cfShown(n,root){for(;n&&n!==root;n=n.parentNode)if(n.style&&n.style.display==='none')return false;return true}
-function cfMedia(c){var q=c.querySelectorAll('.artbg video,.artbg img'),i,n;
-for(i=0;i<q.length;i++)if(cfShown(q[i],c))return{node:q[i]};
-for(i=0;i<c.children.length;i++){n=c.children[i];if((n.tagName==='IMG'||n.tagName==='VIDEO')&&cfShown(n,c))return{node:n}}
-var m=/url\(\s*(?:"([^"]*)"|'([^']*)'|([^)\s"']*))\s*\)/.exec((window.getComputedStyle?getComputedStyle(c).backgroundImage:c.style.backgroundImage)||'');
-return m?{url:m[1]||m[2]||m[3]}:null}
-function cfUrl(m){return m.url||(m.node&&(m.node.currentSrc||m.node.getAttribute('src')))||''}
-function cfSize(m,done){var n=m.node,u=cfUrl(m),k=u&&CF_SIZES[u],w=0,h=0;
-if(n){if(n.tagName==='VIDEO'){w=n.videoWidth;h=n.videoHeight}else if(n.complete){w=n.naturalWidth;h=n.naturalHeight}}
-if(w>0&&h>0){cfNote(u,w,h);done(w,h);return}
-if(k)done(k[0],k[1]);
-if(!n&&u){var im=new Image();im.onload=function(){if(im.naturalWidth>0){cfNote(u,im.naturalWidth,im.naturalHeight);done(im.naturalWidth,im.naturalHeight)}};im.src=u}}
-function cfFree(c){c.__cf=null;if(c.style.getPropertyValue('--cr')){c.style.removeProperty('--cr');c.style.removeProperty('--crn')}}
-function cfFit(c){
-var hv=c.style.getPropertyValue('height');
-if(c.classList.contains('pf')||c.hasAttribute('data-elan-fit')||c.hasAttribute('data-no-media')||(hv&&hv!=='auto')){cfFree(c);return}
-var m=cfMedia(c);if(!m){cfFree(c);return}
-var token=c.__cf={};
-cfSize(m,function(w,h){if(c.__cf!==token||!c.isConnected||!(w>0&&h>0))return;var v=w+' / '+h;if(c.style.getPropertyValue('--cr').trim()!==v){c.style.setProperty('--cr',v);c.style.setProperty('--crn',String(Math.round(w/h*10000)/10000))}})}
-function cfScan(root){var l=(root||document).querySelectorAll(CF_SEL);for(var i=0;i<l.length;i++)try{cfFit(l[i])}catch(e){}}
-window.ElanCardFit={scan:cfScan,fit:cfFit};
-(function(){
-var queued=false,later=function(){if(queued)return;queued=true;(window.requestAnimationFrame||setTimeout)(function(){queued=false;cfScan()})};
-document.addEventListener('load',function(e){var n=e.target,c=n&&n.tagName==='IMG'&&n.closest&&n.closest(CF_SEL);if(c)cfFit(c)},true);
-document.addEventListener('loadedmetadata',function(e){var n=e.target,c=n&&n.tagName==='VIDEO'&&n.closest&&n.closest(CF_SEL);if(c)cfFit(c)},true);
-if(window.MutationObserver)new MutationObserver(function(rs){for(var i=0;i<rs.length;i++){var t=rs[i].target;if(t&&t.closest&&t.closest('#main,#view')){later();return}}}).observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['src']});
-})();
 /* ===== «حسابي»: the customer's contact and delivery details (table customer_details). Written once at the first order and reused by every later one. ===== */
 var ACCT=null,ACCT_UID='',ACCT_SEQ=0;
 var GOVS=[['القاهرة','Cairo'],['الجيزة','Giza'],['الإسكندرية','Alexandria'],['القليوبية','Qalyubia'],['الشرقية','Sharqia'],['الدقهلية','Dakahlia'],['البحيرة','Beheira'],['المنوفية','Monufia'],['الغربية','Gharbia'],['كفر الشيخ','Kafr El Sheikh'],['دمياط','Damietta'],['بورسعيد','Port Said'],['الإسماعيلية','Ismailia'],['السويس','Suez'],['شمال سيناء','North Sinai'],['جنوب سيناء','South Sinai'],['الفيوم','Faiyum'],['بني سويف','Beni Suef'],['المنيا','Minya'],['أسيوط','Asyut'],['سوهاج','Sohag'],['قنا','Qena'],['الأقصر','Luxor'],['أسوان','Aswan'],['البحر الأحمر','Red Sea'],['الوادي الجديد','New Valley'],['مطروح','Matrouh']];

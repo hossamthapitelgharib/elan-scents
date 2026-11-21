@@ -1,7 +1,8 @@
 'use strict';
-/* Owner, 2026-11-19: a picture or a video fills its card (or banner) WHOLE: not cut, not stretched, no colour behind it. That only works when the frame has the picture's own shape,
-   so the card keeps its width and its height follows the picture. Brand cards: the card is the picture alone, the name and the «awaiting the stores» sentence are written below it,
-   and the sentence is only written while no store catalog is linked. Real Chromium, made-up pictures. */
+/* Owner, 2026-11-21: the FRAME is the fixed thing and the picture (or video) adapts to it. A card or a banner keeps the size the page gives it (the same for every card of a kind), and the
+   picture is resized, larger or smaller, to that width and height so it fills the whole frame: nothing is cut, no colour is made up behind it. A 9:16 picture in a 4:3 card fills the 4:3.
+   Brand cards: the card is the picture alone, the name and the «awaiting the stores» sentence are written below it, and the sentence is only written while no store catalog is linked.
+   Real Chromium, made-up pictures. */
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const H = require('./harness.js');
@@ -19,44 +20,38 @@ async function visit(size) {
   await page.waitForSelector('#main section', { state: 'attached' });
   /* the saved design redraws the page once when it arrives: wait for that, so a picture swapped by a test is not thrown away by it */
   await page.waitForFunction(() => window.ElanDesignLayer && ElanDesignLayer.current() !== null, null, { timeout: 15000 }).catch(() => {});
-  await page.waitForTimeout(900);
+  await page.waitForTimeout(400);
   /* a picture of any shape, drawn in the page (a data: address needs no network) */
   await page.evaluate(() => {
     window.__pic = (w, h) => { const k = document.createElement('canvas'); k.width = w; k.height = h; const x = k.getContext('2d'); x.fillStyle = '#3a5a8c'; x.fillRect(0, 0, w, h); x.strokeStyle = '#ffd400'; x.lineWidth = 6; x.strokeRect(3, 3, w - 6, h - 6); return k.toDataURL('image/png'); };
   });
   return { context, page, errors };
 }
-const settle = (page, ms) => page.waitForTimeout(ms || 700);
+const settle = (page, ms) => page.waitForTimeout(ms || 300);
+const box = (r) => ({ w: Math.round(r.width * 10) / 10, h: Math.round(r.height * 10) / 10 });
 
 for (const size of [H.WIDTHS[0], H.WIDTHS[2]]) {
-  test('brand cards at ' + size.width + 'px: the picture fills the card whole, the card takes the picture\'s shape (height kept in the strip), the name and the sentence are under it', async () => {
+  test('brand cards at ' + size.width + 'px: every card has the same frame whatever its picture\'s shape, the picture fills it, the name and the sentence are under it', async () => {
     const { context, page, errors } = await visit(size);
     try {
       await page.evaluate(() => {
         window.BR = ['AMOUAGE', 'ARMAF', 'ARABIYAT PRESTIGE', 'LATTAFA']; window.PERFUMES = []; window.DATA_READY = true; render();
         const pics = [__pic(600, 200), __pic(300, 300), __pic(200, 300)];
         document.querySelectorAll('#brands .card').forEach((c, i) => { if (pics[i]) c.style.backgroundImage = 'url("' + pics[i] + '")'; });
-        ElanCardFit.scan();
       });
       await settle(page);
       const cards = await page.evaluate(() => Array.from(document.querySelectorAll('#brands .card')).map((c) => {
-        const r = c.getBoundingClientRect(), cap = c.querySelector('.bcap').getBoundingClientRect(), h4 = c.querySelector('h4').getBoundingClientRect();
-        return { w: r.width, h: r.height, cr: c.style.getPropertyValue('--cr').trim(), bgSize: getComputedStyle(c).backgroundSize, capTop: cap.top - r.bottom, h4Top: h4.top - r.bottom, sentence: (c.querySelector('.st') || {}).textContent || '', text: c.textContent.trim() };
+        const r = c.getBoundingClientRect(), cap = c.querySelector('.bcap').getBoundingClientRect(), h4 = c.querySelector('h4').getBoundingClientRect(), cs = getComputedStyle(c);
+        return { w: r.width, h: r.height, bgSize: cs.backgroundSize, bgRepeat: cs.backgroundRepeat, capTop: cap.top - r.bottom, h4Top: h4.top - r.bottom, sentence: (c.querySelector('.st') || {}).textContent || '', shape: c.style.getPropertyValue('--cr') };
       }));
       assert.equal(cards.length, 4);
-      [[600, 200], [300, 300], [200, 300]].forEach(([w, h], i) => {
-        const c = cards[i];
-        assert.equal(c.cr, w + ' / ' + h, 'the card knows its picture\'s shape');
-        assert.ok(Math.abs(c.h - 120) < 1, 'a brand card in the strip keeps its height: ' + c.h);
-        assert.ok(Math.abs(c.w / c.h - w / h) < 0.02 * (w / h), 'the frame has the picture\'s shape: ' + c.w + 'x' + c.h + ' for ' + w + ':' + h);
-        /* a picture the owner put on the card is painted with `cover`, which on a frame of the picture's own shape is the same as filling it: the check above is what proves nothing is cut */
-        assert.ok(['100% 100%', 'cover'].includes(c.bgSize), 'the picture covers the whole frame, never `contain` (no bars): ' + c.bgSize);
-      });
-      cards.forEach((c) => {
+      cards.forEach((c, i) => {
+        assert.ok(Math.abs(c.w - cards[0].w) < 1 && Math.abs(c.h - cards[0].h) < 1, 'every brand card has the same frame, whatever its picture: ' + JSON.stringify(cards.map(box)));
+        assert.equal(c.shape, '', 'the frame does not take the picture\'s shape');
         assert.ok(c.capTop >= 0 && c.h4Top >= 0, 'the name sits below the card, not inside it: ' + JSON.stringify([c.capTop, c.h4Top]));
         assert.match(c.sentence, /بانتظار ربط كتالوج المتاجر/, 'while no store has linked its catalog, the sentence is written (under the card)');
+        if (i < 3) { assert.equal(c.bgSize, '100% 100%', 'the picture is resized to the whole frame: no crop (cover), no bars (contain)'); assert.equal(c.bgRepeat, 'no-repeat'); }
       });
-      assert.equal(cards[3].cr, '', 'a card with no picture keeps the default frame');
       assert.deepEqual(errors, []);
     } finally { await context.close(); }
   });
@@ -77,27 +72,53 @@ test('the «awaiting the stores\' catalogs» sentence is not written once a stor
   } finally { await context.close(); }
 });
 
-test('an art card with a tall picture and one with a wide video-sized frame take the picture\'s shape: the picture fills the frame, object-fit fill, no crop', async () => {
+test('an art card keeps its frame whatever the picture put in it: a tall and a wide picture both fill the same frame (object-fit fill, the picture box is the card box)', async () => {
   const { context, page } = await visit(H.WIDTHS[0]);
   try {
+    const frames = () => page.evaluate(() => Array.from(document.querySelectorAll('#occ .card.art')).slice(0, 2).map((c) => { const r = c.getBoundingClientRect(); return { w: r.width, h: r.height }; }));
+    const before = await frames();
     await page.evaluate(() => {
       const cards = document.querySelectorAll('#occ .card.art');
       const a = cards[0].querySelector('.artbg img'), b = cards[1].querySelector('.artbg img');
-      a.loading = b.loading = 'eager';   // a lazy picture far below the screen is not fetched, so it would never report its shape
-      a.removeAttribute('srcset'); a.src = __pic(400, 800); b.removeAttribute('srcset'); b.src = __pic(900, 300);
+      a.removeAttribute('srcset'); a.src = __pic(400, 800); b.removeAttribute('srcset'); b.src = __pic(900, 300);   // 1:2 and 3:1
     });
-    await settle(page, 900);
+    await page.waitForFunction(() => Array.from(document.querySelectorAll('#occ .card.art .artbg img')).slice(0, 2).every((i) => i.complete && i.naturalWidth > 0 && /^data:/.test(i.currentSrc || i.src)), null, { timeout: 10000 });
+    await settle(page);
     const got = await page.evaluate(() => Array.from(document.querySelectorAll('#occ .card.art')).slice(0, 2).map((c) => {
       const r = c.getBoundingClientRect(), im = c.querySelector('.artbg img'), ir = im.getBoundingClientRect(), cs = getComputedStyle(im);
-      return { ratio: r.width / r.height, imgW: ir.width, imgH: ir.height, w: r.width, h: r.height, fit: cs.objectFit, cr: c.style.getPropertyValue('--cr').trim() };
+      return { w: r.width, h: r.height, imgW: ir.width, imgH: ir.height, fit: cs.objectFit, shape: c.style.getPropertyValue('--cr'), nat: im.naturalWidth + 'x' + im.naturalHeight };
     }));
-    assert.equal(got[0].cr, '400 / 800'); assert.equal(got[1].cr, '900 / 300');
-    assert.ok(Math.abs(got[0].ratio - 0.5) < 0.02, 'tall: ' + got[0].ratio); assert.ok(Math.abs(got[1].ratio - 3) < 0.06, 'wide: ' + got[1].ratio);
-    got.forEach((g) => { assert.equal(g.fit, 'fill'); assert.ok(g.imgW >= g.w - 4 && g.imgH >= g.h - 4, 'the picture covers the whole frame: ' + JSON.stringify(g)); });
+    got.forEach((g, i) => {
+      assert.equal(g.fit, 'fill', 'the picture is resized to the frame');
+      assert.equal(g.shape, '', 'the frame does not take the picture\'s shape');
+      assert.ok(Math.abs(g.w - before[i].w) < 1 && Math.abs(g.h - before[i].h) < 1, 'the frame is the one the page gave it: ' + JSON.stringify([before[i], box(g)]));
+      assert.ok(Math.abs(g.imgW - g.w) <= 2 && Math.abs(g.imgH - g.h) <= 2, 'the picture fills the whole frame: ' + JSON.stringify(g));
+    });
+    assert.deepEqual([got[0].nat, got[1].nat], ['400x800', '900x300']);
   } finally { await context.close(); }
 });
 
-test('product cards keep their own photo frame, and a banner with a picture takes the picture\'s shape too', async () => {
+test('the categories cards keep the frame the page (or the owner\'s saved sizes) gives them whatever the picture, and the masterpieces picture is resized to fill its frame', async () => {
+  const { context, page } = await visit(H.WIDTHS[0]);
+  try {
+    const frame = (sel) => page.evaluate((q) => { const c = document.querySelector(q); if (!c) return null; const r = c.getBoundingClientRect(); return { w: r.width, h: r.height }; }, sel);
+    const catSel = '#cats .card.art';
+    const before = await frame(catSel);
+    if (before) {
+      await page.evaluate((q) => { const im = document.querySelector(q + ' .artbg img'); im.removeAttribute('srcset'); im.src = __pic(300, 900); }, catSel);   // a 1:3 picture
+      await page.waitForFunction((q) => { const i = document.querySelector(q + ' .artbg img'); return i && i.complete && /^data:/.test(i.currentSrc || i.src); }, catSel, { timeout: 10000 });
+      await settle(page);
+      const after = await page.evaluate((q) => { const c = document.querySelector(q), r = c.getBoundingClientRect(), im = c.querySelector('.artbg img'), ir = im.getBoundingClientRect(); return { w: r.width, h: r.height, imgW: ir.width, imgH: ir.height, fit: getComputedStyle(im).objectFit }; }, catSel);
+      assert.ok(Math.abs(after.w - before.w) < 1 && Math.abs(after.h - before.h) < 1, 'the frame does not follow the picture: ' + JSON.stringify([before, box(after)]));
+      assert.equal(after.fit, 'fill'); assert.ok(Math.abs(after.imgW - after.w) <= 2 && Math.abs(after.imgH - after.h) <= 2, 'the tall picture fills the whole frame: ' + JSON.stringify(after));
+    }
+    const master = await page.evaluate(() => { const ms = document.querySelector('.cb > .card.msel'); if (!ms) return null; const cs = getComputedStyle(ms); return { size: cs.backgroundSize, repeat: cs.backgroundRepeat }; });
+    if (master) { assert.equal(master.size, '100% 100%'); assert.equal(master.repeat, 'no-repeat'); }
+    assert.ok(before || master, 'at least one of the two kinds of card is on the page');
+  } finally { await context.close(); }
+});
+
+test('product cards keep their own photo frame, and a banner keeps its own frame whatever its picture: the picture is resized to fill it', async () => {
   const { context, page } = await visit(H.WIDTHS[2]);
   try {
     await page.evaluate(() => {
@@ -106,17 +127,22 @@ test('product cards keep their own photo frame, and a banner with a picture take
       const b = document.createElement('div'); b.className = 'elan-block elan-banner'; b.style.backgroundImage = 'url("' + __pic(300, 120) + '")'; b.innerHTML = '<h3>t</h3><p>s</p>';
       document.querySelector('#main').insertBefore(b, document.querySelector('#occ'));
     });
-    await settle(page, 900);
-    const got = await page.evaluate(() => {
-      const pf = document.querySelector('#main > .card.pf'), b = document.querySelector('#main > .elan-banner'), br = b.getBoundingClientRect();
-      return { pf: pf.style.getPropertyValue('--cr'), banner: br.width / br.height, bcr: b.style.getPropertyValue('--cr').trim(), bgs: getComputedStyle(b).backgroundSize };
+    await settle(page);
+    const read = () => page.evaluate(() => {
+      const pf = document.querySelector('#main > .card.pf'), b = document.querySelector('#main > .elan-banner'), br = b.getBoundingClientRect(), cs = getComputedStyle(b);
+      return { pfShape: pf.style.getPropertyValue('--cr'), pfFit: getComputedStyle(pf.querySelector('.pim img')).objectFit, w: br.width, h: br.height, bgs: cs.backgroundSize, rep: cs.backgroundRepeat, shape: b.style.getPropertyValue('--cr') };
     });
-    assert.equal(got.pf, '', 'a product card is not touched');
-    assert.equal(got.bcr, '300 / 120'); assert.ok(Math.abs(got.banner - 2.5) < 0.05, 'banner ratio ' + got.banner); assert.equal(got.bgs, '100% 100%');
+    const first = await read();
+    assert.equal(first.pfShape, '', 'a product card is not touched'); assert.equal(first.pfFit, 'cover', 'and its photo keeps the way it is shown');
+    assert.equal(first.bgs, '100% 100%'); assert.equal(first.rep, 'no-repeat'); assert.equal(first.shape, '');
+    await page.evaluate(() => { document.querySelector('#main > .elan-banner').style.backgroundImage = 'url("' + __pic(100, 400) + '")'; });
+    await settle(page);
+    const second = await read();
+    assert.ok(Math.abs(second.w - first.w) < 1 && Math.abs(second.h - first.h) < 1, 'the banner\'s frame does not change with its picture: ' + JSON.stringify([box({ width: first.w, height: first.h }), box({ width: second.w, height: second.h })]));
   } finally { await context.close(); }
 });
 
-test('a card the owner gave a size in the editor keeps the width he chose and its height follows the picture (never cut, never stretched, no bars)', async () => {
+test('a card the owner gave a size in the editor keeps the width AND the height he chose, and the picture is resized to fill it (never cut, no bars)', async () => {
   const { context, page } = await visit(H.WIDTHS[0]);
   try {
     await page.evaluate(() => {
@@ -125,36 +151,18 @@ test('a card the owner gave a size in the editor keeps the width he chose and it
       const edits = { all: {} }; edits.all[entry.id] = { w: 280, h: 280 };
       ElanDesignLayer.set({ version: 1, edits });   // redraws the page: the card is a new one
       const now = document.querySelector('#occ .card.art'), im = now.querySelector('.artbg img');
-      im.loading = 'eager'; im.removeAttribute('srcset'); im.src = __pic(400, 600);
+      im.removeAttribute('srcset'); im.src = __pic(400, 600);
       ElanDesignLayer.applyEdits();                 // paints the size again, now on the new picture
     });
-    await settle(page, 1000);
+    await page.waitForFunction(() => { const i = document.querySelector('#occ .card.art .artbg img'); return i && i.complete && /^data:/.test(i.currentSrc || i.src); }, null, { timeout: 10000 });
+    await settle(page, 500);
     const got = await page.evaluate(() => {
-      const card = document.querySelector('#occ .card.art'), r = card.getBoundingClientRect(), im = card.querySelector('.artbg img');
-      return { w: r.width, h: r.height, fit: card.hasAttribute('data-elan-fit'), obj: getComputedStyle(im).objectFit };
+      const card = document.querySelector('#occ .card.art'), r = card.getBoundingClientRect(), im = card.querySelector('.artbg img'), ir = im.getBoundingClientRect();
+      return { w: r.width, h: r.height, fit: card.hasAttribute('data-elan-fit'), obj: getComputedStyle(im).objectFit, imgW: ir.width, imgH: ir.height, ratio: card.style.getPropertyValue('aspect-ratio') };
     });
     assert.equal(got.fit, true);
-    assert.ok(Math.abs(got.w - 280) < 1, 'the width he chose: ' + got.w);
-    assert.ok(Math.abs(got.w / got.h - 400 / 600) < 0.02, 'the height follows the picture: ' + got.w + 'x' + got.h);
-    assert.equal(got.obj, 'fill');
-  } finally { await context.close(); }
-});
-
-test('a picture that has been seen before gives its card the final shape at once, before the picture arrives (a returning visitor sees no jump)', async () => {
-  const { context, page } = await visit(H.WIDTHS[0]);
-  try {
-    const got = await page.evaluate(() => {
-      const url = 'https://pictures.example.test/remembered.png';
-      CF_SIZES[url] = [400, 200];
-      const card = document.createElement('div'); card.className = 'card art'; card.innerHTML = '<div class="artbg"><img alt="" src="' + url + '"></div><h4>x</h4>';
-      document.querySelector('#occ .strip, #occ').appendChild(card);
-      ElanCardFit.fit(card);
-      const first = card.style.getPropertyValue('--cr').trim();
-      const stored = JSON.parse(localStorage.getItem('elan_card_shapes_v1') || '{}');
-      card.remove();
-      return { first, storedDataUrl: Object.keys(stored).some((k) => /^data:/.test(k)) };
-    });
-    assert.equal(got.first, '400 / 200', 'the remembered shape is used straight away');
-    assert.equal(got.storedDataUrl, false, 'nothing like a data address is kept');
+    assert.ok(Math.abs(got.w - 280) < 1 && Math.abs(got.h - 280) < 1, 'the size he chose: ' + got.w + 'x' + got.h);
+    assert.equal(got.obj, 'fill'); assert.equal(got.ratio, '', 'the frame does not take the picture\'s shape');
+    assert.ok(Math.abs(got.imgW - got.w) <= 2 && Math.abs(got.imgH - got.h) <= 2, 'the 2:3 picture fills the square frame: ' + JSON.stringify(got));
   } finally { await context.close(); }
 });

@@ -2,7 +2,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { read } = require('./browser-fixture');
 
-/* Owner, 2026-11-19. The behaviour itself is proved in a real browser (tests/browser/card-fit.chromium.js); these keep the pieces it is built from from being quietly undone. */
+/* Owner, 2026-11-19 (brand cards, the sentence) and 2026-11-21 (the picture adapts to the frame, not the frame to the picture). The behaviour itself is proved in a real browser
+   (tests/browser/card-fit.chromium.js); these keep the pieces it is built from from being quietly undone. */
 const core = read('app-core.js'), css = read('style.css'), layer = read('design-layer.js');
 
 test('brand cards are one function: the card holds the picture alone, the name and the sentence are in a caption under it', () => {
@@ -19,32 +20,32 @@ test('the «awaiting the stores\' catalogs» sentence is only written once the d
   assert.match(core, /var DATA_READY=false;/);
 });
 
-test('the stylesheet draws the caption under the card and gives every card or banner with a picture the picture\'s own shape, over the older size rules', () => {
+test('the stylesheet draws the caption under the card, keeps one frame for every brand card, and resizes a picture to fill its frame whole', () => {
   assert.match(css, /\.card\.brandc \.bcap \{[^}]*position: absolute;[^}]*top: calc\(100% \+ 8px\);/);
-  assert.match(css, /\.card\.brandc \{[^}]*overflow: visible;/, 'the caption sits outside the card\'s box');
-  const fit = css.slice(css.indexOf('A picture or video fills its card or banner whole'));
-  assert.match(fit, /\.card\[style\*="--cr:"\]:not\(\[data-elan-fit\]\):not\(#_f\):not\(#_g\)/, 'it wins over the !important size rules, and leaves what the editor sized (its own rule)');
-  assert.match(fit, /aspect-ratio: var\(--cr\) !important;/);
-  assert.match(fit, /object-fit: fill !important;/);
-  assert.match(fit, /background-size: 100% 100% !important;/);
+  assert.match(css, /\.card\.brandc \{[^}]*width: 150px;[^}]*height: 120px;[^}]*overflow: visible;/, 'one frame for every brand card; the caption sits outside the card\'s box');
+  const fit = css.slice(css.indexOf('A picture or video adapts to its frame and fills it whole'));
+  assert.match(fit, /\.card\.brandc,\s*\.elan-banner \{[^}]*background-size: 100% 100% !important;/);
+  assert.match(fit, /\.card\.art \.artbg video \{[^}]*object-fit: fill !important;/);
+  assert.doesNotMatch(css, /--cr|--crn|aspect-ratio: var\(/, 'the frame never takes the picture\'s shape any more');
   assert.doesNotMatch(fit, /contain|blur\(|background-color|background: #/, 'no bars, no blurred copy, no colour made up behind the picture');
+  assert.match(css, /\.card\.art \.artbg img,\s*\.card\.art \.artbg svg \{[^}]*object-fit: fill !important;/, 'art cards (occasions, notes, categories)');
+  assert.match(css, /#cats > \.cb > \.card\.art \.artbg img,\s*#cats > \.cb > \.card\.art \.artbg svg \{\s*object-fit: fill !important;/);
+  assert.match(css, /\.cb > \.card\.msel \{[^}]*background-size: 100% 100% !important;/, 'the masterpieces card');
+  assert.doesNotMatch(css, /\.card[^{}]*\{[^}]*background-size: cover/, 'no card rule in the page stylesheet crops a card picture any more (the hero keeps its own)');
 });
 
-test('app-core.js keeps the shape on the card, skips product cards and anything the editor sized, and the design layer re-reads it after every repaint', () => {
-  assert.match(core, /var CF_SEL='\.card:not\(\.pf\),\.elan-banner',CF_KEY='elan_card_shapes_v1',CF_SIZES=\{\};/);
-  assert.match(core, /if\(!u\|\|u\.length>300\|\|\/\^\(data\|blob\):\/\.test\(u\)/, 'a picture\'s shape is remembered by its address, never a data/blob address');
-  assert.match(core, /if\(k\)done\(k\[0\],k\[1\]\);/, 'a returning visitor\'s card has its final shape before the picture arrives');
-  assert.match(core, /c\.classList\.contains\('pf'\)\|\|c\.hasAttribute\('data-elan-fit'\)/);
-  assert.match(core, /document\.addEventListener\('load',/, 'a picture that arrives late (or is swapped) refits its card');
-  assert.match(core, /window\.ElanCardFit=\{scan:cfScan,fit:cfFit\}/);
-  assert.match(layer, /window\.ElanCardFit\.scan\(\)/);
+test('app-core.js no longer measures pictures or writes their shape on cards', () => {
+  assert.doesNotMatch(core, /ElanCardFit|CF_SEL|cfFit|elan_card_shapes_v1/);
+  assert.doesNotMatch(layer, /ElanCardFit|__elanNat/);
 });
 
-test('an element the owner sized keeps the width he chose and takes the picture\'s shape (never cut, never stretched, no colour)', () => {
+test('an element the owner sized keeps the width AND height he chose, and its picture or video is resized to fill it (the hero and sections keep their own way)', () => {
   const fit = layer.slice(layer.indexOf('function fitMedia('), layer.indexOf('function liveSize('));
-  assert.match(fit, /imp\(el, 'aspect-ratio', nat\.w \+ ' \/ ' \+ nat\.h\)/);
-  assert.match(fit, /imp\(n, 'object-fit', 'fill'\)/);
-  assert.match(fit, /imp\(el, 'background-size', '100% 100%'\)/);
-  assert.match(fit, /if \(!follows\) return;/, 'the hero and sections keep the frame chosen for them');
-  assert.match(layer, /if \(h && !el\.__elanNat\)/, 'while dragging, the height is not written onto a frame that follows its picture');
+  assert.match(fit, /var fills = entry\.kind === 'card' \|\| entry\.kind === 'block' \|\| entry\.kind === 'image-el';/);
+  assert.match(fit, /imp\(n, 'object-fit', fills \? 'fill' : 'contain'\)/);
+  assert.match(fit, /imp\(el, 'background-size', fills \? '100% 100%' : 'contain'\)/);
+  assert.doesNotMatch(fit, /aspect-ratio/, 'the frame does not take the picture\'s shape');
+  assert.match(layer, /if \(h\) \{ el\.style\.setProperty\('height', h \+ 'px', 'important'\)/, 'the height he chose is written');
+  assert.match(layer, /\.elan-banner\{[^}]*background-size:100% 100%/, 'a banner\'s picture');
+  assert.match(layer, /\.elan-banner>\.elan-bgvideo\{[^}]*object-fit:fill/, 'a banner\'s video');
 });

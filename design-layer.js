@@ -18,8 +18,8 @@
     '.elan-text p{margin:0;line-height:1.9;white-space:pre-line}',
     '.elan-size-sm p,.elan-size-sm h3{font-size:14px}.elan-size-md p,.elan-size-md h3{font-size:17px}',
     '.elan-size-lg p,.elan-size-lg h3{font-size:22px}.elan-size-xl p,.elan-size-xl h3{font-size:30px}',
-    '.elan-banner{position:relative;overflow:hidden;isolation:isolate;border-radius:14px;padding:36px 20px;background-size:cover;background-position:center}',
-    '.elan-banner>.elan-bgvideo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:-1;pointer-events:none}',
+    '.elan-banner{position:relative;overflow:hidden;isolation:isolate;border-radius:14px;padding:36px 20px;background-size:100% 100%;background-repeat:no-repeat;background-position:center}',
+    '.elan-banner>.elan-bgvideo{position:absolute;inset:0;width:100%;height:100%;object-fit:fill;z-index:-1;pointer-events:none}',
     '.elan-banner:before{content:"";position:absolute;inset:0;background:rgba(20,12,4,.35)}',
     '.elan-banner>*{position:relative}.elan-banner h3,.elan-banner p{margin:6px 0;color:#fff}',
     '.elan-image img,.elan-image video{max-width:100%;height:auto;display:block;margin:0 auto;border-radius:12px}',
@@ -28,7 +28,7 @@
     /* The top bar was hidden in the editor: the header, which sits just under it, goes up to the top. */
     'html body.elan-no-bar header{top:0!important}',
     /* A free text: a zero-height slot in the flow (nothing moves for it) and the text itself laid over the page from that slot. */
-    /* A picture or video controls the element's height. The media keeps its natural ratio; no crop, stretch, blur or artificial frame is used. */
+    /* The frame is the fixed thing and the picture or video adapts to it (owner, 2026-11-21): it is resized, larger or smaller, to the frame's own width and height and fills it whole, so nothing is cut and no colour or blurred copy is made up behind it. */
     '[data-elan-fit]{isolation:isolate}.elan-image[data-elan-fit]{overflow:hidden;border-radius:12px}',
     '[data-elan-fit] img,[data-elan-fit] video{display:block;object-fit:contain}',
     /* The platform's two fixed gaps (owner, 2026-11-12): the space between one row of the page and the next (--elan-gap-y: the page's own rhythm between sections, 14px + 22px + 46px of padding ≈ 80px)
@@ -539,7 +539,7 @@
     if (img && m.kind === 'video' && img.parentNode) {
       // the card's (or the element's) picture is swapped for the video in the same place; the picture itself stays, hidden, for undo
       var swap = videoNode(m.src), shown = img.style.display;
-      swap.className = img.className; swap.style.cssText = 'display:block;width:100%;height:100%;object-fit:cover';
+      swap.className = img.className; swap.style.cssText = 'display:block;width:100%;height:100%;object-fit:fill';
       img.style.display = 'none'; img.parentNode.insertBefore(swap, img.nextSibling);
       undo.push(function () { swap.remove(); img.style.display = shown; });
       playQuietly(swap);
@@ -555,7 +555,7 @@
     if (m.kind === 'video') {
       var v = document.createElement('video');
       v.src = m.src; v.muted = true; v.loop = true; v.autoplay = true; v.setAttribute('playsinline', '');
-      v.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;pointer-events:none';
+      v.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:fill;z-index:0;pointer-events:none';
       if (!el.style.position) el.style.position = 'relative';
       el.insertBefore(v, el.firstChild);
       undo.push(function () { v.remove(); });
@@ -563,8 +563,10 @@
       return;
     }
     el.style.setProperty('background-image', 'url("' + m.src + '")', 'important');
-    el.style.setProperty('background-size', 'cover', 'important');
+    /* a card or a banner has a frame of its own and the picture is resized to fill it whole (2026-11-21); a section keeps the cover it always had */
+    el.style.setProperty('background-size', entry.kind === 'card' || entry.kind === 'block' ? '100% 100%' : 'cover', 'important');
     el.style.setProperty('background-position', 'center', 'important');
+    el.style.setProperty('background-repeat', 'no-repeat', 'important');
     warm(m.src);
   }
 
@@ -598,15 +600,14 @@
   }
   function sizeBox(el, w, h) {
     if (w) { el.style.setProperty('width', w + 'px', 'important'); el.style.setProperty('max-width', 'none', 'important'); el.style.setProperty('flex', '0 0 auto', 'important'); }
-    if (h && !el.__elanNat) { el.style.setProperty('height', h + 'px', 'important'); el.style.setProperty('min-height', '0', 'important'); el.style.setProperty('max-height', 'none', 'important'); }   // a frame that follows its picture has no height of its own to write
+    if (h) { el.style.setProperty('height', h + 'px', 'important'); el.style.setProperty('min-height', '0', 'important'); el.style.setProperty('max-height', 'none', 'important'); }
     if (w) gridSpan(el, w);
   }
 
   /* ---------- a picture or a video in a resized element ----------
-     Owner, 2026-11-11: when an element changes size, its picture or video must not be cut, must fill the whole element and must not be stretched. Those three only fit together
-     when the frame has the picture's own shape; for any other frame the picture is shown WHOLE (object-fit: contain: nothing cut, nothing stretched) and the room its shape leaves
-     over is filled with the same picture, blurred (the way the hero already draws its picture). «نفس شكل الصورة» in the dimensions window makes the frame the picture's own shape,
-     so nothing is left over at all. */
+     Owner, 2026-11-21: the element (its width and height, the ones the page gives it or the ones he chose) is the fixed thing, and its picture or video adapts to it: the picture is resized,
+     larger or smaller, to the element's own width and height and fills it whole (object-fit: fill, background-size: 100% 100%). Nothing is cut and no colour or blurred copy is made up
+     behind it; a picture whose shape differs from the element's is stretched to it, which is what he asked for (a 9:16 picture in a 4:3 element fills the 4:3). */
   var sizeCache = {};
   function loadSize(url, then) {
     try {
@@ -667,18 +668,18 @@
     undo.push(function () { el.removeAttribute('data-elan-fit'); if (el.__elanFit === token) delete el.__elanFit; });
     try { if (getComputedStyle(el).position === 'static') el.style.position = 'relative'; } catch (_) { /* optional */ }
     if (el.classList.contains('elan-image')) imp(el, 'padding', '0');
-    var follows = entry.kind === 'card' || entry.kind === 'block' || entry.kind === 'image-el';
-    if (follows && f.kind !== 'bg') keepStyle(el, undo);
+    /* a card, a banner or a picture on its own has a frame and its picture is resized to fill it whole; the hero and a section keep showing their picture whole (the hero over its blurred copy) */
+    var fills = entry.kind === 'card' || entry.kind === 'block' || entry.kind === 'image-el';
     if (f.kind === 'bg') {
       keepStyle(el, undo);
-      imp(el, 'background-size', 'contain');
+      imp(el, 'background-size', fills ? '100% 100%' : 'contain');
       imp(el, 'background-position', 'center');
       imp(el, 'background-repeat', 'no-repeat');
     }
     var n = f.node;
     if (n) {
       keepStyle(n, undo);
-      imp(n, 'width', '100%'); imp(n, 'height', '100%'); imp(n, 'max-width', 'none'); imp(n, 'object-fit', 'contain'); imp(n, 'margin', '0');
+      imp(n, 'width', '100%'); imp(n, 'height', '100%'); imp(n, 'max-width', 'none'); imp(n, 'object-fit', fills ? 'fill' : 'contain'); imp(n, 'margin', '0');
       for (var up = n.parentNode; up && up !== el; up = up.parentNode) { keepStyle(up, undo); imp(up, 'width', '100%'); imp(up, 'height', '100%'); }
     }
     whenSized(f, function (nat) {
@@ -687,21 +688,11 @@
       if (r.width <= 0 || !nat.w || !nat.h) return;
       imp(el, 'overflow', 'hidden');
       if (n && n.parentNode && n.parentNode !== el) imp(n.parentNode, 'height', '100%');
-      if (!follows) return;   // the hero and a section keep the frame chosen for them; only the media adapts inside it (whole, never cut)
-      /* A card, a banner or a picture takes the picture's own shape (owner, 2026-11-19: the picture fills the whole frame, never cut, never stretched, with no colour made up behind it): the width the
-         owner chose stays, the height follows the picture. Only a frame that has a height and no width keeps that height and takes the width instead. */
-      var hasW = !!el.style.getPropertyValue('width'), hVal = parseFloat(el.style.getPropertyValue('height'));
-      if (!hasW && hVal > 0) { imp(el, 'width', Math.round(hVal * nat.w / nat.h) + 'px'); imp(el, 'max-width', 'none'); imp(el, 'flex', '0 0 auto'); }
-      imp(el, 'height', 'auto'); imp(el, 'min-height', '0'); imp(el, 'max-height', 'none');
-      imp(el, 'aspect-ratio', nat.w + ' / ' + nat.h); imp(el, 'align-self', 'flex-start'); imp(el, 'box-sizing', 'border-box');
-      if (f.kind === 'bg') imp(el, 'background-size', '100% 100%');
-      if (n) imp(n, 'object-fit', 'fill');
-      el.__elanNat = true;
     });
   }
   /* The same while the corner is being dragged: the size is written straight onto the element, and the picture follows it. */
   function liveSize(entry, w, h) { sizeBox(entry.el, w, h); fitMedia(entry); }
-  function endLive(el) { var u = el && el.__elanFitUndo; if (!u) return; delete el.__elanFitUndo; delete el.__elanNat; u.forEach(function (f) { try { f(); } catch (_) { /* keep going */ } }); }
+  function endLive(el) { var u = el && el.__elanFitUndo; if (!u) return; delete el.__elanFitUndo; u.forEach(function (f) { try { f(); } catch (_) { /* keep going */ } }); }
 
   function paint(entry, ed) {
     var el = entry.el, st = ed.style || {};
@@ -779,7 +770,6 @@
       fitStripCards(touched);
     }
     try { buildRows(beside, managed); } catch (e) { /* rows are optional: the page stays as the edits left it */ }
-    try { if (window.ElanCardFit) window.ElanCardFit.scan(); } catch (e) { /* the cards keep the frame the page gave them */ }   // every card with a picture takes the picture's own shape (app-core.js)
   }
 
   function apply() {

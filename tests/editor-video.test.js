@@ -118,7 +118,7 @@ test('the storefront shows a banner video behind the text and an image block vid
   for (const v of [bv, vid]) assert.equal(['muted', 'loop', 'autoplay', 'playsinline'].every((a) => v.hasAttribute(a)), true);
   assert.equal(main.querySelector('.elan-image img'), null, 'no broken picture next to the video');
   const css = read('design-layer.js');
-  assert.match(css, /\.elan-banner>\.elan-bgvideo\{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:-1/);
+  assert.match(css, /\.elan-banner>\.elan-bgvideo\{position:absolute;inset:0;width:100%;height:100%;object-fit:fill;z-index:-1/);
   assert.match(css, /\.elan-banner\{position:relative;overflow:hidden;isolation:isolate/);
   assert.match(css, /\.elan-image img,\.elan-image video\{/);
 });

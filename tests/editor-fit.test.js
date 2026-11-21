@@ -65,7 +65,7 @@ test('the hero is resized like any element: a saved size is painted on it (so th
   assert.equal(hero.style.getPropertyValue('height'), '', 'automatic: nothing of it is left on the hero');
 });
 
-test('a picture in a resized element adapts inside the fixed frame: contain (never cut, never stretched)', async () => {
+test('a picture in a resized element adapts to the fixed frame: it is resized to fill it whole (object-fit: fill, nothing cut, no bars, no colour behind)', async () => {
   const b = await editor();
   alwaysPixels(b, 400, 200);
   const made = (await b.mode.execute('element.create', { kind: 'image', src: '/assets/cards/a.webp' })).elementId;
@@ -74,9 +74,11 @@ test('a picture in a resized element adapts inside the fixed frame: contain (nev
   const root = b.document.querySelector('[data-elan-id="' + made + '"]');
   assert.equal(root.hasAttribute('data-elan-fit'), true);
   const now = root.querySelector('img');
-  assert.equal(now.style.getPropertyValue('object-fit'), 'contain'); assert.equal(now.style.getPropertyPriority('object-fit'), 'important');
+  assert.equal(now.style.getPropertyValue('object-fit'), 'fill'); assert.equal(now.style.getPropertyPriority('object-fit'), 'important');
   assert.equal(now.style.getPropertyValue('width'), '100%'); assert.equal(now.style.getPropertyValue('height'), '100%');
   assert.match(root.style.getPropertyValue('padding'), /^0(px)?$/, 'the block\'s side gutter would leave a strip beside the picture');
+  assert.match(root.style.getPropertyValue('width'), /px$/, 'the width chosen for the element stays'); assert.match(root.style.getPropertyValue('height'), /px$/, 'and so does its height: the frame is the fixed thing');
+  assert.equal(root.style.getPropertyValue('aspect-ratio'), '', 'the frame does not take the picture\'s shape: the picture adapts to the frame');
   assert.equal(root.querySelectorAll('.elan-fit-back,.elan-fit-front').length, 0, 'no artificial background layer is added');
   await b.mode.execute('history.undo', {});
   const back = b.document.querySelector('[data-elan-id="' + made + '"]');

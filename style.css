@@ -32,7 +32,7 @@ header .logo small {
 /* ---------- Masterpieces card 4:3 (same size as Categories) ---------- */
 .cb > .card.msel {
   background-image: url('/assets/cards/masterpieces.webp') !important;
-  background-size: cover !important;
+  background-size: 100% 100% !important;
   background-position: center center !important;
   background-repeat: no-repeat !important;
   background-color: #fff !important;
@@ -64,7 +64,7 @@ header .logo small {
   width: 100% !important;
   height: 100% !important;
   display: block !important;
-  object-fit: cover !important;
+  object-fit: fill !important;
   object-position: center center !important;
 }
 
@@ -243,7 +243,7 @@ html:not(.hero-img) #hero:not([data-media]) .hero-overlay {
 }
 #cats > .cb > .card.art .artbg img,
 #cats > .cb > .card.art .artbg svg {
-  object-fit: cover !important;
+  object-fit: fill !important;
   object-position: center center !important;
 }
 
@@ -428,7 +428,7 @@ body.sheet-open {
     height: auto !important;
     min-height: 0 !important;
     aspect-ratio: 4 / 3 !important;
-    background-size: cover !important;
+    background-size: 100% 100% !important;
     background-clip: border-box !important;
     border: 0 !important;
   }
@@ -526,7 +526,7 @@ body.sheet-open {
     height: auto !important;
     min-height: 0 !important;
     aspect-ratio: 4 / 3 !important;
-    background-size: cover !important;
+    background-size: 100% 100% !important;
     background-clip: border-box !important;
     border: 0 !important;
   }
@@ -800,32 +800,23 @@ html.hero-pending #hero .hero-overlay {
   padding-top: 8px;
 }
 
-/* ---------- A picture or video fills its card or banner whole (owner, 19 Nov 2026) ----------
-   app-core.js writes the picture's own shape on the card as --cr («width / height»). The frame then takes that shape, so the picture fills it completely: nothing cut (no crop), nothing
-   stretched, and no colour or blurred copy behind it. The card keeps the width the page gives it and its height follows; product cards (.pf) and anything the owner sized in the editor
-   (data-elan-fit) are left alone. The :not(#_f):not(#_g) pair is what lets these rules win over the older !important size rules above. */
-.card[style*="--cr:"]:not([data-elan-fit]):not(#_f):not(#_g),
-.elan-banner[style*="--cr:"]:not([data-elan-fit]):not(#_f):not(#_g) {
-  box-sizing: border-box !important;
-  aspect-ratio: var(--cr) !important;
-  height: auto !important;
-  min-height: 0 !important;
-  max-height: none !important;
-  align-self: flex-start !important;
+/* ---------- A picture or video adapts to its frame and fills it whole (owner, 21 Nov 2026) ----------
+   The frame (a card, a banner) keeps the size the page gives it, the same for every card of a kind; the picture or video is resized, larger or smaller, to that width and height:
+   object-fit: fill for an <img> or <video>, background-size: 100% 100% for a picture drawn as a background. Nothing is cut, no colour is made up behind it. Product cards (.pf) and the
+   hero keep their own photo frame. */
+.card.art .artbg video {
+  width: 100% !important;
+  height: 100% !important;
+  display: block !important;
+  object-fit: fill !important;
+}
+.card.brandc,
+.elan-banner {
   background-size: 100% 100% !important;
   background-position: center !important;
   background-repeat: no-repeat !important;
 }
-.card[style*="--cr:"]:not([data-elan-fit]):not(#_f):not(#_g) .artbg img,
-.card[style*="--cr:"]:not([data-elan-fit]):not(#_f):not(#_g) .artbg video,
-.card[style*="--cr:"]:not([data-elan-fit]):not(#_f):not(#_g) > img,
-.card[style*="--cr:"]:not([data-elan-fit]):not(#_f):not(#_g) > video,
-.elan-banner[style*="--cr:"]:not([data-elan-fit]):not(#_f):not(#_g) > .elan-bgvideo {
-  width: 100% !important;
-  height: 100% !important;
-  object-fit: fill !important;
-  object-position: center !important;
-}
+.elan-banner > .elan-bgvideo { object-fit: fill !important; }
 
 /* ---------- Brand cards: the picture alone, the name and the sentence under it below the card (owner, 19 Nov 2026) ---------- */
 .card.brandc {
@@ -857,10 +848,3 @@ html.hero-pending #hero .hero-overlay {
 }
 .card.brandc .bcap h4 { margin: 0; line-height: 1.3; font-size: 15px !important; }
 .card.brandc .bcap .st { font-size: 11px; line-height: 1.4; color: #85775c; }
-/* in the brand strip a card keeps its height (the strip is a row of logos) and takes the width the picture needs */
-.strip .card.brandc[style*="--cr:"]:not([data-elan-fit]):not(#_f):not(#_g) {
-  height: 120px !important;
-  width: calc(120px * var(--crn)) !important;
-  max-width: none !important;
-  flex: 0 0 auto !important;
-}

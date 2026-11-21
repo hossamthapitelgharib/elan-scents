@@ -246,7 +246,7 @@
   /* ---------- name-only panels: brand, store, occasion, note (the original's 380px panel) ---------- */
   function openName(kind, at, ratios) {
     var spec = NAME_KINDS[kind];
-    /* «أبعاد كارت …»: automatic, or one of the common shapes. A brand card has none: it takes the shape of its own picture (2026-11-19). */
+    /* «أبعاد كارت …»: automatic, or one of the common shapes. A brand card has none: it is made in the brand strip, whose cards all have one frame, and its picture is resized to fill it (2026-11-19, 2026-11-21). */
     var field = kind !== 'brand' && ratios && root.elanRatioField ? root.elanRatioField(ratios, spec.dim) : null;
     var dlg = h('dialog', { style: 'width:380px;max-width:92vw;padding:22px;background:#fffdf8;border:1px solid #c6aa70;border-radius:14px' });
     var title = h('h3', { text: spec.title, style: 'margin:0 0 18px;color:#87652d' });

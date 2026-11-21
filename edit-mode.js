@@ -36,9 +36,7 @@
     if (!Geometry.RATIOS) return [];
     var sizes = Geometry.RATIOS.map(function (r) { return { ratio: [r.w, r.h], label: r.label }; });
     var own = about && about.id && layer.mediaSize ? layer.mediaSize(entryById(about.id)) : null;
-    /* An element with a picture or a video always has the picture's own shape (2026-11-19: the picture fills the frame whole, never cut, never stretched, with no colour behind it), so the common
-       shapes would change nothing for it: the one choice it has is the shape of its picture, and its width is what the corner changes. */
-    if (own) return [{ id: 'ratio', label: 'شكل الإطار', sizes: [{ media: true, ratio: [own.w, own.h], label: own.video || about.type === 'video' ? 'نفس شكل الفيديو' : 'نفس شكل الصورة' }] }];
+    if (own) sizes.unshift({ media: true, ratio: [own.w, own.h], label: own.video || about.type === 'video' ? 'نفس شكل الفيديو' : 'نفس شكل الصورة' });
     return [{ id: 'ratio', label: 'أبعاد شائعة (أمثلة)', sizes: sizes }];
   }
   /* The width an element can really use: the inside of the box it sits in (its padding left out). A new element has no box yet, so it is the one the page puts new blocks in. */

@@ -44,7 +44,7 @@ test('a brand the page does not show yet is reported, not ignored; a missing nam
 test('the create-brand panel creates the catalog record and shows its card in the strip (no section.create, no element.create), and has no shape field', () => {
   const src = read('editor/editor-live-create.js');
   const open = src.slice(src.indexOf('function openName('), src.indexOf('/* ---------- section and perfume-card panel'));
-  assert.match(open, /kind !== 'brand' && ratios/, 'a brand card takes the shape of its own picture: the panel has no shape field for it');
+  assert.match(open, /kind !== 'brand' && ratios/, 'a brand card is made in the strip with the frame of the strip: the panel has no shape field for it');
   assert.match(open, /if \(kind === 'brand'\) return showInPage\('catalog\.show', \{ brand: String\(catalog\.record\.name\) \}\);/);
   assert.ok(open.indexOf("kind === 'brand'") < open.indexOf('return commit('), 'the brand path leaves before the block is committed');
   assert.match(src, /function showInPage\(action, payload\)[\s\S]*live\.request\(action, payload\)/);
