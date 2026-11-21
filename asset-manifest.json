@@ -1,5 +1,5 @@
 {
-  "version": "20261121-02",
+  "version": "20261121-03",
   "files": {
     "account.css": "e9ab94b5ae478a1c",
     "account.js": "0a211f8b2673cebf",
@@ -10,7 +10,7 @@
     "admin-shell.js": "52bd6d2b65ce21df",
     "admin.css": "9f777c2e8fee5fb2",
     "app-core.js": "5ca8d5367400055f",
-    "app.js": "5d2a3966673f6cae",
+    "app.js": "62c437b701b2f863",
     "auth-session.js": "005394b4b936cdb2",
     "consent.css": "79e25a99fc582a15",
     "consent.js": "48af0c55d9cb872e",
