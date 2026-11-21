@@ -598,7 +598,7 @@
   }
   function sizeBox(el, w, h) {
     if (w) { el.style.setProperty('width', w + 'px', 'important'); el.style.setProperty('max-width', 'none', 'important'); el.style.setProperty('flex', '0 0 auto', 'important'); }
-    if (h) { el.style.setProperty('height', h + 'px', 'important'); el.style.setProperty('min-height', '0', 'important'); el.style.setProperty('max-height', 'none', 'important'); }
+    if (h && !el.__elanNat) { el.style.setProperty('height', h + 'px', 'important'); el.style.setProperty('min-height', '0', 'important'); el.style.setProperty('max-height', 'none', 'important'); }   // a frame that follows its picture has no height of its own to write
     if (w) gridSpan(el, w);
   }
 
@@ -617,7 +617,9 @@
   }
   function warm(url) { if (url && sizeCache[url] === undefined) { sizeCache[url] = null; loadSize(url); } }
   function bgUrl(el) {
-    var m = /url\(\s*(?:"([^"]*)"|'([^']*)'|([^)\s"']*))\s*\)/.exec(el.style.backgroundImage || '');
+    var re = /url\(\s*(?:"([^"]*)"|'([^']*)'|([^)\s"']*))\s*\)/, m = re.exec(el.style.backgroundImage || '');
+    /* a card's own picture can also come from the stylesheet (the masterpieces card) */
+    if (!m && el.classList && el.classList.contains('card') && !el.classList.contains('pf')) { try { m = re.exec(getComputedStyle(el).backgroundImage || ''); } catch (_) { /* no styles: no picture */ } }
     return m ? (m[1] || m[2] || m[3] || '') : '';
   }
   function visibleMedia(n) { return !!n && n.style.display !== 'none'; }
@@ -665,6 +667,8 @@
     undo.push(function () { el.removeAttribute('data-elan-fit'); if (el.__elanFit === token) delete el.__elanFit; });
     try { if (getComputedStyle(el).position === 'static') el.style.position = 'relative'; } catch (_) { /* optional */ }
     if (el.classList.contains('elan-image')) imp(el, 'padding', '0');
+    var follows = entry.kind === 'card' || entry.kind === 'block' || entry.kind === 'image-el';
+    if (follows && f.kind !== 'bg') keepStyle(el, undo);
     if (f.kind === 'bg') {
       keepStyle(el, undo);
       imp(el, 'background-size', 'contain');
@@ -681,14 +685,23 @@
       if (el.__elanFit !== token || el.isConnected === false) return;
       var r = el.getBoundingClientRect();
       if (r.width <= 0 || !nat.w || !nat.h) return;
-      /* The element keeps its chosen dimensions; only the media adapts inside it. */
       imp(el, 'overflow', 'hidden');
       if (n && n.parentNode && n.parentNode !== el) imp(n.parentNode, 'height', '100%');
+      if (!follows) return;   // the hero and a section keep the frame chosen for them; only the media adapts inside it (whole, never cut)
+      /* A card, a banner or a picture takes the picture's own shape (owner, 2026-11-19: the picture fills the whole frame, never cut, never stretched, with no colour made up behind it): the width the
+         owner chose stays, the height follows the picture. Only a frame that has a height and no width keeps that height and takes the width instead. */
+      var hasW = !!el.style.getPropertyValue('width'), hVal = parseFloat(el.style.getPropertyValue('height'));
+      if (!hasW && hVal > 0) { imp(el, 'width', Math.round(hVal * nat.w / nat.h) + 'px'); imp(el, 'max-width', 'none'); imp(el, 'flex', '0 0 auto'); }
+      imp(el, 'height', 'auto'); imp(el, 'min-height', '0'); imp(el, 'max-height', 'none');
+      imp(el, 'aspect-ratio', nat.w + ' / ' + nat.h); imp(el, 'align-self', 'flex-start'); imp(el, 'box-sizing', 'border-box');
+      if (f.kind === 'bg') imp(el, 'background-size', '100% 100%');
+      if (n) imp(n, 'object-fit', 'fill');
+      el.__elanNat = true;
     });
   }
   /* The same while the corner is being dragged: the size is written straight onto the element, and the picture follows it. */
   function liveSize(entry, w, h) { sizeBox(entry.el, w, h); fitMedia(entry); }
-  function endLive(el) { var u = el && el.__elanFitUndo; if (!u) return; delete el.__elanFitUndo; u.forEach(function (f) { try { f(); } catch (_) { /* keep going */ } }); }
+  function endLive(el) { var u = el && el.__elanFitUndo; if (!u) return; delete el.__elanFitUndo; delete el.__elanNat; u.forEach(function (f) { try { f(); } catch (_) { /* keep going */ } }); }
 
   function paint(entry, ed) {
     var el = entry.el, st = ed.style || {};
@@ -766,6 +779,7 @@
       fitStripCards(touched);
     }
     try { buildRows(beside, managed); } catch (e) { /* rows are optional: the page stays as the edits left it */ }
+    try { if (window.ElanCardFit) window.ElanCardFit.scan(); } catch (e) { /* the cards keep the frame the page gave them */ }   // every card with a picture takes the picture's own shape (app-core.js)
   }
 
   function apply() {

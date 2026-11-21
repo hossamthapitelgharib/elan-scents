@@ -3,14 +3,6 @@
   "sections": {},
   "order": [
     "brands",
-    "x-z0l8k",
-    "x-qj1gf",
-    "x-ikbdf",
-    "x-xx3h6",
-    "x-d2rgk",
-    "x-3n0hj",
-    "x-livw4",
-    "x-zpa6y",
     "x-f52nr",
     "x-70idw",
     "x-7wf8s",
@@ -84,78 +76,6 @@
         "ar": "سطر تعريفي قصير"
       },
       "image": "https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/uploads/2026/8f7bd64d2170280a596a.webp"
-    },
-    {
-      "id": "x-zpa6y",
-      "type": "smart",
-      "style": {
-        "align": "center",
-        "size": "md"
-      },
-      "ref": "x-1d8a0"
-    },
-    {
-      "id": "x-livw4",
-      "type": "smart",
-      "style": {
-        "align": "center",
-        "size": "md"
-      },
-      "ref": "x-97mmh"
-    },
-    {
-      "id": "x-3n0hj",
-      "type": "smart",
-      "style": {
-        "align": "center",
-        "size": "md"
-      },
-      "ref": "x-9vrr2"
-    },
-    {
-      "id": "x-d2rgk",
-      "type": "smart",
-      "style": {
-        "align": "center",
-        "size": "md"
-      },
-      "ref": "x-9xlb4"
-    },
-    {
-      "id": "x-xx3h6",
-      "type": "smart",
-      "style": {
-        "align": "center",
-        "size": "md"
-      },
-      "ref": "x-68u5g"
-    },
-    {
-      "id": "x-ikbdf",
-      "type": "smart",
-      "style": {
-        "align": "center",
-        "size": "md"
-      },
-      "ref": "x-cryrf"
-    },
-    {
-      "id": "x-qj1gf",
-      "type": "smart",
-      "style": {
-        "align": "center",
-        "size": "md"
-      },
-      "ref": "x-c66m3"
-    },
-    {
-      "id": "x-z0l8k",
-      "type": "smart",
-      "style": {
-        "align": "center",
-        "size": "md"
-      },
-      "ref": "x-pqj72"
     }
   ],
   "texts": {},
@@ -322,27 +242,6 @@
       "x-lfnvi": {
         "archived": true
       },
-      "x-zpa6y": {
-        "archived": true
-      },
-      "x-livw4": {
-        "archived": true
-      },
-      "x-3n0hj": {
-        "archived": true
-      },
-      "x-d2rgk": {
-        "archived": true
-      },
-      "x-xx3h6": {
-        "archived": true
-      },
-      "x-ikbdf": {
-        "archived": true
-      },
-      "x-qj1gf": {
-        "archived": true
-      },
       "card:1tskhlz": {
         "style": {
           "media": "https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/uploads/2026/8cac2911b9fe15bd5160.jpg"
@@ -433,9 +332,6 @@
           "media": "https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/uploads/2026/5d651118594be08e7c3f.webp"
         }
       },
-      "x-z0l8k": {
-        "archived": true
-      },
       "x-7wf8s": {
         "archived": true
       }
@@ -469,10 +365,6 @@
       "x-lfnvi": {
         "w": 390,
         "h": 130
-      },
-      "x-livw4": {
-        "w": 390,
-        "h": 312
       }
     }
   }

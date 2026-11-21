@@ -568,10 +568,15 @@ test('with automatic left as it is, the section is created as before: no fixed s
   } finally { await context.close(); }
 });
 
-test('the card panels have their own dimensions field: «أبعاد كارت البراند», «أبعاد كارت المتجر», «أبعاد كروت العطور»', async () => {
+test('the store and perfume card panels have their own dimensions field: «أبعاد كارت المتجر», «أبعاد كروت العطور»; the brand card panel has none, a brand card takes the shape of its own picture', async () => {
   const { context, page, frame, errors } = await openEditor();
   try {
-    for (const [tool, selector, head] of [[/إنشاء كارت براند/, 'dialog[open]', 'أبعاد كارت البراند'], [/إنشاء كارت متجر/, 'dialog[open]', 'أبعاد كارت المتجر'], [/إنشاء كارت عطر/, 'dialog.sectionPanelClean[open]', 'أبعاد كروت العطور']]) {
+    /* a brand card is the picture alone and takes the picture's own shape (2026-11-19): no shape to choose when it is created */
+    await chooseTool(page, frame, /إنشاء كارت براند/);
+    await page.waitForSelector('dialog[open]');
+    assert.equal(await page.locator('dialog[open] .ratioField').count(), 0, 'the brand panel has no dimensions field');
+    await closeDialogs(page);
+    for (const [tool, selector, head] of [[/إنشاء كارت متجر/, 'dialog[open]', 'أبعاد كارت المتجر'], [/إنشاء كارت عطر/, 'dialog.sectionPanelClean[open]', 'أبعاد كروت العطور']]) {
       await chooseTool(page, frame, tool);
       const field = page.locator(selector + ' .ratioField');
       assert.equal((await field.locator('.ratioHead').textContent()).trim(), head);

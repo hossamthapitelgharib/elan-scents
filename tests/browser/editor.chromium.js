@@ -29,6 +29,13 @@ async function openEditor(size) {
   return { context, page, frame, errors, problems };
 }
 
+/* A card takes the shape of its picture once the picture has arrived, and a picture far down the page is only fetched when it is near: so before comparing two pages, let every picture on both arrive. */
+const ARRIVED = async () => {
+  document.querySelectorAll('img[loading="lazy"]').forEach((i) => { i.loading = 'eager'; });
+  await Promise.all(Array.from(document.images).map((i) => (i.complete ? 1 : new Promise((r) => { i.addEventListener('load', r); i.addEventListener('error', r); }))));
+  await new Promise((r) => setTimeout(r, 600));
+};
+
 /* what a section looks like: id, width and height in css px */
 const SHAPE = () => {
   const out = [], hero = document.getElementById('hero');
@@ -58,6 +65,7 @@ for (const size of H.WIDTHS) {
   test('editor in a ' + size.width + 'px window: the platform inside looks exactly like the storefront on a phone', async () => {
     const editor = await openEditor(size);
     try {
+      await editor.frame.evaluate(ARRIVED);
       const inEditor = await editor.frame.evaluate(SHAPE);
       assert.equal(inEditor.inner, 390);
       const phone = await H.openContext(browser, server, { width: 390, height: inEditor.high });
@@ -67,6 +75,7 @@ for (const size of H.WIDTHS) {
         await page.waitForSelector('#hero', { state: 'attached' });
         await page.addStyleTag({ content: 'html{scrollbar-width:none}' });   // a phone has no scrollbar track
         await page.waitForTimeout(1500);
+        await page.evaluate(ARRIVED);
         const onPhone = await page.evaluate(SHAPE);
         assert.equal(onPhone.inner, 390);
         assert.ok(onPhone.shape.length >= 4, 'hero and sections are there: ' + JSON.stringify(onPhone.shape.map((s) => s.id)));

@@ -190,7 +190,7 @@ if(x.k=='prod'){V.innerHTML=h+prodView(x,l,t);return}
    there by its plain menu word («البراندات», «الفئات», «كل العطور»…), see lab() */
 var hub=x.k=='sec'&&{brands:1,stores:1,cats:1}[x.id];
 if((x.k=='sec'||x.k=='col')&&(x.id=='cats'||x.id=='occ'||x.id=='notes')){var field=x.id=='cats'?'cats':x.id=='occ'?'occs':'notes',items=x.k=='sec'?allSectionCards(field,CATALOG_TAXONOMY_KEYS[x.id].length,x.id=='cats'?10:6):topSectionCards(field,String(x.i),30),cards=items.map(function(y){return pc(y)}).join('');h+='<div class="grid section-perfume-grid">'+(cards||'<div class="empty">'+l.none+'</div>')+'</div>';V.innerHTML=h;return}
-if(hub){var c=x.id=='brands'?BR.map(function(b){return card('','<span class="gold" style="font-weight:700">'+b+'</span>','',t.wait,'brand|'+b)}):x.id=='stores'?ST.map(function(s){return card('wide','<b>'+s[0]+'</b>',s[1]||t.sdesc,t.status,'store|'+s[0])}):sec(x.id)[3].map(function(n,i){return card('round',n,'',t.view,'col|'+x.id+'|'+i,ART[x.id+i])});h+='<div class="grid">'+c.join('')+'</div>'}
+if(hub){var c=x.id=='brands'?BR.map(brandCard):x.id=='stores'?ST.map(function(s){return card('wide','<b>'+s[0]+'</b>',s[1]||t.sdesc,t.status,'store|'+s[0])}):sec(x.id)[3].map(function(n,i){return card('round',n,'',t.view,'col|'+x.id+'|'+i,ART[x.id+i])});h+='<div class="grid">'+c.join('')+'</div>'}
 else{
 if(x.k=='store'){var su=ST.filter(function(s){return s[0]==x.n})[0],bs={};PERFUMES.forEach(function(p){var offer=platformEligibleOffer(p);if(offer&&su&&String(offer.storeId)===String(su[2]))bs[p.brand]=1});
 h+='<div class="card wide" style="cursor:default;margin:10px auto;max-width:340px"><h4 class="en">'+x.n+'</h4><small>'+l.inf+'</small><span class="st">'+t.status+'</span><small>'+l.bs+': '+(Object.keys(bs).join(', ')||'—')+'</small></div>'}
@@ -238,7 +238,7 @@ if(!SB.url){var c=await fetch('/api/config');if(!c.ok)return;SB=await c.json();i
 var g=function(p){return fetch(SB.url+'/rest/v1/'+p,{headers:{apikey:SB.key,Authorization:'Bearer '+SB.key}}).then(function(r){if(!r.ok)throw new Error(r.status);return r.json()})};
 var ga=async function(p){var out=[],from=0,step=1000;for(;;){var sep=p.indexOf('?')>-1?'&':'?';var r=await fetch(SB.url+'/rest/v1/'+p+sep+'limit='+step+'&offset='+from,{headers:{apikey:SB.key,Authorization:'Bearer '+SB.key}});if(!r.ok)throw new Error(r.status);var page=await r.json();if(!Array.isArray(page))throw new Error('invalid_catalog_page');out=out.concat(page);if(page.length<step)return out;from+=page.length}};
 var d=await Promise.all([ga('public_brands?select=name,slug&order=slug.asc'),ga('public_stores?select=id,name,short_description&order=name.asc,id.asc'),ga('public_products?select=id,name,brand_name,sales_count,views_count,search_count,average_rating,reviews_count,short_description,official_description,composition,gender&order=id.asc'),ga('catalog_platform_offers?select=product_size_id,product_id,store_product_id,store_id,store_name,price,currency,stock_quantity,price_includes_tax,price_includes_shipping&order=product_size_id.asc'),ga('product_sizes?select=id,size_label,size_ml,product_id&order=id.asc'),ga('site_settings?select=key,value&order=key.asc'),ga('product_images?select=id,product_id,image_url,is_primary&order=id.asc'),ga('product_categories?select=product_id,category_id&order=product_id.asc,category_id.asc'),ga('categories?select=id,key,name&order=id.asc'),ga('product_occasions?select=product_id,occasion_id&order=product_id.asc,occasion_id.asc'),ga('occasions?select=id,key,name&order=id.asc'),ga('product_notes?select=product_id,note_id&order=product_id.asc,note_id.asc'),ga('aromatic_notes?select=id,key,name&order=id.asc'),ga('offers?select=product_size_id,store_id&order=product_size_id.asc,store_id.asc'),ga('catalog_eligible_offers?select=product_size_id,product_id,store_product_id,store_id,store_name,price,currency,stock_quantity,price_includes_tax,price_includes_shipping,is_new_arrival,is_coming_soon&order=product_size_id.asc'),ga('storefront_product_rankings?select=product_id,sales_rank,views_rank,searches_rank,rating_rank&order=product_id.asc').catch(function(e){console.error('storefront_rankings_unavailable',e&&e.message);return[]}),ga('catalog_coming_soon_announcements?select=product_size_id,product_id,store_id,store_name,stock_unknown&order=product_size_id.asc').catch(function(e){console.error('coming_soon_announcements_unavailable',e&&e.message);return[]}),ga('catalog_platform_bundle_offers?select=store_bundle_id,bundle_id,store_id,store_name,title,description,price,currency,stock_quantity,price_includes_tax,price_includes_shipping&order=bundle_id.asc').catch(function(e){console.error('bundle_offers_unavailable',e&&e.message);return[]}),ga('public_bundles?select=id,brand_name,name,slug,has_extra_items&order=id.asc').catch(function(e){console.error('bundles_unavailable',e&&e.message);return[]}),ga('public_bundle_items?select=bundle_id,quantity,brand_name,product_name,size_ml&order=bundle_id.asc,product_name.asc,size_ml.asc').catch(function(e){console.error('bundle_items_unavailable',e&&e.message);return[]}),ga('catalog_offer_messages?select=offer_id,store_id,store_name,product_size_id,title,description,ends_at&order=offer_id.asc').catch(function(e){console.error('offer_messages_unavailable',e&&e.message);return[]})]);
-var sig=JSON.stringify(d);if(sig==DSIG)return;DSIG=sig;
+var sig=JSON.stringify(d);if(sig==DSIG)return;DSIG=sig;DATA_READY=true;
 BR=d[0].map(function(x){return esc(x.name)}).sort(function(a,b){var i=BR0.indexOf(a),j=BR0.indexOf(b);return(i<0?99:i)-(j<0?99:j)});
 ST=d[1].map(function(x){return[esc(x.name),esc(x.short_description||''),x.id]});
 var pm={},sm={},stm={};d[1].forEach(function(x){stm[x.id]=x.name});d[2].forEach(function(p){pm[p.id]=p});d[4].forEach(function(z){sm[z.id]=z});
@@ -291,6 +291,46 @@ function buildMenu(){var m=document.getElementById('menu');if(!m)return;var t=T(
 function confirmLogout(){if(window.ELAN_EDITOR_PREVIEW||LOGGING_OUT)return;var l=T().lo,s=document.getElementById('sheet'),b=document.getElementById('sheetB');if(!s||!b){logoutNow();return}b.innerHTML='<button class="sheet-close" type="button" data-close-sheet aria-label="'+(lang=='ar'?'إغلاق':'Close')+'">×</button><div class="auth-done" role="alertdialog" aria-labelledby="lo-t"><h3 id="lo-t">'+esc(l.t)+'</h3><p class="empty" style="text-align:center">'+esc(l.q)+'</p><div class="auth-actions"><button class="btn" type="button" data-logout-now>'+esc(l.y)+'</button><button class="btn ghost" type="button" data-close-sheet>'+esc(l.n)+'</button></div></div>';s.hidden=false;s.dataset.kind='logout';document.body.classList.add('sheet-open')}
 function logoutNow(){if(window.ELAN_EDITOR_PREVIEW||LOGGING_OUT)return;LOGGING_OUT=true;CART=[];FAVS=[];CART_SERVER_REVISION=null;CART_REV++;FAV_REV++;try{localStorage.removeItem('elan_cart');localStorage.removeItem('elan_favs');localStorage.removeItem('elan_cart_owner');localStorage.removeItem('elan_favs_owner')}catch(e){}try{cartBadge();favBadge();closeSheet()}catch(e){}var wait=function(p){return Promise.race([p,new Promise(function(r){setTimeout(r,1500)})]).catch(function(){})};var prep=window.GuestIdentity&&GuestIdentity.prepareLogout?wait(Promise.resolve().then(function(){return GuestIdentity.prepareLogout()})):Promise.resolve();prep.then(function(){return window.ElanAuth?ElanAuth.signOut():null}).catch(function(){}).then(function(){try{localStorage.removeItem('elan_auth_session');localStorage.removeItem('elan_cart');localStorage.removeItem('elan_favs');localStorage.removeItem('elan_cart_owner');localStorage.removeItem('elan_favs_owner');sessionStorage.setItem('elan_flash','logout')}catch(e){}location.reload()})}
 function card(cls,h,s,st,go,art){return '<div class="card '+cls+(art?' art':'')+'"'+(go?' data-go="'+go+'"':'')+'>'+(art?'<div class="artbg">'+art+'</div>':'')+'<h4 class="en" style="font-size:16px">'+h+'</h4>'+(s?'<small>'+s+'</small>':'')+(st?'<span class="st">'+st+'</span>':'')+'</div>'}
+/* Brand cards (owner, 19 Nov 2026): the card is the picture alone; the brand's name, and under it the «awaiting the stores' catalogs» sentence, are written BELOW the card, not inside it.
+   The sentence is only true while no store has linked its catalog: once the catalog has offers (PERFUMES) it is not written at all (and not while the data is still loading). */
+var DATA_READY=false;
+function waitNote(){return DATA_READY&&!PERFUMES.length?(T().wait||''):''}
+function brandCard(b){var w=waitNote();return '<div class="card brandc'+(w?'':' nw')+'" data-go="brand|'+b+'"><div class="bcap"><h4 class="en" style="font-size:16px"><span class="gold" style="font-weight:700">'+b+'</span></h4>'+(w?'<span class="st">'+w+'</span>':'')+'</div></div>'}
+/* A picture or a video fills its card (or banner) WHOLE (owner, 19 Nov 2026): not cut, not stretched, and no colour behind it to make up for what a cut would take.
+   That is only possible when the frame has the picture's own shape, so the card keeps the width the page gives it and its height follows the picture (a brand card in a strip keeps its
+   height and takes the width instead). The shape is written on the card as --cr («width / height», read from the picture once it has arrived); style.css does the rest for any card that has it.
+   Product cards (.pf) keep their own photo frame. A card the owner sized himself in the editor (data-elan-fit) keeps the size he chose. */
+var CF_SEL='.card:not(.pf),.elan-banner',CF_KEY='elan_card_shapes_v1',CF_SIZES={};
+/* The shape of each picture is remembered (by its address, on this device: nothing about the visitor), so a returning visitor's cards have their final shape before the pictures arrive and the page does not jump. */
+try{CF_SIZES=JSON.parse(localStorage.getItem(CF_KEY)||'{}')||{}}catch(e){CF_SIZES={}}
+function cfNote(u,w,h){if(!u||u.length>300||/^(data|blob):/.test(u)||(CF_SIZES[u]&&CF_SIZES[u][0]===w&&CF_SIZES[u][1]===h))return;CF_SIZES[u]=[w,h];try{var ks=Object.keys(CF_SIZES);if(ks.length>400)delete CF_SIZES[ks[0]];localStorage.setItem(CF_KEY,JSON.stringify(CF_SIZES))}catch(e){}}
+function cfShown(n,root){for(;n&&n!==root;n=n.parentNode)if(n.style&&n.style.display==='none')return false;return true}
+function cfMedia(c){var q=c.querySelectorAll('.artbg video,.artbg img'),i,n;
+for(i=0;i<q.length;i++)if(cfShown(q[i],c))return{node:q[i]};
+for(i=0;i<c.children.length;i++){n=c.children[i];if((n.tagName==='IMG'||n.tagName==='VIDEO')&&cfShown(n,c))return{node:n}}
+var m=/url\(\s*(?:"([^"]*)"|'([^']*)'|([^)\s"']*))\s*\)/.exec((window.getComputedStyle?getComputedStyle(c).backgroundImage:c.style.backgroundImage)||'');
+return m?{url:m[1]||m[2]||m[3]}:null}
+function cfUrl(m){return m.url||(m.node&&(m.node.currentSrc||m.node.getAttribute('src')))||''}
+function cfSize(m,done){var n=m.node,u=cfUrl(m),k=u&&CF_SIZES[u],w=0,h=0;
+if(n){if(n.tagName==='VIDEO'){w=n.videoWidth;h=n.videoHeight}else if(n.complete){w=n.naturalWidth;h=n.naturalHeight}}
+if(w>0&&h>0){cfNote(u,w,h);done(w,h);return}
+if(k)done(k[0],k[1]);
+if(!n&&u){var im=new Image();im.onload=function(){if(im.naturalWidth>0){cfNote(u,im.naturalWidth,im.naturalHeight);done(im.naturalWidth,im.naturalHeight)}};im.src=u}}
+function cfFree(c){c.__cf=null;if(c.style.getPropertyValue('--cr')){c.style.removeProperty('--cr');c.style.removeProperty('--crn')}}
+function cfFit(c){
+var hv=c.style.getPropertyValue('height');
+if(c.classList.contains('pf')||c.hasAttribute('data-elan-fit')||c.hasAttribute('data-no-media')||(hv&&hv!=='auto')){cfFree(c);return}
+var m=cfMedia(c);if(!m){cfFree(c);return}
+var token=c.__cf={};
+cfSize(m,function(w,h){if(c.__cf!==token||!c.isConnected||!(w>0&&h>0))return;var v=w+' / '+h;if(c.style.getPropertyValue('--cr').trim()!==v){c.style.setProperty('--cr',v);c.style.setProperty('--crn',String(Math.round(w/h*10000)/10000))}})}
+function cfScan(root){var l=(root||document).querySelectorAll(CF_SEL);for(var i=0;i<l.length;i++)try{cfFit(l[i])}catch(e){}}
+window.ElanCardFit={scan:cfScan,fit:cfFit};
+(function(){
+var queued=false,later=function(){if(queued)return;queued=true;(window.requestAnimationFrame||setTimeout)(function(){queued=false;cfScan()})};
+document.addEventListener('load',function(e){var n=e.target,c=n&&n.tagName==='IMG'&&n.closest&&n.closest(CF_SEL);if(c)cfFit(c)},true);
+document.addEventListener('loadedmetadata',function(e){var n=e.target,c=n&&n.tagName==='VIDEO'&&n.closest&&n.closest(CF_SEL);if(c)cfFit(c)},true);
+if(window.MutationObserver)new MutationObserver(function(rs){for(var i=0;i<rs.length;i++){var t=rs[i].target;if(t&&t.closest&&t.closest('#main,#view')){later();return}}}).observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['src']});
+})();
 /* ===== «حسابي»: the customer's contact and delivery details (table customer_details). Written once at the first order and reused by every later one. ===== */
 var ACCT=null,ACCT_UID='',ACCT_SEQ=0;
 var GOVS=[['القاهرة','Cairo'],['الجيزة','Giza'],['الإسكندرية','Alexandria'],['القليوبية','Qalyubia'],['الشرقية','Sharqia'],['الدقهلية','Dakahlia'],['البحيرة','Beheira'],['المنوفية','Monufia'],['الغربية','Gharbia'],['كفر الشيخ','Kafr El Sheikh'],['دمياط','Damietta'],['بورسعيد','Port Said'],['الإسماعيلية','Ismailia'],['السويس','Suez'],['شمال سيناء','North Sinai'],['جنوب سيناء','South Sinai'],['الفيوم','Faiyum'],['بني سويف','Beni Suef'],['المنيا','Minya'],['أسيوط','Asyut'],['سوهاج','Sohag'],['قنا','Qena'],['الأقصر','Luxor'],['أسوان','Aswan'],['البحر الأحمر','Red Sea'],['الوادي الجديد','New Valley'],['مطروح','Matrouh']];
@@ -388,7 +428,7 @@ footer18(t);favBadge();counts();
 var h='';
 t.S.forEach(function(s){
 var inner='';
-if(s[2]=='b')inner=BR.map(function(b){return card('','<span class="gold" style="font-weight:700">'+b+'</span>','',t.wait,'brand|'+b)}).join('');
+if(s[2]=='b')inner=BR.map(brandCard).join('');
 else if(s[2]=='r')inner=CATALOG_TAXONOMY_KEYS[s[0]].map(function(key,i){return card('round',CATALOG_KEYED_LABELS[lang][s[0]][key],'',t.view,'col|'+s[0]+'|'+key,ART[s[0]+i])}).join('');
 else if(s[2]=='s')inner=ST.map(function(x){return card('wide','<div class="ph"></div><b>'+x[0]+'</b>',(x[1]||t.sdesc),t.status,'store|'+x[0])}).join('');
 else inner=strip(s[0]);

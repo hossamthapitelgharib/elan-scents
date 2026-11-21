@@ -36,7 +36,9 @@
     if (!Geometry.RATIOS) return [];
     var sizes = Geometry.RATIOS.map(function (r) { return { ratio: [r.w, r.h], label: r.label }; });
     var own = about && about.id && layer.mediaSize ? layer.mediaSize(entryById(about.id)) : null;
-    if (own) sizes.unshift({ media: true, ratio: [own.w, own.h], label: own.video || about.type === 'video' ? 'نفس شكل الفيديو' : 'نفس شكل الصورة' });
+    /* An element with a picture or a video always has the picture's own shape (2026-11-19: the picture fills the frame whole, never cut, never stretched, with no colour behind it), so the common
+       shapes would change nothing for it: the one choice it has is the shape of its picture, and its width is what the corner changes. */
+    if (own) return [{ id: 'ratio', label: 'شكل الإطار', sizes: [{ media: true, ratio: [own.w, own.h], label: own.video || about.type === 'video' ? 'نفس شكل الفيديو' : 'نفس شكل الصورة' }] }];
     return [{ id: 'ratio', label: 'أبعاد شائعة (أمثلة)', sizes: sizes }];
   }
   /* The width an element can really use: the inside of the box it sits in (its padding left out). A new element has no box yet, so it is the one the page puts new blocks in. */
@@ -995,6 +997,21 @@
     return { elementId: id };
   }
 
+  /* A brand just created in the catalog: the page redraws with the catalog as it is now (the same refresh it makes by itself every minute), so its card is in the brand strip at once, and the card is selected. */
+  async function showCatalogCard(p) {
+    var name = String((p && p.brand) || '').trim();
+    if (!name) throw new Error('اسم البراند مطلوب.');
+    if (typeof window.loadData !== 'function') throw new Error('الصفحة مش جاهزة.');
+    window.DSIG = '';   // the page skips a refresh that brings nothing new; this one must redraw
+    await window.loadData();
+    var want = 'brand|' + (typeof window.esc === 'function' ? window.esc(name) : name);
+    var entry = layer.elements().filter(function (e) { return e.kind === 'card' && e.el.getAttribute('data-go') === want; })[0];
+    if (!entry) throw new Error('كارت البراند اتعمل بس لسه ما ظهرش في الصفحة. حدّثي الصفحة.');
+    select(entry.id);
+    try { entry.el.scrollIntoView({ block: 'center', inline: 'center' }); } catch (_) { /* optional */ }
+    return { elementId: entry.id };
+  }
+
   function mediaPrompt(forId) {
     /* refuse before asking for anything: there is no point in picking a file for an element that still shows one */
     var target = forId && entryById(forId), shown = target && mediaOf(target);
@@ -1248,6 +1265,7 @@
       case 'element.setText': { var e4 = need(p.elementId || selectedId); mutate(function () { var t = edit('all', e4.id); t.text = t.text || {}; t.text[lang()] = String(p.text || '').slice(0, 600); }); return null; }
       case 'element.setMedia': { var e5 = need(p.elementId || selectedId); setMedia(e5.id, p.src || await mediaPrompt(e5.id)); return null; }
       case 'element.create': return createBlock(p.kind, p);
+      case 'catalog.show': return showCatalogCard(p);
       case 'element.duplicate': {
         var e6 = need(p.elementId || selectedId), src = work.blocks.filter(function (b) { return b.id === e6.id; })[0];
         if (!src) return copyNative(e6);

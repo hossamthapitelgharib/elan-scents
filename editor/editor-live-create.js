@@ -145,6 +145,13 @@
     });
   }
 
+  /* Ask the platform page (through the bridge) to redraw with the catalog as it is now, and select the card it shows for the record just created. */
+  function showInPage(action, payload) {
+    var live = root.elanLiveEditorBridge;
+    if (!live || typeof live.request !== 'function' || !live.getState().connected) return Promise.reject(new Error('وضع التحرير غير جاهز.'));
+    return live.request(action, payload);
+  }
+
   /* ---------- panel styling: the original editor's section panel rules, in the order the original loads them ---------- */
   var STYLE = [
     '.sectionPanelClean{width:760px;max-width:95vw;background:#fffdf8;color:#28251e;padding:22px}',
@@ -239,7 +246,8 @@
   /* ---------- name-only panels: brand, store, occasion, note (the original's 380px panel) ---------- */
   function openName(kind, at, ratios) {
     var spec = NAME_KINDS[kind];
-    var field = ratios && root.elanRatioField ? root.elanRatioField(ratios, spec.dim) : null;      // «أبعاد كارت البراند»: automatic, or one of the common shapes
+    /* «أبعاد كارت …»: automatic, or one of the common shapes. A brand card has none: it takes the shape of its own picture (2026-11-19). */
+    var field = kind !== 'brand' && ratios && root.elanRatioField ? root.elanRatioField(ratios, spec.dim) : null;
     var dlg = h('dialog', { style: 'width:380px;max-width:92vw;padding:22px;background:#fffdf8;border:1px solid #c6aa70;border-radius:14px' });
     var title = h('h3', { text: spec.title, style: 'margin:0 0 18px;color:#87652d' });
     var input = h('input', { type: 'text', autocomplete: 'off', maxlength: '120', style: 'display:block;width:100%;margin-top:8px;padding:10px;background:white' });
@@ -258,6 +266,8 @@
       create.disabled = cancel.disabled = true; create.textContent = 'جارٍ الإنشاء…'; fail('');
       data('catalog.create', { kind: kind, name: value }).then(function (catalog) {
         if (!catalog.record || !catalog.record.id || !catalog.record.name) throw new Error('لم يتم تأكيد مطابقة أو إنشاء سجل الكتالوج.');
+        /* A brand card is the brand's own card in the brand strip, nothing else (owner, 2026-11-19): no block is made under the strip, and the strip shows it at once instead of at its next refresh. */
+        if (kind === 'brand') return showInPage('catalog.show', { brand: String(catalog.record.name) });
         var filters = {}; filters[spec.key] = String(catalog.record.name);
         return commit(kind, { name: String(catalog.record.name), purpose: kind, selection_mode: 'auto', filters: filters, product_size_ids: [], timer: { mode: 'none' } }, at, field && field.get());
       }).then(function () { closePanel(); toast(spec.done + ' اضغط حفظ لنشرها.'); })
