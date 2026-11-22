@@ -341,7 +341,9 @@
       },
       "hero:magic": {
         "style": {
-          "fontFamily": "Amiri"
+          "fontFamily": "Amiri",
+          "fontSize": 20,
+          "color": "#b8860b"
         }
       }
     },
