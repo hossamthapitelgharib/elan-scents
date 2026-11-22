@@ -89,7 +89,7 @@ test('place-store-order: forwards the draft, makes the first attempt to reach th
     requestId: ORDER, trackingNumber: PLACED.trackingNumber, payload: { type: 'elan_order', version: 1, elanOrderId: ORDER, trackingNumber: PLACED.trackingNumber }
   };
   let reported = null;
-  const state = { id: ORDER, trackingNumber: PLACED.trackingNumber, status: 'awaiting_payment', paymentStatus: 'awaiting_payment', delivery: { state: 'done', attempts: 1, maxAttempts: 6 }, window: { state: 'open', expiresAt: '2026-11-17T11:00:00Z' } };
+  const state = { id: ORDER, trackingNumber: PLACED.trackingNumber, status: 'awaiting_payment', paymentStatus: 'awaiting_payment', delivery: { state: 'done', attempts: 1, maxAttempts: 6 }, window: { state: 'open' } };
   const { res, calls } = await call(api('place-store-order'), {
     body,
     rpcs: {
@@ -101,7 +101,7 @@ test('place-store-order: forwards the draft, makes the first attempt to reach th
     merchant: (url, options) => {
       const headers = Object.fromEntries(Object.entries(options.headers).map(([k, v]) => [k.toLowerCase(), v]));
       assert.equal(verify({ headers, body: options.body }, SECRET).ok, true, 'the order is signed with the store secret');
-      return json({ decision: 'approve', paymentWindowUrl: 'https://pay.merchant-store.com/w/1', validitySeconds: 900 });
+      return json({ decision: 'approve', paymentWindowUrl: 'https://pay.merchant-store.com/w/1' });
     }
   });
   assert.equal(res.status, 200);
@@ -160,7 +160,7 @@ test('place-store-order: a bad draft number is refused before the database; a re
 // ---------------------------------------------------------------- the order page's polling
 test('customer-order-review: while the store has not decided, each question also makes the next due attempt, then answers again with the fresh state', async () => {
   const waiting = { id: ORDER, status: 'awaiting_store_confirmation', delivery: { state: 'pending', attempts: 2, maxAttempts: 6 }, window: null };
-  const approved = { id: ORDER, status: 'awaiting_payment', delivery: { state: 'done', attempts: 3, maxAttempts: 6 }, window: { state: 'open', expiresAt: '2026-11-17T11:00:00Z' } };
+  const approved = { id: ORDER, status: 'awaiting_payment', delivery: { state: 'done', attempts: 3, maxAttempts: 6 }, window: { state: 'open' } };
   let reads = 0;
   const job = { deliveryId: DELIVERY, attemptNo: 3, kind: 'order', maxAttempts: 6, storeId: STORE, endpoint: 'https://orders.merchant-store.com/elan', secret: SECRET, requestId: ORDER, trackingNumber: 'ELN-1', payload: {} };
   const { res, calls } = await call(api('customer-order-review'), {
@@ -189,7 +189,7 @@ test('customer-order-review: an order that is not waiting for the store is only 
 
 // ---------------------------------------------------------------- the merchant's payment window, customer side
 test('customer-order-window: open gives the merchant window address to the order\'s own customer; the database decides who and when', async () => {
-  const opened = { state: 'open', url: 'https://pay.merchant-store.com/w/1', expiresAt: '2026-11-17T11:00:00Z', trackingNumber: 'ELN-1' };
+  const opened = { state: 'open', url: 'https://pay.merchant-store.com/w/1', trackingNumber: 'ELN-1' };
   const { res, calls } = await call(api('customer-order-window'), { body: { orderId: ORDER, action: 'open', userId: 'someone-else' }, rpcs: { open_payment_window: () => opened } });
   assert.deepEqual(res.body, { ok: true, ...opened });
   assert.deepEqual(calls[0].body, { p_request_id: ORDER, p_user_id: USER });
@@ -270,10 +270,10 @@ test('the Worker\'s scheduled handler runs the dispatcher with the Worker settin
   const seen = [];
   const dispatcher = {
     serviceContext: (env) => ({ supabaseUrl: env.SUPABASE_URL, serviceRoleKey: env.SUPABASE_SERVICE_ROLE_KEY }),
-    runScheduled: async (context) => { seen.push(context); return { sent: 1, failed: 0, expired: 0, error: null }; }
+    runScheduled: async (context) => { seen.push(context); return { sent: 1, failed: 0, alerted: 0, error: null }; }
   };
   const summary = await core.handleScheduled({ SUPABASE_URL: 'https://cron.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 'cron-key' }, {}, { scheduled: () => dispatcher });
-  assert.deepEqual(summary, { sent: 1, failed: 0, expired: 0, error: null });
+  assert.deepEqual(summary, { sent: 1, failed: 0, alerted: 0, error: null });
   assert.deepEqual(seen, [{ supabaseUrl: 'https://cron.supabase.co', serviceRoleKey: 'cron-key' }]);
   const log = console.error;
   console.error = () => {};

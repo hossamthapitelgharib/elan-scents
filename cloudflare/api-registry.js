@@ -20,6 +20,7 @@ module.exports = {
     'guest-cart': () => require('../api/guest-cart.js'),
     'merchant-order-decision': () => require('../api/merchant-order-decision.js'),
     'merchant-payment-event': () => require('../api/merchant-payment-event.js'),
+    'merchant-window-closed': () => require('../api/merchant-window-closed.js'),
     'merchant-shipment-event': () => require('../api/merchant-shipment-event.js'),
     'notifications': () => require('../api/notifications.js'),
     'order-draft': () => require('../api/order-draft.js'),

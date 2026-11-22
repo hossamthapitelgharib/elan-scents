@@ -47,7 +47,7 @@ const order = (id, no, status, extra = {}) => ({
 });
 const ORDERS = [
   order('o1', 'ELN-REVIEW-0001', 'awaiting_store_confirmation'),
-  order('o2', 'ELN-REVIEW-0002', 'store_confirmed', { approved_at: '2026-11-13T09:00:00Z', payable_amount: 3510, payment_window: { state: 'opened', expires_at: new Date(Date.now() + 22 * 60 * 1000).toISOString() } }),
+  order('o2', 'ELN-REVIEW-0002', 'store_confirmed', { approved_at: '2026-11-13T09:00:00Z', payable_amount: 3510, payment_window: { state: 'opened' } }),
   order('o3', 'ELN-REVIEW-0003', 'processing', { approved_at: '2026-11-13T09:00:00Z', payment_status: 'paid', payment_method: 'card', paid_at: '2026-11-13T09:10:00Z', payable_amount: 3510 }),
   order('o4', 'ELN-REVIEW-0004', 'shipped', {
     approved_at: '2026-11-10T09:00:00Z', payment_status: 'cod_selected', payable_amount: 3510,

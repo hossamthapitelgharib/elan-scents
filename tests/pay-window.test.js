@@ -53,7 +53,7 @@ function payEnv({ openResult, routes = {} } = {}) {
   return { context, calls, win, listeners, tick, settle, order, intervals, pay: () => context.ElanPay };
 }
 
-const open = { open: { ok: true, state: 'opened', url: 'https://pay.example.invalid/checkout/abc', expiresAt: '2099-01-01T00:00:00Z' } };
+const open = { open: { ok: true, state: 'opened', url: 'https://pay.example.invalid/checkout/abc' } };
 
 test('the window is opened empty first, inside the tap, and only then pointed at the merchant\'s https address', async () => {
   const env = payEnv({ routes: open });

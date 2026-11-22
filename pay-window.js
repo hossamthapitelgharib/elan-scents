@@ -1,8 +1,8 @@
 /* Élan Scents: the customer's side of the MERCHANT'S payment window (step 6 of docs/purchase-flow-final.ar.md).
    The window is the merchant's page, outside Élan's control (card, cash on delivery or financing). Élan only opens it, notices how the
    customer left it, and says so to the server; the server decides what that means (/api/customer-order-window):
-     - closing it, cancelling in it, or its 30 minutes running out before a trusted payment confirmation = the order is cancelled at once
-       and for good, the merchant is told, and the products stay in the cart;
+     - closing it or cancelling in it before a trusted payment confirmation = the order is cancelled at once and for good ("تم إلغاء المعاملة
+       برغبة العميل"), the merchant is told, and the products stay in the cart; Élan keeps no clock for the window, its time is the merchant's;
      - "success" from the browser proves nothing: only a neutral confirmation of the payment makes an order paid.
    Shared by the order page (index.html, order-page.js) and «طلباتي» (account.html). Loaded first by both and used from a click handler:
    a browser lets a page open a window only inside the customer's own tap, so the window is opened first and pointed at the merchant after.
@@ -79,8 +79,8 @@
         if (heard) return;
         // A merchant page that cuts its link to the page that opened it (Cross-Origin-Opener-Policy) makes the window LOOK closed to us a moment
         // after it loads. A window that "closes" right after the merchant's page was given to it is therefore not taken as the customer
-        // shutting it: it is no longer watched, and the order is followed by the return page's report, by the page's polling, and by the
-        // payment window's own expiry (30 minutes), which cancels it.
+        // shutting it: it is no longer watched, and the order is followed by the return page's report, by the page's polling, and by what the
+        // merchant reports about its own window (it says when its window ended: /api/merchant-window-closed).
         if (navAt && Date.now() - navAt < DETACH_MS) return;
         // Closed for real without the return page having reported: the customer shut the window. The server makes that a cancellation,
         // unless a success claim or a cancellation is already on record (it ignores a later "closed" then).

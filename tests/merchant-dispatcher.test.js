@@ -108,7 +108,7 @@ test('an approval with the merchant payment window is passed on, keeping only th
   const result = await dispatcher.sendJob(job(), { fetchImpl });
   assert.equal(result.outcome, 'responded');
   assert.equal(result.httpStatus, 200);
-  assert.deepEqual(result.reply, { decision: 'approve', paymentWindowUrl: 'https://pay.merchant-store.com/w/abc', validitySeconds: 900, shipping: 50, total: 250 });
+  assert.deepEqual(result.reply, { decision: 'approve', paymentWindowUrl: 'https://pay.merchant-store.com/w/abc' }, 'a validity, a shipping amount and a total are the merchant\'s own inside its window: they are not passed on');
 });
 
 test('a rejection carries its reason, cut to the length the database accepts', async () => {
@@ -181,7 +181,7 @@ test('a cancellation is delivered once the merchant answers 2xx, whatever it say
 });
 
 // ---- the database side, faked: claim hands out jobs, finish records what the sender reports ----
-function database(jobs, { failFinish = false, expired = 2 } = {}) {
+function database(jobs, { failFinish = false, alerted = 2 } = {}) {
   const calls = [];
   const context = { supabaseUrl: 'https://test.supabase.co', serviceRoleKey: 'service-key-for-tests' };
   const fetchImpl = async (input, options = {}) => {
@@ -192,7 +192,7 @@ function database(jobs, { failFinish = false, expired = 2 } = {}) {
       calls.push({ name, body, headers: options.headers });
       if (name === 'claim_merchant_deliveries') return json(jobs);
       if (name === 'finish_merchant_delivery') return failFinish ? new Response('boom', { status: 500 }) : json({ ok: true });
-      if (name === 'expire_payment_windows') return json(expired);
+      if (name === 'alert_stale_payment_windows') return json(alerted);
       throw new Error(`unexpected rpc ${name}`);
     }
     return merchantFetch(input, options);
@@ -241,12 +241,12 @@ test('nothing due means nothing sent; one failing store does not stop the others
   assert.ok(logged.some((line) => /report failed/.test(line)), 'the lost report is logged; the database recovers the open attempt as "worker_lost"');
 });
 
-test('the Cron run sends what is due for anyone, then closes the payment windows whose time is up, and never throws', async () => {
-  const db = database([job({ kind: 'cancel', cancel: { reason: 'payment_window_closed', cancelledAt: '2026-11-17T10:05:00Z' } })], { expired: 3 });
+test('the Cron run sends what is due for anyone, then tells of payment windows left open for a day (it cancels nothing), and never throws', async () => {
+  const db = database([job({ kind: 'cancel', cancel: { reason: 'payment_window_closed', cancelledAt: '2026-11-17T10:05:00Z' } })], { alerted: 3 });
   db.setMerchant(async () => new Response('', { status: 200 }));
   const summary = await dispatcher.runScheduled(db.context, { fetchImpl: db.fetchImpl });
-  assert.deepEqual(summary, { sent: 1, failed: 0, expired: 3, error: null });
-  assert.deepEqual(db.calls.map((c) => c.name), ['claim_merchant_deliveries', 'finish_merchant_delivery', 'expire_payment_windows']);
+  assert.deepEqual(summary, { sent: 1, failed: 0, alerted: 3, error: null });
+  assert.deepEqual(db.calls.map((c) => c.name), ['claim_merchant_deliveries', 'finish_merchant_delivery', 'alert_stale_payment_windows']);
   assert.deepEqual(db.calls[0].body, { p_request_id: null, p_limit: dispatcher.CRON_BATCH });
 
   const broken = { supabaseUrl: 'https://test.supabase.co', serviceRoleKey: 'k' };

@@ -780,7 +780,7 @@ test('21b. the sign-in state of the orders page is centred in the same look, and
 });
 
 
-test('21c. the payment window: the card has a «الدفع» button and a live countdown but no cancel button; the merchant opens in its own window; shutting it cancels the order at once and the card says «ملغاة من طرفك»', async () => {
+test('21c. the payment window: the card has a «الدفع» button and no countdown or cancel button (the store owns the window time); the merchant opens in its own window; shutting it cancels the order at once and the card says «تم إلغاء المعاملة برغبة العميل»', async () => {
   const c = await context({ session: CUSTOMER_SESSION });
   try {
     const page = await c.context.newPage();
@@ -791,23 +791,22 @@ test('21c. the payment window: the card has a «الدفع» button and a live c
     await c.context.route('https://merchant.example.test/**', route => H.safeFulfill(route, { status: 200, contentType: 'text/html', body: '<!doctype html><title>merchant</title><p>pay here</p>' }));
     const windowCalls = [];
     let cancelled = false;
-    const expires = new Date(Date.now() + 20 * 60 * 1000).toISOString();
     const approved = { id: 'w1', tracking_number: 'ELN-TEST-WAIT', status: 'store_confirmed', payment_status: 'not_started', payable_amount: 150, subtotal: 150, shipping_amount: 0, total_amount: 150, currency: 'EGP', created_at: '2026-11-10T10:00:00Z', stores: { name: 'Test Store' },
       store_order_request_items: [{ product_name: 'Test Perfume', brand_name: 'Test Brand', size_label: '100 ml', quantity: 1, unit_price: 150, line_total: 150, currency: 'EGP' }], store_shipments: [], store_order_cart_restorations: [] };
     await page.route('**/api/customer-orders*', route => H.safeFulfill(route, { status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, sessions: [{ id: 's1', store_order_requests: [cancelled
       ? { ...approved, status: 'cancelled', cancel_reason: 'payment_window_closed', payment_window: null }
-      : { ...approved, payment_window: { state: 'opened', expires_at: expires } }] }], pagination: { total: 1, hasMore: false } }) }));
+      : { ...approved, payment_window: { state: 'opened' } }] }], pagination: { total: 1, hasMore: false } }) }));
     await page.route('**/api/customer-order-window', route => {
       const body = JSON.parse(route.request().postData() || '{}');
       windowCalls.push(body);
-      if (body.action === 'open') return H.safeFulfill(route, { status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, state: 'opened', url: 'https://merchant.example.test/pay?w=1', expiresAt: expires }) });
+      if (body.action === 'open') return H.safeFulfill(route, { status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, state: 'opened', url: 'https://merchant.example.test/pay?w=1' }) });
       if (body.action === 'return') { cancelled = true; return H.safeFulfill(route, { status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, status: 'cancelled', cancelReason: 'payment_window_closed' }) }); }
       return H.safeFulfill(route, { status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) });
     });
     await page.goto(H.SITE + '/account.html', { waitUntil: 'load' });
     await page.waitForSelector('[data-pay-window="w1"]');
     assert.equal(await page.locator('[data-cancel], .order-cancel, #cancelReason').count(), 0, 'the customer has no cancel control');
-    assert.match(await page.locator('[data-pay-left]').first().innerText(), /\d\d:\d\d/, 'the countdown shows the time left');
+    assert.equal(await page.locator('[data-pay-left]').count(), 0, 'Élan shows no countdown: the window\'s time belongs to the store');
 
     const [popup] = await Promise.all([page.waitForEvent('popup'), page.click('[data-pay-window="w1"]')]);
     await popup.waitForURL('https://merchant.example.test/**');
@@ -818,7 +817,7 @@ test('21c. the payment window: the card has a «الدفع» button and a live c
     // link to this page); one that stays open and is then shut is.
     await page.waitForTimeout(8700);
     await popup.close();
-    await page.waitForFunction(() => document.body.innerText.includes('ملغاة من طرفك'), null, { timeout: 8000 });
+    await page.waitForFunction(() => document.body.innerText.includes('تم إلغاء المعاملة برغبة العميل'), null, { timeout: 8000 });
     assert.deepEqual(windowCalls.filter(call => call.action === 'return').map(call => call.outcome), ['closed'], 'shutting the window was reported once');
     assert.equal(await page.locator('[data-pay-window]').count(), 0, 'a cancelled order has no payment button');
     assert.deepEqual(dialogs, [], 'no browser dialog was shown');

@@ -38,14 +38,14 @@
       waitClose: 'يمكنك إغلاق هذه النافذة، وستجد حالة طلبك في «طلباتي».',
       rejectedTitle: 'اعتذر المتجر عن تنفيذ طلبك', rejectedKeep: 'منتجاتك ما زالت في سلتك.', reasonLabel: 'سبب المتجر',
       unresponsiveTitle: 'تعذر تنفيذ طلبك الآن', unresponsive: 'نعتذر عن تنفيذ طلبك في الوقت الحالي، برجاء إعادة المحاولة بعد ساعة',
-      byYouTitle: 'ملغاة من طرفك', byYou: 'أُلغي الطلب لأن نافذة الدفع أُغلقت أو أُلغي الدفع فيها. منتجاتك ما زالت في سلتك ويمكنك طلبها مرة أخرى.',
-      expiredTitle: 'انتهت مهلة الدفع', expired: 'انتهت مهلة نافذة الدفع لدى المتجر قبل إتمام الدفع فأُلغي الطلب. منتجاتك ما زالت في سلتك ويمكنك طلبها مرة أخرى.',
+      byYouTitle: 'تم إلغاء المعاملة برغبة العميل', byYou: 'تم إلغاء المعاملة برغبة العميل. منتجاتك ما زالت في سلتك ويمكنك طلبها مرة أخرى.',
+      expiredTitle: 'انتهت نافذة الدفع لدى المتجر', expired: 'انتهت نافذة الدفع لدى المتجر قبل إتمام الدفع فأُلغي الطلب. منتجاتك ما زالت في سلتك ويمكنك طلبها مرة أخرى.',
       cancelledTitle: 'أُلغي الطلب', cancelledText: 'أُلغي هذا الطلب. منتجاتك ما زالت في سلتك.',
       approvedTitle: 'قبل المتجر طلبك', approvedText: 'أكمل الدفع من نافذة المتجر. المتجر هو من يحدد ما في النافذة من طرق الدفع وتكلفة الشحن والإجمالي النهائي ومدة بقائها مفتوحة.', pay: 'الدفع',
       payNote: 'إغلاق نافذة الدفع قبل إتمام الدفع يلغي الطلب.',
       payingTitle: 'نافذة الدفع مفتوحة', payingText: 'أكمل الدفع في نافذة المتجر، وستعود إلى Élan Scents تلقائيًا.',
       ePopup: 'لم تُفتح نافذة الدفع. اسمح للموقع بفتح النوافذ ثم اضغط «الدفع» مرة أخرى.', ePay: 'تعذر فتح نافذة الدفع الآن. اضغط «الدفع» مرة أخرى.',
-      verifyTitle: 'نتحقق من الدفع', verifyText: 'عدت من نافذة الدفع. ننتظر تأكيد الدفع من جهة محايدة ولا يُعدّ الطلب مدفوعًا قبل ذلك.',
+      verifyTitle: 'نؤكد طريقة الدفع', verifyText: 'عدت من نافذة المتجر. الدفع الإلكتروني يؤكده مزود الدفع، والدفع عند الاستلام يؤكده المتجر، ولا يُعدّ طلبك مؤكدًا قبل ذلك.',
       paidTitle: 'تم تأكيد طلبك', paidText: 'وصلنا تأكيد الدفع، وسيجهّز المتجر طلبك. تابع حالته من «طلباتي».'
     },
     en: {
@@ -61,14 +61,14 @@
       waitClose: 'You can close this window; you will find your order status in My orders.',
       rejectedTitle: 'The store declined your order', rejectedKeep: 'Your items are still in your cart.', reasonLabel: 'The store’s reason',
       unresponsiveTitle: 'Your order could not be placed now', unresponsive: 'We are sorry we could not place your order right now. Please try again in an hour.',
-      byYouTitle: 'Cancelled by you', byYou: 'The order was cancelled because the payment window was closed or payment was cancelled in it. Your items are still in your cart and you can order them again.',
-      expiredTitle: 'Payment time is over', expired: 'The store’s payment window timed out before payment was completed, so the order was cancelled. Your items are still in your cart and you can order them again.',
+      byYouTitle: 'The transaction was cancelled at the customer’s request', byYou: 'The transaction was cancelled at the customer’s request. Your items are still in your cart and you can order them again.',
+      expiredTitle: 'The store’s payment window ended', expired: 'The store’s payment window ended before payment was completed, so the order was cancelled. Your items are still in your cart and you can order them again.',
       cancelledTitle: 'Order cancelled', cancelledText: 'This order was cancelled. Your items are still in your cart.',
       approvedTitle: 'The store accepted your order', approvedText: 'Complete the payment in the store’s window. The store decides what is in the window: the payment methods, the shipping cost, the final total and how long it stays open.', pay: 'Pay',
       payNote: 'Closing the payment window before paying cancels the order.',
       payingTitle: 'The payment window is open', payingText: 'Complete the payment in the store’s window; you will return to Élan Scents automatically.',
       ePopup: 'The payment window did not open. Allow this site to open windows, then press “Pay” again.', ePay: 'The payment window could not be opened now. Press “Pay” again.',
-      verifyTitle: 'Verifying the payment', verifyText: 'You are back from the payment window. We are waiting for a neutral confirmation of the payment; the order is not paid before that.',
+      verifyTitle: 'Confirming the payment method', verifyText: 'You are back from the store’s window. An electronic payment is confirmed by the payment provider and cash on delivery by the store; your order is not confirmed before that.',
       paidTitle: 'Your order is confirmed', paidText: 'The payment confirmation arrived and the store will prepare your order. Follow it in My orders.'
     }
   };

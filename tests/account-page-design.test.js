@@ -267,34 +267,38 @@ test('a refused, unanswered or cancelled order says how it ended, in plain words
   assert.match(silent, /badge red">المتجر لم يستجب</);
   for (const why of ['payment_window_closed', 'payment_window_cancelled']) {
     const byYou = card(p, order({ status: 'cancelled', cancel_reason: why }));
-    assert.match(byYou, /ملغاة من طرفك/, why);
+    assert.match(byYou, /تم إلغاء المعاملة برغبة العميل/, why);
     assert.match(byYou, /منتجاتك ما زالت في سلتك/);
-    assert.match(byYou, /badge red">ملغاة من طرفك</);
+    assert.match(byYou, /badge red">أُلغيت برغبة العميل</);
+    assert.doesNotMatch(byYou, /ملغاة من طرفك|لم تتم أي عملية دفع/, 'the owner\'s words, nothing else');
   }
   const late = card(p, order({ status: 'cancelled', cancel_reason: 'payment_window_expired' }));
-  assert.match(late, /انتهت مهلة الدفع/);
+  assert.match(late, /انتهت نافذة الدفع لدى المتجر/);
+  assert.doesNotMatch(late, /برغبة العميل/, 'the store ending its own window is not the customer\'s wish');
   // a cancelled order can be ordered again, never paid
   for (const markup of [silent, late]) { assert.match(markup, /data-reorder/); assert.equal(markup.includes('data-pay-window'), false); }
 });
 
-test('an approved order shows the store\'s payment window: «الدفع», the time left and the rule; the window\'s address is never on the page', () => {
+test('an approved order shows the store\'s payment window: «الدفع» and the rule, with no countdown and no amount of ours; the window\'s address is never on the page', () => {
   const p = load();
-  const approved = status => order({ status: 'store_confirmed', payable_amount: 3510, payment_status: 'not_started', payment_window: { state: 'issued', expires_at: new Date(Date.now() + 20 * 60 * 1000 + 30000).toISOString() }, ...status });
+  const approved = status => order({ status: 'store_confirmed', payable_amount: 3510, payment_status: 'not_started', payment_window: { state: 'issued' }, ...status });
   const open = card(p, approved({}));
   assert.match(open, /<button class="ghost order-pay" type="button" data-pay-window="r1">الدفع<\/button>/);
-  assert.match(open, /data-pay-left="[^"]+">2[01]:\d\d<\/b>/, 'about twenty minutes are left');
-  assert.match(open, /المبلغ المستحق 3,510 ج\.م/);
-  assert.match(open, /إغلاق نافذة الدفع قبل إتمام الدفع يلغي الطلب/);
+  assert.match(open, /data-pay-watch/, 'the page watches it');
+  assert.match(open, /إغلاق نافذة الدفع قبل إتمام الدفع يلغي المعاملة برغبتك/);
+  assert.match(open, /يحدد المتجر الشحن والإجمالي النهائي وطرق الدفع ومدة النافذة/);
+  assert.doesNotMatch(open, /data-pay-left|pay-left|المبلغ المستحق|خلال \d\d:\d\d|انتهت مهلة/, 'no clock of ours and no amount due before the store\'s window decides it');
   assert.doesNotMatch(open, /data-pay-method|data-pay-request|https:\/\/|اختر طريقة الدفع/, 'no chooser of methods, and no address');
-  // the window ran out: nothing to press, the order is about to be closed
-  const over = card(p, approved({ payment_window: { state: 'opened', expires_at: new Date(Date.now() - 5000).toISOString() } }));
-  assert.equal(over.includes('data-pay-window'), false);
-  assert.match(over, /انتهت مهلة نافذة الدفع/);
-  // the customer came back claiming success: a claim, not a payment
-  const claimed = card(p, approved({ payment_window: { state: 'success_claimed', expires_at: new Date(Date.now() + 60000).toISOString() } }));
-  assert.match(claimed, /نتحقق من الدفع/);
+  // however old the window is, it stays openable: its time is the store\'s
+  const old = card(p, approved({ payment_window: { state: 'opened' }, approved_at: '2020-01-01T00:00:00Z' }));
+  assert.match(old, /data-pay-window="r1"/);
+  // the customer came back from the store\'s window with OK: with a provider window it is the provider\'s confirmation, without one it was cash on delivery the store reports
+  const claimed = card(p, approved({ payment_window: { state: 'success_claimed' } }));
+  assert.match(claimed, /نؤكد طريقة الدفع/);
+  assert.match(claimed, /الدفع الإلكتروني يؤكده مزود الدفع، والدفع عند الاستلام يؤكده المتجر/);
+  assert.match(claimed, /data-pay-watch/);
   assert.equal(claimed.includes('data-pay-window'), false);
-  assert.equal(/تم دفع/.test(claimed), false, 'not paid before the neutral confirmation');
+  assert.equal(/تم دفع/.test(claimed), false, 'not paid before the confirmation');
   // confirmed
   assert.match(card(p, approved({ payment_status: 'paid', paid_at: '2026-11-18T10:00:00Z' })), /تم دفع 3,510 ج\.م/);
   assert.match(card(p, approved({ payment_status: 'cod_selected' })), /الدفع عند الاستلام/);

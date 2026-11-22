@@ -11,7 +11,8 @@ const root = path.resolve(__dirname, '..');
 const handlers = {
   decision: require(path.join(root, 'api', 'merchant-order-decision')),
   payment: require(path.join(root, 'api', 'merchant-payment-event')),
-  shipment: require(path.join(root, 'api', 'merchant-shipment-event'))
+  shipment: require(path.join(root, 'api', 'merchant-shipment-event')),
+  windowClosed: require(path.join(root, 'api', 'merchant-window-closed'))
 };
 const { STORE_ID_HEADER } = require(path.join(root, 'lib', 'store-webhook-auth'));
 const { digest, TIMESTAMP_HEADER, SIGNATURE_HEADER, EVENT_HEADER } = require(path.join(root, 'lib', 'store-webhook-signature'));
@@ -64,7 +65,7 @@ test('a signed decision from the authenticated merchant reaches the database wit
   assert.equal(rpc.length, 1);
   assert.equal(rpc[0].pathname, '/rest/v1/rpc/merchant_review_order');
   assert.equal(rpc[0].body.p_store_id, STORE_A, 'the merchant that authenticated, not a store id written in the body');
-  assert.deepEqual(Object.keys(rpc[0].body.p_payload).sort(), ['decision', 'eventId', 'paymentWindowUrl', 'shipping', 'total', 'trackingNumber', 'validitySeconds']);
+  assert.deepEqual(Object.keys(rpc[0].body.p_payload).sort(), ['decision', 'eventId', 'paymentWindowUrl', 'trackingNumber'], 'shipping, the total and a validity are the merchant\'s own inside its window: they do not travel on');
   assert.equal(rpc[0].body.p_payload.eventId, 'decision-evt-1');
   assert.equal(rpc[0].headers.Authorization, `Bearer ${SERVICE_KEY}`);
   assert.doesNotMatch(JSON.stringify(out.body), new RegExp(SERVICE_KEY));
@@ -81,6 +82,22 @@ test('payment and shipment events use their own database functions and field lis
   out = await call(handlers.shipment, signed({ body: { trackingNumber: 'ELN-20261111-000001', status: 'in_transit', carrier: 'Bosta', trackingCode: 'W-1' } }));
   assert.equal(out.status, 200);
   assert.equal(rpcCalls(calls)[0].pathname, '/rest/v1/rpc/record_shipment_event');
+});
+
+test('the merchant\'s report that its own window ended is signed, reaches merchant_window_closed for its own store only, and carries just the tracking number and a reason', async () => {
+  const calls = installDatabase();
+  const out = await call(handlers.windowClosed, signed({ body: { trackingNumber: 'ELN-20261111-000001', reason: 'timeout', cancelReason: 'x', storeId: STORE_B, amount: 5 }, eventId: 'closed-evt-1' }));
+  assert.equal(out.status, 200);
+  const rpc = rpcCalls(calls);
+  assert.equal(rpc.length, 1);
+  assert.equal(rpc[0].pathname, '/rest/v1/rpc/merchant_window_closed');
+  assert.equal(rpc[0].body.p_store_id, STORE_A, 'the merchant that authenticated');
+  assert.deepEqual(Object.keys(rpc[0].body.p_payload).sort(), ['eventId', 'reason', 'trackingNumber']);
+  // unsigned or wrongly signed reports never reach the database
+  const bad = installDatabase();
+  const refused = await call(handlers.windowClosed, signed({ body: { trackingNumber: 'ELN-20261111-000001' }, signWith: 'a-different-signing-secret' }));
+  assert.equal(refused.status, 401);
+  assert.equal(rpcCalls(bad).length, 0);
 });
 
 test('nothing reaches the database unless the merchant proved WHO it is and signed WHAT it sent', async () => {
@@ -138,7 +155,7 @@ test('every rule the database raises on purpose has its own safe answer', () => 
     'A rejection needs a reason': [422, 'reason_required'],
     'Order is not waiting for the store': [409, 'order_not_waiting'],
     'An approval needs the https address of the payment window': [422, 'payment_window_url_required'],
-    'The payment window validity must be between 60 and 1800 seconds': [422, 'invalid_validity'],
+    'Order has no open payment window': [409, 'no_open_payment_window'],
     'Payment is required before shipping': [409, 'payment_required'],
     'Invalid shipping transition': [409, 'invalid_shipping_transition'],
     'Carrier and waybill are required': [422, 'carrier_and_waybill_required'],

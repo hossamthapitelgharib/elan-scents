@@ -59,7 +59,10 @@ begin
   assert not has_function_privilege('authenticated', 'public.finish_merchant_delivery(uuid, integer, jsonb)', 'execute'), 'a browser token cannot report an attempt';
   assert not has_function_privilege('authenticated', 'public.open_payment_window(uuid, uuid)', 'execute'), 'the window is opened through the server only';
   assert not has_function_privilege('authenticated', 'public.merchant_review_order(uuid, jsonb)', 'execute'), 'a browser token cannot decide an order';
-  assert has_function_privilege('service_role', 'public.expire_payment_windows()', 'execute'), 'the server expires windows';
+  assert has_function_privilege('service_role', 'public.alert_stale_payment_windows()', 'execute') and has_function_privilege('service_role', 'public.merchant_window_closed(uuid, jsonb)', 'execute'), 'the server tells of stale windows and takes the merchant''s window-closed report';
+  assert not has_function_privilege('authenticated', 'public.alert_stale_payment_windows()', 'execute') and not has_function_privilege('authenticated', 'public.merchant_window_closed(uuid, jsonb)', 'execute') and not has_function_privilege('anon', 'public.merchant_window_closed(uuid, jsonb)', 'execute'), 'a browser token reaches neither';
+  assert to_regprocedure('public.expire_payment_windows()') is null, 'no clock of ours cancels orders any more';
+  assert not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'payment_windows' and column_name = 'expires_at'), 'the window keeps no expiry: its time is the merchant''s';
   assert not has_table_privilege('authenticated', 'public.payment_windows', 'select'), 'no browser access to windows';
   assert not has_table_privilege('authenticated', 'public.merchant_deliveries', 'select'), 'no browser access to deliveries';
   assert not has_table_privilege('authenticated', 'public.merchant_delivery_attempts', 'select'), 'no browser access to attempts';
@@ -179,8 +182,6 @@ begin
   assert v_fin->>'failureKind' = 'invalid_response', 'an approval without a payment window is refused';
   v_fin := pg_temp.attempt(v_id, 'order', '{"outcome":"responded","httpStatus":200,"reply":{"decision":"approve","paymentWindowUrl":"http://pay.example.invalid/s/1"}}'::jsonb);
   assert v_fin->>'failureKind' = 'invalid_response', 'a payment window must be https';
-  v_fin := pg_temp.attempt(v_id, 'order', '{"outcome":"responded","httpStatus":200,"reply":{"decision":"approve","paymentWindowUrl":"https://pay.example.invalid/s/1","validitySeconds":3600}}'::jsonb);
-  assert v_fin->>'failureKind' = 'invalid_response', 'a window valid for more than 30 minutes is refused';
   assert (select status from public.store_order_requests where id = v_id) = 'awaiting_store_confirmation', 'refused answers changed nothing on the order';
   v_fin := pg_temp.attempt(v_id, 'order', '{"outcome":"responded","httpStatus":200,"reply":{"decision":"reject","reason":"المنتج غير متوفر"}}'::jsonb);
   assert (v_fin->>'ok')::boolean and v_fin->>'decision' = 'reject', 'a rejection with a reason is accepted';
@@ -190,18 +191,17 @@ begin
   assert not exists (select 1 from public.merchant_deliveries where request_id = v_id and kind = 'cancel'), 'a rejected order is not "cancelled": no cancel message';
   assert not exists (select 1 from public.payment_windows where request_id = v_id), 'a rejected order has no payment window';
 
-  -- 8. An approval opens the merchant's window with its own validity; nothing in Elan lists payment methods any more.
+  -- 8. An approval opens the merchant's window; Elan fixes no time for it, and shipping, the total and the methods are the merchant's own inside it.
   v_res := pg_temp.place(v_u1, v_store, a1.id, 3, 'stage1-key-0004');
   v_id := (v_res->>'id')::uuid; v_trk := v_res->>'trackingNumber';
-  v_fin := pg_temp.attempt(v_id, 'order', '{"outcome":"responded","httpStatus":200,"reply":{"decision":"approve","paymentWindowUrl":"https://pay.example.invalid/s/abc?x=1","validitySeconds":600,"shipping":30}}'::jsonb);
+  v_fin := pg_temp.attempt(v_id, 'order', '{"outcome":"responded","httpStatus":200,"reply":{"decision":"approve","paymentWindowUrl":"https://pay.example.invalid/s/abc?x=1","validitySeconds":600,"shipping":30,"total":999}}'::jsonb);
   assert (v_fin->>'ok')::boolean and v_fin->>'decision' = 'approve', 'an approval with a window is accepted';
   select * into v_req from public.store_order_requests where id = v_id;
   assert v_req.status = 'store_confirmed' and v_req.approved_at is not null, 'approved';
-  assert v_req.shipping_amount = 30 and v_req.payable_amount = 390 and v_req.total_amount = 390, 'the amount to pay is frozen: 3 x 120 + 30 shipping';
+  assert coalesce(v_req.shipping_amount, 0) = 0 and v_req.payable_amount = 360 and v_req.total_amount = 360, 'the approval carried a shipping and a total, and Elan took neither: the products only (3 x 120) until the store''s window and the neutral confirmation decide the rest';
   assert v_req.payment_options is null and v_req.payment_status = 'not_started', 'no payment method was chosen or offered by Elan';
   select * into v_w from public.payment_windows where request_id = v_id;
   assert v_w.state = 'issued' and v_w.url = 'https://pay.example.invalid/s/abc?x=1' and v_w.store_id = v_store, 'the merchant''s window is recorded';
-  assert v_w.expires_at - v_w.issued_at = interval '10 minutes', 'its validity is the merchant''s 600 seconds';
   -- The same lines are the same order while it waits for payment.
   v_res2 := pg_temp.place(v_u1, v_store, a1.id, 3, 'stage1-key-0005');
   assert v_res2->>'id' = v_id::text, 'an approved order waiting for payment is returned for the same lines, not duplicated';
@@ -225,11 +225,12 @@ begin
   assert (select status from public.store_order_requests where id = v_id) = 'store_confirmed' and (select payment_status from public.store_order_requests where id = v_id) = 'not_started', 'a claim does not mark anything paid';
   v_win := public.payment_window_return(v_id, v_u1, 'closed');
   assert (v_win->>'ignored')::boolean and (select status from public.store_order_requests where id = v_id) = 'store_confirmed', 'closing after the customer said OK does not cancel';
-  update public.payment_windows set issued_at = now() - interval '40 minutes', expires_at = now() - interval '10 minutes' where request_id = v_id;
-  perform public.expire_payment_windows();
-  assert (select status from public.store_order_requests where id = v_id) = 'store_confirmed' and (select state from public.payment_windows where request_id = v_id) = 'success_claimed', 'the clock does not cancel an order whose customer returned with OK';
+  update public.payment_windows set issued_at = now() - interval '40 hours' where request_id = v_id;
+  perform public.alert_stale_payment_windows();
+  assert (select status from public.store_order_requests where id = v_id) = 'store_confirmed' and (select state from public.payment_windows where request_id = v_id) = 'success_claimed', 'no clock cancels an order whose customer returned with OK';
+  assert (public.merchant_window_closed(v_store, jsonb_build_object('trackingNumber', v_trk, 'reason', 'timeout'))->>'ignored')::boolean and (select status from public.store_order_requests where id = v_id) = 'store_confirmed', 'the store reporting its window over does not cancel an order whose customer came back with OK: a confirmation may still arrive';
   -- A trusted payment still settles it (the interim signed event, until the neutral adapters of stage 2) and then nothing can cancel it.
-  v_amount := 390;
+  v_amount := 360;
   v_fin := public.record_payment_event(v_store, jsonb_build_object('trackingNumber', v_trk, 'eventId', 'stage1-evt-1', 'eventType', 'payment.succeeded',
              'providerTransactionId', 'stage1-txn-1', 'amount', v_amount, 'currency', 'EGP'));
   assert (v_fin->>'applied')::boolean, 'a trusted payment event settles the approved order';
@@ -245,7 +246,6 @@ begin
   v_fin := pg_temp.attempt(v_id, 'order', '{"outcome":"responded","httpStatus":200,"reply":{"decision":"approve","paymentWindowUrl":"https://pay.example.invalid/s/2"}}'::jsonb);
   assert (v_fin->>'ok')::boolean, 'approved';
   select * into v_w from public.payment_windows where request_id = v_id;
-  assert v_w.expires_at - v_w.issued_at = interval '30 minutes', 'the default validity is 30 minutes';
   perform public.open_payment_window(v_id, v_u1);
   v_win := public.payment_window_return(v_id, v_u1, 'closed');
   assert v_win->>'state' = 'cancelled' and v_win->>'cancelReason' = 'payment_window_closed', 'a closed window cancels the order';
@@ -256,8 +256,9 @@ begin
   assert (select quantity from public.cart_items where user_id = v_u1 and store_product_id = a1.id) = 4, 'the products stay in the cart';
   assert (public.open_payment_window(v_id, v_u1)->>'state') = 'cancelled', 'a cancelled order''s window is not reopened';
   assert (public.payment_window_return(v_id, v_u1, 'success')->>'state') = 'cancelled', 'a late success claim does not revive it';
-  assert exists (select 1 from public.notifications where request_id = v_id and user_id = v_u1 and type = 'order_cancelled' and body like 'أُلغي الطلب لأن نافذة الدفع%'), 'the customer is told';
-  assert exists (select 1 from public.notifications where request_id = v_id and recipient_role = 'platform_admin' and type = 'order_cancelled'), 'the platform is told';
+  assert exists (select 1 from public.notifications where request_id = v_id and user_id = v_u1 and type = 'order_cancelled' and body like 'تم إلغاء المعاملة برغبة العميل%' and payload->>'paymentMade' = 'false' and payload->>'byCustomer' = 'true'), 'the customer is told in the owner''s words';
+  assert exists (select 1 from public.notifications where request_id = v_id and recipient_role = 'platform_admin' and type = 'order_cancelled' and body like 'تم إلغاء المعاملة برغبة العميل%'), 'the platform dashboard is told in the same words';
+  assert exists (select 1 from public.notifications n join public.store_accounts sa on sa.user_id = n.user_id where n.request_id = v_id and n.type = 'order_cancelled') or not exists (select 1 from public.store_accounts where store_id = v_store), 'the store''s own dashboard users are told when the store has any';
   -- A payment that arrives for a cancelled order is not applied (a mismatch case for the admin in stage 3).
   v_fin := public.record_payment_event(v_store, jsonb_build_object('trackingNumber', v_trk, 'eventId', 'stage1-evt-2', 'eventType', 'payment.succeeded',
              'providerTransactionId', 'stage1-txn-2', 'amount', 480, 'currency', 'EGP'));
@@ -269,21 +270,43 @@ begin
   v_id := (v_res->>'id')::uuid;
   perform pg_temp.attempt(v_id, 'order', '{"outcome":"responded","httpStatus":200,"reply":{"decision":"approve","paymentWindowUrl":"https://pay.example.invalid/s/3"}}'::jsonb);
   assert (public.payment_window_return(v_id, v_u1, 'cancel')->>'cancelReason') = 'payment_window_cancelled', 'the window''s own cancel is its own reason';
+  -- 11b. Elan keeps no clock: a window open for days is still the merchant's. After 24 hours the platform dashboard is told once, nothing is cancelled.
   v_res := pg_temp.place(v_u1, v_store, a1.id, 6, 'stage1-key-0008');
-  v_id := (v_res->>'id')::uuid;
+  v_id := (v_res->>'id')::uuid; v_trk := v_res->>'trackingNumber';
   perform pg_temp.attempt(v_id, 'order', '{"outcome":"responded","httpStatus":200,"reply":{"decision":"approve","paymentWindowUrl":"https://pay.example.invalid/s/4","validitySeconds":120}}'::jsonb);
-  perform public.expire_payment_windows();
-  assert (select status from public.store_order_requests where id = v_id) = 'store_confirmed', 'a window still valid is not expired';
-  update public.payment_windows set issued_at = now() - interval '5 minutes', expires_at = now() - interval '3 minutes' where request_id = v_id;
-  assert public.expire_payment_windows() >= 1, 'an expired window is cancelled by the clock';
+  assert public.alert_stale_payment_windows() = 0 and not exists (select 1 from public.notifications where request_id = v_id and type = 'payment_window_stale'), 'a fresh window is not alerted';
+  update public.payment_windows set issued_at = now() - interval '30 hours' where request_id = v_id;
+  assert public.alert_stale_payment_windows() >= 1, 'a window open for more than 24 hours is alerted';
+  assert (select count(*) from public.notifications where request_id = v_id and type = 'payment_window_stale') = 1
+     and (select recipient_role from public.notifications where request_id = v_id and type = 'payment_window_stale') = 'platform_admin', 'only the platform dashboard is told';
+  assert public.alert_stale_payment_windows() = 0 and (select count(*) from public.notifications where request_id = v_id and type = 'payment_window_stale') = 1, 'it is told once';
   select * into v_req from public.store_order_requests where id = v_id;
-  assert v_req.status = 'cancelled' and v_req.cancel_reason = 'payment_window_expired' and (select state from public.payment_windows where request_id = v_id) = 'expired', 'cancelled by expiry';
-  assert exists (select 1 from public.merchant_deliveries where request_id = v_id and kind = 'cancel'), 'the merchant is told of the expiry';
+  assert v_req.status = 'store_confirmed' and v_req.cancel_reason is null and (select state from public.payment_windows where request_id = v_id) = 'issued', 'nothing was cancelled: the time is the merchant''s';
+  assert (public.open_payment_window(v_id, v_u1)->>'state') = 'opened', 'a window a day old still opens: Elan does not decide when it is too late';
+  assert not (public.open_payment_window(v_id, v_u1) ? 'expiresAt'), 'no expiry is shown to anyone';
+
+  -- 11c. The merchant reports that its own window ended (its clock or its close mark): the unpaid order is cancelled, everybody is told, once.
+  begin
+    perform public.merchant_window_closed(v_store, jsonb_build_object('trackingNumber', 'ELN-00000000-000000'));
+    raise exception 'FAIL: an unknown order was closed';
+  exception when raise_exception then assert sqlerrm = 'Order not found', 'an unknown tracking number is not found: ' || sqlerrm; end;
+  v_fin := public.merchant_window_closed(v_store, jsonb_build_object('trackingNumber', v_trk, 'reason', 'timeout'));
+  assert v_fin->>'cancelReason' = 'payment_window_expired' and not (v_fin->>'duplicate')::boolean, 'the store''s report cancels the unpaid order';
+  select * into v_req from public.store_order_requests where id = v_id;
+  assert v_req.status = 'cancelled' and v_req.cancel_reason = 'payment_window_expired' and v_req.cancel_detail = 'timeout' and (select state from public.payment_windows where request_id = v_id) = 'expired', 'cancelled, with the store''s reason on it';
+  assert exists (select 1 from public.merchant_deliveries where request_id = v_id and kind = 'cancel'), 'the store is sent the platform notice';
+  assert exists (select 1 from public.notifications where request_id = v_id and user_id = v_u1 and type = 'order_cancelled' and body like 'انتهت نافذة الدفع لدى المتجر%')
+     and exists (select 1 from public.notifications where request_id = v_id and recipient_role = 'platform_admin' and type = 'order_cancelled'), 'the customer and the platform dashboard are told, and the words do not claim it was the customer''s wish';
+  assert (select quantity from public.cart_items where user_id = v_u1 and store_product_id = a1.id) = 6, 'the customer is back with the full cart';
+  assert (public.merchant_window_closed(v_store, jsonb_build_object('trackingNumber', v_trk))->>'duplicate')::boolean, 'the same report again changes nothing';
+  -- An order that is still waiting for the store has no window to close.
   v_res := pg_temp.place(v_u1, v_store, a1.id, 7, 'stage1-key-0009');
   v_id := (v_res->>'id')::uuid;
+  begin
+    perform public.merchant_window_closed(v_store, jsonb_build_object('trackingNumber', v_res->>'trackingNumber'));
+    raise exception 'FAIL: an order without a window was closed';
+  exception when raise_exception then assert sqlerrm = 'Order has no open payment window', 'no window, nothing to close: ' || sqlerrm; end;
   perform pg_temp.attempt(v_id, 'order', '{"outcome":"responded","httpStatus":200,"reply":{"decision":"approve","paymentWindowUrl":"https://pay.example.invalid/s/5"}}'::jsonb);
-  update public.payment_windows set issued_at = now() - interval '40 minutes', expires_at = now() - interval '10 minutes' where request_id = v_id;
-  assert (public.open_payment_window(v_id, v_u1)->>'cancelReason') = 'payment_window_expired', 'opening an expired window cancels the order (no cron needed)';
 
   -- 12. The state the page polls: delivery progress and the window, never the window address.
   v_res := pg_temp.place(v_u1, v_store, a1.id, 8, 'stage1-key-0010');
@@ -293,6 +316,7 @@ begin
   perform pg_temp.attempt(v_id, 'order', '{"outcome":"responded","httpStatus":200,"reply":{"decision":"approve","paymentWindowUrl":"https://pay.example.invalid/s/6"}}'::jsonb);
   v_win := public.customer_order_state(v_id, v_u1);
   assert v_win->'window'->>'state' = 'issued' and position('pay.example.invalid' in v_win::text) = 0, 'the poll never carries the window address';
+  assert not (v_win->'window' ? 'expiresAt'), 'and no expiry';
   begin
     perform public.customer_order_state(v_id, v_u2);
     raise exception 'FAIL: another customer read the state';

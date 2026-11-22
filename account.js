@@ -29,8 +29,8 @@ function cancelNoteA(request) {
   if (stateA(request) !== 'cancelled') return '';
   const why = request.cancel_reason;
   if (why === 'store_unresponsive') return `<div class="cancel-box cancel-accepted" role="status"><b>تعذر تنفيذ الطلب الآن</b><span>نعتذر عن تنفيذ طلبك في الوقت الحالي، برجاء إعادة المحاولة بعد ساعة. منتجاتك ما زالت في سلتك.</span></div>`;
-  if (why === 'payment_window_expired') return `<div class="cancel-box cancel-accepted" role="status"><b>انتهت مهلة الدفع</b><span>انتهت مهلة نافذة الدفع قبل إتمام الدفع فأُلغي الطلب. منتجاتك ما زالت في سلتك ويمكنك طلبها مرة أخرى.</span></div>`;
-  if (cancelledByCustomerA.has(why)) return `<div class="cancel-box cancel-accepted" role="status"><b>ملغاة من طرفك</b><span>أُلغي الطلب لأن نافذة الدفع أُغلقت أو أُلغي الدفع فيها. منتجاتك ما زالت في سلتك ويمكنك طلبها مرة أخرى.</span></div>`;
+  if (why === 'payment_window_expired') return `<div class="cancel-box cancel-accepted" role="status"><b>انتهت نافذة الدفع لدى المتجر</b><span>انتهت نافذة الدفع لدى المتجر قبل إتمام الدفع فأُلغي الطلب. منتجاتك ما زالت في سلتك ويمكنك طلبها مرة أخرى.</span></div>`;
+  if (cancelledByCustomerA.has(why)) return `<div class="cancel-box cancel-accepted" role="status"><b>تم إلغاء المعاملة برغبة العميل</b><span>تم إلغاء المعاملة برغبة العميل. منتجاتك ما زالت في سلتك ويمكنك طلبها مرة أخرى.</span></div>`;
   return '';
 }
 // The badge of a cancelled order says how it ended, not only that it did.
@@ -38,8 +38,8 @@ function badgeOfA(request, state) {
   if (state === 'cancelled') {
     const why = request.cancel_reason;
     if (why === 'store_unresponsive') return '<span class="badge red">المتجر لم يستجب</span>';
-    if (why === 'payment_window_expired') return '<span class="badge red">انتهت مهلة الدفع</span>';
-    if (cancelledByCustomerA.has(why)) return '<span class="badge red">ملغاة من طرفك</span>';
+    if (why === 'payment_window_expired') return '<span class="badge red">انتهت نافذة الدفع</span>';
+    if (cancelledByCustomerA.has(why)) return '<span class="badge red">أُلغيت برغبة العميل</span>';
   }
   return badgeA(state);
 }
@@ -95,8 +95,6 @@ const payStatusA = { not_started: ['بانتظار الدفع', 'gold'], awaitin
 const payKindA = { card: 'بطاقة', cod: 'الدفع عند الاستلام', other: 'طريقة أخرى' };
 let paying = false;
 const payWindowOpenA = request => { const win = request.payment_window; return stateA(request) === 'store_confirmed' && !!win && ['issued', 'opened'].includes(win.state) && !['paid', 'cod_selected'].includes(request.payment_status || 'not_started'); };
-const leftA = request => { const end = request.payment_window && Date.parse(request.payment_window.expires_at); return end ? end - Date.now() : null; };
-const clockA = ms => { const seconds = Math.max(0, Math.ceil(ms / 1000)); return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`; };
 function rejectionLine(request) {
   if (stateA(request) !== 'store_rejected' || !request.rejection_reason) return '';
   return `<div class="cancel-box cancel-accepted" role="status"><b>سبب رفض المتجر</b><span>${escA(request.rejection_reason)}</span></div>`;
@@ -111,13 +109,14 @@ function paymentLine(request) {
   }
   const win = request.payment_window;
   if (stateA(request) === 'store_confirmed' && win && win.state === 'success_claimed') {
-    return `<div class="pay-box" role="status"><div><b>نتحقق من الدفع</b><span>عدت من نافذة الدفع. ننتظر تأكيد الدفع من جهة محايدة، ولا يُعدّ الطلب مدفوعًا قبل ذلك.</span></div></div>`;
+    // The customer pressed OK in the store's window. With an electronic method the provider's confirmation makes it a purchase; with no provider window
+    // it was cash on delivery, which the store reports. Until one of them reaches the platform the order is not called confirmed.
+    return `<div class="pay-box" data-pay-watch role="status"><div><b>نؤكد طريقة الدفع</b><span>عدت من نافذة المتجر. الدفع الإلكتروني يؤكده مزود الدفع، والدفع عند الاستلام يؤكده المتجر، ولا يُعدّ طلبك مؤكدًا قبل ذلك.</span></div></div>`;
   }
   if (!payWindowOpenA(request)) return '';
-  const left = leftA(request), due = amount != null ? `المبلغ المستحق ${moneyA(amount, request.currency)}` : 'أكّد المتجر طلبك';
-  if (left != null && left <= 0) return `<div class="pay-box" role="status"><div><b>${due}</b><span>انتهت مهلة نافذة الدفع، ننتظر إغلاق الطلب.</span></div></div>`;
-  const clock = left == null ? '' : ` خلال <b class="pay-left" dir="ltr" data-pay-left="${escA(request.payment_window.expires_at)}">${clockA(left)}</b>`;
-  return `<div class="pay-box" role="status"><div><b>${due}</b><span>قبل المتجر طلبك. أكمل الدفع من نافذة المتجر${clock}. إغلاق نافذة الدفع قبل إتمام الدفع يلغي الطلب.</span></div><div class="pay-actions"><button class="ghost order-pay" type="button" data-pay-window="${escA(request.id)}">الدفع</button></div></div>`;
+  // Élan sets no time for the store's window and shows no countdown: its duration is the store's alone. Shipping, the final total and the payment
+  // methods are decided inside it, so no amount due is claimed here.
+  return `<div class="pay-box" data-pay-watch role="status"><div><b>أكّد المتجر طلبك</b><span>أكمل الدفع من نافذة المتجر، وفيها يحدد المتجر الشحن والإجمالي النهائي وطرق الدفع ومدة النافذة. إغلاق نافذة الدفع قبل إتمام الدفع يلغي المعاملة برغبتك.</span></div><div class="pay-actions"><button class="ghost order-pay" type="button" data-pay-window="${escA(request.id)}">الدفع</button></div></div>`;
 }
 function timelineLine(request) {
   const events = request.store_shipment_events || [];
@@ -149,15 +148,14 @@ function startPay(requestId, button) {
     onError: key => { finish(); showMessage(payErrorsA[key] || payErrorsA.default); loadAccount(false, true).catch(() => {}); }
   });
 }
-// The countdown on an order awaiting payment moves every second without redrawing the card; when it reaches zero the orders are read again.
-let zeroReadAt = 0;
+// An order whose payment window is open (or whose customer just came back from it) is read again every ten seconds while the page is in view, so a
+// cancellation by the store, or the provider's confirmation, shows without a reload. There is no clock of ours on the window.
+let payWatchAt = 0;
 setInterval(() => {
-  document.querySelectorAll('[data-pay-left]').forEach(element => {
-    const left = Date.parse(element.dataset.payLeft) - Date.now(), text = clockA(left);
-    if (element.textContent !== text) element.textContent = text;
-    if (left <= 0 && !document.hidden && Date.now() - zeroReadAt > 4000) { zeroReadAt = Date.now(); loadAccount(false, true).catch(() => {}); }
-  });
-}, 1000);
+  if (document.hidden || !document.querySelector('[data-pay-watch]') || Date.now() - payWatchAt < 9000) return;
+  payWatchAt = Date.now();
+  loadAccount(false, true).catch(() => {});
+}, 10000);
 function itemLine(item) {
   const label = [item.brand_name, item.product_name, item.size_label].filter(Boolean).map(escA).join(' · ');
   const unit = item.unit_price != null && Number(item.quantity) > 1 ? ` <small class="muted">(${moneyA(item.unit_price, item.currency)} للواحدة)</small>` : '';

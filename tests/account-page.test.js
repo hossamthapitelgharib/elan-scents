@@ -241,10 +241,10 @@ test('an order the store accepted shows the payment button with a live countdown
   const p = page({ session: { access_token: 'customer-jwt' } });
   p.context.ElanPay = { open: options => { opened.push(options); } };
   await tick(); await tick();
-  const expires = new Date(Date.now() + 25 * 60 * 1000).toISOString();
-  const card = p.run(`requestLine(${ORDER(`, status: 'store_confirmed', payment_status: 'not_started', payable_amount: 10, payment_window: { state: 'opened', expires_at: '${expires}' }`)})`);
+  const card = p.run(`requestLine(${ORDER(`, status: 'store_confirmed', payment_status: 'not_started', payable_amount: 10, payment_window: { state: 'opened' }`)})`);
   assert.match(card, /data-pay-window="r1"/);
-  assert.match(card, /data-pay-left="[^"]+"/);
+  assert.match(card, /data-pay-watch/);
+  assert.doesNotMatch(card, /data-pay-left/, 'no countdown');
   assert.doesNotMatch(card, /https?:\/\/[^"' ]*pay/i, 'the card never carries the merchant address');
   const button = p.click('pay-window', 'r1');
   assert.equal(button.disabled, true, 'locked while the window is open');
@@ -268,15 +268,21 @@ test('a window the browser could not open is explained in Arabic, with the cart 
   assert.match(p.el('#appMessage').textContent, /اسمح للموقع بفتح النوافذ/, 'the message says what to do, right away');
 });
 
-test('the one-second countdown only moves text; at zero it reads the orders again, and never while the tab is hidden', async () => {
+test('a payment window being open is watched every ten seconds, only while the tab is in view; there is no clock of ours on it', async () => {
   const p = page({ session: { access_token: 'customer-jwt' } });
   await tick(); await tick();
   assert.equal(p.intervals.length, 1);
-  assert.equal(p.intervals[0].ms, 1000);
-  const counter = { dataset: { payLeft: new Date(Date.now() - 1000).toISOString() }, textContent: 'x' };
-  p.context.document.querySelectorAll = selector => (selector === '[data-pay-left]' ? [counter] : []);
+  assert.equal(p.intervals[0].ms, 10000);
   const reads = () => p.calls.filter(item => item.url.startsWith('/api/customer-orders')).length;
+  // nothing open: nothing is asked
+  const original = p.context.document.querySelector.bind(p.context.document);
+  p.context.document.querySelector = selector => (selector === '[data-pay-watch]' ? null : original(selector));
   const before = reads();
+  p.intervals[0].fn();
+  await tick(); await tick();
+  assert.equal(reads(), before, 'no window open, no reading');
+  // a window open: read again, but never while the tab is hidden
+  p.context.document.querySelector = selector => (selector === '[data-pay-watch]' ? {} : original(selector));
   p.context.document.hidden = true;
   p.intervals[0].fn();
   await tick(); await tick();
@@ -284,6 +290,5 @@ test('the one-second countdown only moves text; at zero it reads the orders agai
   p.context.document.hidden = false;
   p.intervals[0].fn();
   await tick(); await tick();
-  assert.equal(reads() > before, true, 'at zero the orders are read again');
-  assert.equal(counter.textContent, '00:00');
+  assert.equal(reads() > before, true, 'an open window is read again, so a cancellation or a confirmation shows by itself');
 });

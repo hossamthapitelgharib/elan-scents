@@ -399,19 +399,20 @@ test('the store never answered: the exact apology, and the cart is kept', async 
   assert.ok(env.html().includes('نعتذر عن تنفيذ طلبك في الوقت الحالي، برجاء إعادة المحاولة بعد ساعة'));
 });
 
-test('closing the payment window cancels: "ملغاة من طرفك", the cart is kept, and a cancelled order is never reopened', async () => {
+test('closing the payment window cancels: "تم إلغاء المعاملة برغبة العميل", the cart is kept, and a cancelled order is never reopened', async () => {
   for (const why of ['payment_window_closed', 'payment_window_cancelled']) {
     const { env } = await placed(state({ status: 'cancelled', cancelReason: why }));
     await env.advance(3000);
     await env.flushAsync();
-    assert.ok(env.html().includes('ملغاة من طرفك'), why);
+    assert.ok(env.html().includes('تم إلغاء المعاملة برغبة العميل'), why);
     assert.ok(env.html().includes('منتجاتك ما زالت في سلتك'));
     assert.doesNotMatch(env.html(), /data-op-pay/, 'no way to pay a cancelled order');
   }
   const { env: expired } = await placed(state({ status: 'cancelled', cancelReason: 'payment_window_expired' }));
   await expired.advance(3000);
   await expired.flushAsync();
-  assert.ok(expired.html().includes('انتهت مهلة الدفع'));
+  assert.ok(expired.html().includes('انتهت نافذة الدفع لدى المتجر'));
+  assert.ok(!expired.html().includes('برغبة العميل'), 'the store ending its own window is not the customer\'s wish');
 });
 
 test('approved: the store accepted, there is no Élan countdown and «الدفع» opens the payment window from the click itself', async () => {
@@ -431,8 +432,7 @@ test('approved: the store accepted, there is no Élan countdown and «الدفع
 });
 
 test('a window the browser blocked is explained, and the customer can press «الدفع» again', async () => {
-  const left = new Date(Date.now() + 20 * 60 * 1000).toISOString();
-  const { env } = await placed(state({ status: 'store_confirmed', delivery: null, window: { state: 'issued', expiresAt: left } }));
+  const { env } = await placed(state({ status: 'store_confirmed', delivery: null, window: { state: 'issued' } }));
   await env.advance(3000);
   await env.flushAsync();
   env.click({ 'op-pay': '' });
@@ -442,23 +442,22 @@ test('a window the browser blocked is explained, and the customer can press «ا
 });
 
 test('the customer came back from the window claiming success: the page says "verifying" and does not call the order paid', async () => {
-  const left = new Date(Date.now() + 20 * 60 * 1000).toISOString();
   let phase = 0;
-  const { env } = await placed(() => (phase === 0 ? state({ status: 'store_confirmed', delivery: null, window: { state: 'issued', expiresAt: left } }) : state({ status: 'store_confirmed', delivery: null, window: { state: 'success_claimed', expiresAt: left } })));
+  const { env } = await placed(() => (phase === 0 ? state({ status: 'store_confirmed', delivery: null, window: { state: 'issued' } }) : state({ status: 'store_confirmed', delivery: null, window: { state: 'success_claimed' } })));
   await env.advance(3000);
   await env.flushAsync();
   env.click({ 'op-pay': '' });
   phase = 1;
   env.opened[0].onState({ state: 'success_claimed' });
   await env.flushAsync();
-  assert.ok(env.html().includes('نتحقق من الدفع'));
+  assert.ok(env.html().includes('نؤكد طريقة الدفع'));
   assert.doesNotMatch(env.html(), /تم تأكيد طلبك/, 'a browser return proves nothing');
   assert.equal(env.timers.some((t) => t.alive && !t.every), true, 'it keeps polling for the neutral confirmation');
 });
 
 test('a payment the neutral confirmation proved (or cash on delivery) is shown as confirmed', async () => {
   for (const paymentStatus of ['paid', 'cod_selected']) {
-    const { env } = await placed(state({ status: 'store_confirmed', paymentStatus, delivery: null, window: { state: 'success_claimed', expiresAt: new Date(Date.now() + 60000).toISOString() } }));
+    const { env } = await placed(state({ status: 'store_confirmed', paymentStatus, delivery: null, window: { state: 'success_claimed' } }));
     await env.advance(3000);
     await env.flushAsync();
     assert.ok(env.html().includes('تم تأكيد طلبك'), paymentStatus);

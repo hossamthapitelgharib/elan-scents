@@ -199,9 +199,10 @@ test('polling timers skip hidden tabs and catch up once when the tab comes back'
   assert.match(core, /addEventListener\('visibilitychange'/);
   // The orders page polls with a self-rescheduling timer (a minute, backing off on failure): a hidden tab is skipped.
   assert.match(account, /if \(!document\.hidden && Portal\.session\(\) && !resettingPassword\) \{\s*try \{ await loadAccount\(false, true\)/);
-  // The only interval is the one-second countdown of a payment window: it moves text, and reads the orders again only at zero and never while hidden.
+  // The only interval watches an open payment window (there is no countdown: its time is the store's): every ten seconds, only while a window is open and never while hidden.
   assert.equal((account.match(/setInterval\(/g) || []).length, 1);
-  assert.match(account, /left <= 0 && !document\.hidden/);
+  assert.match(account, /if \(document\.hidden \|\| !document\.querySelector\('\[data-pay-watch\]'\)/);
+  assert.match(account, /\}, 10000\);/);
   assert.match(account, /addEventListener\('visibilitychange'/);
 });
 

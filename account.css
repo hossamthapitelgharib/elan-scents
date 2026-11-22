@@ -165,7 +165,6 @@ body.acct .acct-items li em { flex: none; color: var(--muted); font-style: norma
 body.acct .acct-items .more { color: var(--muted); font-size: 13px; justify-content: flex-start; }
 
 /* how an unpaid order ended (refused, no answer, payment window closed or timed out), and the countdown of the store's payment window */
-body.acct .pay-left { display: inline-block; min-width: 50px; padding: 0 8px; border-radius: 999px; background: #f6efe0; color: var(--gold-deep); font-variant-numeric: tabular-nums; text-align: center; }
 body.acct .acct-order .cancel-box { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; margin-top: 16px; padding: 11px 14px; border: 1px dashed var(--line-strong); border-radius: 14px; background: var(--paper); color: var(--muted); font-size: 13px; line-height: 1.7; }
 body.acct .acct-order .cancel-box b { color: var(--gold-deep); white-space: nowrap; }
 body.acct .acct-order .cancel-accepted { border-style: solid; border-color: #d9c9a8; background: #f6f2ea; }
