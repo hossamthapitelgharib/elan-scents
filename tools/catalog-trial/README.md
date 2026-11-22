@@ -9,7 +9,10 @@ Run order, in an empty working folder (the scripts read and write the current fo
     CATALOG_FEEDS_DIR=feeds python3 -I extract.py     # rules -> extracted.json (nothing is written to any database)
     python3 -I report2.py                              # accepted / rejected with the reason -> importable.json (read the rejected list!)
     python3 -I plan.py                                 # merge the two stores into products, sizes and listings -> plan.json
-    python3 -I gen_sql2.py 120                         # idempotent atomic loader chunks load_chunk_N.sql (data_source = 'trial_catalog')
+    CATALOG_BRANDS="Ateej,REEF" python3 -I gen_receive.py rollback   # the perfumes, through the ONE entry point public.catalog_receive_items (dry run: ends in ROLLBACK,
+                                                       # its error text is the report); then `commit` for the real load. plan.json = brands that have a card, waiting.json =
+                                                       # brands that have none (they wait and appear by themselves when the card is created). Needs the migration
+                                                       # 20261121193245_catalog_waiting_room. Everything carries data_source = 'trial_catalog'.
     python3 -I gen_bundles.py rollback                 # bundles and offers loader, first as a dry run that ends in ROLLBACK
                                                        # (the bundle pieces are plain text, the title and the FULL description are the store's own, read from
                                                        #  CATALOG_FEEDS_DIR; needs the migration 20261119112905_catalog_bundles_standalone)

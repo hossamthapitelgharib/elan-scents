@@ -6,7 +6,8 @@ import json, glob, re, html, collections, sys, unicodedata, os
 # folder holding the stores' public products.json pages (afnan-egypt-page-1.json, emarati-scents-page-1..N.json); the output files are written to the current folder
 F = os.environ.get('CATALOG_FEEDS_DIR', 'feeds') .rstrip('/') + '/'
 
-# The ten brands that exist on the platform today (public_brands) and the spellings stores use for them.
+# The brands that exist on the platform (public_brands, 18 cards on 2026-11-21) and the spellings stores use for them. The platform itself decides
+# (the waiting room, public.catalog_receive_items): this list only helps the extractor find which words of a page name the brand.
 PLATFORM_BRANDS = {
     'AFNAN': ['afnan', 'afnan perfumes', 'afnan perfumes egypt'],
     'AMOUAGE': ['amouage'],
@@ -18,6 +19,15 @@ PLATFORM_BRANDS = {
     'LATTAFA': ['lattafa', 'lattafa perfumes'],
     'Maison Alhambra': ['maison alhambra', 'alhambra'],
     'RASASI': ['rasasi'],
+    # the eight cards the owner created on 2026-11-18 (they had no perfumes until the waiting room)
+    'Ateej': ['ateej'],
+    'KHADLAJ PERFUMES': ['khadlaj', 'khadlaj perfumes'],
+    'LAVERNE': ['laverne'],
+    'OMANLUXURY': ['oman luxury', 'omanluxury'],
+    'ÓSMA': ['osma', 'ósma'],
+    'REEF': ['reef'],
+    'SEDRA': ['sedra'],
+    'SWISS ARABIAN': ['swiss arabian', 'swiss arabian perfumes'],
 }
 ALIAS = {a: b for b, al in PLATFORM_BRANDS.items() for a in al}
 
@@ -25,6 +35,7 @@ CONC_WORDS = r"(?:eau\s*de\s*(?:parfum|toilette|cologne)|(?:exceptional\s+|conce
 CONC_ONLY = re.compile(r"^(?P<c>" + CONC_WORDS + r")$", re.I)
 CONC_BRAND = re.compile(r"^(?P<b>[A-Za-z][A-Za-z' &.]*?)\s+(?P<c>" + CONC_WORDS + r")$", re.I)
 SIZE = re.compile(r'^(?P<n>\d+(?:\.\d+)?)\s*(?P<u>ml|gm|g)$', re.I)
+HEADER_NAME_MAX = 60   # a header "name" longer than this is a description, not a perfume name (see where it is used)
 GENDER = re.compile(r'^(?:for\s+)?(?P<g>men|man|women|woman|unisex|pour\s+homme|pour\s+femme|him|her)(?:\s+by\s+(?P<b>.+))?$', re.I)
 BYONLY = re.compile(r'^by\s+(?P<b>.+)$', re.I)
 GENDER_MAP = {'men': 'men', 'man': 'men', 'pour homme': 'men', 'him': 'men', 'women': 'women', 'woman': 'women',
@@ -150,7 +161,14 @@ def emarati(p):
         if len(vals) > 1: rec['flags'].append('size-conflict')
     # --- gender, conc, name, barcode
     if h:
-        rec['gender'] = h['gender']; rec['conc'] = h['conc']; rec['name'] = h['name']
+        rec['gender'] = h['gender']; rec['conc'] = h['conc']
+        # A page whose description has no real header makes the first words of the description look like one: the "name" is then a sentence
+        # ("Sapphire: Notes of Musk and Iris A fragrance that creates memories..."). Measured on the first two feeds: the longest genuine header
+        # name is 59 characters, while 13 of 425 are descriptions of 100 to 379. Such a text is not a name: the store's own product title is used.
+        if len(h['name']) <= HEADER_NAME_MAX:
+            rec['name'] = h['name']
+        else:
+            rec['flags'].append('header-name-is-text')
     else:
         m = re.search(r'Men\s*/\s*Women\s*:\s*(\w+)', body, re.I)
         if m and m.group(1).lower() in GENDER_MAP: rec['gender'] = GENDER_MAP[m.group(1).lower()]

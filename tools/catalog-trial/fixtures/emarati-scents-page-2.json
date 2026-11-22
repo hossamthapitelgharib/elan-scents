@@ -1,0 +1,59 @@
+{
+ "products": [
+  {
+   "id": 9145693733120,
+   "title": "SAPPHIRE by DKHOON",
+   "handle": "sapphire",
+   "body_html": "<p>Sapphire: Notes of Musk and Iris</p>\n<p>A fragrance that creates memories and lingers in the folds of memory... It never leaves your precious moments, but rather retells them each time...</p>\n<p>Time of use: Daily</p>\n<p>Gender: Unisex</p>\n<p>Size: 100 ml</p>\n<p>Fragrance composition</p>\n<p>Top: Bergamot - Vanilla</p>\n<p>Heart: Tuberose - Jasmine - Iris - Bulgarian Rose</p>\n<p>Base: Tonka Bean - Cocoa - Vanilla</p>",
+   "published_at": "2026-09-19T23:41:30+03:00",
+   "created_at": "2025-08-11T17:41:04+03:00",
+   "updated_at": "2026-11-20T10:37:09+02:00",
+   "vendor": "Emarati Scents",
+   "product_type": "",
+   "tags": [],
+   "variants": [
+    {
+     "id": 46898455052544,
+     "title": "Default Title",
+     "option1": "Default Title",
+     "option2": null,
+     "option3": null,
+     "sku": null,
+     "requires_shipping": true,
+     "taxable": false,
+     "featured_image": null,
+     "available": true,
+     "price": "2250.00",
+     "grams": 0,
+     "compare_at_price": "2800.00",
+     "position": 1,
+     "product_id": 9145693733120,
+     "created_at": "2025-08-11T17:41:04+03:00",
+     "updated_at": "2026-11-20T10:37:09+02:00"
+    }
+   ],
+   "images": [
+    {
+     "id": 44425639133440,
+     "created_at": "2025-08-11T17:40:43+03:00",
+     "position": 1,
+     "updated_at": "2025-08-11T17:40:45+03:00",
+     "product_id": 9145693733120,
+     "variant_ids": [],
+     "src": "https://cdn.shopify.com/s/files/1/0731/6396/4672/files/6582c9fe-3706-41ff-8b93-af4e7936e17e.webp?v=1754923245",
+     "width": 1500,
+     "height": 1500
+    }
+   ],
+   "options": [
+    {
+     "name": "Title",
+     "position": 1,
+     "values": [
+      "Default Title"
+     ]
+    }
+   ]
+  }
+ ]
+}

@@ -20,6 +20,7 @@ def main():
         run('extract.py', tmp, env)
         out = run('report2.py', tmp, env) + run('plan.py', tmp, env)
         plan = json.load(open(os.path.join(tmp, 'plan.json'), encoding='utf-8'))['products']
+        waiting = json.load(open(os.path.join(tmp, 'waiting.json'), encoding='utf-8'))
     got = {(p['brand'], p['name']): {float(k): sorted((l['store'][0], l['price'], l['available']) for l in v) for k, v in p['sizes'].items()} for p in plan}
 
     def want(brand, name, sizes):
@@ -48,6 +49,12 @@ def main():
         assert bad not in names, f'must not be a perfume: {bad}'
     assert 'excluded as ambiguous: [(' in out, 'the Kingdom Men/Women collision must be reported'
     assert len(got) == 10, f'expected 10 perfumes, got {len(got)}'
+    # 7. a page with no real header: the first words of its description look like one ("Sapphire: Notes of Musk and Iris A fragrance that creates..."),
+    #    which is a sentence, not a name. The store's own title ("SAPPHIRE by DKHOON") is used, the record is flagged, and a brand that has no card waits.
+    sapphire = [r for st, r in waiting if r.get('handle') == 'sapphire']
+    assert len(sapphire) == 1, 'the Sapphire page must be a waiting perfume of a brand that has no card'
+    assert sapphire[0]['clean'] == 'SAPPHIRE' and sapphire[0]['waiting_brand'] == 'DKHOON', f"the title names the perfume, not the description: {sapphire[0]['clean']!r} / {sapphire[0]['waiting_brand']!r}"
+    assert 'header-name-is-text' in sapphire[0].get('flags', []), 'a description taken for a name is flagged'
     print('catalog pitfalls: all rules hold (' + str(len(got)) + ' perfumes)')
 
 
