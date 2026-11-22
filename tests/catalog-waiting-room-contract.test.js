@@ -122,7 +122,11 @@ test('the waiting room is the ONE door: the trial loader sends through it and wr
 
 test('the rollback drops every object the migration creates and warns what it cannot restore', () => {
   const created = [...migration.matchAll(/^create (?:or replace )?function ((?:public|private)\.[a-z_]+)/gm)].map((m) => m[1]);
-  assert.ok(created.length >= 10, 'the migration creates its functions');
+  assert.deepEqual([...created].sort(), [
+    'private.aliases_release_waiting', 'private.brands_release_waiting', 'private.catalog_display_name', 'private.catalog_item_problem',
+    'private.catalog_place_item', 'private.catalog_release_waiting', 'private.catalog_resolve_brand',
+    'public.catalog_receive_items', 'public.catalog_release_waiting'
+  ], 'the migration creates exactly these nine functions (a new one must be added here and dropped by the rollback)');
   for (const name of created) assert.ok(rollback.includes(name), `the rollback drops ${name}`);
   for (const table of ['catalog_brand_aliases', 'catalog_waiting_items']) assert.match(rollback, new RegExp(`drop table if exists public\\.${table}`));
   for (const trigger of ['brands_release_waiting', 'catalog_brand_aliases_release_waiting']) assert.match(rollback, new RegExp(`drop trigger if exists ${trigger}`));
