@@ -34,7 +34,7 @@ test('an element that has a picture gets «نفس شكل الصورة» first in
   const made = (await b.mode.execute('element.create', { kind: 'image', src: '/assets/cards/a.webp' })).elementId;
   await b.mode.execute('element.select', { elementId: made });
   const first = sizeEntry(b).sizes[0].sizes[0];
-  assert.deepEqual(plain(first), { media: true, ratio: [1200, 800], label: 'نفس شكل الصورة' });
+  assert.deepEqual(plain(first), { media: true, ratio: [1200, 800], label: 'نفس شكل الصورة', current: true }, 'the stub gives the element its picture\'s own shape, so this entry is the marked (current) one');
   assert.equal(sizeEntry(b).sizes[0].sizes.length, G.RATIOS.length + 1, 'and the common shapes after it');
   const got = await b.mode.execute('element.resize', { elementId: made, size: { media: true } });
   assert.ok(Math.abs(got.w / got.h - 1200 / 800) < 0.01, 'the picture\'s shape: ' + JSON.stringify(got));

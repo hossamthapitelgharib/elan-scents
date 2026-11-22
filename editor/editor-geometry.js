@@ -33,10 +33,12 @@
   /* Common shapes (width:height) for an owner who thinks in shapes and not in pixels. They are examples, not a closed list: the editor shows them first,
      and an element can also be dragged to any other shape. A ratio has no size of its own, so choosing one needs a width (see sizeFromRatio). */
   var RATIOS = [
-    { w: 1, h: 1, label: 'مربع (بوست إنستجرام)' }, { w: 4, h: 3, label: 'شاشة وعروض تقديمية' }, { w: 3, h: 4, label: 'طولي' },
+    { w: 1, h: 1, label: 'مربع (كارت فئة وبوست إنستجرام)' }, { w: 4, h: 3, label: 'شاشة وعروض تقديمية' }, { w: 3, h: 4, label: 'طولي' },
     { w: 3, h: 2, label: 'صورة كاميرا' }, { w: 2, h: 3, label: 'صورة طولية' }, { w: 16, h: 9, label: 'عريض (فيديو ويوتيوب)' },
     { w: 9, h: 16, label: 'طولي (ستوري وريلز)' }, { w: 5, h: 4, label: 'شبه مربع' }, { w: 4, h: 5, label: 'بوست طولي (إنستجرام)' },
-    { w: 21, h: 9, label: 'سينمائي' }, { w: 2, h: 1, label: 'بانر عريض' }, { w: 1, h: 2, label: 'شريط طولي' }, { w: 3, h: 1, label: 'شريط عريض (غلاف)' }
+    { w: 21, h: 9, label: 'سينمائي' }, { w: 2, h: 1, label: 'بانر عريض' }, { w: 1, h: 2, label: 'شريط طولي' }, { w: 3, h: 1, label: 'شريط عريض (غلاف)' },
+    /* the card shapes of the reference store the owner sent (2026-11-22), measured on his screenshots: «تسوّق حسب احتياجك» cards 5:7, brand cards 11:9 (the Élan brand card is 150x120 = 5:4) */
+    { w: 5, h: 7, label: 'كارت تسوّق حسب احتياجك' }, { w: 11, h: 9, label: 'كارت براند' }
   ];
 
   /* The size a shape (rw:rh) has at a given width: the height follows, and when that would leave the limits the whole size is scaled to stay inside them with the

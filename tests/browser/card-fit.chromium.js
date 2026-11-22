@@ -42,7 +42,7 @@ for (const size of [H.WIDTHS[0], H.WIDTHS[2]]) {
       await settle(page);
       const cards = await page.evaluate(() => Array.from(document.querySelectorAll('#brands .card')).map((c) => {
         const r = c.getBoundingClientRect(), cap = c.querySelector('.bcap').getBoundingClientRect(), h4 = c.querySelector('h4').getBoundingClientRect(), cs = getComputedStyle(c);
-        return { w: r.width, h: r.height, bgSize: cs.backgroundSize, bgRepeat: cs.backgroundRepeat, capTop: cap.top - r.bottom, h4Top: h4.top - r.bottom, sentence: (c.querySelector('.st') || {}).textContent || '', shape: c.style.getPropertyValue('--cr') };
+        return { w: r.width, h: r.height, bgSize: cs.backgroundSize, bgRepeat: cs.backgroundRepeat, capTop: cap.top - r.bottom, h4Top: h4.top - r.bottom, h4W: h4.width, bgColor: cs.backgroundColor, sentence: (c.querySelector('.st') || {}).textContent || '', shape: c.style.getPropertyValue('--cr') };
       }));
       assert.equal(cards.length, 4);
       cards.forEach((c, i) => {
@@ -50,7 +50,9 @@ for (const size of [H.WIDTHS[0], H.WIDTHS[2]]) {
         assert.equal(c.shape, '', 'the frame does not take the picture\'s shape');
         assert.ok(c.capTop >= 0 && c.h4Top >= 0, 'the name sits below the card, not inside it: ' + JSON.stringify([c.capTop, c.h4Top]));
         assert.match(c.sentence, /بانتظار ربط كتالوج المتاجر/, 'while no store has linked its catalog, the sentence is written (under the card)');
-        if (i < 3) { assert.equal(c.bgSize, '100% 100%', 'the picture is resized to the whole frame: no crop (cover), no bars (contain)'); assert.equal(c.bgRepeat, 'no-repeat'); }
+        assert.ok(c.h4W <= 1.5, 'the brand name is not drawn for visitors (owner, 22 Nov 2026), it is still in the card: width ' + c.h4W);
+        assert.equal(c.bgColor, 'rgb(255, 255, 255)', 'a brand card is a white card');
+        if (i < 3) { assert.equal(c.bgSize, 'contain', 'a logo shows whole on its white card: never stretched (squeezed Armaf, Amouage, Maison Alhambra, Lattafa), never cut'); assert.equal(c.bgRepeat, 'no-repeat'); }
       });
       assert.deepEqual(errors, []);
     } finally { await context.close(); }
@@ -68,7 +70,7 @@ test('the «awaiting the stores\' catalogs» sentence is not written once a stor
     await page.evaluate(() => { window.PERFUMES = [{ id: 'size-1', name: 'Test', brand: 'AMOUAGE' }]; render(); });
     assert.equal(await sentences(), 0, 'a catalog is linked: the sentence is gone');
     const gap = await page.evaluate(() => { const c = document.querySelector('#brands .card'); return parseFloat(getComputedStyle(c).marginBottom); });
-    assert.ok(gap > 20 && gap < 60, 'the room kept under a card is the name\'s only: ' + gap);
+    assert.ok(gap >= 8 && gap < 30, 'the name is not drawn for visitors, so no room is kept under the card for it: ' + gap);
   } finally { await context.close(); }
 });
 
@@ -164,5 +166,64 @@ test('a card the owner gave a size in the editor keeps the width AND the height 
     assert.ok(Math.abs(got.w - 280) < 1 && Math.abs(got.h - 280) < 1, 'the size he chose: ' + got.w + 'x' + got.h);
     assert.equal(got.obj, 'fill'); assert.equal(got.ratio, '', 'the frame does not take the picture\'s shape');
     assert.ok(Math.abs(got.imgW - got.w) <= 2 && Math.abs(got.imgH - got.h) <= 2, 'the 2:3 picture fills the square frame: ' + JSON.stringify(got));
+  } finally { await context.close(); }
+});
+
+test('while the page is being edited the brand names show under their cards as before (the editor marks the page <html class="elan-editing">)', async () => {
+  const { context, page } = await visit(H.WIDTHS[0]);
+  try {
+    await page.evaluate(() => { window.BR = ['AMOUAGE', 'ARMAF']; window.PERFUMES = [{ id: 'size-1', name: 'Test', brand: 'AMOUAGE' }]; window.DATA_READY = true; render(); });
+    const name = () => page.evaluate(() => { const c = document.querySelector('#brands .card'), h = c.querySelector('h4').getBoundingClientRect(), r = c.getBoundingClientRect(); return { w: h.width, below: h.top - r.bottom, gap: parseFloat(getComputedStyle(c).marginBottom), text: c.querySelector('h4').textContent }; });
+    const visitor = await name();
+    assert.ok(visitor.w <= 1.5 && visitor.text === 'AMOUAGE', 'a visitor sees no name, and the name is still there: ' + JSON.stringify(visitor));
+    assert.ok(visitor.gap < 30, 'no room is kept under the card for a name that is not drawn: ' + visitor.gap);
+    await page.evaluate(() => document.documentElement.classList.add('elan-editing'));
+    const editor = await name();
+    assert.ok(editor.w > 30 && editor.below >= 0, 'the editor shows the name under the card: ' + JSON.stringify(editor));
+    assert.ok(editor.gap >= 40, 'and keeps the room for it: ' + editor.gap);
+  } finally { await context.close(); }
+});
+
+for (const size of [H.WIDTHS[0], H.WIDTHS[2]]) {
+  test('at ' + size.width + 'px the three category cards and the Masterpieces card are one size, the category cards carry no writing, and the Masterpieces arrow is under its title', async () => {
+    const { context, page } = await visit(size);
+    try {
+      const got = await page.evaluate(() => {
+        const rect = (e) => { const r = e.getBoundingClientRect(); return { w: Math.round(r.width), h: Math.round(r.height), top: r.top + scrollY }; };
+        const cats = Array.from(document.querySelectorAll('#cats .card.art')), master = document.querySelector('#master .card.msel');
+        const h3 = document.querySelector('#master > h3'), sub = document.querySelector('#master > .sub');
+        return {
+          cats: cats.map(rect), master: master ? rect(master) : null,
+          ink: cats.map((c) => Array.from(c.querySelectorAll('h4, small, .st')).filter((t) => t.getBoundingClientRect().width > 2).length),
+          fade: cats.map((c) => getComputedStyle(c, '::after').display),
+          subInCard: !!document.querySelector('#master .cb > .sub'),
+          subShown: !!sub && getComputedStyle(sub).display !== 'none', subTop: sub ? sub.getBoundingClientRect().top + scrollY : null, h3Top: h3 ? h3.getBoundingClientRect().top + scrollY : null, cardTop: master ? master.getBoundingClientRect().top + scrollY : null,
+          order: sub && h3 && master ? [!!(h3.compareDocumentPosition(sub) & Node.DOCUMENT_POSITION_FOLLOWING), !!(sub.compareDocumentPosition(master) & Node.DOCUMENT_POSITION_FOLLOWING)] : null
+        };
+      });
+      assert.equal(got.cats.length, 3); assert.ok(got.master, 'the Masterpieces card is on the page');
+      [got.cats[1], got.cats[2], got.master].forEach((c) => assert.ok(Math.abs(c.w - got.cats[0].w) <= 1 && Math.abs(c.h - got.cats[0].h) <= 1, 'one size for all four: ' + JSON.stringify([got.cats, got.master])));
+      assert.deepEqual(got.ink, [0, 0, 0], 'no name, no line of words, no «استعرض المجموعة» is drawn on a category card');
+      assert.deepEqual(got.fade, ['none', 'none', 'none'], 'and no dark fade over the picture');
+      assert.equal(got.subInCard, false, 'the arrow is no longer under the Masterpieces card');
+      assert.ok(got.subShown, 'the arrow is shown'); assert.deepEqual(got.order, [true, true], 'after the title and before the card');
+      assert.ok(got.subTop < got.cardTop, 'above the card');
+    } finally { await context.close(); }
+  });
+}
+
+test('a banner with nothing in it yet (no words, no picture, no video) is not shown to visitors', async () => {
+  const { context, page } = await visit(H.WIDTHS[0]);
+  try {
+    const got = await page.evaluate(() => {
+      const d = ElanDesignLayer.current() || { version: 1 };
+      const order = (d.order && d.order.length ? d.order : ['brands', 'offers', 'new', 'cats', 'master']).filter((x) => x !== 'x-empty1');
+      order.splice(1, 0, 'x-empty1');
+      ElanDesignLayer.set(Object.assign({}, d, { version: 1, blocks: (d.blocks || []).concat([{ id: 'x-empty1', type: 'banner', style: { align: 'center', size: 'md' } }]), order }));
+      const b = document.querySelector('[data-elan-id="x-empty1"]');
+      return b ? { cls: b.className, display: getComputedStyle(b).display } : null;
+    });
+    assert.ok(got, 'the empty banner is in the page');
+    assert.match(got.cls, /elan-empty\b/); assert.equal(got.display, 'none');
   } finally { await context.close(); }
 });

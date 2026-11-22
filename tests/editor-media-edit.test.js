@@ -29,7 +29,7 @@ test('banners and image blocks can hold a video; nothing else can', () => {
   assert.equal(ok([{ id: 'x-d', type: 'banner', title: { ar: 'ع' }, video: 'https://evil.example/a.mp4' }]).ok, false, 'a video from another host');
   assert.equal(ok([{ id: 'x-e', type: 'banner', title: { ar: 'ع' }, video: '/assets/a.png' }]).ok, false, 'a picture is not a video');
   assert.equal(ok([{ id: 'x-f', type: 'banner', title: { ar: 'ع' }, image: '/assets/a.mp4' }]).ok, false, 'banner.image stays a picture; the video has its own field');
-  assert.equal(ok([{ id: 'x-g', type: 'banner' }]).ok, false, 'still needs a title, a picture or a video');
+  assert.equal(ok([{ id: 'x-g', type: 'banner' }]).ok, true, 'a new banner is an empty frame (owner, 2026-11-22): no placeholder words, the picture or video is put in afterwards');
 });
 
 test('uploads accept picture and video MIME with matching magic bytes only (videos are checked after a direct upload), and refuse the rest before any network access', async () => {

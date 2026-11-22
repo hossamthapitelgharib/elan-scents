@@ -20,6 +20,10 @@
     '#elanSizeDlg button:hover,#elanSizeDlg button:focus{background:#f6ecd4;outline:2px solid #c8962a;outline-offset:1px}',
     '#elanSizeDlg button.auto{display:block;width:100%;background:#f6ecd4;font-weight:700}',
     '#elanSizeDlg .grid button.same{grid-column:1/-1;background:#f6ecd4;font-weight:700}#elanSizeDlg .grid button.same .pic{display:none}',
+    /* the size the element has now: shaded and outlined, with «الحالي» on it, so it is known before another one is chosen */
+    '#elanSizeDlg .cur-note{margin:0 0 10px;padding:7px 10px;border-radius:9px;background:#f6ecd4;color:#4a3a1a;font-size:13px;font-weight:700;direction:rtl}#elanSizeDlg .cur-note bdi{direction:ltr;unicode-bidi:isolate}',
+    '#elanSizeDlg button.cur{background:#f3dfae;border-color:#c8962a;box-shadow:inset 0 0 0 2px #c8962a;font-weight:700}#elanSizeDlg button.cur .curTag{display:block;font-size:11px;color:#87652d}',
+    '#elanSizeDlg .grid button.cur.keep{grid-column:1/-1}',
     '.shapeBtn .pic{display:flex;align-items:center;justify-content:center;height:32px}.shapeBtn .shape{display:block;box-sizing:border-box;border:1.5px solid #c8962a;background:#fff4d6;border-radius:2px}',
     '.ratioField{margin:10px 0 4px;text-align:right}.ratioField .ratioHead{font-size:13px;font-weight:700;color:#87652d;margin-bottom:6px}',
     '.ratioField .ratioRow{display:flex;flex-wrap:wrap;gap:5px}.ratioField button{font:inherit;cursor:pointer;border:1px solid #d9c79c;background:#fff;color:#4a3a1a;border-radius:8px;padding:3px 6px;line-height:1.3;min-width:54px;text-align:center}',
@@ -189,7 +193,10 @@
     shape.style.width = Math.max(4, Math.round(28 * ratio[0] / longest)) + 'px'; shape.style.height = Math.max(4, Math.round(28 * ratio[1] / longest)) + 'px';
     shape.setAttribute('aria-hidden', 'true'); pic.appendChild(shape);
     if (size.media) b.classList.add('same');
-    b.append(pic, dim, lbl); b.onclick = function () { onPick(size.media ? { media: true } : { ratio: [ratio[0], ratio[1]] }); };
+    if (size.keep) { dim.textContent = size.w + ' \u00d7 ' + size.h; lbl.textContent = ''; }   // the element's own size, which is none of the shapes: shown in pixels, choosing it changes nothing
+    b.append(pic, dim, lbl);
+    if (size.current) { b.classList.add('cur'); b.setAttribute('aria-current', 'true'); b.appendChild(el('span', size.keep ? 'المقاس الحالي' : 'المقاس الحالي ✓', { className: 'curTag' })); if (size.keep) b.classList.add('keep'); }
+    b.onclick = function () { onPick(size.keep ? undefined : size.media ? { media: true } : { ratio: [ratio[0], ratio[1]] }); };
     return b;
   }
   window.elanPickSize = function (groups, opts) {
@@ -200,6 +207,8 @@
       function finish(value) { if (done) return; done = true; try { dlg.close(); } catch (_) { /* already closed */ } dlg.remove(); resolve(value); }
       dlg.appendChild(el('h3', opts.title || 'أبعاد العنصر'));
       dlg.appendChild(el('p', 'اختار شكل العنصر. دي أمثلة للأبعاد الشائعة، وتقدر بعدها تكبّر أو تصغّر أي عنصر بالسحب من مربع الركن.', { className: 'note' }));
+      var here = (groups || []).map(function (g) { return g.current; }).filter(Boolean)[0];
+      if (here) { var cn = el('p', '', { className: 'cur-note' }); cn.appendChild(document.createTextNode('المقاس الحالي للعنصر: ')); var nb = document.createElement('bdi'); nb.textContent = here.w + ' \u00d7 ' + here.h + (here.shape ? ' (' + here.shape + ')' : ''); cn.appendChild(nb); dlg.appendChild(cn); }
       var auto = el('button', opts.auto || 'تلقائي (المقاس الافتراضي)', { type: 'button', className: 'auto' });
       auto.onclick = function () { finish(null); };
       dlg.appendChild(auto);
@@ -224,7 +233,8 @@
     function add(btn, value) { buttons.push({ btn: btn, value: value }); btn.onclick = function () { chosen = value; mark(); }; row.appendChild(btn); }
     add(el('button', 'تلقائي', { type: 'button', className: 'ratioAuto' }), null);
     (groups || []).forEach(function (group) { group.sizes.forEach(function (size) {
-      var value = { ratio: Array.isArray(size.ratio) ? size.ratio.slice() : [size.w, size.h] }, b = shapeCell(size, function () {});
+      if (size.keep) return;                                                    // «المقاس الحالي» belongs to the chooser window; a panel field already has its own «تلقائي» and chosen state
+      var value = { ratio: Array.isArray(size.ratio) ? size.ratio.slice() : [size.w, size.h] }, b = shapeCell(Object.assign({}, size, { current: false }), function () {});
       b.onclick = null; add(b, value);
     }); });
     box.append(head, row); mark();

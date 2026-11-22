@@ -21,6 +21,8 @@
     '.elan-banner{position:relative;overflow:hidden;isolation:isolate;border-radius:14px;padding:36px 20px;background-size:100% 100%;background-repeat:no-repeat;background-position:center}',
     '.elan-banner>.elan-bgvideo{position:absolute;inset:0;width:100%;height:100%;object-fit:fill;z-index:-1;pointer-events:none}',
     '.elan-banner:before{content:"";position:absolute;inset:0;background:rgba(20,12,4,.35)}',
+    '.elan-banner.elan-empty{display:none}',
+    '.elan-banner.elan-empty-edit{min-height:140px;background-color:#f6ecd4;outline:1.5px dashed #c8962a;outline-offset:-5px}.elan-banner.elan-empty-edit:before{display:none}',
     '.elan-banner>*{position:relative}.elan-banner h3,.elan-banner p{margin:6px 0;color:#fff}',
     '.elan-image img,.elan-image video{max-width:100%;height:auto;display:block;margin:0 auto;border-radius:12px}',
     '.elan-block a{color:inherit;text-decoration:none;display:block}',
@@ -208,6 +210,8 @@
       var s = pick(b.subtitle);
       if (t) { var h = el('h3'); h.textContent = t; inner.appendChild(h); }
       if (s) { var sp = el('p'); sp.textContent = s; inner.appendChild(sp); }
+      /* nothing in it yet (no words, no picture, no video): visitors do not see an empty strip; the editor shows a plain frame to put the picture into */
+      if (!t && !s && !b.image && !b.video) root.classList.add(window.ELAN_EDITOR_PREVIEW ? 'elan-empty-edit' : 'elan-empty');
     } else if (b.type === 'image') {
       if (ED.isVideoUrl && ED.isVideoUrl(b.src)) {
         var vv = videoNode(b.src);
@@ -495,6 +499,7 @@
 
   /* Replace the picture or video of an element: the hero video, a card picture, or a section background. Reversible. */
   function paintMedia(entry, m) {
+    if (entry.el && entry.el.classList) entry.el.classList.remove('elan-empty', 'elan-empty-edit');   // a banner that gets a picture or video is no longer empty
     if (typeof m === 'string') m = { src: m, kind: ED.isVideoUrl && ED.isVideoUrl(m) ? 'video' : 'image' };
     var el = entry.el, undo = el.__elanMedia = el.__elanMedia || [];
     var video = entry.kind === 'hero' ? el.querySelector('#heroVideo, video') : null;
@@ -564,7 +569,7 @@
     }
     el.style.setProperty('background-image', 'url("' + m.src + '")', 'important');
     /* a card or a banner has a frame of its own and the picture is resized to fill it whole (2026-11-21); a section keeps the cover it always had */
-    el.style.setProperty('background-size', entry.kind === 'card' || entry.kind === 'block' ? '100% 100%' : 'cover', 'important');
+    el.style.setProperty('background-size', el.classList.contains('brandc') ? 'contain' : entry.kind === 'card' || entry.kind === 'block' ? '100% 100%' : 'cover', 'important');
     el.style.setProperty('background-position', 'center', 'important');
     el.style.setProperty('background-repeat', 'no-repeat', 'important');
     warm(m.src);
@@ -669,7 +674,8 @@
     try { if (getComputedStyle(el).position === 'static') el.style.position = 'relative'; } catch (_) { /* optional */ }
     if (el.classList.contains('elan-image')) imp(el, 'padding', '0');
     /* a card, a banner or a picture on its own has a frame and its picture is resized to fill it whole; the hero and a section keep showing their picture whole (the hero over its blurred copy) */
-    var fills = entry.kind === 'card' || entry.kind === 'block' || entry.kind === 'image-el';
+    /* a brand card is a logo on its white card: the whole logo shows, never stretched (owner, 2026-11-22), so it is not one that fills */
+    var fills = !el.classList.contains('brandc') && (entry.kind === 'card' || entry.kind === 'block' || entry.kind === 'image-el');
     if (f.kind === 'bg') {
       keepStyle(el, undo);
       imp(el, 'background-size', fills ? '100% 100%' : 'contain');

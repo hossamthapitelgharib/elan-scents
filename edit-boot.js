@@ -4,6 +4,7 @@
   'use strict';
   var q = new URLSearchParams(location.search);
   if (q.get('elan_editor') !== '1' || window.parent === window) return;
+  if (document.documentElement && document.documentElement.classList) document.documentElement.classList.add('elan-editing');   // style.css shows what visitors do not see (the brand names) while the page is being edited
   var v = (document.currentScript && document.currentScript.src.split('?v=')[1]) || '1';
   /* All three download at once and still run in this order (a script added by code with async=false runs in the order it was added): they used to be fetched one after the other. */
   Promise.all(['/elan-host-bridge.js', '/editor/editor-geometry.js', '/edit-mode.js'].map(function (src) {

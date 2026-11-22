@@ -114,11 +114,22 @@ test('a section is as in the original, except that it cannot be copied yet (its 
 test('text blocks, banners and images created by the editor follow the original rows', async () => {
   const b = await liveEditor(); stack(b);
   const made = {};
-  for (const [name, opts] of [['text_block', { kind: 'text_block' }], ['banner', { kind: 'banner' }], ['image', { kind: 'image', src: '/assets/cards/a.webp' }]]) {
+  for (const [name, opts] of [['text_block', { kind: 'text_block' }], ['banner', { kind: 'banner', title: 'عنوان' }], ['image', { kind: 'image', src: '/assets/cards/a.webp' }]]) {
     made[name] = (await b.mode.execute('element.create', opts)).elementId;
     const got = GOLDEN_IDS.map((tid) => row(menuFor(b, made[name]))[tid]);
     assert.deepEqual(got, flags(golden.menu_by_element[name]), name);
   }
+});
+
+test('a banner made from the menu is an empty frame: no placeholder title or line is written on it, and it is a valid block (owner, 2026-11-22)', async () => {
+  const b = await liveEditor(); stack(b);
+  const { elementId } = await b.mode.execute('element.create', { kind: 'banner' });
+  const block = b.mode.state().design.blocks.find((x) => x.id === elementId);
+  assert.equal(block.type, 'banner');
+  assert.ok(!block.title && !block.subtitle, 'no «عنوان جديد» and no «سطر تعريفي قصير»: ' + JSON.stringify(block));
+  assert.ok(!block.image && !block.video, 'and no picture yet: it waits for the one the owner puts in');
+  const named = (await b.mode.execute('element.create', { kind: 'banner', title: 'عنوان' })).elementId;
+  assert.equal(b.mode.state().design.blocks.find((x) => x.id === named).title.ar, 'عنوان', 'words are written only when they are given');
 });
 
 test('copying a card gives a banner with its title, text and picture right after its section, and undo removes it', async () => {

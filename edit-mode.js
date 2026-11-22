@@ -30,14 +30,30 @@
     if (!made) throw new Error('أبعاد غير صالحة.');
     return made;
   }
-  /* What the chooser shows: the common shapes (ratios) only, as examples. No pixel sizes: the owner does not read them (2026-11-10). An element that has a picture or a video
-     also gets «نفس شكل الصورة / الفيديو» first: the one shape that shows the whole picture with nothing left over around it (2026-11-11). */
+  /* What the chooser shows: the common shapes (ratios) as examples, and the size the element has right now marked among them (owner, 2026-11-22: he must see the current size before
+     choosing another). The shape the element has is marked when it is one of the list; when it is none of them its own size is put first, marked, and choosing it changes nothing.
+     An element that has a picture or a video also gets «نفس شكل الصورة / الفيديو» first: the one shape that shows the whole picture with nothing left over around it (2026-11-11). */
+  function currentSize(about) {
+    var e = about && about.id && entryById(about.id), r;
+    if (!e || !e.el || typeof e.el.getBoundingClientRect !== 'function') return null;
+    try { r = e.el.getBoundingClientRect(); } catch (_) { return null; }
+    var w = Math.round(r.width), h = Math.round(r.height);
+    return w > 0 && h > 0 ? { w: w, h: h } : null;
+  }
   function sizeGroups(about) {
     if (!Geometry.RATIOS) return [];
-    var sizes = Geometry.RATIOS.map(function (r) { return { ratio: [r.w, r.h], label: r.label }; });
+    var cur = currentSize(about), now = cur && Geometry.ratioName ? Geometry.ratioName(cur.w, cur.h) : '';
+    var sizes = Geometry.RATIOS.map(function (r) { var d = { ratio: [r.w, r.h], label: r.label }; if (now === r.w + ':' + r.h) d.current = true; return d; });
     var own = about && about.id && layer.mediaSize ? layer.mediaSize(entryById(about.id)) : null;
-    if (own) sizes.unshift({ media: true, ratio: [own.w, own.h], label: own.video || about.type === 'video' ? 'نفس شكل الفيديو' : 'نفس شكل الصورة' });
-    return [{ id: 'ratio', label: 'أبعاد شائعة (أمثلة)', sizes: sizes }];
+    if (own) {
+      var same = { media: true, ratio: [own.w, own.h], label: own.video || about.type === 'video' ? 'نفس شكل الفيديو' : 'نفس شكل الصورة' };
+      if (cur && Math.abs((cur.w / cur.h) / (own.w / own.h) - 1) <= 0.01 + 0.5 / Math.min(cur.w, cur.h)) same.current = true;
+      sizes.unshift(same);
+    }
+    if (cur && !now && !sizes.some(function (z) { return z.current; })) sizes.splice(own ? 1 : 0, 0, { keep: true, current: true, w: cur.w, h: cur.h, ratio: [cur.w, cur.h], label: 'المقاس الحالي' });   // right after «نفس شكل الصورة», which stays first
+    var group = { id: 'ratio', label: 'أبعاد شائعة (أمثلة)', sizes: sizes };
+    if (cur) group.current = { w: cur.w, h: cur.h, shape: now };
+    return [group];
   }
   /* The width an element can really use: the inside of the box it sits in (its padding left out). A new element has no box yet, so it is the one the page puts new blocks in. */
   function roomOf(box) {
@@ -980,7 +996,8 @@
   function createBlock(kind, opts) {
     opts = opts || {};
     var id = 'x-' + rid(), b;
-    if (kind === 'banner') b = { id: id, type: 'banner', title: { ar: opts.title || 'عنوان جديد' }, subtitle: { ar: opts.subtitle || 'سطر تعريفي قصير' }, style: { align: 'center', size: 'md' } };
+    /* a new banner is an empty frame: no placeholder title or line is written on it (owner, 2026-11-22); the picture or video goes in, and words only if he types them */
+    if (kind === 'banner') { b = { id: id, type: 'banner', style: { align: 'center', size: 'md' } }; if (opts.title) b.title = { ar: opts.title }; if (opts.subtitle) b.subtitle = { ar: opts.subtitle }; }
     else if (kind === 'text_block' || kind === 'text') { b = { id: id, type: 'text', text: { ar: opts.text || 'نص جديد' }, style: { align: opts.float ? 'start' : 'center', size: 'md' } }; if (opts.float) b.float = true; }
     else if (kind === 'image') b = { id: id, type: 'image', src: opts.src, alt: {}, style: { align: 'center', size: 'md' } };
     else if (kind === 'smart') b = { id: id, type: 'smart', ref: opts.ref, style: { align: 'center', size: 'md' }, kind: opts.semanticKind || 'section' };

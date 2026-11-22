@@ -254,3 +254,38 @@ test('on a phone the dimensions window fits the screen, and a shape on a block k
     assert.deepEqual(Object.keys(saved), [await frame.evaluate(() => window.ElanEditMode.state().device)], 'saved for the phone size only: ' + JSON.stringify(saved));
   } finally { await context.close(); }
 });
+
+test('the dimensions window marks the size the element has right now before anything is picked: a shape of the list gets «المقاس الحالي ✓» and a note with the size; a size that is none of them is put first as «المقاس الحالي» and picking it changes nothing (laptop)', async () => {
+  const { context, page, frame } = await openEditor(LAPTOP);
+  try {
+    const id = await createWithShape(page, frame, '1:1');
+    const open = async () => { await frame.evaluate(async (elementId) => { await window.ElanEditMode.execute('element.select', { elementId }); }, id); await openMenu(page, frame, id); await menuItem(page, 'أبعاد العناصر').click(); await chooser(page).waitFor({ state: 'visible', timeout: 10000 }); };
+
+    await open();
+    const sq = await sizeOf(frame, id);
+    assert.equal(await page.locator('#elanSizeDlg button.cur').count(), 1, 'exactly one choice is marked');
+    assert.equal(await page.locator('#elanSizeDlg button.cur').first().getAttribute('aria-current'), 'true');
+    assert.ok(/^1:1$/.test((await page.locator('#elanSizeDlg button.cur .dim').first().textContent()).trim()), 'and it is the shape the element has (a square)');
+    assert.ok(/المقاس الحالي ✓/.test(await page.locator('#elanSizeDlg button.cur .curTag').first().textContent()));
+    const note = (await page.locator('#elanSizeDlg .cur-note').textContent()).replace(/\s+/g, ' ');
+    assert.ok(note.includes('المقاس الحالي للعنصر') && note.includes(sq.w + ' × ' + sq.h), 'the note gives the size in pixels: ' + note);
+    await page.keyboard.press('Escape');
+    await chooser(page).waitFor({ state: 'detached', timeout: 10000 });
+
+    // a shape that is in no list (5:3): it is put first, marked, and is not a shape to apply
+    await frame.evaluate(async ({ elementId, w, h }) => { await window.ElanEditMode.execute('element.resize', { elementId, w, h }); }, { elementId: id, w: sq.w, h: Math.round(sq.w * 3 / 5) });
+    await page.waitForTimeout(400);
+    const odd = await sizeOf(frame, id);
+    assert.ok(Math.abs(odd.w / odd.h - 5 / 3) < 0.05, 'the element has a shape that is in no list: ' + JSON.stringify(odd));
+    await open();
+    const first = page.locator('#elanSizeDlg .grid button').first();
+    const cls = await first.getAttribute('class');
+    assert.ok(/\bcur\b/.test(cls) && /\bkeep\b/.test(cls), 'the size that is none of the list is the first choice and marked: ' + cls);
+    assert.equal((await first.locator('.curTag').textContent()).trim(), 'المقاس الحالي');
+    assert.equal(await page.locator('#elanSizeDlg button.cur').count(), 1, 'and it is the only one marked');
+    await first.click();
+    await chooser(page).waitFor({ state: 'detached', timeout: 10000 });
+    await page.waitForTimeout(400);
+    assert.deepEqual(await sizeOf(frame, id).then((z) => ({ w: z.w, h: z.h })), { w: odd.w, h: odd.h }, 'picking it changes nothing');
+  } finally { await context.close(); }
+});

@@ -20,7 +20,7 @@ var MASTER_CHIPS=['rated','sales','views','searches'];function chips(){return '<
 function ranked(by){var k=MASTER_CHIPS.indexOf(F.ind)>-1?F.ind:'';return k?function(a,b){return(((a.p.rk||{})[k]||1e9)-((b.p.rk||{})[k]||1e9))||by(a,b)}:by}
 document.addEventListener('click',function(e){var c=e.target.closest('[data-ind]');if(c){F.ind=F.ind==c.dataset.ind?'':c.dataset.ind;document.querySelectorAll('[data-ind]').forEach(function(b){var on=b.dataset.ind==F.ind;b.classList.toggle('on',on);b.setAttribute('aria-pressed',on?'true':'false')});results()}});
 function catBlocks(){var t=T(),imgs=['/assets/cards/category-men.webp','/assets/cards/category-women.webp','/assets/cards/category-unisex.webp'];return sec('cats')[3].map(function(n,i){return '<div class="cb"><div class="card wide art" data-go="col|cats|'+i+'"><div class="artbg"><img src="'+imgs[i]+'" alt="" loading="lazy"></div><h4 style="font-family:El Messiri,sans-serif;font-size:24px">'+n+'</h4><small>'+t.ctag[i]+'</small><span class="st">'+t.view+'</span></div></div>'}).join('')}
-function masterBlock(){var t=T();return '<div class="cb"><div class="card msel" data-go="sec|master" role="img" aria-label="Élan Scents Selections"></div><span class="sub" data-go="sec|master">'+t.view+'</span><div class="strip">'+strip('master')+'</div></div>'}
+function masterBlock(){return '<div class="cb"><div class="card msel" data-go="sec|master" role="img" aria-label="Élan Scents Selections"></div><div class="strip">'+strip('master')+'</div></div>'}
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
 /* Final stars (2 decimals: 2.99 never reads as 3.0) with the final ratings count beside them; no rating at all -> nothing. */
 function ratingCount(n){n=+n||0;return n>0?'<i>('+n.toLocaleString('en-US')+')</i>':''}
@@ -398,7 +398,7 @@ if(s[2]=='b')inner=BR.map(brandCard).join('');
 else if(s[2]=='r')inner=CATALOG_TAXONOMY_KEYS[s[0]].map(function(key,i){return card('round',CATALOG_KEYED_LABELS[lang][s[0]][key],'',t.view,'col|'+s[0]+'|'+key,ART[s[0]+i])}).join('');
 else if(s[2]=='s')inner=ST.map(function(x){return card('wide','<div class="ph"></div><b>'+x[0]+'</b>',(x[1]||t.sdesc),t.status,'store|'+x[0])}).join('');
 else inner=strip(s[0]);
-h+='<section id="'+s[0]+'">'+(s[0]=='brands'?'':'<h3'+(s[0]=='master'?' class="gold en"':'')+'>'+s[1]+'</h3>')+'<span class="sub" data-go="sec|'+s[0]+'"'+(s[0]=='cats'||s[0]=='master'||s[0]=='notes'||s[0]=='occ'?' style="display:none"':'')+'>'+(s[0]=='notes'?t.explore:t.view)+'</span>'+(s[0]=='cats'?catBlocks():s[0]=='master'?masterBlock():'<div class="strip">'+inner+'</div>')+'</section>';
+h+='<section id="'+s[0]+'">'+(s[0]=='brands'?'':'<h3'+(s[0]=='master'?' class="gold en"':'')+'>'+s[1]+'</h3>')+'<span class="sub" data-go="sec|'+s[0]+'"'+(s[0]=='cats'||s[0]=='notes'||s[0]=='occ'?' style="display:none"':'')+'>'+(s[0]=='notes'?t.explore:t.view)+'</span>'+(s[0]=='cats'?catBlocks():s[0]=='master'?masterBlock():'<div class="strip">'+inner+'</div>')+'</section>';
 });
 document.getElementById('main').innerHTML=h;
 }

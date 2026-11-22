@@ -128,7 +128,6 @@
         var h = hrefUrl(raw.href);
         if (h) b.href = h; else errors.push(where + ': link not allowed');
       }
-      if (!b.title.ar && !b.title.en && !b.image && !b.video) { errors.push(where + ': banner needs a title, an image or a video'); return null; }
     } else if (type === 'smart') {
       if (typeof raw.ref !== 'string' || !REF_RE.test(raw.ref)) { errors.push(where + ': invalid section reference'); return null; }
       b.ref = raw.ref;
