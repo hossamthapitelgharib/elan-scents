@@ -133,7 +133,9 @@
       },
       "sec:stores:title": {
         "style": {
-          "fontSize": 16
+          "fontSize": 20,
+          "color": "#b8860b",
+          "fontFamily": "Amiri"
         },
         "text": {
           "ar": "وكلاء و موزعون معتمدون"
@@ -162,17 +164,22 @@
         "style": {
           "align": "center",
           "fontSize": 20,
-          "fontFamily": "Amiri"
+          "fontFamily": "Amiri",
+          "color": "#b8860b"
         }
       },
       "sec:notes:title": {
         "style": {
-          "fontSize": 20
+          "fontSize": 20,
+          "color": "#b8860b",
+          "fontFamily": "Amiri"
         }
       },
       "sec:soon:title": {
         "style": {
-          "fontSize": 16
+          "fontSize": 20,
+          "color": "#b8860b",
+          "fontFamily": "Amiri"
         }
       },
       "sec:brands:title": {
