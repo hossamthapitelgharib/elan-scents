@@ -67,9 +67,17 @@ test('the editor still finds the title and the counters under their old ids', ()
 });
 
 test('the saved home design carries no white colour or old offset for the moved title and counters', () => {
+  /* Only the two things that came from the old place of these elements (over the hero picture): a white text colour and a moved position or size. The owner may still format the text
+     (font, size, weight...) in the editor: on 22 Nov he set the title's font to Amiri and saving it must not turn main red. */
   const design = JSON.parse(read('design/home.json'));
+  const WHITE = /^(#fff(?:fff)?|white|rgba?\(\s*255\s*,\s*255\s*,\s*255\b.*)$/i;
   for (const [device, edits] of Object.entries(design.edits)) {
-    for (const id of ['hero:magic', 'hero:counters']) assert.equal(edits[id], undefined, `${id} (${device}) was set for white text over the picture`);
+    for (const id of ['hero:magic', 'hero:counters']) {
+      const edit = edits[id] || {};
+      for (const key of ['dx', 'dy', 'w', 'h']) assert.equal(edit[key], undefined, `${id} (${device}) keeps an old ${key} from when it sat over the picture`);
+      const colour = edit.style && edit.style.color;
+      assert.ok(!colour || !WHITE.test(String(colour).trim()), `${id} (${device}) was set for white text over the picture`);
+    }
   }
 });
 

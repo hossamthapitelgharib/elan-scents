@@ -185,15 +185,18 @@ test('while the page is being edited the brand names show under their cards as b
 });
 
 for (const size of [H.WIDTHS[0], H.WIDTHS[2]]) {
-  test('at ' + size.width + 'px the three category cards and the Masterpieces card are one size, the category cards carry no writing, and the Masterpieces arrow is under its title', async () => {
+  test('at ' + size.width + 'px each of the three category cards and the Masterpieces card is drawn at the size the saved design gives it (the owner sets them in the editor), the category cards carry no writing, and the Masterpieces arrow is under its title', async () => {
     const { context, page } = await visit(size);
     try {
       const got = await page.evaluate(() => {
         const rect = (e) => { const r = e.getBoundingClientRect(); return { w: Math.round(r.width), h: Math.round(r.height), top: r.top + scrollY }; };
         const cats = Array.from(document.querySelectorAll('#cats .card.art')), master = document.querySelector('#master .card.msel');
+        /* the size the saved design file gives each of the four at this screen width (null when the owner left it free) */
+        const device = innerWidth >= 1024 ? 'desktop' : 'mobile', edits = ((ElanDesignLayer.current() || {}).edits || {})[device] || {};
+        const saved = (el) => { const hit = ElanDesignLayer.elements().find((x) => x.el === el), e = hit && edits[hit.id]; return e && e.w && e.h ? { w: e.w, h: e.h } : null; };
         const h3 = document.querySelector('#master > h3'), sub = document.querySelector('#master > .sub');
         return {
-          cats: cats.map(rect), master: master ? rect(master) : null,
+          cats: cats.map(rect), master: master ? rect(master) : null, savedCats: cats.map(saved), savedMaster: master ? saved(master) : null,
           ink: cats.map((c) => Array.from(c.querySelectorAll('h4, small, .st')).filter((t) => t.getBoundingClientRect().width > 2).length),
           fade: cats.map((c) => getComputedStyle(c, '::after').display),
           subInCard: !!document.querySelector('#master .cb > .sub'),
@@ -202,7 +205,11 @@ for (const size of [H.WIDTHS[0], H.WIDTHS[2]]) {
         };
       });
       assert.equal(got.cats.length, 3); assert.ok(got.master, 'the Masterpieces card is on the page');
-      [got.cats[1], got.cats[2], got.master].forEach((c) => assert.ok(Math.abs(c.w - got.cats[0].w) <= 1 && Math.abs(c.h - got.cats[0].h) <= 1, 'one size for all four: ' + JSON.stringify([got.cats, got.master])));
+      /* Not «all four equal»: the owner changes these in the editor and saves (22 Nov: the three categories to a square, Masterpieces not yet) and a test must not turn his choice into a red main.
+         What must hold is that the page draws every card at exactly the size the design file gives it. */
+      [[got.cats[0], got.savedCats[0]], [got.cats[1], got.savedCats[1]], [got.cats[2], got.savedCats[2]], [got.master, got.savedMaster]].forEach(([drawn, want], i) => {
+        if (want) assert.ok(Math.abs(drawn.w - want.w) <= 1 && Math.abs(drawn.h - want.h) <= 1, 'card ' + i + ' is drawn at ' + drawn.w + 'x' + drawn.h + ' but the saved design says ' + want.w + 'x' + want.h);
+      });
       assert.deepEqual(got.ink, [0, 0, 0], 'no name, no line of words, no «استعرض المجموعة» is drawn on a category card');
       assert.deepEqual(got.fade, ['none', 'none', 'none'], 'and no dark fade over the picture');
       assert.equal(got.subInCard, false, 'the arrow is no longer under the Masterpieces card');
