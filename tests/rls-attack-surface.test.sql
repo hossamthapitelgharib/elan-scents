@@ -245,9 +245,9 @@ begin
   assert pg_temp.blocked(u_a, 'authenticated', $q$select 1 from public.store_order_requests$q$), 'A cannot read store order requests';
   assert pg_temp.blocked(u_sx, 'authenticated', $q$select 1 from public.store_order_requests$q$), 'a store admin reads orders only through the checked API';
   assert pg_temp.blocked(u_a, 'authenticated', $q$select 1 from public.store_integrations$q$), 'A cannot read store integration secrets';
-  -- Phase 2 (payment, merchant notices, shipping): these tables are server-only. Neither a customer, a store admin nor a visitor can
+  -- Phase 2 (payment, merchant notices, shipping) and the catalog waiting room (brand aliases, perfumes waiting for a brand card): these tables are server-only. Neither a customer, a store admin nor a visitor can
   -- read or write them through the data API; the platform's first notice, the payments and the shipment events are reached only through the checked APIs.
-  for v_bad in select unnest(array['order_payments', 'order_payment_events', 'platform_order_notices', 'store_shipment_events', 'order_drafts', 'merchant_deliveries', 'merchant_delivery_attempts', 'payment_windows'])
+  for v_bad in select unnest(array['order_payments', 'order_payment_events', 'platform_order_notices', 'store_shipment_events', 'order_drafts', 'merchant_deliveries', 'merchant_delivery_attempts', 'payment_windows', 'catalog_waiting_items', 'catalog_brand_aliases'])
   loop
     assert pg_temp.blocked(u_a, 'authenticated', format('select 1 from public.%I', v_bad)), 'A cannot read ' || v_bad;
     assert pg_temp.blocked(u_sx, 'authenticated', format('select 1 from public.%I', v_bad)), 'a store admin cannot read ' || v_bad || ' through the data API';
