@@ -424,6 +424,14 @@ html.hero-img:not(.hero-pending) body.hd-over:not(.inner) header .logo span{colo
 html.hero-img:not(.hero-pending) body.hd-over:not(.inner) header .logo small{color:#fff!important;-webkit-text-fill-color:#fff!important;-webkit-text-stroke-color:#fff}
 /* The cart icon in the header is a little smaller than the other icons (the heart and the rest stay as they were). */
 header .ic button[data-sheet="cart"] svg{width:20px!important;height:20px!important}
+/* Owner, 2026-11-23: the menu, the search and the notification icons are the same size as the cart and the heart. The heart and the cart are drawn about 16px
+   (the heart fills less of its 24px square than the others fill theirs, and the cart is set to 20px above), so these three are scaled until what is drawn is
+   16px too: each glyph fills its square differently, hence 22 / 21 / 23 and not one number. It is done with padding inside the icon's own 24px square (the drawing
+   shrinks to the content box), so the button keeps its box, its place on the row and its height, and the icons stay level with the heart and the cart. */
+header .ic #mb svg,header .ic #quickSearchBtn svg,header .ic button[data-sheet="notif"] svg{box-sizing:border-box}
+header .ic #mb svg{padding:1px}
+header .ic button[data-sheet="notif"] svg{padding:1.5px}
+header .ic #quickSearchBtn svg{padding:.5px}
 /* A cart line whose canonical store offer changed must be reviewed before checkout. */
 .cart-review{display:block;margin-top:3px;color:#9b2c1f;font-size:11px;font-weight:600;line-height:1.45}
 .store-order-btn:disabled{opacity:.5;cursor:not-allowed;box-shadow:none;pointer-events:none}
