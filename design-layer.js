@@ -325,6 +325,7 @@
       (t.children || []).forEach(function (child) { t.node.appendChild(child); }); delete el.__elanText;
     }
     if (el.__elanInner) { var inn = el.__elanInner; if (inn.base === null) inn.node.removeAttribute('style'); else inn.node.setAttribute('style', inn.base); delete el.__elanInner; }
+    if (el.__elanVis) { var vis = el.__elanVis; if (vis.base === null) vis.node.removeAttribute('style'); else vis.node.setAttribute('style', vis.base); delete el.__elanVis; }   // after __elanInner: the node's own first style is what comes back
     if (el.__elanBar) { document.body.classList.remove('elan-no-bar'); delete el.__elanBar; }
     delete el.__elanOff; delete el.__elanApplied;
   }
@@ -720,17 +721,24 @@
     /* Apply text formatting to the actual text node. The hero magic label is a
        wrapper around h2, so styling only the wrapper is overridden by storefront CSS. */
     var visual = textTarget(entry) || el;
-    if (st.color) visual.style.color = st.color;
-    if (st.background) visual.style.backgroundColor = st.background;
+    /* The text sits inside a wrapper (the label of «سحر الخليج بين يديك», a card's name...): what is written on it is undone with the paint, like what is written on the wrapper. */
+    if (visual !== el) el.__elanVis = { node: visual, base: visual.getAttribute('style') };
+    /* Everything the owner chooses for a text is written with !important: the page's own sheet fixes the size, weight and colour of some texts with !important (on a phone the size of
+       «سحر الخليج بين يديك» is fixed at 22px, the title has text-shadow:none), and a choice made in the editor has to win over it (owner, 2026-11-22: its size did not change). */
+    function tp(node, prop, value) { node.style.setProperty(prop, value, 'important'); }
+    if (st.color) tp(visual, 'color', st.color);
+    if (st.background) tp(visual, 'background-color', st.background);
     if (st.media) paintMedia(entry, st.media);
-    if (st.fontSize) visual.style.fontSize = st.fontSize + 'px';
-    if (st.weight) visual.style.fontWeight = String(st.weight);
+    if (st.fontSize) tp(visual, 'font-size', st.fontSize + 'px');
+    if (st.weight) tp(visual, 'font-weight', String(st.weight));
     if (st.radius !== undefined) el.style.borderRadius = st.radius + 'px';
-    if (st.align) visual.style.textAlign = ({ start: 'start', end: 'end', center: 'center', left: 'left', right: 'right' })[st.align] || 'center';
-    if (st.fontFamily) { loadFont(st.fontFamily); visual.style.fontFamily = st.fontFamily === 'system-ui' ? 'system-ui, sans-serif' : '"' + st.fontFamily + '", sans-serif'; }
-    if (st.effect === 'soft') { el.style.textShadow = '0 1px 0 #fff,0 3px 4px rgba(0,0,0,.22)'; el.style.boxShadow = '0 7px 18px rgba(0,0,0,.14)'; }
-    if (st.effect === 'gold') { el.style.color = st.color || '#ae852e'; el.style.textShadow = '0 1px 0 #fceab1,0 2px 0 #77541e,0 4px 6px rgba(80,52,0,.3)'; el.style.boxShadow = '0 2px 0 #d6bc79,0 9px 22px rgba(101,72,18,.22)'; }
-    if (st.effect === 'deep') { el.style.textShadow = '1px 1px 0 rgba(255,255,255,.6),2px 3px 3px rgba(0,0,0,.3)'; el.style.boxShadow = '0 4px 0 rgba(0,0,0,.13),0 14px 26px rgba(0,0,0,.2)'; }
+    if (st.align) tp(visual, 'text-align', ({ start: 'start', end: 'end', center: 'center', left: 'left', right: 'right' })[st.align] || 'center');
+    if (st.fontFamily) { loadFont(st.fontFamily); tp(visual, 'font-family', st.fontFamily === 'system-ui' ? 'system-ui, sans-serif' : '"' + st.fontFamily + '", sans-serif'); }
+    /* The effects (soft, gold, deep) are drawn on the text itself when it is the label of a title that sets its own colour and shadow (hero-text); everywhere else on the element as before. */
+    var fx = entry.kind === 'hero-text' ? visual : el;
+    if (st.effect === 'soft') { tp(fx, 'text-shadow', '0 1px 0 #fff,0 3px 4px rgba(0,0,0,.22)'); tp(fx, 'box-shadow', '0 7px 18px rgba(0,0,0,.14)'); }
+    if (st.effect === 'gold') { tp(fx, 'color', st.color || '#ae852e'); tp(fx, 'text-shadow', '0 1px 0 #fceab1,0 2px 0 #77541e,0 4px 6px rgba(80,52,0,.3)'); tp(fx, 'box-shadow', '0 2px 0 #d6bc79,0 9px 22px rgba(101,72,18,.22)'); }
+    if (st.effect === 'deep') { tp(fx, 'text-shadow', '1px 1px 0 rgba(255,255,255,.6),2px 3px 3px rgba(0,0,0,.3)'); tp(fx, 'box-shadow', '0 4px 0 rgba(0,0,0,.13),0 14px 26px rgba(0,0,0,.2)'); }
     if (st.opacity !== undefined) el.style.opacity = String(st.opacity);
     if (entry.kind === 'top-bar') paintBar(el, ed, st);
     if (ed.media && ed.media.src) paintMedia(entry, ed.media);
