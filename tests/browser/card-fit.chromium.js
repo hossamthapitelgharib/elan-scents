@@ -234,3 +234,29 @@ test('a banner with nothing in it yet (no words, no picture, no video) is not sh
     assert.match(got.cls, /elan-empty\b/); assert.equal(got.display, 'none');
   } finally { await context.close(); }
 });
+
+test('a card whose picture the owner deleted in the editor is a white base: not the old default picture again (Masterpieces draws its picture as its own background); a picture added later shows alone', async () => {
+  /* Owner, 2026-11-23: deleting the picture of an element to upload another one showed the very old picture again, and it only went away once the new one was there. For a card that has
+     an .artbg the existing rule hides it; Masterpieces has none (its default picture is a CSS background), so the card carries data-no-media and style.css draws the white base. */
+  const { context, page } = await visit(H.WIDTHS[2]);
+  try {
+    const got = await page.evaluate(async () => {
+      const L = ElanDesignLayer, original = JSON.parse(JSON.stringify(L.current() || { version: 1 }));
+      /* a new design redraws the page, so the card is looked up again after each one */
+      const card = () => document.querySelector('#master .card.msel'), id = L.elements().find((x) => x.el === card()).id;
+      const bg = () => getComputedStyle(card()).backgroundImage;
+      const design = (edit) => { const d = JSON.parse(JSON.stringify(original)); d.edits = d.edits || {}; d.edits.all = d.edits.all || {}; if (edit) d.edits.all[id] = edit; else delete d.edits.all[id]; L.set(d); L.applyEdits(); };
+      design(null); const own = bg();
+      design({ noMedia: true }); const deleted = { bg: bg(), flag: card().getAttribute('data-no-media') };
+      design({ style: { media: '/assets/new-one.webp' } }); const added = { bg: bg(), flag: card().getAttribute('data-no-media') };
+      design(null); const back = bg();
+      return { own, deleted, added, back };
+    });
+    assert.notEqual(got.own, 'none', 'Masterpieces has a picture of its own to begin with');
+    assert.equal(got.deleted.flag, '1', 'a card with its picture deleted is marked');
+    assert.equal(got.deleted.bg, 'none', 'and draws its white base, not the old default picture');
+    assert.match(got.added.bg, /new-one\.webp/, 'a picture added later is the only one drawn');
+    assert.equal(got.added.flag, null, 'and the card is no longer marked');
+    assert.equal(got.back, got.own, 'removing the edit brings the original back');
+  } finally { await context.close(); }
+});
