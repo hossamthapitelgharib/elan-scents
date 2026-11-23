@@ -1,8 +1,10 @@
 name: Fetch public store feeds (temporary)
 
-# Temporary (owner approved on 2026-11-20): saves the PUBLIC product pages of the two trial stores (Afnan Egypt, Emarati Scents), because the
-# working session cannot open those sites. Runs only on the temporary branch tmp/fetch-store-feeds, reads public pages only (no login,
-# no secret), few requests with a pause between them. The result goes to the temporary branch tmp/store-feeds-data, which is emptied afterwards.
+# Temporary (owner approved on 2026-11-20 and again on 2026-11-23: "use the GitHub server"): saves the PUBLIC pages of the two trial stores
+# (Afnan Egypt, Emarati Scents) because the working session cannot open those sites. This run reads what the stores publish about their SECTIONS:
+# the list of collections, the products inside each collection, the home page, and the current product feed. Public pages only (no login, no secret),
+# one request every 1.5 seconds. Runs only on the temporary branch tmp/fetch-store-feeds; the result goes to the temporary branch
+# tmp/store-feeds-data, which is emptied afterwards.
 
 on:
   push:
@@ -14,19 +16,20 @@ permissions:
 jobs:
   fetch:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 45
     steps:
       - name: Download the public pages
         run: |
-          mkdir -p feeds offers
+          mkdir -p feeds sections
           cat > fetch.py <<'PY'
-          import json, time, urllib.request, urllib.error
+          import json, re, time, urllib.parse, urllib.request, urllib.error
           UA = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36'
           STORES = {'afnan-egypt': 'https://egypt.afnan.com', 'emarati-scents': 'https://emaratiscents.com'}
-          def get(url):
+          PAUSE = 1.5
+          def get(url, accept='application/json'):
               for attempt in range(3):
                   try:
-                      req = urllib.request.Request(url, headers={'User-Agent': UA, 'Accept': 'application/json'})
+                      req = urllib.request.Request(url, headers={'User-Agent': UA, 'Accept': accept})
                       with urllib.request.urlopen(req, timeout=60) as r:
                           return r.status, r.read()
                   except urllib.error.HTTPError as e:
@@ -36,36 +39,63 @@ jobs:
               return 0, b''
           def save(path, data):
               open(path, 'wb').write(data); print('saved', path, len(data), 'bytes')
+          def slug(s):
+              return re.sub(r'[^a-z0-9]+', '_', s.lower()).strip('_') or 'x'
           for name, base in STORES.items():
               print('==', name)
+              st, raw = get(base + '/', 'text/html')
+              if st == 200: save(f'sections/{name}-home.html', raw)
+              time.sleep(PAUSE)
+              # the current product feed (the stores change daily)
               page = 1
               while page <= 30:
                   st, raw = get(f'{base}/products.json?limit=250&page={page}')
                   if st != 200: break
-                  d = json.loads(raw).get('products', [])
-                  if not d: break
+                  if not json.loads(raw).get('products', []): break
                   save(f'feeds/{name}-page-{page}.json', raw)
-                  page += 1; time.sleep(2)
-              print(' pages:', page - 1)
-          st, raw = get('https://egypt.afnan.com/collections/11-11-sale/products.json?limit=250')
-          if st == 200:
-              ps = json.loads(raw).get('products', [])
-              save('offers/afnan-egypt-col-11-11-sale.json', json.dumps({'collection': {'handle': '11-11-sale'}, 'products': [{'handle': p['handle'], 'title': p['title']} for p in ps]}, ensure_ascii=False).encode())
-              print(' sale products:', len(ps))
+                  page += 1; time.sleep(PAUSE)
+              print(' feed pages:', page - 1)
+              # the list of the store's sections (collections)
+              cols, page = [], 1
+              while page <= 10:
+                  st, raw = get(f'{base}/collections.json?limit=250&page={page}')
+                  if st != 200: break
+                  d = json.loads(raw).get('collections', [])
+                  if not d: break
+                  cols += d; page += 1; time.sleep(PAUSE)
+              keep = ('handle', 'title', 'products_count', 'published_at', 'updated_at')
+              save(f'sections/{name}-collections.json', json.dumps([{k: c.get(k) for k in keep} for c in cols], ensure_ascii=False).encode())
+              print(' collections:', len(cols))
+              # the products inside each section
+              for i, c in enumerate(cols):
+                  h = c['handle']; items = []; page = 1
+                  while page <= 9:
+                      st, raw = get(f'{base}/collections/{urllib.parse.quote(h)}/products.json?limit=250&page={page}')
+                      if st != 200: break
+                      ps = json.loads(raw).get('products', [])
+                      if not ps: break
+                      for p in ps:
+                          vs = p.get('variants') or []
+                          prices = [float(v['price']) for v in vs if v.get('price')]
+                          cmp_ = [float(v['compare_at_price']) for v in vs if v.get('compare_at_price')]
+                          items.append({'handle': p['handle'], 'title': p['title'], 'available': any(v.get('available') for v in vs),
+                                        'price': min(prices) if prices else None, 'compare_at': max(cmp_) if cmp_ else None})
+                      page += 1; time.sleep(PAUSE)
+                  save(f'sections/{name}-col-{i:03d}-{slug(h)}.json', json.dumps({'handle': h, 'title': c.get('title'), 'products': items}, ensure_ascii=False).encode())
           PY
           python3 fetch.py
-          ls -l feeds offers
+          ls -l feeds sections | head -200
       - name: Hand the files to the working session (temporary data branch)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -eu
-          gzip -9 feeds/* offers/*
-          mkdir handoff && cp -r feeds offers handoff/
+          gzip -9 feeds/* sections/*
+          mkdir handoff && cp -r feeds sections handoff/
           cd handoff
           git init -q -b tmp/store-feeds-data
           git config user.name 'github-actions'
           git config user.email 'github-actions@users.noreply.github.com'
-          git add feeds offers
-          git commit -qm 'tmp: public product pages of the two trial stores (to be emptied)'
+          git add feeds sections
+          git commit -qm 'tmp: public sections and product pages of the two trial stores (to be emptied)'
           git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" tmp/store-feeds-data
