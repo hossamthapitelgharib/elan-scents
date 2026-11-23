@@ -260,3 +260,48 @@ test('a card whose picture the owner deleted in the editor is a white base: not 
     assert.equal(got.back, got.own, 'removing the edit brings the original back');
   } finally { await context.close(); }
 });
+
+test('a category card whose picture is deleted and replaced never shows an old picture: white while the new one loads, then the new one alone (an <img> that changes its src keeps the old picture on screen until the new one is ready in some browsers)', async () => {
+  /* Owner, 2026-11-23: deleting the picture of a category card (white base, correct) and uploading another one showed the very first picture of the card again, then the new one came over it.
+     The page repaints the card when the design changes: it first puts the card's own picture back (category-men.webp) and then points the same <img> at the new address, and an <img> whose src
+     changes keeps drawing the picture it had until the new one has arrived (Safari, Firefox; Chromium draws nothing). So the picture that is still loading is hidden, whatever the browser does. */
+  const { context, page } = await visit(H.WIDTHS[0]);
+  const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+  await context.route('**/assets/slow-new.png', async (route) => { await new Promise((r) => setTimeout(r, 1800)); await route.fulfill({ status: 200, contentType: 'image/png', headers: { 'cache-control': 'public, max-age=3600' }, body: PNG }); });   // cacheable, like the pictures the editor uploads
+  try {
+    await page.evaluate(() => document.querySelector('#cats').scrollIntoView());
+    await page.waitForTimeout(500);
+    const ids = await page.evaluate(() => ElanDesignLayer.elements().filter((e) => e.el.matches('#cats .card.art')).map((e) => e.id));
+    assert.equal(ids.length, 3, 'the three category cards');
+    for (const id of ids) {
+      /* what is on screen in the card: every <img> that is drawn (not display:none, not hidden, not transparent), with whether it is the finished new picture */
+      const drawn = () => page.evaluate((id) => {
+        const e = ElanDesignLayer.elements().find((x) => x.id === id), art = e.el.querySelector('.artbg');
+        const shown = art && getComputedStyle(art).display !== 'none';
+        return Array.from(e.el.querySelectorAll('img')).filter((n) => shown && getComputedStyle(n).display !== 'none' && getComputedStyle(n).visibility !== 'hidden' && +getComputedStyle(n).opacity > 0)
+          .map((n) => ({ src: n.getAttribute('src'), done: n.complete && n.naturalWidth > 0 && /slow-new\.png$/.test(n.currentSrc) }));
+      }, id);
+      const design = (edit) => page.evaluate(([id, edit]) => { const L = ElanDesignLayer, d = JSON.parse(JSON.stringify(L.current() || { version: 1 })); d.edits = d.edits || {}; d.edits.all = d.edits.all || {}; if (edit) d.edits.all[id] = edit; else delete d.edits.all[id]; L.set(d); L.applyEdits(); }, [id, edit]);
+      /* the card's own first picture has been on screen and loaded when the page opened (that is the picture an <img> would keep drawing): bring the card back to it and wait for it */
+      await design(null);
+      await page.evaluate((id) => ElanDesignLayer.elements().find((x) => x.id === id).el.scrollIntoView({ block: 'center', inline: 'center' }), id);
+      await page.waitForFunction((id) => { const n = ElanDesignLayer.elements().find((x) => x.id === id).el.querySelector('.artbg img'); return n && n.complete && n.naturalWidth > 0; }, id, { timeout: 8000 });
+      await design({ noMedia: true });
+      assert.deepEqual(await drawn(), [], id + ': deleted = a white card, no picture drawn');
+      await design({ style: { media: '/assets/slow-new.png' } });
+      for (const wait of [30, 300, 600]) {
+        await page.waitForTimeout(wait);
+        const now = await drawn();
+        assert.ok(now.every((p) => p.done), id + ': ' + wait + 'ms after the new picture was chosen (it is still loading) no other picture is drawn: ' + JSON.stringify(now));
+      }
+      await page.waitForFunction((id) => { const e = ElanDesignLayer.elements().find((x) => x.id === id), n = e.el.querySelector('.artbg img'); return n && n.complete && /slow-new\.png$/.test(n.currentSrc); }, id, { timeout: 8000 });
+      const loaded = await drawn();
+      assert.equal(loaded.length, 1, id + ': once it has loaded the new picture is drawn, alone');
+      assert.ok(loaded[0].done, id + ': and it is the new one');
+      /* the page repaints for any edit (a size, a text, a window resize): a picture that is already loaded must not blink out and back */
+      const blink = await page.evaluate((id) => { const L = ElanDesignLayer; L.applyEdits(); const e = L.elements().find((x) => x.id === id), n = e.el.querySelector('.artbg img'); return { visibility: getComputedStyle(n).visibility, complete: n.complete }; }, id);
+      assert.equal(blink.visibility, 'visible', id + ': a repaint keeps an already loaded picture on screen (no blank frame)');
+      await design(null);
+    }
+  } finally { await context.close(); }
+});

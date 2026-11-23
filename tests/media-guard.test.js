@@ -89,6 +89,14 @@ test('a card with its picture deleted is a white base, also when the picture is 
   assert.match(layer, /el\.setAttribute\('data-no-media', '1'\)/, 'the card is marked when its picture is deleted');
 });
 
+test('a picture that is still loading is never the one on screen: it is marked and hidden, so a browser that keeps the old picture of an <img> cannot show the card\'s first picture again (owner, 23 Nov)', () => {
+  assert.match(css, /img\[data-elan-pending\] \{\s*visibility:\s*hidden\s*!important/, 'the rule that hides it');
+  assert.match(layer, /img\.setAttribute\('data-elan-pending', '1'\)/, 'the layer marks the picture until it has loaded');
+  assert.match(layer, /img\.removeAttribute\('data-elan-pending'\)/, 'and shows it when it has (and when the paint is undone)');
+  assert.match(layer, /var hadPicture = img\.complete && img\.naturalWidth > 0;/, 'only when there is a loaded picture the browser could go on drawing');
+  assert.doesNotMatch(layer, /img\.style\.setProperty\('visibility'/, 'not an inline style: fitMedia keeps a copy of the style attribute and puts it back on undo, which brought the hidden state back');
+});
+
 test('an uploaded video plays by itself on a phone: muted, looping, inline', () => {
   assert.match(layer, /v\.muted = true; v\.loop = true; v\.autoplay = true; v\.setAttribute\('playsinline', ''\);/, 'the video the owner uploads to a card plays inline (phones otherwise open it full screen)');
   assert.match(layer, /v\.setAttribute\('muted', ''\); v\.setAttribute\('loop', ''\); v\.setAttribute\('autoplay', ''\); v\.setAttribute\('playsinline', ''\)/);

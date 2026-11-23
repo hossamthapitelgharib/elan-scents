@@ -151,6 +151,11 @@ html:not(.hero-img) #hero:not([data-media]) .hero-overlay {
   background-image: none !important;
   box-shadow: inset 0 0 0 1px #eadfc2 !important;
 }
+/* A picture that is still loading is not drawn (design-layer.js marks it): in Safari and Firefox an <img> whose src changes keeps drawing its old picture until the new one has arrived,
+   and after deleting a card's picture and uploading another that was the card's very first picture, with the new one coming over it (owner, 2026-11-23). */
+img[data-elan-pending] {
+  visibility: hidden !important;
+}
 
 /* ---------- Round / occasion / notes cards (default strip size) ---------- */
 .card.round,

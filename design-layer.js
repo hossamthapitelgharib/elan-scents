@@ -552,9 +552,27 @@
       return;
     }
     if (img && m.kind !== 'video') {
-      var old = { src: img.getAttribute('src'), srcset: img.getAttribute('srcset') };
-      undo.push(function () { img.setAttribute('src', old.src); if (old.srcset === null) img.removeAttribute('srcset'); else img.setAttribute('srcset', old.srcset); });
+      var old = { src: img.getAttribute('src'), srcset: img.getAttribute('srcset'), loading: img.getAttribute('loading') }, alive = true;
+      undo.push(function () {
+        alive = false; img.removeAttribute('data-elan-pending');
+        img.setAttribute('src', old.src); if (old.srcset === null) img.removeAttribute('srcset'); else img.setAttribute('srcset', old.srcset);
+        if (old.loading === null) img.removeAttribute('loading'); else img.setAttribute('loading', old.loading);
+      });
+      /* An <img> whose src changes keeps drawing the picture it had until the new one has arrived (Safari and Firefox do; Chromium draws nothing). Here the picture it had is the card's
+         very first one, which the repaint has just put back under the new address, so after deleting a picture and uploading another the old one showed and the new one came over it
+         (owner, 2026-11-23). So when the <img> has a picture on screen, the new one stays hidden until it has loaded. One that is already loaded (a repaint for any other edit) is not
+         hidden at all: a separate Image() tells at once whether the browser has it (the card's own <img> says "not complete" for a moment either way, its pictures are loading="lazy").
+         An <img> with nothing loaded yet (a card below the fold when the page opens) has nothing to keep drawing, so it is left alone and stays lazy. */
+      var hadPicture = img.complete && img.naturalWidth > 0;   // a picture the browser could go on drawing
       img.removeAttribute('srcset'); img.setAttribute('src', m.src);
+      if (hadPicture) {
+        var probe = new Image(); probe.src = m.src;
+        if (probe.complete && probe.naturalWidth > 0) img.setAttribute('loading', 'eager');   // already here: swap at once, nothing to wait for
+        else {
+          img.setAttribute('data-elan-pending', '1');   // style.css hides it; an attribute, not an inline style, because fitMedia keeps a copy of the style attribute and puts it back on undo
+          img.addEventListener('load', function () { if (alive && img.getAttribute('src') === m.src) img.removeAttribute('data-elan-pending'); }, { once: true });
+        }
+      }
       return;
     }
     if (entry.kind === 'card') hideArt(el, undo);   // the card's drawing would otherwise stay on top of the new picture or video
