@@ -104,7 +104,9 @@ begin
     raise exception 'FAIL: a non-https order address was accepted';
   exception when check_violation then null; end;
   update public.store_integrations set webhook_secret = 'fake-webhook-secret-for-test-0000000000' where store_id = v_store;
-  assert private.store_order_ready(v_store), 'enabled + https order address + secret: linked';
+  assert not private.store_order_ready(v_store), 'enabled + https order address + secret but no payment host: not linked';
+  update public.store_integrations set payment_hosts = array['pay.example.invalid'] where store_id = v_store;
+  assert private.store_order_ready(v_store), 'enabled + https order address + secret + payment host: linked';
   assert (select ready from public.store_order_readiness() where store_id = v_store), 'the list says ready';
 
   -- 4. The order page's number is the order's number; a used or foreign draft is refused.

@@ -54,10 +54,10 @@ begin
   v_before_units := COALESCE((SELECT units_sold FROM public.registered_customer_best_sellers WHERE product_id = v_product_id), 0);
 
   -- Stage 1: a store is orderable only while it is technically linked (a fake https address and a fake secret, rolled back with the rest).
-  INSERT INTO public.store_integrations (store_id, enabled, base_url, cart_url, api_base_url, catalog_endpoint, api_key, webhook_secret, notes, order_endpoint)
+  INSERT INTO public.store_integrations (store_id, enabled, base_url, cart_url, api_base_url, catalog_endpoint, api_key, webhook_secret, notes, order_endpoint, payment_hosts)
   VALUES (v_sp.store_id, true, 'https://merchant.example.invalid', 'https://merchant.example.invalid/cart', 'https://merchant.example.invalid/api',
-          '/catalog', 'fake-api-key-for-test', 'fake-webhook-secret-for-test-0000000000', '', 'https://merchant.example.invalid/elan/orders')
-  ON CONFLICT (store_id) DO UPDATE SET enabled = true, webhook_secret = EXCLUDED.webhook_secret, order_endpoint = EXCLUDED.order_endpoint;
+          '/catalog', 'fake-api-key-for-test', 'fake-webhook-secret-for-test-0000000000', '', 'https://merchant.example.invalid/elan/orders', ARRAY['merchant.example.invalid'])
+  ON CONFLICT (store_id) DO UPDATE SET enabled = true, webhook_secret = EXCLUDED.webhook_secret, order_endpoint = EXCLUDED.order_endpoint, payment_hosts = EXCLUDED.payment_hosts;
 
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_uid, 'role', 'authenticated')::text, true);
   PERFORM set_config('request.jwt.claim.sub', v_uid::text, true);

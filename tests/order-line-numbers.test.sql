@@ -35,10 +35,10 @@ begin
   insert into auth.users (id, aud, role, email, raw_user_meta_data) values (v_u, 'authenticated', 'authenticated', 'lines-1@example.invalid', '{"full_name":"Lines One"}'::jsonb);
   insert into public.customer_details (user_id, full_name, phone, governorate, city, address, building_no, ship_same)
   values (v_u, 'احمد محمد علي حسن', '01012345678', 'القاهرة', 'القاهرة', 'شارع التحرير', '5', true);
-  insert into public.store_integrations (store_id, enabled, base_url, cart_url, api_base_url, catalog_endpoint, api_key, webhook_secret, notes, order_endpoint)
+  insert into public.store_integrations (store_id, enabled, base_url, cart_url, api_base_url, catalog_endpoint, api_key, webhook_secret, notes, order_endpoint, payment_hosts)
   values (v_store, true, 'https://merchant.example.invalid', 'https://merchant.example.invalid/cart', 'https://merchant.example.invalid/api',
-          '/catalog', 'fake-api-key-for-test', 'fake-webhook-secret-for-test-0000000000', '', 'https://merchant.example.invalid/elan/orders')
-  on conflict (store_id) do update set enabled = true, order_endpoint = 'https://merchant.example.invalid/elan/orders', webhook_secret = 'fake-webhook-secret-for-test-0000000000';
+          '/catalog', 'fake-api-key-for-test', 'fake-webhook-secret-for-test-0000000000', '', 'https://merchant.example.invalid/elan/orders', array['merchant.example.invalid'])
+  on conflict (store_id) do update set enabled = true, order_endpoint = 'https://merchant.example.invalid/elan/orders', webhook_secret = 'fake-webhook-secret-for-test-0000000000', payment_hosts = array['merchant.example.invalid'];
 
   -- the cart rows are added in the REVERSE of byte order, with quantities that differ
   for i in reverse 3..1 loop
