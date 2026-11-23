@@ -18,3 +18,10 @@ Run order, in an empty working folder (the scripts read and write the current fo
                                                        #  CATALOG_FEEDS_DIR; needs the migration 20261119112905_catalog_bundles_standalone)
 
 Everything loaded carries `data_source = 'trial_catalog'` and is removed in one step (see `docs/handoff.ar.md`). Trial rows never enter a real order.
+
+The automatic offer / bundle rule (owner, 23 Nov 2026) is `lib/catalog-classify.js`; its dry run on the stores' public pages and sections, which writes nothing:
+
+    CATALOG_FEEDS_DIR=feeds CATALOG_SECTIONS_DIR=sections node tools/catalog-trial/classify-run.js [afnan-egypt] [emarati-scents]
+                                                       # sections whose name carries an offer / bundle word, the offers found, the bundles (sure / doubtful) with the reason
+
+`gen_bundles.py` still carries the hand-picked lists `B` and `B2` that loaded the 23 bundles of 17-22 Nov; they are history, the rule replaces them.
