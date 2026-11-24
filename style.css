@@ -313,9 +313,6 @@ footer .footer-logo {
   margin: 0 auto 16px !important;
   object-fit: contain !important;
 }
-footer .fdiv {
-  background: linear-gradient(90deg, transparent, #d4c4a0, transparent) !important;
-}
 footer a {
   color: #f0e0b8 !important;
 }
@@ -688,8 +685,9 @@ footer .footer-logo {
   border-radius: 12px !important;
   box-shadow: 0 8px 24px rgba(38, 33, 25, .24), 0 0 0 1px rgba(255, 235, 179, .36) !important;
 }
+/* No gold line at the top of the footer (owner, 2026-11-24): the divider keeps its place in the page and draws nothing. */
 footer .fdiv {
-  background: linear-gradient(90deg, transparent, #e6c66f 35%, #fff0c7 50%, #e6c66f 65%, transparent) !important;
+  background: none !important;
 }
 footer .fcols a,
 footer .fcols span,

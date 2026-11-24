@@ -153,7 +153,8 @@
       "sec:cats:title": {
         "style": {
           "fontSize": 16
-        }
+        },
+        "hidden": true
       },
       "sec:master:title": {
         "style": {
@@ -357,7 +358,6 @@
     "mobile": {
       "sec:master:title": {
         "dy": -37,
-        "h": 55,
         "dx": -2
       },
       "sec:soon:title": {

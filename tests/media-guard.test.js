@@ -97,6 +97,15 @@ test('a picture that is still loading is never the one on screen: it is marked a
   assert.doesNotMatch(layer, /img\.style\.setProperty\('visibility'/, 'not an inline style: fitMedia keeps a copy of the style attribute and puts it back on undo, which brought the hidden state back');
 });
 
+test('no gold line under a title or at the top of the footer, and a title the owner moves takes what is under it along (owner, 24 Nov)', () => {
+  const s3 = read('style-3.css');
+  assert.match(block(s3, 'h3:after{'), /background:\s*none/, 'the line under the titles is gone, and its box (the room it took) stays');
+  assert.doesNotMatch(css, /footer \.fdiv \{\s*background:\s*linear-gradient/, 'no rule draws a gold line at the top of the footer');
+  assert.match(css, /footer \.fdiv \{\s*background:\s*none\s*!important/, 'the footer divider draws nothing and keeps its place');
+  assert.match(layer, /entry\.kind === 'title' && ed\.dy\) el\.style\.marginBottom = titleRoomBelow\(el, ed\.dy\)/, 'the room under a title moves with it, so its arrow and cards follow');
+  assert.match(layer, /function titleRoomBelow\(el, dy\)[\s\S]{0,900}Math\.max\(mb, mt\)/, 'and it counts margins that collapse, or lowering a title moves its arrow by less than the title (the browser file section-titles measures it)');
+});
+
 test('an uploaded video plays by itself on a phone: muted, looping, inline', () => {
   assert.match(layer, /v\.muted = true; v\.loop = true; v\.autoplay = true; v\.setAttribute\('playsinline', ''\);/, 'the video the owner uploads to a card plays inline (phones otherwise open it full screen)');
   assert.match(layer, /v\.setAttribute\('muted', ''\); v\.setAttribute\('loop', ''\); v\.setAttribute\('autoplay', ''\); v\.setAttribute\('playsinline', ''\)/);
