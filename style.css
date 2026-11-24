@@ -29,6 +29,10 @@ header .logo small {
   display: block !important;
 }
 
+/* The Masterpieces block is the last thing in its section. The 24px that every .cb keeps under itself (it spaces the stacked cards of Categories) made the room under this section 24px
+   bigger than under any other, so the next section began 24px later than after the others (owner, 2026-11-24: the gaps between the sections are not equal). */
+#master > .cb { margin-bottom: 0; }
+
 /* ---------- Masterpieces card 4:3 (same size as Categories) ---------- */
 .cb > .card.msel {
   background-image: url('/assets/cards/masterpieces.webp') !important;

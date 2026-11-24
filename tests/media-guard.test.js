@@ -102,6 +102,7 @@ test('no gold line under a title or at the top of the footer, and a title the ow
   assert.match(block(s3, 'h3:after{'), /background:\s*none/, 'the line under the titles is gone, and its box (the room it took) stays');
   assert.doesNotMatch(css, /footer \.fdiv \{\s*background:\s*linear-gradient/, 'no rule draws a gold line at the top of the footer');
   assert.match(css, /footer \.fdiv \{\s*background:\s*none\s*!important/, 'the footer divider draws nothing and keeps its place');
+  assert.match(css, /#master > \.cb \{ margin-bottom: 0; \}/, 'the Masterpieces block adds no room of its own under its section, so the next section starts as far after it as after any other (the browser file section-titles measures it)');
   assert.match(layer, /entry\.kind === 'title' && ed\.dy\) el\.style\.marginBottom = titleRoomBelow\(el, ed\.dy\)/, 'the room under a title moves with it, so its arrow and cards follow');
   assert.match(layer, /function titleRoomBelow\(el, dy\)[\s\S]{0,900}Math\.max\(mb, mt\)/, 'and it counts margins that collapse, or lowering a title moves its arrow by less than the title (the browser file section-titles measures it)');
 });

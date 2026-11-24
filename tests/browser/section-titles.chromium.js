@@ -76,3 +76,25 @@ test('no gold line is drawn under a title or at the top of the footer, and their
     assert.ok(parseFloat(got.footer.height) > 0, 'but it keeps its place in the page');
   } finally { await context.close(); }
 });
+
+for (const size of H.WIDTHS) {
+  test('at ' + size.width + 'px the room under the last block of Masterpieces is the room under the last block of any other section, so the next section starts the usual distance after it', async () => {
+    const { context, page } = await visit(size);
+    try {
+      await design(page, 0); await H.quiet(page);   // a made-up design with no offsets: only what the stylesheet gives each section is measured
+      const rooms = await page.evaluate(() => {
+        const out = {};
+        for (const id of ['offers', 'new', 'master', 'notes', 'occ', 'soon', 'stores']) {
+          const s = document.getElementById(id); if (!s) continue;
+          let low = 0; s.querySelectorAll('*').forEach((e) => { const b = e.getBoundingClientRect(), cs = getComputedStyle(e); if (b.width > 4 && b.height > 4 && cs.visibility !== 'hidden' && cs.display !== 'none') low = Math.max(low, b.bottom); });
+          out[id] = s.getBoundingClientRect().bottom - low;
+        }
+        return out;
+      });
+      const others = Object.keys(rooms).filter((k) => k !== 'master').map((k) => rooms[k]);
+      assert.ok(others.length >= 3, 'the page has its other sections');
+      const median = others.slice().sort((a, b) => a - b)[Math.floor(others.length / 2)];
+      assert.ok(Math.abs(rooms.master - median) <= 1.5, 'under Masterpieces there are ' + rooms.master.toFixed(1) + 'px, under the others about ' + median.toFixed(1) + 'px (' + JSON.stringify(rooms) + ')');
+    } finally { await context.close(); }
+  });
+}
