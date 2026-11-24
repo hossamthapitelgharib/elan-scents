@@ -719,6 +719,19 @@
   function liveSize(entry, w, h) { sizeBox(entry.el, w, h); fitMedia(entry); }
   function endLive(el) { var u = el && el.__elanFitUndo; if (!u) return; delete el.__elanFitUndo; u.forEach(function (f) { try { f(); } catch (_) { /* keep going */ } }); }
 
+  /* The bottom margin that leaves `dy` more room under a title than it has now. Margins that meet collapse (two positive ones count as the larger, a negative one is added), so adding dy to
+     the margin is not enough when the arrow under the title has a margin of its own: lowering a title by 25px moved its arrow by only 15. A parent that lays its children out as a flex or a
+     grid does not collapse anything, and there the margin simply grows by dy. */
+  function titleRoomBelow(el, dy) {
+    var mb = parseFloat(getComputedStyle(el).marginBottom) || 0, parent = el.parentNode, next = el.nextElementSibling;
+    if (!parent || !/^(block|flow-root|list-item)$/.test(getComputedStyle(parent).display)) return mb + dy;
+    while (next && getComputedStyle(next).display === 'none') next = next.nextElementSibling;   // an element that is not drawn has no margin
+    var mt = next ? parseFloat(getComputedStyle(next).marginTop) || 0 : 0;
+    var was = (mb >= 0 && mt >= 0) ? Math.max(mb, mt) : (mb < 0 && mt < 0) ? Math.min(mb, mt) : mb + mt, target = was + dy;
+    if (mt >= 0) return target >= mt ? target : target - mt;
+    return target >= mt ? target - mt : target;
+  }
+
   function paint(entry, ed) {
     var el = entry.el, st = ed.style || {};
     el.__elanBase = el.getAttribute('style') || '';
@@ -733,6 +746,9 @@
       el.style.transform = 'translate(' + (ed.dx || 0) + 'px,' + (ed.dy || 0) + 'px)';
       if (!el.style.position && getComputedStyle(el).position === 'static') el.style.position = 'relative';
       el.style.zIndex = '3';
+      /* A section's title takes what is under it along (owner, 2026-11-24: the Masterpieces title was lifted and its arrow and picture stayed where they were, 60px away, and the arrow cannot
+         be picked in the editor): the room under the title moves by the same amount, so the arrow, the cards and the next section follow it and every gap stays what it was. */
+      if (entry.kind === 'title' && ed.dy) el.style.marginBottom = titleRoomBelow(el, ed.dy) + 'px';
       if (entry.kind === 'card' && el.closest('.strip')) el.__elanOff = { dx: ed.dx || 0, dy: ed.dy || 0 };   // limited to the strip once every size is painted (fitStripCards)
     }
     if (ed.w || ed.h) sizeBox(el, ed.w, ed.h);
