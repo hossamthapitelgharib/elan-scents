@@ -107,9 +107,21 @@ test('bundle: a box with no bottle named and no oil named waits for the owner (n
   assert.equal(r.bundle, 'review');
 });
 
-test('bundle: "Collection" alone is a doubt, never sure (a perfume line is called that too)', () => {
-  for (const title of ['COFFEE COLLECTION MOCHA', 'VICTORIAN COLLECTION'])
-    assert.equal(classify({ title, description: 'Eau De Parfum – 100 ML – Unisex\nA fine scent.', sections: [] }).bundle, 'review', title);
+test('bundle: "Collection" alone is a doubt, never sure, when nothing says how many bottles there are', () => {
+  for (const title of ['COFFEE COLLECTION MOCHA', 'THE ROYAL COLLECTION'])
+    assert.equal(classify({ title, description: 'A fine scent for every day.', sections: [] }).bundle, 'review', title);
+});
+
+test('bundle: "Collection" is only a perfume line when the merchant itself describes ONE bottle (description or its one variant)', () => {
+  const mocha = classify({ title: 'COFFEE COLLECTION MOCHA', description: 'MOCHA – Eau De Parfum – 100 ML – Unisex\nBy Fragrance World', sections: [] });
+  assert.equal(mocha.bundle, 'no');
+  assert.ok(/one bottle \(100 ML\)/.test(mocha.notes[0]));
+  const mallow = classify({ title: 'Mallow Madness', description: 'MALLOW MADNESS – LATTAFA (Give Me Gourmand Collection)\nEau de Parfum – 75 ML – Unisex', sections: [] });
+  assert.equal(mallow.bundle, 'no');
+  const afnan = classify({ title: 'SUPREMACY GALA - LUXURY COLLECTION', description: 'A rich floral.', variants: [{ title: 'Eau De Parfum / 90 ML / Pour Femme' }], sections: [] });
+  assert.equal(afnan.bundle, 'no');
+  // two different bottle sizes stated, or a "+", is not one bottle
+  assert.equal(classify({ title: 'DUO COLLECTION X', description: 'Eau De Parfum – 100 ML\nEau De Parfum – 30 ML', sections: [] }).bundle, 'yes');
 });
 
 test('bundle: "Collection" plus the merchant counting the bottles in its description is sure', () => {
@@ -137,4 +149,13 @@ test('inputs from a store are never trusted: odd shapes do not throw', () => {
   assert.doesNotThrow(() => classify(null));
   assert.doesNotThrow(() => classify({ title: 5, description: 7, sections: [null, 3, {}], tags: [null, 4] }));
   assert.deepEqual(classify({}).offers, []);
+});
+
+test('bundle: a description that gives a size to two or more bottles is sure (perfume 100 ml + hair perfume 50 ml; three princesses of 100 ml)', () => {
+  const one = classify({ title: 'The One Collection', description: 'It comes with a special hair perfume.\nFragrance type: For her\nPerfume size: 100 ml\nHair perfume size: 50 ml', sections: [] });
+  assert.equal(one.bundle, 'yes');
+  const three = classify({ title: 'VICTORIAN COLLECTION', description: 'Juliet\nSize: 100 ml\nFragrance type: Women\nCharlotte\nSize: 100 ml\nElizabeth\nSize: 100 ml', sections: [] });
+  assert.equal(three.bundle, 'yes');
+  // one size line is one bottle
+  assert.equal(classify({ title: 'COFFEE COLLECTION MOCHA', description: 'Eau De Parfum\nSIZE : 100 ML', sections: [] }).bundle, 'review');
 });

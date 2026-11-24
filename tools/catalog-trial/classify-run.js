@@ -46,7 +46,7 @@ for (const store of stores) {
   }
   const out = [];
   for (const p of products) {
-    const r = classifyProduct({ title: p.title, description: p.body_html, sections: memberOf.get(p.handle) || [], tags: p.tags || [] });
+    const r = classifyProduct({ title: p.title, description: p.body_html, sections: memberOf.get(p.handle) || [], tags: p.tags || [], variants: (p.variants || []).map((x) => x.title) });
     out.push({ handle: p.handle, title: p.title, ...r });
   }
   const offers = out.filter((x) => x.offers.length);
