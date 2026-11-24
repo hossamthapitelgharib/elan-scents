@@ -12,7 +12,8 @@ const handlers = {
   decision: require(path.join(root, 'api', 'merchant-order-decision')),
   payment: require(path.join(root, 'api', 'merchant-payment-event')),
   shipment: require(path.join(root, 'api', 'merchant-shipment-event')),
-  windowClosed: require(path.join(root, 'api', 'merchant-window-closed'))
+  windowClosed: require(path.join(root, 'api', 'merchant-window-closed')),
+  windowInteraction: require(path.join(root, 'api', 'merchant-window-interaction'))
 };
 const { STORE_ID_HEADER } = require(path.join(root, 'lib', 'store-webhook-auth'));
 const { digest, TIMESTAMP_HEADER, SIGNATURE_HEADER, EVENT_HEADER } = require(path.join(root, 'lib', 'store-webhook-signature'));
@@ -100,6 +101,21 @@ test('the merchant\'s report that its own window ended is signed, reaches mercha
   assert.equal(rpcCalls(bad).length, 0);
 });
 
+test('the merchant\'s report of what the customer does in its window is signed, reaches merchant_window_interaction for its own store only, and carries just the tracking number and the event', async () => {
+  const calls = installDatabase();
+  const out = await call(handlers.windowInteraction, signed({ body: { trackingNumber: 'ELN-20261111-000001', event: 'provider_window', storeId: STORE_B, idleSeconds: 5, amount: 9 }, eventId: 'interaction-evt-1' }));
+  assert.equal(out.status, 200);
+  const rpc = rpcCalls(calls);
+  assert.equal(rpc.length, 1);
+  assert.equal(rpc[0].pathname, '/rest/v1/rpc/merchant_window_interaction');
+  assert.equal(rpc[0].body.p_store_id, STORE_A, 'the merchant that authenticated');
+  assert.deepEqual(Object.keys(rpc[0].body.p_payload).sort(), ['event', 'eventId', 'trackingNumber'], 'no idle time, store or amount can be set from a report');
+  const bad = installDatabase();
+  const refused = await call(handlers.windowInteraction, signed({ body: { trackingNumber: 'ELN-20261111-000001' }, signWith: 'a-different-signing-secret' }));
+  assert.equal(refused.status, 401);
+  assert.equal(rpcCalls(bad).length, 0, 'an unsigned report never moves the clock');
+});
+
 test('nothing reaches the database unless the merchant proved WHO it is and signed WHAT it sent', async () => {
   const body = DECISION;
   const cases = [
@@ -156,6 +172,9 @@ test('every rule the database raises on purpose has its own safe answer', () => 
     'Order is not waiting for the store': [409, 'order_not_waiting'],
     'An approval needs the https address of the payment window': [422, 'payment_window_url_required'],
     'Order has no open payment window': [409, 'no_open_payment_window'],
+    'The payment window address is not on the store\'s list of payment hosts': [422, 'payment_window_host_not_allowed'],
+    'idleSeconds must be a whole number of seconds between 60 and 86400': [422, 'invalid_idle_seconds'],
+    'event must be activity or provider_window': [422, 'invalid_window_event'],
     'Payment is required before shipping': [409, 'payment_required'],
     'Invalid shipping transition': [409, 'invalid_shipping_transition'],
     'Carrier and waybill are required': [422, 'carrier_and_waybill_required'],
