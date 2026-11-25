@@ -25,3 +25,8 @@ The automatic offer / bundle rule (owner, 23 Nov 2026) is `lib/catalog-classify.
                                                        # sections whose name carries an offer / bundle word, the offers found, the bundles (sure / doubtful) with the reason
 
 `gen_bundles.py` still carries the hand-picked lists `B` and `B2` that loaded the 23 bundles of 17-22 Nov; they are history, the rule replaces them.
+
+The rule is linked to the ONE entry point `public.catalog_receive_items` by `catalog-rule-link.sql` (DRAFT, not applied: the owner's approval card comes first; its rollback is `catalog-rule-link.rollback.sql`,
+tested on the live database only inside `begin ... rollback` with `tests/catalog-rule-link.test.sql`). When it is applied, `git mv` both files to `supabase/migrations/<ledger version>_catalog_rule_link.sql` and `supabase/rollback/`.
+`classify-run.js` also writes `bundle_items_<store>.json` (what `lib/catalog-feed.js` hands to the entry point); `CATALOG_DECISIONS=<file>` carries the owner's answers on doubtful products and
+`CATALOG_BASE_<STORE>=<url prefix>` the product link (a trial store with no stock figure gets a placeholder that follows availability; a linked store passes its real number).
