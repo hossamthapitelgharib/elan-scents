@@ -708,6 +708,14 @@ footer .fch b {
 footer .fbar {
   border-top-color: rgba(255, 239, 199, .38) !important;
 }
+/* The room between the logo drawing and the icons under it (owner, 2026-11-25: «المسافة البينية بين رسمة اللوجو والعناصر صغيرة قوى»).
+   The logo is part of the footer's artwork (its height follows the width: 940:1672, the logo ends at 58.5% of it) while the icons, the line of words and the credits sit on the bottom edge
+   of the footer in pixels, so on a narrow phone the artwork is short and the icons touched «Élan Scents» (about 3px at 375px wide, they overlapped under 360px). The bottom padding
+   (it was 100px) now gives way as the footer narrows: 0.738 × the width (a percentage: of the width the footer has, which a scrollbar does not touch, unlike vw) − 206px (0.585 of the height is the logo's end, 174px is the stack under it, 32px is the room asked for),
+   never more than the 100px it was, so from about 415px wide up nothing moves, and under it the room stays about 32px. */
+footer {
+  padding-bottom: clamp(30px, calc(73.8% - 206px), 100px) !important;
+}
 
 html,body{overflow-x:clip!important}
 

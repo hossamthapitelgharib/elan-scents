@@ -115,6 +115,10 @@ test('the room between two sections of the home page stays small and the same (o
   assert.match(read('editor/elan-editor.html'), /#menu\{[^']*max-height:calc\(100vh - 16px\)!important[^']*\}#menu button\{margin:2px 0!important/, 'and the menu is compact and as tall as the window, so its items are seen');
 });
 
+test('the icons under the footer logo keep their room from the logo drawing on a narrow phone (owner, 25 Nov); the browser file footer-gap measures it from the artwork', () => {
+  assert.match(css, /footer \{\s*padding-bottom: clamp\(30px, calc\(73\.8% - 206px\), 100px\) !important;\s*\}/, 'the footer\'s bottom padding gives way as the phone narrows (a percentage, not vw: a scrollbar must not skew it) and is never more than the 100px it was');
+});
+
 test('an uploaded video plays by itself on a phone: muted, looping, inline', () => {
   assert.match(layer, /v\.muted = true; v\.loop = true; v\.autoplay = true; v\.setAttribute\('playsinline', ''\);/, 'the video the owner uploads to a card plays inline (phones otherwise open it full screen)');
   assert.match(layer, /v\.setAttribute\('muted', ''\); v\.setAttribute\('loop', ''\); v\.setAttribute\('autoplay', ''\); v\.setAttribute\('playsinline', ''\)/);
