@@ -245,9 +245,10 @@ begin
   assert pg_temp.blocked(u_a, 'authenticated', $q$select 1 from public.store_order_requests$q$), 'A cannot read store order requests';
   assert pg_temp.blocked(u_sx, 'authenticated', $q$select 1 from public.store_order_requests$q$), 'a store admin reads orders only through the checked API';
   assert pg_temp.blocked(u_a, 'authenticated', $q$select 1 from public.store_integrations$q$), 'A cannot read store integration secrets';
-  -- Phase 2 (payment, merchant notices, shipping) and the catalog waiting room (brand aliases, perfumes waiting for a brand card): these tables are server-only. Neither a customer, a store admin nor a visitor can
+  -- Phase 2 (payment, merchant notices, shipping), the catalog waiting room (brand aliases, perfumes waiting for a brand card) and the owner's catalog decisions
+  -- (which doubtful products are bundles, 25 Nov 2026): these tables are server-only. Neither a customer, a store admin nor a visitor can
   -- read or write them through the data API; the platform's first notice, the payments and the shipment events are reached only through the checked APIs.
-  for v_bad in select unnest(array['order_payments', 'order_payment_events', 'platform_order_notices', 'store_shipment_events', 'order_drafts', 'merchant_deliveries', 'merchant_delivery_attempts', 'payment_windows', 'catalog_waiting_items', 'catalog_brand_aliases'])
+  for v_bad in select unnest(array['order_payments', 'order_payment_events', 'platform_order_notices', 'store_shipment_events', 'order_drafts', 'merchant_deliveries', 'merchant_delivery_attempts', 'payment_windows', 'catalog_owner_decisions', 'catalog_waiting_items', 'catalog_brand_aliases'])
   loop
     assert pg_temp.blocked(u_a, 'authenticated', format('select 1 from public.%I', v_bad)), 'A cannot read ' || v_bad;
     assert pg_temp.blocked(u_sx, 'authenticated', format('select 1 from public.%I', v_bad)), 'a store admin cannot read ' || v_bad || ' through the data API';
@@ -293,6 +294,12 @@ begin
   assert not has_function_privilege('authenticated', 'public.finish_merchant_delivery(uuid,integer,jsonb)', 'execute') and has_function_privilege('service_role', 'public.finish_merchant_delivery(uuid,integer,jsonb)', 'execute'), 'only the server records a merchant reply';
   assert not has_function_privilege('authenticated', 'public.open_payment_window(uuid,uuid)', 'execute') and not has_function_privilege('authenticated', 'public.payment_window_return(uuid,uuid,text)', 'execute') and not has_function_privilege('authenticated', 'public.expire_payment_windows()', 'execute'), 'the payment window is opened, reported and expired by the server alone';
   assert not has_function_privilege('authenticated', 'public.reserve_order_draft(uuid,uuid)', 'execute') and not has_function_privilege('anon', 'public.reserve_order_draft(uuid,uuid)', 'execute') and not has_function_privilege('authenticated', 'public.store_order_readiness()', 'execute') and not has_function_privilege('anon', 'public.store_order_readiness()', 'execute'), 'the order draft and the readiness list are read by the server only';
+  -- The catalog's ONE entry point, the owner's decisions and his review queue (25 Nov 2026) are for the server alone.
+  assert not has_function_privilege('authenticated', 'public.catalog_receive_items(uuid,jsonb,text)', 'execute') and not has_function_privilege('anon', 'public.catalog_receive_items(uuid,jsonb,text)', 'execute')
+     and not has_function_privilege('authenticated', 'public.catalog_record_decision(uuid,text,text,text)', 'execute') and not has_function_privilege('anon', 'public.catalog_record_decision(uuid,text,text,text)', 'execute')
+     and not has_function_privilege('authenticated', 'public.catalog_review_queue()', 'execute') and not has_function_privilege('anon', 'public.catalog_review_queue()', 'execute')
+     and has_function_privilege('service_role', 'public.catalog_receive_items(uuid,jsonb,text)', 'execute') and has_function_privilege('service_role', 'public.catalog_record_decision(uuid,text,text,text)', 'execute')
+     and has_function_privilege('service_role', 'public.catalog_review_queue()', 'execute'), 'the catalog entry point, the owner''s decisions and the review queue are for the server alone';
   assert pg_temp.attack(null, 'anon', $q$select public.place_store_order('{}'::jsonb)$q$) like 'err:%', 'a visitor calling place_store_order is refused';
   assert not has_function_privilege('authenticated', 'public.confirm_store_order_purchase(uuid)', 'execute') and not has_function_privilege('anon', 'public.confirm_store_order_purchase(uuid)', 'execute'), 'neither a visitor nor a customer token can confirm a purchase directly';
   assert pg_temp.blocked(u_a, 'authenticated', $q$update public.store_order_commissions set commission_amount = 0$q$), 'a customer cannot change the legacy commission ledger';
