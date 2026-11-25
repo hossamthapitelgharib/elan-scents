@@ -236,36 +236,31 @@ test('«طلباتي» has no cancel control and never calls the retired cancell
   assert.equal(p.calls.some(item => item.url.includes('request-store-order-cancellation')), false);
 });
 
-test('an order the store accepted shows the payment button with a live countdown; pressing it opens the merchant window through ElanPay once, and the list is read again after', async () => {
-  const opened = [];
+test('an order the store accepted shows a status line only: no payment button, no countdown, no merchant address; «طلباتي» never opens a window', async () => {
   const p = page({ session: { access_token: 'customer-jwt' } });
-  p.context.ElanPay = { open: options => { opened.push(options); } };
+  p.context.ElanPay = { open() { assert.fail('«طلباتي» opens nothing'); }, reserve() { assert.fail('«طلباتي» opens nothing'); } };
   await tick(); await tick();
   const card = p.run(`requestLine(${ORDER(`, status: 'store_confirmed', payment_status: 'not_started', payable_amount: 10, payment_window: { state: 'opened' }`)})`);
-  assert.match(card, /data-pay-window="r1"/);
-  assert.match(card, /data-pay-watch/);
+  assert.match(card, /فُتحت لك نافذة الدفع الخاصة بالمتجر/, 'it says the store\'s window was opened for the customer');
+  assert.match(card, /data-pay-watch/, 'and keeps reading the order until the result arrives');
+  assert.doesNotMatch(card, /data-pay-window|order-pay|pay-actions|>الدفع</, 'no pay button: the window opened by itself from the order page');
   assert.doesNotMatch(card, /data-pay-left/, 'no countdown');
   assert.doesNotMatch(card, /https?:\/\/[^"' ]*pay/i, 'the card never carries the merchant address');
-  const button = p.click('pay-window', 'r1');
-  assert.equal(button.disabled, true, 'locked while the window is open');
-  assert.equal(opened.length, 1);
-  assert.equal(opened[0].orderId, 'r1');
-  p.click('pay-window', 'r1');
-  assert.equal(opened.length, 1, 'a second press while the window is open opens nothing');
-  const reads = p.calls.filter(item => item.url.startsWith('/api/customer-orders')).length;
-  opened[0].onState({ state: 'cancelled' });
-  await tick(); await tick(); await tick();
-  assert.equal(button.disabled, false);
-  assert.equal(p.calls.filter(item => item.url.startsWith('/api/customer-orders')).length > reads, true, 'the orders are read again to show what the window did');
+  assert.doesNotMatch(source, /startPay|data-pay-window|ElanPay/, 'the page has no code that opens a window');
+  assert.doesNotMatch(html, /pay-window\.js/, 'and does not even load it');
 });
 
-test('a window the browser could not open is explained in Arabic, with the cart and the order untouched', async () => {
+test('«طلباتي» records what happened, in the customer\'s words: every end of the window before a payment is «تم إلغاء المعاملة برغبة العميل»', async () => {
   const p = page({ session: { access_token: 'customer-jwt' } });
-  p.context.ElanPay = { open: options => options.onError('popup_blocked') };
   await tick(); await tick();
-  p.run('document.querySelector("#app").hidden = false');
-  p.click('pay-window', 'r1');
-  assert.match(p.el('#appMessage').textContent, /اسمح للموقع بفتح النوافذ/, 'the message says what to do, right away');
+  for (const why of ['payment_window_closed', 'payment_window_cancelled', 'payment_window_expired', 'customer_requested_before_payment']) {
+    const card = p.run(`requestLine(${ORDER(`, status: 'cancelled', cancel_reason: '${why}'`)})`);
+    assert.match(card, /تم إلغاء المعاملة برغبة العميل/, why);
+    assert.match(card, /سلتك/, 'the cart is kept');
+    assert.doesNotMatch(card, /انتهت نافذة الدفع لدى المتجر/, 'never a wording that blames the store: the customer\'s own action');
+  }
+  const silent = p.run(`requestLine(${ORDER(`, status: 'cancelled', cancel_reason: 'store_unresponsive'`)})`);
+  assert.match(silent, /نعتذر عن تنفيذ طلبك في الوقت الحالي/);
 });
 
 test('a payment window being open is watched every ten seconds, only while the tab is in view; there is no clock of ours on it', async () => {

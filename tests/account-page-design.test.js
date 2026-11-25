@@ -265,33 +265,35 @@ test('a refused, unanswered or cancelled order says how it ended, in plain words
   const silent = card(p, order({ status: 'cancelled', cancel_reason: 'store_unresponsive' }));
   assert.match(silent, /نعتذر عن تنفيذ طلبك في الوقت الحالي، برجاء إعادة المحاولة بعد ساعة/);
   assert.match(silent, /badge red">المتجر لم يستجب</);
-  for (const why of ['payment_window_closed', 'payment_window_cancelled']) {
+  for (const why of ['payment_window_closed', 'payment_window_cancelled', 'payment_window_expired', 'customer_requested_before_payment']) {
     const byYou = card(p, order({ status: 'cancelled', cancel_reason: why }));
     assert.match(byYou, /تم إلغاء المعاملة برغبة العميل/, why);
     assert.match(byYou, /منتجاتك ما زالت في سلتك/);
     assert.match(byYou, /badge red">أُلغيت برغبة العميل</);
     assert.doesNotMatch(byYou, /ملغاة من طرفك|لم تتم أي عملية دفع/, 'the owner\'s words, nothing else');
   }
+  // an idle window (nobody touched it for the idle time) and a window the store reports as ended are the customer's own end too, in the same words
   const late = card(p, order({ status: 'cancelled', cancel_reason: 'payment_window_expired' }));
-  assert.match(late, /انتهت نافذة الدفع لدى المتجر/);
-  assert.doesNotMatch(late, /برغبة العميل/, 'the store ending its own window is not the customer\'s wish');
+  assert.doesNotMatch(late, /انتهت نافذة الدفع لدى المتجر/, 'no wording that blames the store');
   // a cancelled order can be ordered again, never paid
   for (const markup of [silent, late]) { assert.match(markup, /data-reorder/); assert.equal(markup.includes('data-pay-window'), false); }
 });
 
-test('an approved order shows the store\'s payment window: «الدفع» and the rule, with no countdown and no amount of ours; the window\'s address is never on the page', () => {
+test('an approved order shows a status line for the store\'s payment window: no «الدفع» button, no countdown, no amount of ours; the window\'s address is never on the page', () => {
   const p = load();
   const approved = status => order({ status: 'store_confirmed', payable_amount: 3510, payment_status: 'not_started', payment_window: { state: 'issued' }, ...status });
   const open = card(p, approved({}));
-  assert.match(open, /<button class="ghost order-pay" type="button" data-pay-window="r1">الدفع<\/button>/);
+  assert.equal(/data-pay-window|order-pay|pay-actions|>الدفع</.test(open), false, 'no «الدفع» button in «طلباتي»: the window opened by itself');
+  assert.match(open, /فُتحت لك نافذة الدفع الخاصة بالمتجر/);
   assert.match(open, /data-pay-watch/, 'the page watches it');
-  assert.match(open, /إغلاق نافذة الدفع قبل إتمام الدفع يلغي المعاملة برغبتك/);
-  assert.match(open, /يحدد المتجر الشحن والإجمالي النهائي وطرق الدفع ومدة النافذة/);
+  assert.match(open, /إغلاق النافذة قبل إتمام الدفع يلغي المعاملة برغبتك/);
+  assert.match(open, /يحدد الشحن والإجمالي النهائي وطرق الدفع/);
   assert.doesNotMatch(open, /data-pay-left|pay-left|المبلغ المستحق|خلال \d\d:\d\d|انتهت مهلة/, 'no clock of ours and no amount due before the store\'s window decides it');
   assert.doesNotMatch(open, /data-pay-method|data-pay-request|https:\/\/|اختر طريقة الدفع/, 'no chooser of methods, and no address');
-  // however old the window is, it stays openable: its time is the store\'s
+  // however old the window is, the page invents no time of its own for it: it only records the status
   const old = card(p, approved({ payment_window: { state: 'opened' }, approved_at: '2020-01-01T00:00:00Z' }));
-  assert.match(old, /data-pay-window="r1"/);
+  assert.match(old, /data-pay-watch/);
+  assert.equal(old.includes('data-pay-window'), false);
   // the customer came back from the store\'s window with OK: with a provider window it is the provider\'s confirmation, without one it was cash on delivery the store reports
   const claimed = card(p, approved({ payment_window: { state: 'success_claimed' } }));
   assert.match(claimed, /نؤكد طريقة الدفع/);
@@ -304,24 +306,12 @@ test('an approved order shows the store\'s payment window: «الدفع» and th
   assert.match(card(p, approved({ payment_status: 'cod_selected' })), /الدفع عند الاستلام/);
   // an order the store has not answered yet has no window
   assert.equal(card(p, order({ status: 'awaiting_store_confirmation' })).includes('data-pay-window'), false);
-  assert.match(html, /<script src="\/pay-window\.js\?v=[^"]+"><\/script>\s*<script src="\/account\.js/, 'the shared window file loads before the page\'s own');
+  assert.doesNotMatch(html, /pay-window\.js/, '«طلباتي» loads no window code: only the order page opens the store\'s window');
 });
 
-test('«الدفع» opens the window from the tap itself, and the orders are read again when the customer comes back', async () => {
-  const opened = [];
-  let reads = 0;
-  const p = load({
-    Portal: { errorMessages: {}, session: () => ({ access_token: 'tok' }), auth: () => ({}), errorText: (e, f) => (typeof e === 'string' ? e : (e && e.message) || f) },
-    ElanPay: { open: options => { opened.push(options); } },
-    fetch: async () => { reads += 1; return { ok: true, json: async () => ({ sessions: [], pagination: {} }) }; }
-  });
-  p.run("startPay('r1', null)");
-  assert.equal(opened.length, 1, 'opened synchronously, inside the tap');
-  assert.equal(opened[0].orderId, 'r1');
-  p.run("startPay('r1', null)");
-  assert.equal(opened.length, 1, 'a second tap while one window is open does nothing');
-  opened[0].onError('popup_blocked');
-  assert.match(p.el('#appMessage').textContent, /اسمح للموقع بفتح النوافذ/);
-  p.run("startPay('r1', null)");
-  assert.equal(opened.length, 2, 'after a failure the customer can try again');
+test('«طلباتي» has no code that opens a payment window: no startPay, no click handler for one, no ElanPay', () => {
+  const p = load();
+  const source = fs.readFileSync(path.join(root, 'account.js'), 'utf8');
+  assert.doesNotMatch(source, /startPay|data-pay-window|ElanPay|payErrorsA/);
+  assert.throws(() => p.run("startPay('r1', null)"), /startPay is not defined/);
 });

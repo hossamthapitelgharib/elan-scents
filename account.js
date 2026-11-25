@@ -22,14 +22,14 @@ const currencyA = currency => (!currency || currency === 'EGP' ? 'ج.م' : Strin
 const moneyA = (amount, currency = 'EGP') => `${numA(amount)} ${escA(currencyA(currency))}`;
 const stateA = request => { const restoration = (request.store_order_cart_restorations || [])[0]; if (restoration && restoration.status === 'restored') return 'restored'; return request.status || 'awaiting_store_confirmation'; };
 const shipmentA = request => (request.store_shipments || [])[0] || null;
-// There is no cancel button on this page: the customer never cancels an order from here (docs/purchase-flow-final.ar.md). An unpaid order ends only
-// by the store turning it down, the store not answering, or the payment window being closed, cancelled or timing out; this says which, in plain words.
-const cancelledByCustomerA = new Set(['payment_window_cancelled', 'payment_window_closed', 'customer_requested_before_payment']);
+// There is no cancel button on this page: the customer never cancels an order from here (docs/purchase-flow-final.ar.md). «طلباتي» only RECORDS what
+// happened. An unpaid order ends only by the store turning it down, the store not answering, or the payment window ending before a payment: closed,
+// cancelled, left untouched for the idle time, or ended at the store. All of those last are the customer's own doing in the platform's words.
+const cancelledByCustomerA = new Set(['payment_window_cancelled', 'payment_window_closed', 'payment_window_expired', 'customer_requested_before_payment']);
 function cancelNoteA(request) {
   if (stateA(request) !== 'cancelled') return '';
   const why = request.cancel_reason;
   if (why === 'store_unresponsive') return `<div class="cancel-box cancel-accepted" role="status"><b>تعذر تنفيذ الطلب الآن</b><span>نعتذر عن تنفيذ طلبك في الوقت الحالي، برجاء إعادة المحاولة بعد ساعة. منتجاتك ما زالت في سلتك.</span></div>`;
-  if (why === 'payment_window_expired') return `<div class="cancel-box cancel-accepted" role="status"><b>انتهت نافذة الدفع لدى المتجر</b><span>انتهت نافذة الدفع لدى المتجر قبل إتمام الدفع فأُلغي الطلب. منتجاتك ما زالت في سلتك ويمكنك طلبها مرة أخرى.</span></div>`;
   if (cancelledByCustomerA.has(why)) return `<div class="cancel-box cancel-accepted" role="status"><b>تم إلغاء المعاملة برغبة العميل</b><span>تم إلغاء المعاملة برغبة العميل. منتجاتك ما زالت في سلتك ويمكنك طلبها مرة أخرى.</span></div>`;
   return '';
 }
@@ -38,7 +38,6 @@ function badgeOfA(request, state) {
   if (state === 'cancelled') {
     const why = request.cancel_reason;
     if (why === 'store_unresponsive') return '<span class="badge red">المتجر لم يستجب</span>';
-    if (why === 'payment_window_expired') return '<span class="badge red">انتهت نافذة الدفع</span>';
     if (cancelledByCustomerA.has(why)) return '<span class="badge red">أُلغيت برغبة العميل</span>';
   }
   return badgeA(state);
@@ -88,12 +87,13 @@ function shipmentLine(request) {
   return `<div class="shipment-box"><div class="shipment-head"><div><small>شركة الشحن</small><strong>${escA(shipment.carrier_name || 'لم تُحدَّد بعد')}</strong></div>${shippingBadgeA(shipment.shipping_status)}</div><div class="shipment-meta"><span>رقم تتبع الشحنة</span><b dir="ltr">${escA(shipment.tracking_code || 'لم يُضَف بعد')}</b></div>${shipment.estimated_delivery_at ? `<div class="shipment-meta"><span>موعد التسليم المتوقع</span><b>${dateA(shipment.estimated_delivery_at)}</b></div>` : ''}${deliveryVerification ? `<p class="shipment-note">${escA(deliveryVerification)}</p>` : ''}${shipment.status_note ? `<p class="shipment-note">${escA(shipment.status_note)}</p>` : ''}<small class="shipment-updated">آخر تحديث: ${dateTimeA(shipment.updated_at)}</small></div>`;
 }
 // ---- the merchant's payment window, the store's reason and the shipping timeline ------------------------------------------
-// The store answers an order by itself; when it accepts, it issues ITS OWN payment window, valid for a limited time. «الدفع» opens that window (pay-window.js).
-// Closing it before paying cancels the order. What the browser reports on return proves nothing: the order is paid only when a neutral confirmation
-// of the payment reaches the platform, and «طلباتي» then shows it.
+// The store answers an order by itself; when it accepts, ITS OWN payment window opens for the customer by itself from the order page (order-page.js and
+// pay-window.js). There is no «الدفع» button here: this page only records what happens (a window open, a purchase cancelled by the customer, paid with the
+// method, cash on delivery, refused by the store with its reason, refused by the payment provider with its reason). Closing the window before paying
+// cancels the order. What the browser reports on return proves nothing: the order is paid only when a neutral confirmation of the payment reaches the
+// platform, and «طلباتي» then shows it.
 const payStatusA = { not_started: ['بانتظار الدفع', 'gold'], awaiting_payment: ['بانتظار تأكيد الدفع', 'gold'], paid: ['تم الدفع', 'green'], cod_selected: ['الدفع عند الاستلام', 'blue'], failed: ['تعذر الدفع', 'orange'] };
 const payKindA = { card: 'بطاقة', cod: 'الدفع عند الاستلام', other: 'طريقة أخرى' };
-let paying = false;
 const payWindowOpenA = request => { const win = request.payment_window; return stateA(request) === 'store_confirmed' && !!win && ['issued', 'opened'].includes(win.state) && !['paid', 'cod_selected'].includes(request.payment_status || 'not_started'); };
 function rejectionLine(request) {
   if (stateA(request) !== 'store_rejected' || !request.rejection_reason) return '';
@@ -114,9 +114,9 @@ function paymentLine(request) {
     return `<div class="pay-box" data-pay-watch role="status"><div><b>نؤكد طريقة الدفع</b><span>عدت من نافذة المتجر. الدفع الإلكتروني يؤكده مزود الدفع، والدفع عند الاستلام يؤكده المتجر، ولا يُعدّ طلبك مؤكدًا قبل ذلك.</span></div></div>`;
   }
   if (!payWindowOpenA(request)) return '';
-  // Élan sets no time for the store's window and shows no countdown: its duration is the store's alone. Shipping, the final total and the payment
-  // methods are decided inside it, so no amount due is claimed here.
-  return `<div class="pay-box" data-pay-watch role="status"><div><b>أكّد المتجر طلبك</b><span>أكمل الدفع من نافذة المتجر، وفيها يحدد المتجر الشحن والإجمالي النهائي وطرق الدفع ومدة النافذة. إغلاق نافذة الدفع قبل إتمام الدفع يلغي المعاملة برغبتك.</span></div><div class="pay-actions"><button class="ghost order-pay" type="button" data-pay-window="${escA(request.id)}">الدفع</button></div></div>`;
+  // No button and no countdown. The window opened by itself when the store accepted; its duration, its payment methods, the shipping and the final
+  // total are the store's, so no amount due is claimed here. This is a status line the page keeps reading (data-pay-watch) until the result arrives.
+  return `<div class="pay-box" data-pay-watch role="status"><div><b>فُتحت لك نافذة الدفع الخاصة بالمتجر</b><span>قبِل المتجر طلبك وفتح لك نافذته للدفع، وفيها يحدد الشحن والإجمالي النهائي وطرق الدفع. أكمل الدفع فيها، وستجد هنا نتيجة العملية فور وصولها. إغلاق النافذة قبل إتمام الدفع يلغي المعاملة برغبتك.</span></div></div>`;
 }
 function timelineLine(request) {
   const events = request.store_shipment_events || [];
@@ -128,25 +128,6 @@ function paymentRows(request) {
   if (!request.approved_at && status === 'not_started') return '';
   const value = payStatusA[status] || payStatusA.not_started;
   return `<div><span>حالة الدفع</span><b>${value[0]}</b></div>`;
-}
-const payErrorsA = {
-  popup_blocked: 'لم تُفتح نافذة الدفع. اسمح للموقع بفتح النوافذ ثم اضغط «الدفع» مرة أخرى.',
-  unauthorized: 'انتهت جلسة الدخول، سجّل الدخول من جديد.',
-  order_not_found: 'لم نجد هذا الطلب، حدّث الصفحة وحاول مرة أخرى.',
-  default: 'تعذر فتح نافذة الدفع الآن، حدّث الصفحة وحاول مرة أخرى.'
-};
-// Called from the tap itself: the window must be opened inside it or the browser blocks it (pay-window.js opens it first and points it at the store after).
-function startPay(requestId, button) {
-  if (paying || !window.ElanPay) return;
-  const session = Portal.session();
-  if (!session || !session.access_token) { showMessage('انتهت جلسة الدخول، سجّل الدخول من جديد.'); return; }
-  paying = true; if (button) button.disabled = true;
-  const finish = () => { paying = false; if (button) button.disabled = false; };
-  window.ElanPay.open({
-    orderId: requestId,
-    onState: () => { finish(); loadAccount().catch(showMessage); },
-    onError: key => { finish(); showMessage(payErrorsA[key] || payErrorsA.default); loadAccount(false, true).catch(() => {}); }
-  });
 }
 // An order whose payment window is open (or whose customer just came back from it) is read again every ten seconds while the page is in view, so a
 // cancellation by the store, or the provider's confirmation, shows without a reload. There is no clock of ours on the window.
@@ -344,7 +325,6 @@ document.querySelector('#loadMoreOrders').addEventListener('click', () => {
 });
 document.querySelector('#loadMoreArchive').addEventListener('click', () => loadArchive(null, true).catch(showMessage));
 document.addEventListener('click', event => { const button = event.target.closest('[data-reorder]'); if (button) reorder(button.dataset.reorder); });
-document.addEventListener('click', event => { const button = event.target.closest('[data-pay-window]'); if (button) startPay(button.dataset.payWindow, button); });
 
 document.querySelector('#forgotLink').addEventListener('click', event => {
   event.preventDefault();
