@@ -98,3 +98,27 @@ for (const size of H.WIDTHS) {
     } finally { await context.close(); }
   });
 }
+
+for (const size of H.WIDTHS) {
+  test('at ' + size.width + 'px the way from the last card of a section to the title of the next one is the same for every section, and not wide (owner, 25 Nov: the gaps between the sections were big)', async () => {
+    const { context, page } = await visit(size);
+    try {
+      await design(page, 0); await H.quiet(page);   // a made-up design without offsets: what the stylesheet gives each section
+      const got = await page.evaluate(() => {
+        const out = [], secs = Array.from(document.querySelectorAll('#main > section')).filter((e) => e.id !== 'brands');   // in the order of the page
+        for (let i = 1; i < secs.length; i++) {
+          const h = secs[i].querySelector('h3'); if (!h || getComputedStyle(h).display === 'none') continue;
+          let low = -1; secs[i - 1].querySelectorAll('.card, .empty, .pf, .ph').forEach((e) => { const b = e.getBoundingClientRect(), cs = getComputedStyle(e); if (b.width > 4 && b.height > 4 && cs.visibility !== 'hidden' && cs.display !== 'none') low = Math.max(low, b.bottom + scrollY); });
+          if (low < 0) continue;
+          const rg = document.createRange(); rg.selectNodeContents(h);
+          out.push({ from: secs[i - 1].id, to: secs[i].id, gap: rg.getBoundingClientRect().top + scrollY - low });
+        }
+        return out;
+      });
+      assert.ok(got.length >= 5, 'enough pairs of sections were measured: ' + JSON.stringify(got));
+      const gaps = got.map((g) => g.gap), min = Math.min(...gaps), max = Math.max(...gaps);
+      assert.ok(max - min <= 2.5, 'every gap is the same (within 2px): ' + JSON.stringify(got));
+      assert.ok(max <= 70, 'and none is wide: the widest is ' + max.toFixed(1) + 'px (it was 82-88 before): ' + JSON.stringify(got));
+    } finally { await context.close(); }
+  });
+}

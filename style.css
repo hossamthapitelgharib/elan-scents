@@ -246,7 +246,7 @@ img[data-elan-pending] {
   max-width: 340px !important;
 }
 #cats > .cb:last-of-type {
-  margin-bottom: 8px !important;
+  margin-bottom: 12px !important;
 }
 #cats > .cb > .card {
   width: 100% !important;
@@ -906,3 +906,10 @@ html:not(.elan-editing) .card.brandc:not(.nw) { margin-bottom: 40px; }
   border: 0 !important;
 }
 #cats > .cb > .card.art::after { display: none !important; }
+
+/* ---------- The room between two sections of the home page (owner, 2026-11-25: «المسافات البينية كبيرة») ----------
+   From the bottom of the last card of a section to the title of the next there were 82px (a strip kept 22px under its cards, the section 14px more, and the next section 46px above its title),
+   and 68 after Categories: big, and not the same everywhere. Now every block ends 12px under its last card, every section keeps 14px under it and 28px above its title, so the way from one
+   section to the next is the same (54px) whatever the block is. The Brands section keeps its own top (it begins with the arrow, not a title). */
+#main > section:not(#brands) { padding-top: 28px; }
+#main > section .strip { padding-bottom: 12px; }

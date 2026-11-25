@@ -82,8 +82,7 @@
   "edits": {
     "desktop": {
       "sec:master:title": {
-        "dx": -6,
-        "dy": -50
+        "dx": -6
       },
       "card:1wt173k": {
         "dx": -6,
@@ -96,11 +95,7 @@
         "dy": 3
       },
       "sec:offers": {
-        "dx": -19,
-        "dy": -28
-      },
-      "sec:notes": {
-        "dy": -6
+        "dx": -19
       },
       "card:1dsn4il": {
         "dx": 434,
@@ -357,12 +352,10 @@
     },
     "mobile": {
       "sec:master:title": {
-        "dy": -37,
         "dx": -2
       },
       "sec:soon:title": {
-        "dx": 7,
-        "dy": -7
+        "dx": 7
       },
       "card:1wt173k": {
         "w": 340,
