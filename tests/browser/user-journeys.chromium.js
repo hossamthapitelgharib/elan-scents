@@ -780,48 +780,101 @@ test('21b. the sign-in state of the orders page is centred in the same look, and
 });
 
 
-test('21c. the payment window: the card has a «الدفع» button and no countdown or cancel button (the store owns the window time); the merchant opens in its own window; shutting it cancels the order at once and the card says «تم إلغاء المعاملة برغبة العميل»', async () => {
+const WINDOW_ORDER = '11111111-2222-4333-8444-555555555555';   // a real uuid: the return page refuses anything else
+// 21c/21d. the store's payment window, from the order page. It is RESERVED inside the «موافق» tap (an empty popup with a waiting text) and points itself at
+//     the store when the store approves: no «الدفع» button here and none in «طلباتي». Whatever way the customer leaves it, he is back on the platform.
+async function windowSetup(c, { onReturn } = {}) {
+  const page = await c.context.newPage();
+  const dialogs = [], windowCalls = [];
+  page.on('dialog', dialog => { dialogs.push(dialog.type()); dialog.dismiss().catch(() => {}); });
+  await mockPage(page);
+  acctRow = { user_id: 'customer-1', full_name: 'أحمد محمد علي حسن', phone: '01012345678', governorate: 'القاهرة', city: 'مدينة نصر', address: 'شارع التحرير', building_no: '5', ship_same: true, ship_governorate: 'القاهرة', ship_city: 'مدينة نصر', ship_address: 'شارع التحرير', ship_building_no: '5' };
+  // the merchant's page: a different origin that the context answers for, so the popup can load it
+  await c.context.route('https://merchant.example.test/**', route => H.safeFulfill(route, { status: 200, contentType: 'text/html', body: '<!doctype html><title>merchant</title><p>pay here</p>' }));
+  const stage = { review: 'waiting' };   // what the store has answered: waiting -> approved -> cancelled
+  const reviewBody = () => ({ ok: true, id: WINDOW_ORDER, trackingNumber: 'ELN-TEST-0001', paymentStatus: 'not_started', cancelReason: stage.review === 'cancelled' ? 'payment_window_closed' : null, failureReason: null,
+    status: stage.review === 'waiting' ? 'awaiting_store_confirmation' : stage.review === 'approved' ? 'store_confirmed' : 'cancelled',
+    delivery: stage.review === 'waiting' ? { state: 'pending', attempts: 1, maxAttempts: 6 } : null, window: stage.review === 'approved' ? { state: 'opened' } : null });
+  await page.route('**/api/place-store-order', route => H.safeFulfill(route, { status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, id: WINDOW_ORDER, trackingNumber: 'ELN-TEST-0001', state: reviewBody() }) }));
+  await page.route('**/api/customer-order-review', route => H.safeFulfill(route, { status: 200, contentType: 'application/json', body: JSON.stringify(reviewBody()) }));
+  // on the context, not the page: the return page reports from the popup, which is another page of the same browser
+  await c.context.route('**/api/customer-order-window', route => {
+    const body = JSON.parse(route.request().postData() || '{}');
+    windowCalls.push(body);
+    const ok = (extra) => H.safeFulfill(route, { status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, ...extra }) });
+    if (body.action === 'open') return ok({ state: 'opened', url: 'https://merchant.example.test/pay?w=1' });
+    if (body.action === 'return') {
+      if (body.outcome === 'cancel' || body.outcome === 'closed') stage.review = 'cancelled';
+      return ok({ status: stage.review === 'cancelled' ? 'cancelled' : 'store_confirmed', cancelReason: stage.review === 'cancelled' ? 'payment_window_closed' : null });
+    }
+    return ok(reviewBody());
+  });
+  await page.goto(H.SITE + '/', { waitUntil: 'load' });
+  await page.evaluate(() => {
+    window.cartGroups = function () { return { 'Test Store': [{ c: { q: 1 }, p: { name: 'Test Perfume', brand: 'Test Brand', sz: '50 ml' }, b: { store: 'Test Store', storeId: 'store-1', storeProductId: 'sp-1', price: 150, cur: 'EGP', review: false } }] }; };
+    openStoreOrder('Test Store');
+  });
+  await page.waitForSelector('.op [data-op-approve]');
+  const [popup] = await Promise.all([page.waitForEvent('popup'), page.locator('[data-op-approve]').click()]);
+  return { page, popup, stage, windowCalls, dialogs };
+}
+
+test('21c. the payment window: «موافق» reserves an empty window with a waiting text; when the store approves it points ITSELF at the store (no «الدفع» button, no countdown, no cancel button); shutting it cancels the order at once in the customer\'s words', async () => {
   const c = await context({ session: CUSTOMER_SESSION });
   try {
-    const page = await c.context.newPage();
-    const dialogs = [];
-    page.on('dialog', dialog => { dialogs.push(dialog.type()); dialog.dismiss().catch(() => {}); });
-    await mockPage(page);
-    // the merchant's page: a different origin that the context answers for, so the popup can load it
-    await c.context.route('https://merchant.example.test/**', route => H.safeFulfill(route, { status: 200, contentType: 'text/html', body: '<!doctype html><title>merchant</title><p>pay here</p>' }));
-    const windowCalls = [];
-    let cancelled = false;
-    const approved = { id: 'w1', tracking_number: 'ELN-TEST-WAIT', status: 'store_confirmed', payment_status: 'not_started', payable_amount: 150, subtotal: 150, shipping_amount: 0, total_amount: 150, currency: 'EGP', created_at: '2026-11-10T10:00:00Z', stores: { name: 'Test Store' },
-      store_order_request_items: [{ product_name: 'Test Perfume', brand_name: 'Test Brand', size_label: '100 ml', quantity: 1, unit_price: 150, line_total: 150, currency: 'EGP' }], store_shipments: [], store_order_cart_restorations: [] };
-    await page.route('**/api/customer-orders*', route => H.safeFulfill(route, { status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, sessions: [{ id: 's1', store_order_requests: [cancelled
-      ? { ...approved, status: 'cancelled', cancel_reason: 'payment_window_closed', payment_window: null }
-      : { ...approved, payment_window: { state: 'opened' } }] }], pagination: { total: 1, hasMore: false } }) }));
-    await page.route('**/api/customer-order-window', route => {
-      const body = JSON.parse(route.request().postData() || '{}');
-      windowCalls.push(body);
-      if (body.action === 'open') return H.safeFulfill(route, { status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, state: 'opened', url: 'https://merchant.example.test/pay?w=1' }) });
-      if (body.action === 'return') { cancelled = true; return H.safeFulfill(route, { status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, status: 'cancelled', cancelReason: 'payment_window_closed' }) }); }
-      return H.safeFulfill(route, { status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) });
-    });
-    await page.goto(H.SITE + '/account.html', { waitUntil: 'load' });
-    await page.waitForSelector('[data-pay-window="w1"]');
-    assert.equal(await page.locator('[data-cancel], .order-cancel, #cancelReason').count(), 0, 'the customer has no cancel control');
-    assert.equal(await page.locator('[data-pay-left]').count(), 0, 'Élan shows no countdown: the window\'s time belongs to the store');
-
-    const [popup] = await Promise.all([page.waitForEvent('popup'), page.click('[data-pay-window="w1"]')]);
-    await popup.waitForURL('https://merchant.example.test/**');
-    assert.deepEqual(windowCalls.map(call => call.action), ['open'], 'opening the window asked the server once');
-    assert.equal(await page.locator('[data-pay-window="w1"]').isDisabled(), true, 'locked while the window is open');
+    const { page, popup, stage, windowCalls, dialogs } = await windowSetup(c);
+    await page.waitForSelector('.op-wait');
+    assert.match(await popup.locator('body').innerText(), /جارٍ تجهيز نافذة الدفع/, 'the reserved window shows a waiting text until the store answers');
+    assert.equal(windowCalls.length, 0, 'the server was not asked for the store\'s window before the store approved');
+    assert.match(await page.locator('.op-wait').innerText(), /تُفتح نافذة الدفع الخاصة بالمتجر تلقائيًا/, 'the customer is told it opens by itself');
+    stage.review = 'approved';
+    await popup.waitForURL('https://merchant.example.test/**', { timeout: 15000 });
+    assert.deepEqual(windowCalls.map(call => call.action), ['open'], 'the store\'s window was asked for once, by itself');
+    await page.waitForSelector('.op-pay');
+    assert.equal(await page.locator('[data-op-pay], [data-pay-window], [data-op-cancel], [data-cancel], #cancelReason').count(), 0, 'no pay button, no cancel control');
+    assert.equal(await page.locator('[data-pay-left], [data-op-count]').count(), 0, 'Élan shows no countdown');
+    assert.match(await page.locator('.op-pay').innerText(), /نافذة الدفع مفتوحة/);
     assert.deepEqual(windowCalls.filter(call => call.action === 'return'), [], 'nothing is cancelled while the window is open');
-    // A window shut within a few seconds of the merchant's page loading is not trusted as a deliberate close (a merchant page can cut the
-    // link to this page); one that stays open and is then shut is.
+    // A window shut within a few seconds of the merchant's page loading is not trusted as a deliberate close (a merchant page can cut the link to
+    // this page); one that stays open and is then shut is. (A real clock: the page's own guard of 8 seconds.)
     await page.waitForTimeout(8700);
     await popup.close();
-    await page.waitForFunction(() => document.body.innerText.includes('تم إلغاء المعاملة برغبة العميل'), null, { timeout: 8000 });
+    await page.waitForFunction(() => document.body.innerText.includes('تم إلغاء المعاملة برغبة العميل'), null, { timeout: 10000 });
     assert.deepEqual(windowCalls.filter(call => call.action === 'return').map(call => call.outcome), ['closed'], 'shutting the window was reported once');
-    assert.equal(await page.locator('[data-pay-window]').count(), 0, 'a cancelled order has no payment button');
+    assert.match(await page.locator('.op-state').innerText(), /منتجاتك ما زالت في سلتك/);
+    assert.equal(await page.locator('[data-op-pay]').count(), 0, 'a cancelled order has no payment button');
+    assert.equal(await page.locator('[data-back-cart]').count(), 1, 'and the customer is one tap from the cart');
     assert.deepEqual(dialogs, [], 'no browser dialog was shown');
   } finally { await c.context.close(); }
+});
+
+test('21d. the way back: a store that sends the customer to the return page with cancel brings him back to the platform (the page tells him, the window closes itself); a failed payment brings him back to try again', async () => {
+  for (const result of ['cancel', 'failed']) {
+    const c = await context({ session: CUSTOMER_SESSION });
+    try {
+      const { page, popup, stage, windowCalls } = await windowSetup(c);
+      await page.waitForSelector('.op-wait');
+      stage.review = 'approved';
+      await popup.waitForURL('https://merchant.example.test/**', { timeout: 15000 });
+      await page.waitForSelector('.op-pay');
+      // the store's window sends the customer back to the platform (the address the store was given for this way out)
+      const closed = popup.waitForEvent('close', { timeout: 15000 }).catch(() => null);
+      // the return page closes its own window, so the navigation may end with the window gone: that is the point, not an error
+      await popup.goto(H.SITE + '/payment-return.html?o=' + WINDOW_ORDER + '&r=' + result, { waitUntil: 'commit' }).catch(() => {});
+      if (result === 'cancel') {
+        await page.waitForFunction(() => document.body.innerText.includes('تم إلغاء المعاملة برغبة العميل'), null, { timeout: 15000 });
+        assert.deepEqual(windowCalls.filter(call => call.action === 'return').map(call => call.outcome), ['cancel'], 'the return page reported it once, and the page never said "closed" for a window the return page closed');
+        assert.match(await page.locator('.op-state').innerText(), /منتجاتك ما زالت في سلتك/);
+      } else {
+        await page.waitForFunction(() => document.body.innerText.includes('لم تكتمل عملية الدفع'), null, { timeout: 15000 });
+        assert.deepEqual(windowCalls.filter(call => call.action === 'return'), [], 'a failed payment reports nothing and cancels nothing');
+        assert.equal(await page.locator('[data-op-pay]').count(), 1, 'the window can be opened again for another method');
+        assert.doesNotMatch(await page.locator('.op-state').innerText(), /تم إلغاء المعاملة/);
+      }
+      await closed;
+      assert.equal(popup.isClosed(), true, 'the return page closed its own window');
+    } finally { await c.context.close(); }
+  }
 });
 
 test('22. the cart button on the orders page opens the shop\'s cart: the shop reads «#cart», opens the cart once the catalog is loaded, and clears the hash so a reload does not reopen it', async () => {
