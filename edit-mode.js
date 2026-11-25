@@ -1177,8 +1177,10 @@
   function registerTool(t) { TOOLS = TOOLS.filter(function (x) { return x.id !== t.id; }).concat([t]); }
   /* The order of the right-click menu (owner, 2026-11-11): what belongs to text first (edit, format, new text block, new text), then pictures and videos
      (upload, delete, new picture), then the banner, the section, the perfume card, the brand and the store; everything else follows in the order it was registered
-     (the registered order itself stays the original editor's: tests/fixtures/elan-original-tools-golden.json). */
-  var MENU_ORDER = ['edit_text', 'format', 'create_text_block', 'create_text', 'media', 'media_delete', 'create_image', 'create_banner', 'create_section', 'create_perfume', 'create_brand', 'create_store'];
+     (the registered order itself stays the original editor's: tests/fixtures/elan-original-tools-golden.json).
+     «أبعاد العناصر» comes right after those twelve (owner, 2026-11-25: «ضبط الأبعاد أحيانًا لا يعمل»): it was the 19th of 21 and sat below the bottom of the menu on every window height
+     (the menu scrolls inside itself), so on an element it looked as if the item was not there; it is the next thing the owner reaches for after choosing an element. */
+  var MENU_ORDER = ['edit_text', 'format', 'create_text_block', 'create_text', 'media', 'media_delete', 'create_image', 'create_banner', 'create_section', 'create_perfume', 'create_brand', 'create_store', 'size_preset'];
   function menuRank(t, at) { var k = MENU_ORDER.indexOf(t.id); return (k === -1 ? MENU_ORDER.length : k) * 1000 + at; }
   function toolList(i) {
     return TOOLS.filter(function (t) { return !t.show || t.show(i); }).map(function (t, at) { return { t: t, rank: menuRank(t, at) }; })
@@ -1398,7 +1400,13 @@
       bridgeTicket = context && typeof context.ticket === 'string' ? context.ticket : bridgeTicket;
       bridgeSession = context && typeof context.session === 'string' ? context.session : bridgeSession;
       if (!bridgeTicket) return false;
-      try { var r = await editorFetch('/api/editor-session'); return r.ok; } catch (_) { return false; }
+      /* One request answers every action of the menu, so one dropped answer (a network blip, a busy server) used to fail the item silently: a failure that is not an answer from
+         the server about the session (no answer, 429, 5xx) is asked once more; a 401 is the session really gone and is not retried. */
+      for (var attempt = 0; attempt < 2; attempt++) {
+        try { var r = await editorFetch('/api/editor-session'); if (r.ok) return true; if (r.status < 500 && r.status !== 429) return false; } catch (_) { /* no answer: once more */ }
+        if (attempt === 0) await new Promise(function (again) { setTimeout(again, 400); });
+      }
+      return false;
     },
     onTicket: function (ticket) { bridgeTicket = ticket; },
     getState: async function () { if (!work) await loadBase(); return snapshot(); },

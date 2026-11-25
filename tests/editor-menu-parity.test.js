@@ -51,7 +51,7 @@ test('the menu keeps the original editor tools in the original order, new ones a
   /* the menu SHOWS them in the owner's order (see the next test); the registered order above stays the original editor's */
   const after = (ids) => ids.slice(OWNER_ORDER.length);
   assert.deepEqual(after(idsOn(null)), ['create_occasion', 'create_note', 'copy', 'archive', 'library_save', 'library_download', 'fix_spacing', 'open'], 'an empty page: "دخول لصفحة" is listed (the owner asked for it in the menu) but no back / home');
-  assert.deepEqual(after(idsOn({ dynamic: true })), ['create_occasion', 'create_note', 'copy', 'archive', 'library_save', 'library_download', 'size_preset', 'fix_spacing', 'open']);
+  assert.deepEqual(after(idsOn({ dynamic: true })), ['size_preset', 'create_occasion', 'create_note', 'copy', 'archive', 'library_save', 'library_download', 'fix_spacing', 'open'], '«أبعاد العناصر» is the first after the owner\'s twelve (owner, 2026-11-25)');
   const open = (el) => plain(b.tools.menu(el).find((t) => t.id === 'open'));
   assert.equal(open(null).label, 'دخول لصفحة');
   assert.equal(open(null).enabled, false, 'nothing to enter on an empty area');
@@ -66,7 +66,10 @@ test('the menu shows text items first, then picture and video, banner, section, 
   for (const el of [null, menuFor(b, card.id) && b.mode.state().selected]) {
     const got = ids(el);
     assert.deepEqual(got.slice(0, OWNER_ORDER.length), OWNER_ORDER, 'the first twelve are the owner\'s order');
-    const rest = got.slice(OWNER_ORDER.length), registered = plain(b.tools.list().map((t) => t.id)).filter((id) => !OWNER_ORDER.includes(id) && rest.includes(id));
+    /* «أبعاد العناصر» (only when an element is chosen) comes right after them, so it is never below the bottom of the menu (owner, 2026-11-25) */
+    const lead = el ? OWNER_ORDER.concat(['size_preset']) : OWNER_ORDER;
+    assert.deepEqual(got.slice(0, lead.length), lead, el ? 'the dimensions item is the 13th on an element' : 'nothing is added to the empty-area menu');
+    const rest = got.slice(lead.length), registered = plain(b.tools.list().map((t) => t.id)).filter((id) => !lead.includes(id) && rest.includes(id));
     assert.deepEqual(rest, registered, 'the rest keep the order they were registered in');
   }
   const labels = plain(b.tools.menu(null).map((t) => t.label));

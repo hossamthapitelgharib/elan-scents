@@ -107,6 +107,14 @@ test('no gold line under a title or at the top of the footer, and a title the ow
   assert.match(layer, /function titleRoomBelow\(el, dy\)[\s\S]{0,900}Math\.max\(mb, mt\)/, 'and it counts margins that collapse, or lowering a title moves its arrow by less than the title (the browser file section-titles measures it)');
 });
 
+test('the room between two sections of the home page stays small and the same (owner, 25 Nov: «المسافات البينية كبيرة»), and the dimensions item of the right-click menu is never below the bottom of the menu', () => {
+  assert.match(css, /#main > section:not\(#brands\) \{ padding-top: 28px; \}/, 'a section starts 28px under the one before it (it was 46px), brands excepted (the shelf of cards has its own place)');
+  assert.match(css, /#main > section \.strip \{ padding-bottom: 12px; \}/, 'a strip of cards leaves 12px under itself (it was 22px)');
+  assert.match(css, /#cats > \.cb:last-of-type \{[^}]*margin-bottom: 12px !important;/, 'and the last block of the categories leaves the same 12px');
+  assert.match(read('edit-mode.js'), /var MENU_ORDER = \[[^\]]*'create_store', 'size_preset'\];/, '«أبعاد العناصر» comes right after the twelve items the owner ordered; it was the 19th of 21 and sat below the bottom of the menu on every window height (the browser file editor-menu-size opens the real menu)');
+  assert.match(read('editor/elan-editor.html'), /#menu\{[^']*max-height:calc\(100vh - 16px\)!important[^']*\}#menu button\{margin:2px 0!important/, 'and the menu is compact and as tall as the window, so its items are seen');
+});
+
 test('an uploaded video plays by itself on a phone: muted, looping, inline', () => {
   assert.match(layer, /v\.muted = true; v\.loop = true; v\.autoplay = true; v\.setAttribute\('playsinline', ''\);/, 'the video the owner uploads to a card plays inline (phones otherwise open it full screen)');
   assert.match(layer, /v\.setAttribute\('muted', ''\); v\.setAttribute\('loop', ''\); v\.setAttribute\('autoplay', ''\); v\.setAttribute\('playsinline', ''\)/);
