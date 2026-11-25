@@ -105,8 +105,8 @@ test('chunk: at most the entry point\'s limit per call', () => {
   assert.ok(chunk(new Array(1200).fill(0)).every((c) => c.length <= 500));
 });
 
-test('every field the bridge sends is one the entry point reads (the draft migration names them)', () => {
-  const sql = fs.readFileSync(path.join(__dirname, '..', 'tools', 'catalog-trial', 'catalog-rule-link.sql'), 'utf8');
+test('every field the bridge sends is one the entry point reads (the migration names them)', () => {
+  const sql = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'migrations', '20261125122045_catalog_rule_link.sql'), 'utf8');
   const bundleFn = sql.slice(sql.indexOf('function private.catalog_bundle_problem'), sql.indexOf('function private.catalog_receive_bundle'));
   const item = bundleItem({ product: { handle: 'h', title: 'T Set', body_html: 'x', variants: [variant(10)] }, classification: { bundle: 'yes', offers: ['a'], reasons: ['r'], pieces: ['p'] }, base: 'https://a.example/' });
   for (const key of Object.keys(item)) {

@@ -1,4 +1,4 @@
--- Rollback of catalog_rule_link (draft, tools/catalog-trial/catalog-rule-link.sql): puts the two functions back as the waiting room migration
+-- Rollback of catalog_rule_link (applied 2026-11-25, 20261125122045_catalog_rule_link.sql): puts the two functions back as the waiting room migration
 -- (20261121193245_catalog_waiting_room) wrote them, drops everything the link added.
 -- WARNING: this loses data the link holds.
 --   * the owner's answers on doubtful products (table public.catalog_owner_decisions), the offer sections kept with waiting perfumes

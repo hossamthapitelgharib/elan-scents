@@ -1,6 +1,5 @@
--- Real-database test of the CATALOG RULE LINK (draft migration tools/catalog-trial/catalog-rule-link.sql, owner's decisions of 23-24 Nov 2026).
+-- Real-database test of the CATALOG RULE LINK (migration supabase/migrations/20261125122045_catalog_rule_link.sql, applied 2026-11-25; owner's decisions of 23-24 Nov 2026).
 -- Run on the live database as the project owner inside this one transaction; every fixture row is synthetic and the final ROLLBACK discards all of it.
--- Until the migration is applied for real, run it as   begin; <the migration body>; <the do-block below>; rollback;   (the DDL is transactional too).
 --
 --   * ONE entry point, public.catalog_receive_items: a perfume item may carry the merchant's offer sections (`offers`): saved as offer messages on its
 --     size, a perfume that waits for its brand card keeps them and writes them when it is released; a section the merchant took it out of makes the

@@ -1,8 +1,7 @@
 -- Catalog rule link (owner's decisions of 23 and 24 Nov 2026).
 --
--- STATUS: DRAFT, NOT APPLIED. It is tested on the live database only inside a transaction that is rolled back (tests/catalog-rule-link.test.sql);
--- applying it for real needs the owner's approval card. When it is applied, `git mv` this file to supabase/migrations/<version the ledger recorded>_catalog_rule_link.sql
--- and the rollback next to it to supabase/rollback/ (supabase/README.md), and tests/catalog-rule-link-contract.test.js follows the move.
+-- STATUS: applied on the live database on 2026-11-25 after the owner's approval card ("apply it and record his two decisions, load nothing").
+-- It was tested first inside a transaction that was rolled back (tests/catalog-rule-link.test.sql). The undo script is supabase/rollback/<same version>_catalog_rule_link.sql.
 --
 -- WHAT IT DOES. The automatic rule (lib/catalog-classify.js) reads what the MERCHANT wrote: section names, labels, title, description. This migration lets
 -- the ONE entry point public.catalog_receive_items carry the rule's answer, so nothing is picked by hand and nothing is redone when real stores are linked:

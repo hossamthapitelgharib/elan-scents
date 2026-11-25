@@ -1,9 +1,9 @@
 // The CATALOG RULE LINK contract (owner's decisions of 23-24 Nov 2026: the sorting into offers and bundles is automatic, one rule, applied through
 // the ONE entry point; a doubtful product waits for him and his answer is kept once and honoured on every sync) is checked against the real database by
 // tests/catalog-rule-link.test.sql (run on the live database as the owner, inside one transaction that ends in ROLLBACK).
-// This file pins that the SQL test exists, leaves nothing behind, still states each rule, and that the draft migration
-// (tools/catalog-trial/catalog-rule-link.sql, NOT applied until the owner approves) still holds the same rules, so nobody can empty the test or loosen
-// the migration silently. When the migration is applied it moves to supabase/migrations/ and this file follows it (README of tools/catalog-trial).
+// This file pins that the SQL test exists, leaves nothing behind, still states each rule, and that the migration
+// (supabase/migrations/20261125122045_catalog_rule_link.sql, applied on the live database on 2026-11-25) and its rollback still hold the same rules,
+// so nobody can empty the test or loosen the migration silently (a migration that was applied is never edited: a change is a new migration, and then this file is updated with it).
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -12,10 +12,10 @@ const path = require('node:path');
 const root = path.join(__dirname, '..');
 const read = (...parts) => fs.readFileSync(path.join(root, ...parts), 'utf8');
 const found = (dir) => (fs.existsSync(path.join(root, 'supabase', dir)) ? fs.readdirSync(path.join(root, 'supabase', dir)) : []).filter((name) => name.endsWith('_catalog_rule_link.sql'));
-// the migration is either still the draft or already moved (with its rollback) to supabase/; the rules are the same in both places
 const applied = found('migrations');
-const migration = applied.length ? read('supabase', 'migrations', applied[0]) : read('tools', 'catalog-trial', 'catalog-rule-link.sql');
-const rollback = applied.length ? read('supabase', 'rollback', found('rollback')[0]) : read('tools', 'catalog-trial', 'catalog-rule-link.rollback.sql');
+const undo = found('rollback');
+const migration = applied.length === 1 ? read('supabase', 'migrations', applied[0]) : '';
+const rollback = undo.length === 1 ? read('supabase', 'rollback', undo[0]) : '';
 const sql = read('tests', 'catalog-rule-link.test.sql');
 const code = (text) => text.replace(/--[^\n]*/g, '');
 const fn = (text, start) => { const i = text.indexOf(start); assert.ok(i >= 0, `${start} exists`); const j = text.indexOf('$function$;', text.indexOf('$function$', i) + 10); return text.slice(i, j); };
@@ -25,7 +25,10 @@ test('the real-database test runs in one transaction and leaves no row behind', 
   assert.match(sql, /rollback;\s*$/);
   assert.doesNotMatch(sql, /\bcommit\b/i);
   assert.doesNotMatch(sql, /\btruncate\b|\bdrop\s+(table|view|schema)\b/i);
-  assert.match(sql, /draft migration/);
+  assert.match(sql, /20261125122045_catalog_rule_link/);
+  assert.equal(applied.length, 1, 'exactly one migration file named catalog_rule_link');
+  assert.equal(undo.length, 1, 'and exactly one rollback for it');
+  assert.equal(applied[0], undo[0], 'the rollback has the same name and version as the migration');
 });
 
 test('every owner rule has its assertion', () => {
@@ -70,9 +73,10 @@ test('every owner rule has its assertion', () => {
   for (const [re, what] of rules) assert.match(sql, re, what);
 });
 
-test('the draft migration keeps the rules the test proves', () => {
+test('the migration keeps the rules the test proves', () => {
   const c = code(migration);
   // nothing the visitor sees changes until a caller sends the new fields: the new table and functions are server-only
+  assert.ok(migration.length > 0, 'the migration file exists');
   assert.match(c, /alter table public\.catalog_owner_decisions enable row level security;/);
   assert.match(c, /revoke all on table public\.catalog_owner_decisions from public, anon, authenticated;/);
   for (const f of ['catalog_receive_items(uuid, jsonb, text)', 'catalog_record_decision(uuid, text, text, text)', 'catalog_review_queue()', 'catalog_receive_bundle(uuid, jsonb, text)', 'catalog_bundle_problem(jsonb)', 'catalog_apply_offers(uuid, uuid, text, text[])'])
