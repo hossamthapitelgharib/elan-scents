@@ -4,8 +4,9 @@
 // store, the account's details as fields the customer can edit with name and email locked), that «موافق» saves those details to «حسابي» first and
 // only then sends the order (the store, a draft-bound retry key, the total shown and the draft: nothing else), that a bad field or a failed save
 // stops everything, that "إلغاء" throws the edits away and saves nothing, what each answer of the store looks like (waiting, refused with its reason,
-// no answer, approved with no Élan countdown, cancelled by closing the window, verifying, confirmed), that the payment window is opened from the
-// click itself, and that nothing from the catalog or the store reaches the page unescaped.
+// no answer, approved with no Élan countdown, cancelled by closing the window, verifying, confirmed), that the store's payment window is RESERVED inside
+// the «موافق» tap and opens by itself when the store approves (no «الدفع» button unless the browser refused or the customer shut the waiting window),
+// that a reservation never outlives a refusal, a failure or a left page, and that nothing from the catalog or the store reaches the page unescaped.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -55,8 +56,8 @@ function cartRows(extra = {}) {
   ];
 }
 
-function setup({ rows = cartRows(), routes = {}, auth = { access_token: 'tok', user: { id: 'user-1', email: 'buyer@example.invalid' } }, flush = true, acct = ACCT_ROW } = {}) {
-  const calls = [], timers = [], sheetCalls = [], opened = [], listeners = {};
+function setup({ rows = cartRows(), routes = {}, auth = { access_token: 'tok', user: { id: 'user-1', email: 'buyer@example.invalid' } }, flush = true, acct = ACCT_ROW, popup = true } = {}) {
+  const calls = [], timers = [], sheetCalls = [], opened = [], reserved = [], listeners = {};
   const box = { hidden: true, textContent: '' };
   const form = makeForm(acct, 'buyer@example.invalid');
   const sheetB = { _html: '', set innerHTML(v) { this._html = v; }, get innerHTML() { return this._html; }, querySelector: (s) => (s === '.op-error' ? box : s === '[data-op-form]' ? form : null), querySelectorAll: () => [] };
@@ -82,7 +83,16 @@ function setup({ rows = cartRows(), routes = {}, auth = { access_token: 'tok', u
       getElementById: (id) => (id === 'sheet' ? sheetEl : id === 'sheetB' ? sheetB : null),
       addEventListener: (type, fn) => { listeners[type] = fn; }
     },
-    ElanPay: { open: (options) => { opened.push(options); return { close() {} }; } },
+    // a stand-in for pay-window.js: reserve() is the tap-bound opening of the empty window, follow() is the pointing of it at the store
+    ElanPay: {
+      reserve: (options) => {
+        if (!popup) return null;
+        const handle = { options, follows: [], closed: 0, follow(o) { this.follows.push(o); }, close() { this.closed += 1; } };
+        reserved.push(handle);
+        return handle;
+      },
+      open: (options) => { opened.push(options); return { close() {} }; }
+    },
     fetch: async (url, options = {}) => {
       calls.push({ url: String(url), options });
       const key = String(url).startsWith(ACCT_REST) ? (options.method === 'POST' ? 'acct:save' : 'acct:load') : String(url);
@@ -111,7 +121,7 @@ function setup({ rows = cartRows(), routes = {}, auth = { access_token: 'tok', u
     await new Promise((r) => setImmediate(r));
   };
   const flushAsync = async () => { for (let i = 0; i < 6; i += 1) await new Promise((r) => setImmediate(r)); };
-  return { context, calls, timers, sheetCalls, opened, box, form, sheetB, sheetEl, click, advance, flushAsync, html: () => sheetB.innerHTML, page: () => context.ElanOrderPage };
+  return { context, calls, timers, sheetCalls, opened, reserved, box, form, sheetB, sheetEl, click, advance, flushAsync, html: () => sheetB.innerHTML, page: () => context.ElanOrderPage };
 }
 
 const draftOk = { '/api/order-draft': { body: DRAFT } };
@@ -359,6 +369,7 @@ test('when the cart cannot be saved to the account the order is not sent', async
 async function placed(answer, extra = {}) {
   const review = { ...extra.review };
   const env = await opened({
+    popup: extra.popup !== false,
     routes: {
       ...draftOk,
       '/api/place-store-order': { body: { ok: true, id: 'order-1', trackingNumber: DRAFT.trackingNumber, state: state() } },
@@ -399,8 +410,8 @@ test('the store never answered: the exact apology, and the cart is kept', async 
   assert.ok(env.html().includes('نعتذر عن تنفيذ طلبك في الوقت الحالي، برجاء إعادة المحاولة بعد ساعة'));
 });
 
-test('closing the payment window cancels: "تم إلغاء المعاملة برغبة العميل", the cart is kept, and a cancelled order is never reopened', async () => {
-  for (const why of ['payment_window_closed', 'payment_window_cancelled']) {
+test('every way the window ends before a payment is in the customer\'s words: "تم إلغاء المعاملة برغبة العميل", the cart is kept, and a cancelled order is never reopened', async () => {
+  for (const why of ['payment_window_closed', 'payment_window_cancelled', 'payment_window_expired', 'customer_requested_before_payment']) {
     const { env } = await placed(state({ status: 'cancelled', cancelReason: why }));
     await env.advance(3000);
     await env.flushAsync();
@@ -408,51 +419,149 @@ test('closing the payment window cancels: "تم إلغاء المعاملة بر
     assert.ok(env.html().includes('منتجاتك ما زالت في سلتك'));
     assert.doesNotMatch(env.html(), /data-op-pay/, 'no way to pay a cancelled order');
   }
-  const { env: expired } = await placed(state({ status: 'cancelled', cancelReason: 'payment_window_expired' }));
-  await expired.advance(3000);
-  await expired.flushAsync();
-  assert.ok(expired.html().includes('انتهت نافذة الدفع لدى المتجر'));
-  assert.ok(!expired.html().includes('برغبة العميل'), 'the store ending its own window is not the customer\'s wish');
+  const { env: silent } = await placed(state({ status: 'cancelled', cancelReason: 'store_unresponsive' }));
+  await silent.advance(3000);
+  await silent.flushAsync();
+  assert.ok(!silent.html().includes('برغبة العميل'), 'a store that never answered is not the customer\'s wish');
 });
 
-test('approved: the store accepted, there is no Élan countdown and «الدفع» opens the payment window from the click itself', async () => {
-  const { env } = await placed(state({ status: 'store_confirmed', delivery: null, window: { state: 'issued' } }));
+test('«موافق» RESERVES the window inside the tap (before anything is awaited), with a waiting text; nothing is reserved when a field is wrong', async () => {
+  const bad = await opened({ routes: draftOk });
+  bad.form.elements.phone.value = '123';
+  bad.click({ 'op-approve': '' });
+  assert.equal(bad.reserved.length, 0, 'a wrong detail stops everything before a window is opened');
+  const env = await opened({ routes: { ...draftOk, '/api/place-store-order': { body: { ok: true, id: 'order-1', trackingNumber: DRAFT.trackingNumber, state: state() } }, '/api/customer-order-review': { body: state() } } });
+  env.click({ 'op-approve': '' });
+  assert.equal(env.reserved.length, 1, 'the window is reserved synchronously inside the click, before the first await');
+  assert.ok(env.reserved[0].options.text.includes('جارٍ تجهيز نافذة الدفع'), 'it shows a short waiting text until the store answers');
+  assert.equal(env.reserved[0].options.dir, 'rtl');
+  await env.flushAsync();
+  assert.equal(env.reserved[0].follows.length, 0, 'while the store has not answered the window is only waiting');
+  assert.ok(env.html().includes('تُفتح نافذة الدفع الخاصة بالمتجر تلقائيًا'), 'the customer is told it will open by itself');
+});
+
+test('approved: the window opens BY ITSELF (no button, no click), there is no Élan countdown and the store decides what is inside it', async () => {
+  let phase = 0;
+  const { env } = await placed(() => (phase === 0 ? state() : state({ status: 'store_confirmed', delivery: null, window: { state: 'issued' } })));
+  assert.equal(env.reserved.length, 1);
+  assert.equal(env.reserved[0].follows.length, 0);
+  phase = 1;
   await env.advance(3000);
   await env.flushAsync();
-  assert.ok(env.html().includes('قبل المتجر طلبك'));
-  assert.ok(env.html().includes('المتجر هو من يحدد ما في النافذة'), 'the window, its methods, its shipping cost, its total and its duration are the store\'s');
+  assert.equal(env.reserved[0].follows.length, 1, 'the reserved window is pointed at the store as soon as the store approved');
+  assert.equal(env.reserved[0].follows[0].orderId, 'order-1');
+  assert.ok(env.html().includes('نافذة الدفع مفتوحة'), 'the page says the window is open');
+  assert.doesNotMatch(env.html(), /data-op-pay/, 'no «الدفع» button when the window opened by itself');
   assert.doesNotMatch(env.html(), /data-op-count|\d\d:\d\d|الوقت المتبقي|Time left/, 'no countdown of ours');
-  assert.ok(env.html().includes('إغلاق نافذة الدفع قبل إتمام الدفع يلغي الطلب'));
   assert.doesNotMatch(env.html(), /data-op-cancel/, 'no cancel button for the customer');
-  env.click({ 'op-pay': '' });
-  assert.equal(env.opened.length, 1, 'the window is opened synchronously inside the click');
-  assert.equal(env.opened[0].orderId, 'order-1');
-  assert.ok(env.html().includes('نافذة الدفع مفتوحة'));
-  assert.doesNotMatch(env.html(), /data-op-pay/, 'no second window while one is open');
-});
-
-test('a window the browser blocked is explained, and the customer can press «الدفع» again', async () => {
-  const { env } = await placed(state({ status: 'store_confirmed', delivery: null, window: { state: 'issued' } }));
-  await env.advance(3000);
+  await env.advance(5000);
   await env.flushAsync();
-  env.click({ 'op-pay': '' });
-  env.opened[0].onError('popup_blocked');
-  assert.ok(env.html().includes('اسمح للموقع بفتح النوافذ'));
-  assert.match(env.html(), /data-op-pay/);
+  assert.equal(env.reserved[0].follows.length, 1, 'it is pointed once, not on every poll');
 });
 
-test('the customer came back from the window claiming success: the page says "verifying" and does not call the order paid', async () => {
+test('the window returned: the page reads the order again, says "verifying" for a success claim and never calls the order paid', async () => {
   let phase = 0;
   const { env } = await placed(() => (phase === 0 ? state({ status: 'store_confirmed', delivery: null, window: { state: 'issued' } }) : state({ status: 'store_confirmed', delivery: null, window: { state: 'success_claimed' } })));
+  const handle = env.reserved[0];
   await env.advance(3000);
   await env.flushAsync();
-  env.click({ 'op-pay': '' });
+  assert.equal(handle.follows.length, 1);
   phase = 1;
-  env.opened[0].onState({ state: 'success_claimed' });
+  handle.follows[0].onState({ state: 'success_claimed' });
   await env.flushAsync();
   assert.ok(env.html().includes('نؤكد طريقة الدفع'));
   assert.doesNotMatch(env.html(), /تم تأكيد طلبك/, 'a browser return proves nothing');
   assert.equal(env.timers.some((t) => t.alive && !t.every), true, 'it keeps polling for the neutral confirmation');
+});
+
+test('a payment that failed in the provider\'s window brings the customer back to the page, which says so and offers the window again', async () => {
+  let phase = 0;
+  const { env } = await placed(() => state({ status: 'store_confirmed', delivery: null, window: { state: phase === 0 ? 'issued' : 'opened' } }));
+  const handle = env.reserved[0];
+  await env.advance(3000);
+  await env.flushAsync();
+  phase = 1;
+  handle.follows[0].onState({ state: 'opened', returned: 'failed' });
+  await env.flushAsync();
+  assert.ok(env.html().includes('لم تكتمل عملية الدفع'), 'the customer is told it did not complete');
+  assert.match(env.html(), /data-op-pay/, 'and can open the window again for another method');
+  assert.doesNotMatch(env.html(), /تم إلغاء المعاملة/, 'nothing is cancelled by a failed attempt');
+});
+
+test('a browser that refused the window: nothing opens by itself, the wait says a button will come, and the button opens it inside the tap', async () => {
+  const env = await opened({ popup: false, routes: { ...draftOk, '/api/place-store-order': { body: { ok: true, id: 'order-1', trackingNumber: DRAFT.trackingNumber, state: state() } }, '/api/customer-order-review': { body: state() } } });
+  env.click({ 'op-approve': '' });
+  await env.flushAsync();
+  assert.equal(env.reserved.length, 0);
+  assert.ok(env.html().includes('يظهر هنا زر لفتح نافذة الدفع'), 'the waiting text does not promise a window that cannot open');
+  const { env: approved } = await placed(state({ status: 'store_confirmed', delivery: null, window: { state: 'issued' } }), { popup: false });
+  await approved.advance(3000);
+  await approved.flushAsync();
+  assert.ok(approved.html().includes('قبل المتجر طلبك'));
+  assert.ok(approved.html().includes('لم يفتح المتصفح نافذة الدفع تلقائيًا'), 'it says why there is a button');
+  assert.match(approved.html(), /data-op-pay/, 'the button is there only because nothing opened by itself');
+});
+
+test('the fallback button reserves and follows inside its own tap; a refusal is explained and the button stays', async () => {
+  const { env } = await placed(state({ status: 'store_confirmed', delivery: null, window: { state: 'issued' } }));
+  // the first reservation (made at «موافق») was already followed by itself; simulate a page where the browser refused it
+  env.page().state().reserved = null; env.page().state().paying = false;
+  await env.advance(3000);
+  await env.flushAsync();
+  env.context.ElanPay.reserve = () => null;
+  env.click({ 'op-pay': '' });
+  assert.ok(env.html().includes('اسمح للموقع بفتح النوافذ'), 'a refused window is explained');
+  assert.match(env.html(), /data-op-pay/);
+  const made = [];
+  env.context.ElanPay.reserve = (options) => { const h = { options, follows: [], close() {}, follow(o) { this.follows.push(o); } }; made.push(h); return h; };
+  env.click({ 'op-pay': '' });
+  assert.equal(made.length, 1, 'reserved inside the click');
+  assert.equal(made[0].follows.length, 1, 'and pointed at the store at once');
+  assert.ok(env.html().includes('نافذة الدفع مفتوحة'));
+  assert.doesNotMatch(env.html(), /data-op-pay/, 'no second window while one is open');
+});
+
+test('the customer shut the waiting window before the store answered: the page says so and offers the window again (nothing is cancelled)', async () => {
+  const { env } = await placed(state({ status: 'store_confirmed', delivery: null, window: { state: 'issued' } }));
+  const handle = env.reserved[0];
+  await env.advance(3000);
+  await env.flushAsync();
+  handle.follows[0].onError('window_closed_early');
+  assert.ok(env.html().includes('أُغلقت نافذة الدفع قبل أن يردّ المتجر'));
+  assert.match(env.html(), /data-op-pay/);
+  assert.doesNotMatch(env.html(), /تم إلغاء المعاملة/);
+});
+
+test('a reservation never outlives its purpose: a refusal, a cancellation, a failed save or a failed send closes the waiting window', async () => {
+  for (const answer of [state({ status: 'store_rejected', failureReason: 'x' }), state({ status: 'cancelled', cancelReason: 'store_unresponsive' })]) {
+    const { env } = await placed(answer);
+    await env.advance(3000);
+    await env.flushAsync();
+    assert.equal(env.reserved[0].closed >= 1, true, 'the waiting window is closed when the order ends');
+    assert.equal(env.reserved[0].follows.length, 0, 'and never pointed at a store');
+  }
+  const saveFails = await opened({ routes: { ...draftOk, 'acct:save': { status: 500, body: {} } } });
+  saveFails.click({ 'op-approve': '' });
+  await saveFails.flushAsync();
+  assert.equal(saveFails.reserved.length, 1);
+  assert.equal(saveFails.reserved[0].closed >= 1, true, 'nothing was sent, so the window is closed again');
+  const sendFails = await opened({ routes: { ...draftOk, '/api/place-store-order': { status: 409, body: { ok: false, error: 'order_page_expired' } } } });
+  sendFails.click({ 'op-approve': '' });
+  await sendFails.flushAsync();
+  assert.equal(sendFails.reserved[0].closed >= 1, true, 'the order was not placed, so the window is closed again');
+});
+
+test('a paid order closes the window and brings the customer back; a page that was left lets the reservation go', async () => {
+  const { env } = await placed(state({ status: 'store_confirmed', paymentStatus: 'paid', delivery: null, window: { state: 'success_claimed' } }));
+  await env.advance(3000);
+  await env.flushAsync();
+  assert.ok(env.html().includes('تم تأكيد طلبك'));
+  assert.equal(env.reserved[0].closed >= 1, true);
+  const left = await placed(state());
+  left.env.sheetEl.hidden = true;
+  await left.env.advance(3000);
+  await left.env.flushAsync();
+  assert.equal(left.env.reserved[0].closed >= 1, true, 'a customer who left the page while it waited does not keep an empty window open');
 });
 
 test('a payment the neutral confirmation proved (or cash on delivery) is shown as confirmed', async () => {
@@ -471,9 +580,9 @@ test('an old server that still sends an expiry time changes nothing: the page ne
   await env.flushAsync();
   await env.advance(60000);
   await env.flushAsync();
-  assert.ok(env.html().includes('قبل المتجر طلبك'), 'still the approved view');
-  assert.match(env.html(), /data-op-pay/, 'the customer can still open the store\'s window: only the store or the provider ends it');
+  assert.ok(env.html().includes('نافذة الدفع مفتوحة'), 'still the open window: only the store, the provider or the server\'s idle time ends it');
   assert.doesNotMatch(env.html(), /انتهت المهلة|انتهت مهلة/, 'no "time is up" of ours');
+  assert.equal(env.page().state().order.id, 'order-1');
 });
 
 test('closing the sheet stops the polling and the clock (the server carries on without the page)', async () => {

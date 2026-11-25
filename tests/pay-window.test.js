@@ -1,9 +1,11 @@
 // pay-window.js and payment-return.js: the customer's side of the MERCHANT'S payment window (step 6 of docs/purchase-flow-final.ar.md).
 // Both real files run in a VM with a scripted popup, a fake clock and a scripted server; no network, no real customer.
-// What is proved: the window is opened first (inside the tap) and pointed at the merchant afterwards; only an https address is used; closing the
+// What is proved: the window is RESERVED first (inside the tap, with a waiting text) and pointed at the merchant afterwards, by itself, when the merchant has
+// approved; a window Élan itself closes is never read as the customer shutting it; the customer's way back is heard on postMessage AND on a BroadcastChannel; only an https address is used; closing the
 // window for real is reported as "closed" (the server cancels the order); a window that only LOOKS closed right after the merchant's page loads
 // (a page that cuts its link to the opener) is not taken as the customer closing it; the return page's report is what tells the opener, which then
-// asks the server for the state; success claimed by the browser is a claim, and a failed report keeps the return page open instead of closing it.
+// asks the server for the state; success claimed by the browser is a claim, a failed payment reports nothing and cancels nothing, and a failed report keeps
+// the return page open instead of closing it; the return page always shows the way back to Élan Scents and to «طلباتي».
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -19,13 +21,13 @@ const ORDER = '11111111-2222-4333-8444-555555555555';
 const ORIGIN = 'https://shop.example.invalid';
 
 function popup() {
-  const win = { closed: false, closeCalls: 0, hrefs: [], document: { title: '' }, close() { this.closeCalls += 1; this.closed = true; } };
+  const win = { closed: false, closeCalls: 0, hrefs: [], document: { title: '', documentElement: {}, body: { style: {}, textContent: '' } }, close() { this.closeCalls += 1; this.closed = true; } };
   Object.defineProperty(win, 'location', { value: { set href(v) { win.hrefs.push(v); } } });
   return win;
 }
 
 function payEnv({ openResult, routes = {} } = {}) {
-  const calls = [], listeners = {}, intervals = [], order = [];
+  const calls = [], listeners = {}, intervals = [], order = [], channels = [];
   const win = popup();
   const context = {
     console, JSON, Date: { now: () => context.__now }, Math, Object, Promise, Array, String, Error, encodeURIComponent,
@@ -35,6 +37,7 @@ function payEnv({ openResult, routes = {} } = {}) {
     setInterval: (fn, ms) => { intervals.push({ fn, ms, alive: true }); return intervals.length; },
     clearInterval: (id) => { if (intervals[id - 1]) intervals[id - 1].alive = false; },
     addEventListener: (type, fn) => { listeners[type] = fn; }, removeEventListener: (type) => { delete listeners[type]; },
+    BroadcastChannel: function (name) { const ch = { name, closed: false, onmessage: null, close() { this.closed = true; } }; channels.push(ch); return ch; },
     open: (url, name, features) => { order.push('open'); calls.push({ kind: 'window.open', url, name, features }); return openResult === null ? null : win; },
     fetch: async (url, options) => {
       order.push('fetch');
@@ -50,7 +53,7 @@ function payEnv({ openResult, routes = {} } = {}) {
   vm.runInContext(payWindow, context, { filename: 'pay-window.js' });
   const tick = async (ms) => { context.__now += ms; for (const i of intervals.slice()) if (i.alive) await i.fn(); await new Promise((r) => setImmediate(r)); };
   const settle = async () => { for (let i = 0; i < 6; i += 1) await new Promise((r) => setImmediate(r)); };
-  return { context, calls, win, listeners, tick, settle, order, intervals, pay: () => context.ElanPay };
+  return { context, calls, win, listeners, channels, tick, settle, order, intervals, pay: () => context.ElanPay };
 }
 
 const open = { open: { ok: true, state: 'opened', url: 'https://pay.example.invalid/checkout/abc' } };
@@ -160,6 +163,76 @@ test('a message from another origin, another order or another kind is ignored', 
   assert.equal(env.calls.some((c) => c.kind === 'fetch' && c.body.action === 'state'), false);
 });
 
+test('reserve() opens the empty window inside the tap with a waiting text and asks the server nothing; follow() points it at the merchant later', async () => {
+  const env = payEnv({ routes: open });
+  const handle = env.pay().reserve({ text: 'جارٍ تجهيز نافذة الدفع…', dir: 'rtl' });
+  assert.ok(handle, 'the window is reserved');
+  assert.deepEqual(env.order, ['open'], 'nothing is requested until the merchant answers');
+  assert.equal(env.win.document.body.textContent, 'جارٍ تجهيز نافذة الدفع…');
+  assert.equal(env.win.document.documentElement.dir, 'rtl');
+  await env.settle();
+  assert.deepEqual(env.win.hrefs, [], 'the merchant is not loaded yet');
+  handle.follow({ orderId: ORDER, onState() {}, onError() {} });
+  await env.settle();
+  assert.deepEqual(env.calls.filter((c) => c.kind === 'fetch').map((c) => c.body.action), ['open']);
+  assert.deepEqual(env.win.hrefs, ['https://pay.example.invalid/checkout/abc']);
+  handle.follow({ orderId: ORDER, onState() {}, onError() {} });
+  await env.settle();
+  assert.equal(env.calls.filter((c) => c.kind === 'fetch').length, 1, 'following twice asks once');
+});
+
+test('a browser that refuses the reservation gives null (the order page then offers its one button)', () => {
+  const env = payEnv({ openResult: null, routes: open });
+  assert.equal(env.pay().reserve({ text: 'x' }), null);
+  assert.equal(env.calls.filter((c) => c.kind === 'fetch').length, 0);
+});
+
+test('the customer shut the waiting window before the merchant answered: no request, no cancellation, just "window_closed_early"', async () => {
+  const env = payEnv({ routes: { ...open, return: { ok: true, state: 'cancelled' } } });
+  const handle = env.pay().reserve({ text: 'x' });
+  env.win.closed = true;
+  let error = null;
+  handle.follow({ orderId: ORDER, onState() { assert.fail('no verdict'); }, onError: (k) => { error = k; } });
+  await env.settle();
+  await env.tick(1000);
+  assert.equal(error, 'window_closed_early');
+  assert.equal(env.calls.filter((c) => c.kind === 'fetch').length, 0, 'nothing was shown, so nothing is cancelled');
+});
+
+test('a window that Élan itself closes (order refused, paid, page left) is never reported as the customer shutting it', async () => {
+  const env = payEnv({ routes: { ...open, return: { ok: true, state: 'cancelled' } } });
+  const handle = env.pay().reserve({ text: 'x' });
+  handle.follow({ orderId: ORDER, onState() { assert.fail('no verdict'); }, onError() {} });
+  await env.settle();
+  await env.tick(60000);
+  handle.close();
+  assert.equal(env.win.closed, true);
+  await env.tick(500);
+  await env.tick(500);
+  await env.settle();
+  assert.equal(env.calls.some((c) => c.kind === 'fetch' && c.body.action === 'return'), false);
+  assert.equal(env.channels.every((c) => c.closed), true, 'the broadcast listener is released too');
+  assert.equal(env.listeners.message, undefined, 'and the message listener');
+});
+
+test('the way back is heard on the BroadcastChannel too (a merchant page that cut the opener link): the server is asked, the window closed, the outcome passed on', async () => {
+  const env = payEnv({ routes: { ...open, state: { ok: true, status: 'store_confirmed', window: { state: 'opened' } } } });
+  let got = null;
+  env.pay().open({ orderId: ORDER, onState: (s) => { got = s; }, onError() {} });
+  await env.settle();
+  assert.equal(env.channels.length, 1);
+  assert.equal(env.channels[0].name, 'elan-pay-return');
+  env.channels[0].onmessage({ data: { elan: 'pay-return', orderId: 'someone-else', outcome: 'success' } });
+  await env.settle();
+  assert.equal(got, null, 'another order is ignored');
+  env.channels[0].onmessage({ data: { elan: 'pay-return', orderId: ORDER, outcome: 'failed' } });
+  await env.settle();
+  assert.equal(env.win.closeCalls >= 1, true);
+  assert.equal(got.status, 'store_confirmed');
+  assert.equal(got.returned, 'failed', 'the page learns how the customer came back, but the order itself is read from the server');
+  assert.equal(env.calls.some((c) => c.kind === 'fetch' && c.body.action === 'return'), false, 'a failed payment is not reported as anything');
+});
+
 test('pay-window.js has no inline handler, stores nothing and holds no secret', () => {
   assert.doesNotMatch(payWindow, /onclick=|<script|innerHTML|document\.write|eval\(|new Function/);
   assert.doesNotMatch(payWindow, /localStorage\.setItem|sessionStorage|indexedDB/, 'only the signed-in session is read');
@@ -169,11 +242,12 @@ test('pay-window.js has no inline handler, stores nothing and holds no secret', 
 
 // ---------- the page the merchant's window returns to ----------
 function returnEnv({ search, token = 'tok', opener = true, replies = [] } = {}) {
-  const els = {}, calls = [], posted = [], listeners = {};
+  const els = {}, calls = [], posted = [], broadcast = [], listeners = {};
   const el = (id) => (els[id] = els[id] || { id, hidden: false, textContent: '', addEventListener: (t, fn) => { listeners[id + ':' + t] = fn; } });
   const win = { closed: false };
   const context = {
     console, JSON, Promise, Error, String, Math, URLSearchParams, encodeURIComponent,
+    BroadcastChannel: function (name) { return { name, postMessage: (m) => broadcast.push({ name, m }), close() {} }; },
     location: { search, origin: ORIGIN },
     document: { getElementById: el },
     localStorage: { getItem: (k) => (k === 'elan_auth_session' && token ? JSON.stringify({ access_token: token }) : null) },
@@ -187,7 +261,7 @@ function returnEnv({ search, token = 'tok', opener = true, replies = [] } = {}) 
   vm.createContext(context);
   vm.runInContext(returnJs, context, { filename: 'payment-return.js' });
   const settle = async () => { for (let i = 0; i < 8; i += 1) await new Promise((r) => setImmediate(r)); };
-  return { context, els, calls, posted, listeners, settle, win };
+  return { context, els, calls, posted, broadcast, listeners, settle, win };
 }
 
 test('success in the merchant\'s window is recorded as a CLAIM, the opener is told, and the window closes itself', async () => {
@@ -198,14 +272,32 @@ test('success in the merchant\'s window is recorded as a CLAIM, the opener is to
   assert.equal(env.calls[0].headers.Authorization, 'Bearer tok');
   assert.deepEqual(JSON.parse(JSON.stringify(env.posted)), [{ m: { elan: 'pay-return', orderId: ORDER, outcome: 'success' }, origin: ORIGIN }], 'only to this site\'s own origin');
   assert.equal(env.context.closed, true);
+  assert.deepEqual(JSON.parse(JSON.stringify(env.broadcast)), [{ name: 'elan-pay-return', m: { elan: 'pay-return', orderId: ORDER, outcome: 'success' } }], 'and on the channel, for a window whose opener link was cut');
+  assert.equal(env.els.prHome.hidden, false, 'the way back to Élan Scents is always shown');
+  assert.equal(env.els.prOrders.hidden, false);
   assert.doesNotMatch(env.els.prTitle.textContent, /تم الدفع|مدفوع/, 'the page does not call it paid');
 });
 
-test('cancel in the merchant\'s window is reported as cancel', async () => {
-  const env = returnEnv({ search: `?o=${ORDER}&r=cancel` });
+test('cancel or a shut window is reported (the server cancels the order) and says it in the customer\'s words', async () => {
+  for (const result of ['cancel', 'closed']) {
+    const env = returnEnv({ search: `?o=${ORDER}&r=${result}` });
+    await env.settle();
+    assert.equal(env.calls[0].body.outcome, result);
+    assert.equal(env.posted.length, 1);
+    assert.equal(env.els.prTitle.textContent, 'تم إلغاء المعاملة برغبة العميل');
+    assert.match(env.els.prText.textContent, /سلتك/, 'the cart is kept');
+  }
+});
+
+test('a payment that FAILED reports nothing and cancels nothing: it only brings the customer back to try again', async () => {
+  const env = returnEnv({ search: `?o=${ORDER}&r=failed`, token: '' });
   await env.settle();
-  assert.equal(env.calls[0].body.outcome, 'cancel');
+  assert.equal(env.calls.length, 0, 'no report: the truth comes from the provider\'s own confirmation');
   assert.equal(env.posted.length, 1);
+  assert.equal(env.posted[0].m.outcome, 'failed');
+  assert.equal(env.broadcast.length, 1);
+  assert.equal(env.els.prTitle.textContent, 'لم تكتمل عملية الدفع');
+  assert.equal(env.els.prHome.hidden, false);
 });
 
 test('an address that is not a valid return (bad order, unknown result, no sign-in) reports nothing and offers «طلباتي»', async () => {
@@ -214,7 +306,9 @@ test('an address that is not a valid return (bad order, unknown result, no sign-
     await env.settle();
     assert.equal(env.calls.length, 0, search + '/' + token);
     assert.equal(env.posted.length, 0);
+    assert.equal(env.broadcast.length, 0);
     assert.equal(env.els.prOrders.hidden, false, 'the way back to «طلباتي»');
+    assert.equal(env.els.prHome.hidden, false, 'and to Élan Scents');
     assert.equal(env.context.closed, false);
   }
 });
@@ -240,11 +334,13 @@ test('an order that is already past this step (409) or unknown (404) is a final 
   }
 });
 
-test('without an opener the page shows the way back instead of closing', async () => {
+test('without an opener the page still tells the Élan page (on the channel) and shows the way back to Élan Scents and «طلباتي»', async () => {
   const env = returnEnv({ search: `?o=${ORDER}&r=success`, opener: false });
   await env.settle();
   assert.equal(env.calls.length, 1);
-  assert.equal(env.context.closed, false);
+  assert.equal(env.posted.length, 0, 'nothing to post to');
+  assert.equal(env.broadcast.length, 1, 'but the channel reaches the Élan page of this browser');
+  assert.equal(env.els.prHome.hidden, false);
   assert.equal(env.els.prOrders.hidden, false);
 });
 
@@ -256,6 +352,7 @@ test('the return page and its files: no inline script, served as a page under th
   assert.match(html, /src="\/auth-session\.js\?v=/);
   assert.match(html, /src="\/payment-return\.js\?v=/);
   assert.match(html, /href="\/payment-return\.css\?v=/);
+  assert.match(html, /id="prHome"[^>]*href="\/"|href="\/" id="prHome"/, 'a visible way back to Élan Scents');
   const vercel = JSON.parse(read('vercel.json'));
   const pageRules = vercel.headers.filter((h) => /\(index\.html\|/.test(h.source));
   assert.ok(pageRules.length >= 2 && pageRules.every((h) => h.source.includes('payment-return.html')), 'both page rules (policy and cache) list the page');
