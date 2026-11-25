@@ -64,9 +64,11 @@ test('the message is the frozen order for an order, and only the order, the reas
     ...ORDER_PAYLOAD,
     returnUrls: {
       success: `https://elan-scents.hossamthapitelgharib.workers.dev/payment-return.html?o=${REQUEST_ID}&r=success`,
-      cancel: `https://elan-scents.hossamthapitelgharib.workers.dev/payment-return.html?o=${REQUEST_ID}&r=cancel`
+      cancel: `https://elan-scents.hossamthapitelgharib.workers.dev/payment-return.html?o=${REQUEST_ID}&r=cancel`,
+      closed: `https://elan-scents.hossamthapitelgharib.workers.dev/payment-return.html?o=${REQUEST_ID}&r=closed`,
+      failed: `https://elan-scents.hossamthapitelgharib.workers.dev/payment-return.html?o=${REQUEST_ID}&r=failed`
     }
-  }, 'the order and the two addresses the merchant window sends the customer back to');
+  }, 'the order and the four addresses the merchant windows send the customer back to (done, cancelled, shut, payment failed)');
   const custom = dispatcher.returnUrls(REQUEST_ID, 'https://shop.example.com/');
   assert.equal(custom.success, `https://shop.example.com/payment-return.html?o=${REQUEST_ID}&r=success`);
   const cancel = dispatcher.buildMessage(job({ kind: 'cancel', payload: ORDER_PAYLOAD, cancel: { reason: 'payment_window_closed', cancelledAt: '2026-11-17T10:05:00Z' } }));

@@ -12,5 +12,6 @@ body{margin:0;min-height:100vh;display:grid;place-items:center;padding:20px;back
 .pr-actions [hidden]{display:none}
 .pr-actions button,.pr-actions a{min-width:180px;min-height:46px;padding:10px 24px;border-radius:999px;border:0;background:linear-gradient(135deg,#f0c04a,#c8962a 50%,#8a5e0c);color:#fff;font:inherit;font-weight:700;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
 .pr-actions a{background:#fff;color:var(--gold-dark);border:1.5px solid #d9bf7c}
+.pr-actions a#prHome{background:linear-gradient(135deg,#f0c04a,#c8962a 50%,#8a5e0c);color:#fff;border:0}
 @keyframes pr-turn{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.pr-spin{animation:none}}
