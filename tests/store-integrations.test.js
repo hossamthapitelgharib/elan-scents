@@ -176,19 +176,21 @@ test('normalized integration migration binds one config to each store and protec
 test('GET shows the order address and whether the store can take an order, never the secret', async () => {
   global.fetch = authenticatedFetch(async input => {
     const url = new URL(String(input));
-    if (url.pathname === '/rest/v1/public_stores') return response([{ id: storeId, name: 'Store A' }, { id: 'a1b2c3d4-0000-4000-8000-000000000002', name: 'Store B' }]);
+    if (url.pathname === '/rest/v1/public_stores') return response([{ id: storeId, name: 'Store A' }, { id: 'a1b2c3d4-0000-4000-8000-000000000002', name: 'Store B' }, { id: 'a1b2c3d4-0000-4000-8000-000000000003', name: 'Store C' }]);
     if (url.pathname === '/rest/v1/store_integrations') return response([
-      { store_id: storeId, enabled: true, order_endpoint: 'https://orders.store-a.com/elan', webhook_secret: 'LONGENOUGHSECRET16' },
-      { store_id: 'a1b2c3d4-0000-4000-8000-000000000002', enabled: true, order_endpoint: 'https://orders.store-b.com/elan', webhook_secret: 'short' },
+      { store_id: storeId, enabled: true, order_endpoint: 'https://orders.store-a.com/elan', webhook_secret: 'LONGENOUGHSECRET16', payment_hosts: ['pay.store-a.com'] },
+      { store_id: 'a1b2c3d4-0000-4000-8000-000000000002', enabled: true, order_endpoint: 'https://orders.store-b.com/elan', webhook_secret: 'short', payment_hosts: ['pay.store-b.com'] },
+      { store_id: 'a1b2c3d4-0000-4000-8000-000000000003', enabled: true, order_endpoint: 'https://orders.store-c.com/elan', webhook_secret: 'LONGENOUGHSECRET16', payment_hosts: [] },
     ]);
     if (url.pathname === '/rest/v1/site_settings') return response([]);
     throw new Error(`unexpected ${url.pathname}`);
   });
   const res = recorder();
   await handler(request(), res);
-  const [a, b] = res.out.body.stores;
-  assert.deepEqual([a.orderEndpoint, a.orderReady], ['https://orders.store-a.com/elan', true]);
+  const [a, b, c] = res.out.body.stores;
+  assert.deepEqual([a.orderEndpoint, a.orderReady, a.paymentHosts], ['https://orders.store-a.com/elan', true, ['pay.store-a.com']]);
   assert.deepEqual([b.orderEndpoint, b.orderReady], ['https://orders.store-b.com/elan', false], 'a secret under 16 characters is not enough');
+  assert.deepEqual([c.orderReady, c.paymentHosts], [false, []], 'a store with no payment host is not linked, whatever else it has');
   assert.equal(JSON.stringify(res.out.body).includes('LONGENOUGHSECRET16'), false);
 });
 
@@ -227,4 +229,48 @@ test('PUT keeps the saved order address when the form leaves it out, and removes
   assert.equal(savedRow(removed).order_endpoint, null);
   const never = await putOrderEndpoint({});
   assert.equal(savedRow(never).order_endpoint, null);
+});
+
+// The hosts a store's payment windows may live on: the same rule as the database's check, so a bad list is refused with a clear answer
+// before anything is written, and the form can leave the field out without wiping what is saved.
+test('PUT saves the payment hosts clean (lower-case, no duplicates), from a list or from text typed in the form', async () => {
+  const typed = await putOrderEndpoint({ paymentHosts: ' Pay.Store-A.com,\n pay2.store-a.com  pay.store-a.com ; ' });
+  assert.equal(typed.res.out.status, 200);
+  assert.deepEqual(savedRow(typed).payment_hosts, ['pay.store-a.com', 'pay2.store-a.com']);
+  const listed = await putOrderEndpoint({ paymentHosts: ['pay.store-a.com'] });
+  assert.deepEqual(savedRow(listed).payment_hosts, ['pay.store-a.com']);
+  const ten = Array.from({ length: 10 }, (_, i) => `h${i}.store-a.com`);
+  assert.deepEqual(savedRow(await putOrderEndpoint({ paymentHosts: ten })).payment_hosts, ten);
+});
+
+test('PUT refuses a payment host that is not an exact host name, and writes nothing', async () => {
+  const bad = ['https://pay.store-a.com', 'pay.store-a.com/checkout', 'pay.store-a.com:8443', '*.store-a.com', 'pay', 'pay_x.store-a.com', '-a.store-a.com',
+               'a..store-a.com', 'pay.store-a.com.', 'user@pay.store-a.com', 'pay.store-a.com?x=1', 'pay\u0645.store-a.com'];
+  for (const host of bad) {
+    const refused = await putOrderEndpoint({ paymentHosts: host });
+    assert.deepEqual([refused.res.out.status, refused.res.out.body.error], [400, 'invalid_payment_hosts'], host);
+    assert.equal(refused.requests.some(call => call.options.method === 'POST'), false, `${host}: nothing is written`);
+  }
+  for (const value of [['ok.store-a.com', 5], [{ host: 'pay.store-a.com' }], 7, true, Array.from({ length: 11 }, (_, i) => `h${i}.store-a.com`), 'a'.repeat(5000)]) {
+    const refused = await putOrderEndpoint({ paymentHosts: value });
+    assert.equal(refused.res.out.status, 400, JSON.stringify(value).slice(0, 40));
+    assert.equal(refused.requests.some(call => call.options.method === 'POST'), false);
+  }
+});
+
+test('PUT keeps the saved payment hosts when the form leaves them out, and removes them when it sends an empty list', async () => {
+  const saved = { payment_hosts: ['pay.store-a.com'] };
+  assert.deepEqual(savedRow(await putOrderEndpoint({ notes: 'x' }, saved)).payment_hosts, ['pay.store-a.com']);
+  assert.deepEqual(savedRow(await putOrderEndpoint({ paymentHosts: '' }, saved)).payment_hosts, []);
+  assert.deepEqual(savedRow(await putOrderEndpoint({ paymentHosts: [] }, saved)).payment_hosts, []);
+  assert.deepEqual(savedRow(await putOrderEndpoint({})).payment_hosts, [], 'a store with nothing saved starts with no host');
+});
+
+test('the dashboard form carries the payment hosts field and says a host is part of being ready', () => {
+  const dashboard = fs.readFileSync(path.join(__dirname, '..', 'dashboard.js'), 'utf8');
+  assert.match(dashboard, /inputField\('مضيفات نافذة الدفع[^']*', 'paymentHosts', \(store\.paymentHosts \|\| \[\]\)\.join\(', '\)/);
+  assert.match(dashboard, /paymentHosts: get\('paymentHosts'\)\.value/);
+  assert.match(dashboard, /مضيف نافذة دفع واحد على الأقل/);
+  const portal = fs.readFileSync(path.join(__dirname, '..', 'portal.js'), 'utf8');
+  assert.match(portal, /invalid_payment_hosts:\s*'/);
 });

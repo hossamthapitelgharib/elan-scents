@@ -8,6 +8,7 @@ const FIELD_LIMITS = {
   apiBaseUrl: 2048,
   catalogEndpoint: 2048,
   orderEndpoint: 500,
+  paymentHosts: 4000,
   apiKey: 4096,
   webhookSecret: 4096,
   notes: 10000,
@@ -53,7 +54,7 @@ async function getLegacySettings(base, key) {
 function byStoreIds(base, key, ids) {
   if (!ids.length) return Promise.resolve([]);
   const params = new URLSearchParams({
-    select: 'store_id,enabled,base_url,cart_url,api_base_url,catalog_endpoint,order_endpoint,api_key,webhook_secret,notes',
+    select: 'store_id,enabled,base_url,cart_url,api_base_url,catalog_endpoint,order_endpoint,payment_hosts,api_key,webhook_secret,notes',
     store_id: `in.(${ids.join(',')})`,
     limit: String(MAX_STORES),
   });
@@ -66,6 +67,31 @@ function tooLong(item) {
 
 function clean(value) {
   return String(value == null ? '' : value).trim();
+}
+
+// The hosts the store's payment windows may live on (docs/purchase-flow-correction-plan.ar.md, stage 1). The same rule as the database's
+// check (store_integrations_payment_hosts_valid): exact host names, lower-case letters, digits and hyphens, at least two labels, no scheme,
+// no port, no path, no wildcard; at most ten. A pasted address is refused rather than trimmed to its host: this list is the only thing that
+// stops a look-alike payment window, so the person who fills it in must write what they mean.
+const HOST_PATTERN = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/;
+const MAX_PAYMENT_HOSTS = 10;
+
+// undefined = the form did not send the field (keep what is saved); { hosts } = the clean list; null = something in it cannot be a host.
+function parsePaymentHosts(value) {
+  if (value === undefined) return undefined;
+  if (value === null) return { hosts: [] };
+  const parts = Array.isArray(value) ? value : typeof value === 'string' ? value.split(/[\s,;]+/) : null;
+  if (!parts) return null;
+  const hosts = [];
+  for (const part of parts) {
+    if (typeof part !== 'string') return null;
+    const host = part.trim().toLowerCase();
+    if (!host) continue;
+    if (!HOST_PATTERN.test(host)) return null;
+    if (!hosts.includes(host)) hosts.push(host);
+  }
+  if (hosts.length > MAX_PAYMENT_HOSTS || hosts.join(',').length > 2000) return null;
+  return { hosts };
 }
 
 module.exports = async function storeIntegrations(req, res) {
@@ -100,7 +126,10 @@ module.exports = async function storeIntegrations(req, res) {
           // Where Élan sends this store's signed orders (https). With the secret below and an enabled link, it is what makes the store
           // able to take an order; without it the order button of the store is locked.
           orderEndpoint: row && row.order_endpoint ? row.order_endpoint : '',
-          orderReady: Boolean(row && row.enabled && row.order_endpoint && String(row.webhook_secret || '').trim().length >= 16),
+          // The hosts the store's payment windows may live on: Élan opens a payment window only on one of them.
+          paymentHosts: row && Array.isArray(row.payment_hosts) ? row.payment_hosts : [],
+          orderReady: Boolean(row && row.enabled && row.order_endpoint && String(row.webhook_secret || '').trim().length >= 16
+            && Array.isArray(row.payment_hosts) && row.payment_hosts.length > 0),
           webhookUrl: `${req.headers['x-forwarded-proto'] || 'https'}://${req.headers.host || ''}/api/store-order-status`,
           apiKey: '',
           webhookSecret: '',
@@ -130,6 +159,10 @@ module.exports = async function storeIntegrations(req, res) {
       reply(res, 400, { ok: false, error: 'invalid_order_endpoint' });
       return;
     }
+    if (body.stores.some(item => parsePaymentHosts(item.paymentHosts) === null)) {
+      reply(res, 400, { ok: false, error: 'invalid_payment_hosts' });
+      return;
+    }
     const names = body.stores.map(item => clean(item.name));
     if (new Set(names).size !== names.length) { reply(res, 400, { ok: false, error: 'duplicate_store_settings' }); return; }
 
@@ -154,6 +187,7 @@ module.exports = async function storeIntegrations(req, res) {
       const old = existing || legacy[name] || {};
       const previousApiKey = existing ? existing.api_key : old.api_key || old.apiKey;
       const previousWebhookSecret = existing ? existing.webhook_secret : old.webhook_secret || old.webhookSecret;
+      const parsedHosts = parsePaymentHosts(item.paymentHosts);
       return {
         store_id: store.id,
         enabled: item.enabled !== false,
@@ -163,6 +197,8 @@ module.exports = async function storeIntegrations(req, res) {
         catalog_endpoint: clean(item.catalogEndpoint),
         // Left out of the form, the saved address stays; an empty value removes it (the store stops taking orders).
         order_endpoint: item.orderEndpoint === undefined ? (existing && existing.order_endpoint) || null : clean(item.orderEndpoint) || null,
+        // Left out of the form, the saved list stays; an empty list removes every host (the store stops being linked).
+        payment_hosts: parsedHosts === undefined ? (existing && Array.isArray(existing.payment_hosts) ? existing.payment_hosts : []) : parsedHosts.hosts,
         api_key: clean(item.apiKey) || previousApiKey || '',
         webhook_secret: clean(item.webhookSecret) || previousWebhookSecret || '',
         notes: clean(item.notes),

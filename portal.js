@@ -83,6 +83,8 @@ Portal.errorMessages = {
   role_check_failed: 'تعذر التحقق من صلاحية الحساب الآن، حاول بعد قليل.',
   supabase_service_configuration_missing: 'الخدمة غير مهيأة حاليًا، تواصل مع مسؤول المنصة.',
   invalid_page: 'رقم الصفحة المطلوبة غير صحيح.',
+  invalid_order_endpoint: 'عنوان استقبال الطلبات غير صالح: يجب أن يكون عنوان https كاملًا بلا منفذ ولا بيانات دخول.',
+  invalid_payment_hosts: 'مضيفات نافذة الدفع غير صالحة: اكتب اسم المضيف فقط (مثل pay.store.example) بلا https ولا مسار ولا منفذ، وحتى عشرة مضيفات مفصولة بفاصلة.',
   customer_data_unavailable: 'تعذر تحميل بيانات العملاء الآن، حاول بعد قليل.',
   customer_cart_data_unavailable: 'تعذر تحميل سلال العملاء الآن، حاول بعد قليل.',
   customer_activity_unavailable: 'تعذر تحميل سجل النشاط الآن، حاول بعد قليل.',
