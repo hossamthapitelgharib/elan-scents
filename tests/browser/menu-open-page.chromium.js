@@ -18,7 +18,7 @@ for (const size of H.WIDTHS) {
     const page = await context.newPage();
     try {
       await page.goto(H.SITE + '/', { waitUntil: 'load' });
-      await page.waitForFunction(() => window.ElanDesignLayer && ElanDesignLayer.current() !== null, null, { timeout: 15000 });
+      await page.waitForFunction(() => window.ElanDesignLayer && ElanDesignLayer.current() !== null && typeof document.getElementById('mb').onclick === 'function', null, { timeout: 15000 });   // (the menu button works once the store script has built the page: a click before that is lost, which is how this test failed now and then on a loaded machine)
       await H.quiet(page);
       const before = await page.evaluate(() => {
         document.documentElement.style.scrollBehavior = 'auto';   // the page scrolls smoothly otherwise, and the place is read at once
@@ -30,7 +30,8 @@ for (const size of H.WIDTHS) {
       });
       assert.ok(before && before.y > 300, 'the page was scrolled down to a section: ' + JSON.stringify(before));
       await page.click('#mb');
-      await page.waitForFunction(() => { const m = document.getElementById('menu'), r = m.getBoundingClientRect(); return m.classList.contains('open') && (Math.abs(r.left) < 1 || Math.abs(r.right - innerWidth) < 1); }, null, { timeout: 4000 });
+      await page.waitForFunction(() => { const m = document.getElementById('menu'), r = m.getBoundingClientRect(); const w = document.documentElement.clientWidth; return m.classList.contains('open') && (Math.abs(r.left) < 1 || Math.abs(r.right - innerWidth) < 1 || Math.abs(r.right - w) < 1); }   // (the menu rests against the edge of what is seen: with a classic scrollbar beside the page that edge is clientWidth, 15px short of innerWidth, which made this wait fail now and then)
+, null, { timeout: 4000 });
       const got = await page.evaluate(() => {
         const sec = document.querySelector('[data-probe]'), r = sec.getBoundingClientRect(), m = document.getElementById('menu'), mr = m.getBoundingClientRect();
         const x = mr.left < innerWidth / 2 ? innerWidth * 0.92 : innerWidth * 0.08, y = Math.min(Math.max(r.top + 30, 80), innerHeight - 40);
@@ -55,7 +56,7 @@ for (const size of [H.WIDTHS[0], H.WIDTHS[2]]) {
     const page = await context.newPage();
     try {
       await page.goto(H.SITE + '/', { waitUntil: 'load' });
-      await page.waitForFunction(() => window.ElanDesignLayer && ElanDesignLayer.current() !== null, null, { timeout: 15000 });
+      await page.waitForFunction(() => window.ElanDesignLayer && ElanDesignLayer.current() !== null && typeof document.getElementById('mb').onclick === 'function', null, { timeout: 15000 });   // (the menu button works once the store script has built the page: a click before that is lost, which is how this test failed now and then on a loaded machine)
       await H.quiet(page);
       const scrollTo = (y) => page.evaluate((v) => { document.documentElement.style.scrollBehavior = 'auto'; window.scrollTo(0, Math.min(v, document.documentElement.scrollHeight - innerHeight - 50)); return scrollY; }, y);
       const y1 = await scrollTo(1200);
