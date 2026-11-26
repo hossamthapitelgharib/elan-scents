@@ -119,6 +119,19 @@ test('the icons under the footer logo keep their room from the logo drawing on a
   assert.match(css, /footer \{\s*padding-bottom: clamp\(30px, calc\(73\.8% - 206px\), 100px\) !important;\s*\}/, 'the footer\'s bottom padding gives way as the phone narrows (a percentage, not vw: a scrollbar must not skew it) and is never more than the 100px it was');
 });
 
+test('the page behind the open menu or a sheet is not clipped away, the menu page is pure white, and the sheets give the page back through app.js (owner, 25 Nov); the browser file menu-open-page measures it', () => {
+  const lock = (css.match(/body\.sheet-open \{[^}]*\}/) || [''])[0];
+  assert.match(lock, /position: fixed !important;/, 'the page is frozen by fixing the body (app.js puts it at top:-scrollY)');
+  assert.doesNotMatch(lock, /height\s*:/, 'with no height of its own: a body one window high lifted out of the window left a blank page behind the menu anywhere but the top');
+  assert.doesNotMatch(lock, /overflow\s*:/, 'and no overflow:hidden, which clipped everything else away');
+  assert.match(css, /#menu \{ background: #fff !important; \}/, 'the menu page is pure white');
+  const app = read('app.js'), core = read('app-core.js');
+  assert.match(app, /window\.ElanPageLock=\{hold:function\(\)\{lockBodyScroll\(true\)\},release:function\(\)\{syncBodyScroll\(\)\}\};/, 'app.js (a closure) offers the page lock to the store script');
+  assert.equal((core.match(/ElanPageLock\.hold\(\)/g) || []).length, 5, 'the five sheets freeze the page through it, so the place the visitor was at is remembered');
+  assert.match(core, /function closeSheet\(\)\{[^\n]*ElanPageLock\.release\(\)/, 'and closing a sheet gives it back through it (taking the class off by hand threw him to the top, and the menu closed with Escape too)');
+  assert.match(app, /root\.style\.scrollBehavior='auto';\s*window\.scrollTo\(0,y\);/, 'the place is put back at once, not scrolled back smoothly from the top');
+});
+
 test('an uploaded video plays by itself on a phone: muted, looping, inline', () => {
   assert.match(layer, /v\.muted = true; v\.loop = true; v\.autoplay = true; v\.setAttribute\('playsinline', ''\);/, 'the video the owner uploads to a card plays inline (phones otherwise open it full screen)');
   assert.match(layer, /v\.setAttribute\('muted', ''\); v\.setAttribute\('loop', ''\); v\.setAttribute\('autoplay', ''\); v\.setAttribute\('playsinline', ''\)/);

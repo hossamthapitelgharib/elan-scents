@@ -22,7 +22,11 @@ function lockBodyScroll(lock){
     var y=parseInt(body.dataset.scrollY||'0',10)||0;
     body.classList.remove('sheet-open');
     body.style.top='';
+    // the page scrolls smoothly (scroll-behavior in the stylesheet): put back at once, or the visitor watches it climb down from the top after the menu closes
+    var root=document.documentElement,keep=root&&root.style?root.style.scrollBehavior:'';
+    if(root&&root.style)root.style.scrollBehavior='auto';
     window.scrollTo(0,y);
+    if(root&&root.style)root.style.scrollBehavior=keep;
   }
 }
 function syncBodyScroll(){
@@ -93,6 +97,8 @@ function applyArtAndHero(){
   watchSheet();
   watchMenu();
 }
+/* The store script (app-core.js) freezes and gives back the page through these two, so that every sheet and the menu keep the place the visitor was at (this file is a closure: its functions are not global). */
+window.ElanPageLock={hold:function(){lockBodyScroll(true)},release:function(){syncBodyScroll()}};
 var CORE='/app-core.js?v='+ASSET_V;
 loadScript(CORE, applyArtAndHero);
 })();

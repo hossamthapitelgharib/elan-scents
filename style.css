@@ -341,14 +341,17 @@ footer .fcred {
   color: #c8b898 !important;
 }
 
-/* ---------- Sheet (cart / fav / notif) ---------- */
+/* ---------- Sheet (cart / fav / notif) and the menu page: the page behind stays where it was ----------
+   app.js (lockBodyScroll) freezes the page by fixing the body at top:-scrollY. The body used to be given overflow:hidden and height:100% as well: a box one window high, lifted
+   out of the window by the scroll the visitor had, so anywhere but the very top the page behind the open menu was blank (a white page with no cards, owner 2026-11-25) and the
+   elements came back when the menu closed. Fixed, with the height its content has, the page stays exactly where it was under the shade; a fixed body cannot scroll, so nothing else is needed. */
 body.sheet-open {
-  overflow: hidden !important;
   position: fixed !important;
   width: 100% !important;
-  height: 100% !important;
   touch-action: none !important;
 }
+/* The menu page is pure white (not the off-white of the theme variable, and nothing tints it). */
+#menu { background: #fff !important; }
 #sheet {
   overscroll-behavior: contain !important;
   touch-action: none !important;
