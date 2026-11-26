@@ -132,6 +132,16 @@ test('the page behind the open menu or a sheet is not clipped away, the menu pag
   assert.match(app, /root\.style\.scrollBehavior='auto';\s*window\.scrollTo\(0,y\);/, 'the place is put back at once, not scrolled back smoothly from the top');
 });
 
+test('«الرئيسية» of the trail returns to the place the visitor left the home page from, and the Categories / Occasions / Notes pages are pages of cards (owner, 26 Nov); the browser file inner-trail measures it', () => {
+  const core = read('app-core.js');
+  assert.match(core, /if\(!bd\.classList\.contains\('inner'\)\)bd\.dataset\.homeY=String\(bd\.classList\.contains\('sheet-open'\)\?\(parseInt\(bd\.dataset\.scrollY\|\|'0',10\)\|\|0\):\(window\.scrollY\|\|0\)\);/, 'the place is kept only when the visitor arrives from the home page (never overwritten between inner pages), and under a frozen page it is the one the lock kept');
+  assert.match(core, /if\(!i\)\{document\.body\.classList\.remove\('inner'\);var hy=parseInt\(document\.body\.dataset\.homeY[^\n]*scrollTo\(0,hy\)/, '«الرئيسية» puts the home page back at that place (it threw the visitor to the hero with scrollTo(0,0))');
+  assert.match(core, /function colKey\(id,i\)/, 'the home Categories cards link by position (col|cats|0, the owner\'s saved edits are keyed to the text) and the page goes by key');
+  assert.match(core, /if\(x\.k=='sec'&&\(x\.id=='cats'\|\|x\.id=='occ'\|\|x\.id=='notes'\)\)\{h\+='<div class="grid taxo-grid">'/, 'the page of Categories, Occasions or Notes is a page of its cards, and a card opens that item\'s perfumes');
+  assert.match(css, /#view \.taxo-grid \.card\.round \{[^}]*aspect-ratio: 4 \/ 3 !important;/, 'its cards are shaped like the cards of the home page (4:3)');
+  assert.match(core, /<div class="card wide art" data-go="col\|cats\|'\+i\+'">/, 'and the home Categories cards still link by position, so the ids of the owner\'s saved edits (hashed from that text) do not change');
+});
+
 test('an uploaded video plays by itself on a phone: muted, looping, inline', () => {
   assert.match(layer, /v\.muted = true; v\.loop = true; v\.autoplay = true; v\.setAttribute\('playsinline', ''\);/, 'the video the owner uploads to a card plays inline (phones otherwise open it full screen)');
   assert.match(layer, /v\.setAttribute\('muted', ''\); v\.setAttribute\('loop', ''\); v\.setAttribute\('autoplay', ''\); v\.setAttribute\('playsinline', ''\)/);

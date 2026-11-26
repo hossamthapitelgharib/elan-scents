@@ -924,3 +924,23 @@ html:not(.elan-editing) .card.brandc:not(.nw) { margin-bottom: 40px; }
    section to the next is the same (54px) whatever the block is. The Brands section keeps its own top (it begins with the arrow, not a title). */
 #main > section:not(#brands) { padding-top: 28px; }
 #main > section .strip { padding-bottom: 12px; }
+
+/* ---------- The page of Categories, Occasions or Notes: its cards (owner, 2026-11-26) ----------
+   «الفئات» in the trail opens a page of the cards of the section, one per category, occasion or note, shaped like the cards of the same section on the home page
+   (340 wide, 4:3, the picture filling the frame). The card opens the page of that item's perfumes. */
+#view .taxo-grid {
+  grid-template-columns: repeat(auto-fit, minmax(0, 340px));
+  justify-content: center;
+  gap: 20px;
+  padding: 12px 0 24px;
+}
+#view .taxo-grid .card.round {
+  flex: none !important;
+  width: 100% !important;
+  max-width: 340px !important;
+  height: auto !important;
+  min-height: 0 !important;
+  aspect-ratio: 4 / 3 !important;
+  padding: 0 !important;
+  border-radius: 20px !important;
+}
