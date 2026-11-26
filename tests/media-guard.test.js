@@ -137,8 +137,12 @@ test('«الرئيسية» of the trail returns to the place the visitor left th
   assert.match(core, /if\(!bd\.classList\.contains\('inner'\)\)bd\.dataset\.homeY=String\(bd\.classList\.contains\('sheet-open'\)\?\(parseInt\(bd\.dataset\.scrollY\|\|'0',10\)\|\|0\):\(window\.scrollY\|\|0\)\);/, 'the place is kept only when the visitor arrives from the home page (never overwritten between inner pages), and under a frozen page it is the one the lock kept');
   assert.match(core, /if\(!i\)\{document\.body\.classList\.remove\('inner'\);var hy=parseInt\(document\.body\.dataset\.homeY[^\n]*scrollTo\(0,hy\)/, '«الرئيسية» puts the home page back at that place (it threw the visitor to the hero with scrollTo(0,0))');
   assert.match(core, /function colKey\(id,i\)/, 'the home Categories cards link by position (col|cats|0, the owner\'s saved edits are keyed to the text) and the page goes by key');
-  assert.match(core, /if\(x\.k=='sec'&&\(x\.id=='cats'\|\|x\.id=='occ'\|\|x\.id=='notes'\)\)\{h\+='<div class="grid taxo-grid">'/, 'the page of Categories, Occasions or Notes is a page of its cards, and a card opens that item\'s perfumes');
-  assert.match(css, /#view \.taxo-grid \.card\.round \{[^}]*aspect-ratio: 4 \/ 3 !important;/, 'its cards are shaped like the cards of the home page (4:3)');
+  assert.match(core, /if\(x\.k=='sec'&&\(x\.id=='cats'\|\|x\.id=='occ'\|\|x\.id=='notes'\)\)\{var fallback=[^\n]*homeCards=document\.querySelectorAll\('#main #'\+x\.id\+' \.card'\)/, 'the page of Categories, Occasions or Notes is a page of its cards, taken from the cards of the home page as they are drawn now');
+  assert.match(core, /tg\.appendChild\(homeCardCopy\(c\)\)/, 'each card of that page is a copy of the home page\'s card (its size and the picture the owner gave it), not a new card drawn from the page\'s own defaults, which showed the first size and the first pictures (owner, 26 Nov 14:03)');
+  assert.match(core, /function homeCardCopy\(c\)\{[^\n]*data-elan-[^\n]*\['transform','position','z-index'/, 'the copy drops the editor\'s marks and the offsets that belong to the home page\'s card alone');
+  assert.match(core, /homeBrands=x\.id=='brands'\?document\.querySelectorAll\('#main #brands \.card\.brandc'\):\[\]/, 'the page of the Brands shows the brand cards of the home page, each with the logo the owner gave it (it showed no logo at all, owner 26 Nov 18:01)');
+  assert.match(core, /bg\.appendChild\(homeCardCopy\(b\)\)/);
+  assert.match(css, /#view \.taxo-grid \.card \{[^}]*aspect-ratio: 4 \/ 3 !important;/, 'a card of that page without a size of its own is shaped like the cards of the home page (4:3); a size the owner gave it is inline and wins');
   assert.match(core, /<div class="card wide art" data-go="col\|cats\|'\+i\+'">/, 'and the home Categories cards still link by position, so the ids of the owner\'s saved edits (hashed from that text) do not change');
 });
 

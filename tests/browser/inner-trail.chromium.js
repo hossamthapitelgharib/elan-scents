@@ -5,7 +5,10 @@
    (1) «الرئيسية» of the trail returns to the place the visitor left the home page from (the section or the card he pressed), after a card, after the menu (the page is frozen under it, scrollY reads 0),
        and after moving from one inner page to another (which must not overwrite the place with the top of the page); the place is read from the page, never from a number;
    (2) the trail of a category / occasion / note is الرئيسية › the section › the item, and the section is a page of its own cards (one per item, as on the home page), the item opens its perfumes;
-   (3) the Categories cards of the home page link by position (col|cats|0: the owner's saved edits are keyed to that text) and still open «رجالي» with the men's perfumes, not a page called «0» with nothing in it. */
+   (3) the Categories cards of the home page link by position (col|cats|0: the owner's saved edits are keyed to that text) and still open «رجالي» with the men's perfumes, not a page called «0» with nothing in it;
+   (4) owner, 2026-11-26 14:03 and 18:01: the page of the Categories / Occasions / Notes and the page of the Brands show the cards of the home page AS THEY ARE DRAWN NOW (the size and the picture or logo the owner gave each one in the
+       editor), not new cards drawn from the page's own defaults (they showed the very first size and the first pictures, and the brand cards no logo at all). The page's cards are compared with the home page's cards read from the
+       home page itself, never with a number (the owner changes sizes and pictures from the editor). */
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const H = require('./harness.js');
@@ -16,7 +19,16 @@ test.before(async () => { server = await H.startServer(); browser = await pw.chr
 test.after(async () => { if (browser) await browser.close(); if (server) await server.stop(); });
 
 const trail = (page) => page.evaluate(() => Array.from(document.querySelectorAll('#view .bc a, #view .bc b')).map((e) => e.textContent.trim()));
-const names = (page, group) => page.evaluate((g) => CATALOG_TAXONOMY_KEYS[g].map((k) => CATALOG_KEYED_LABELS.ar[g][k]), group);
+/* What a card shows, read from the card itself: its link, its words, the picture or video it draws (its own background, or the img / video inside it) and the frame it has. */
+const shape = (c) => {
+  const r = c.getBoundingClientRect(), h = c.querySelector('h4');
+  return {
+    go: c.dataset.go, text: h ? h.textContent.trim() : '',
+    media: [c.style.backgroundImage].concat(Array.from(c.querySelectorAll('img, video')).map((e) => e.getAttribute('src') || '')).join('|'),
+    sized: !!c.style.width, w: Math.round(r.width), h: Math.round(r.height)
+  };
+};
+const shapes = (page, selector) => page.evaluate((a) => { const f = new Function('return ' + a.fn)(); return Array.from(document.querySelectorAll(a.sel)).filter((c) => getComputedStyle(c).display !== 'none').map(f); }, { sel: selector, fn: shape.toString() });
 async function openHome(size, setup) {
   const { context } = await H.openContext(browser, server, size);
   if (setup) await setup(context);
@@ -80,22 +92,28 @@ for (const size of H.WIDTHS) {
   });
 
   for (const [group, menu] of [['cats', 'الفئات'], ['occ', 'مناسبات'], ['notes', 'نوتات عطرية']]) {
-    test('at ' + size.width + 'px «' + menu + '» is a page of its own cards, and a card is الرئيسية › ' + menu + ' › the card', async () => {
+    test('at ' + size.width + 'px «' + menu + '» is a page of its own cards (the home page\'s cards as drawn now), and a card is الرئيسية › ' + menu + ' › the card', async () => {
       const { context, page } = await openHome(size);
       try {
-        const labels = await names(page, group);
+        const home = await shapes(page, '#main #' + group + ' .card');
         await page.evaluate((g) => go('sec|' + g), group);
         assert.deepEqual(await trail(page), ['الرئيسية', menu], 'the trail of the page of the section');
-        const cards = await page.evaluate(() => Array.from(document.querySelectorAll('#view .taxo-grid .card')).map((c) => ({ go: c.dataset.go, text: c.querySelector('h4').textContent.trim(), w: c.getBoundingClientRect().width, h: c.getBoundingClientRect().height })));
-        assert.deepEqual(cards.map((c) => c.text), labels, 'one card per item, with the names of the home page');
+        const cards = await shapes(page, '#view .taxo-grid .card');
+        assert.ok(home.length >= 3, 'the home page has the cards of this section: ' + home.length);
+        assert.deepEqual(cards.map((c) => [c.go, c.text, c.media]), home.map((c) => [c.go, c.text, c.media]), 'one card per card of the home page, with its link, its words and the picture it has there');
+        cards.forEach((c, i) => {
+          if (home[i].sized) assert.ok(Math.abs(c.w - home[i].w) <= 1 && Math.abs(c.h - home[i].h) <= 1, 'a card the owner sized in the editor has the same frame on its page: ' + JSON.stringify([c, home[i]]));
+          else assert.ok(c.w > 150 && c.h > 100, 'a card of the page is a card: ' + JSON.stringify(c));
+        });
         assert.equal(await page.evaluate(() => document.querySelectorAll('#view .section-perfume-grid').length), 0, 'the page of the section is not a heap of perfumes');
-        for (const c of cards) assert.ok(c.w > 150 && c.h > 100 && Math.abs(c.h / c.w - 0.75) < 0.03, 'a card of the page is a card, 4:3: ' + JSON.stringify(c));
         await page.click('#view .taxo-grid .card:nth-child(2)');
-        assert.deepEqual(await trail(page), ['الرئيسية', menu, labels[1]], 'the trail of an item: the section in the middle, the item at the end');
+        const item = (await trail(page))[2];
+        assert.deepEqual(await trail(page), ['الرئيسية', menu, item], 'the trail of an item: the section in the middle, the item at the end');
+        assert.ok(item && !/^\d+$/.test(item), 'the item is called by its name, not by its position: ' + item);
         assert.equal(await page.evaluate(() => document.querySelectorAll('#view .taxo-grid').length), 0, 'the page of an item is the page of its perfumes');
         await page.click('#view .bc a[data-bc="1"]');
         assert.deepEqual(await trail(page), ['الرئيسية', menu], 'pressing the section in the trail opens the page of its cards');
-        assert.equal(await page.evaluate(() => document.querySelectorAll('#view .taxo-grid .card').length), labels.length);
+        assert.equal(await page.evaluate(() => document.querySelectorAll('#view .taxo-grid .card').length), await page.evaluate((g) => document.querySelectorAll('#main #' + g + ' .card').length, group));
       } finally { await context.close(); }
     });
   }
@@ -145,6 +163,69 @@ for (const size of [H.WIDTHS[0], H.WIDTHS[2]]) {
       assert.equal(await page.evaluate(() => document.querySelectorAll('#view .section-perfume-grid .card').length), 1, 'the women\'s perfume');
       await homeBack(page);
       assert.ok(Math.abs(await page.evaluate(() => scrollY) - at.y) <= 2, 'and «الرئيسية» returns to the card of the home page the visitor pressed');
+    } finally { await context.close(); }
+  });
+}
+
+/* A card the owner sized, moved and gave a picture in the editor: its page shows it with that frame and that picture, and nothing of the editor's own marks or of the move (the offsets, the stacking, data-elan-*)
+   that belong to the card of the home page alone. Built here as a design of our own, so it does not depend on what the owner saved. */
+for (const size of [H.WIDTHS[0], H.WIDTHS[2]]) {
+  test('at ' + size.width + 'px the page of «الفئات» shows a category card with the size and the picture the owner gave it, and without its offsets and editor marks', async () => {
+    const { context, page } = await openHome(size);
+    try {
+      await page.evaluate(() => {
+        const card = document.querySelector('#cats .card');
+        const entry = ElanDesignLayer.elements().find((e) => e.el === card);
+        const edits = { all: {} }; edits.all[entry.id] = { w: 300, h: 210, dx: 25, dy: 18, style: { media: '/assets/growthmark.png' } };
+        ElanDesignLayer.set({ version: 1, edits });
+      });
+      await H.quiet(page);
+      const home = await page.evaluate(() => { const c = document.querySelector('#cats .card'), r = c.getBoundingClientRect(); return { w: Math.round(r.width), h: Math.round(r.height), moved: c.style.transform !== '' || c.style.position === 'relative' && (c.style.top !== '' || c.style.left !== ''), media: c.style.backgroundImage + '|' + Array.from(c.querySelectorAll('img')).map((i) => i.getAttribute('src')).join('|') }; });
+      assert.ok(Math.abs(home.w - 300) <= 1 && Math.abs(home.h - 210) <= 1, 'the card of the home page has the size we gave it: ' + JSON.stringify(home));
+      assert.match(home.media, /growthmark/, 'and the picture we gave it: ' + home.media);
+      await page.evaluate(() => go('sec|cats'));
+      const pg = await page.evaluate(() => {
+        const g = document.querySelector('#view .taxo-grid'), c = g.querySelector('.card'), r = c.getBoundingClientRect();
+        return { w: Math.round(r.width), h: Math.round(r.height), n: g.querySelectorAll('.card').length, transform: c.style.transform, zIndex: c.style.zIndex, marks: g.querySelectorAll('[data-elan-id], [data-elan-edited]').length, media: c.style.backgroundImage + '|' + Array.from(c.querySelectorAll('img')).map((i) => i.getAttribute('src')).join('|') };
+      });
+      assert.ok(Math.abs(pg.w - 300) <= 1 && Math.abs(pg.h - 210) <= 1, 'the card of its page has the same frame (not the first size the platform was built with): ' + JSON.stringify(pg));
+      assert.equal(pg.media, home.media, 'and the same picture (not the first picture uploaded to the card)');
+      assert.equal(pg.n, 3, 'the three categories');
+      assert.equal(pg.transform, '', 'the move the owner gave the card on the home page is not carried to its page');
+      assert.equal(pg.zIndex, '', 'nor its stacking');
+      assert.equal(pg.marks, 0, 'and no mark of the editor stays on the copies (a click on them would otherwise be taken for an edit of the home page\'s card)');
+      assert.equal(await page.evaluate(() => document.querySelectorAll('#cats .card').length), 3, 'the cards of the home page are still there, each once');
+    } finally { await context.close(); }
+  });
+}
+
+/* The page of the Brands shows the brand cards of the home page: the logo the owner gave each one, on the white card, the whole logo (never stretched). */
+for (const size of H.WIDTHS) {
+  test('at ' + size.width + 'px the page of «البراندات» shows each brand card with the logo it has on the home page', async () => {
+    const { context, page } = await openHome(size, withCatalog);
+    try {
+      await page.waitForFunction(() => document.querySelectorAll('#main #brands .card.brandc').length === 1, null, { timeout: 15000 });
+      await page.evaluate(() => {
+        const card = document.querySelector('#brands .card.brandc');
+        const entry = ElanDesignLayer.elements().find((e) => e.el === card);
+        const edits = { all: {} }; edits.all[entry.id] = { style: { media: '/assets/growthmark.png' } };
+        ElanDesignLayer.set({ version: 1, edits });
+      });
+      await H.quiet(page);
+      const read = (sel) => page.evaluate((s) => Array.from(document.querySelectorAll(s)).map((c) => ({ go: c.dataset.go, bg: c.style.backgroundImage, size: c.style.backgroundSize, name: (c.querySelector('h4') || {}).textContent, marks: c.hasAttribute('data-elan-id') || c.hasAttribute('data-elan-edited') })), sel);
+      const home = await read('#main #brands .card.brandc');
+      assert.match(home[0].bg, /growthmark/, 'the card of the home page has its logo: ' + JSON.stringify(home));
+      await page.evaluate(() => go('sec|brands'));
+      assert.deepEqual(await trail(page), ['الرئيسية', 'البراندات']);
+      const pg = await read('#view .grid .card.brandc');
+      assert.equal(pg.length, home.length, 'one card per brand');
+      assert.equal(pg[0].bg, home[0].bg, 'the logo of the home page is on the card of the brands page (it showed no logo at all)');
+      assert.equal(pg[0].size, 'contain', 'the whole logo shows on the white card, never stretched');
+      assert.equal(pg[0].go, home[0].go);
+      assert.equal(pg[0].name, home[0].name, 'the name stays in the card (hidden from the visitor, read by the screen reader)');
+      assert.equal(pg.filter((c) => c.marks).length, 0, 'no editor mark on the copy');
+      await page.click('#view .grid .card.brandc');
+      assert.deepEqual((await trail(page)).slice(0, 2), ['الرئيسية', 'البراندات'], 'a brand card still opens the page of that brand');
     } finally { await context.close(); }
   });
 }

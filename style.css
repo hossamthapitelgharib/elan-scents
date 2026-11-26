@@ -926,21 +926,43 @@ html:not(.elan-editing) .card.brandc:not(.nw) { margin-bottom: 40px; }
 #main > section .strip { padding-bottom: 12px; }
 
 /* ---------- The page of Categories, Occasions or Notes: its cards (owner, 2026-11-26) ----------
-   «الفئات» in the trail opens a page of the cards of the section, one per category, occasion or note, shaped like the cards of the same section on the home page
-   (340 wide, 4:3, the picture filling the frame). The card opens the page of that item's perfumes. */
+   «الفئات» in the trail opens a page of the cards of the section, one per category, occasion or note: copies of the cards of the home page as they are drawn there now (app-core.js, homeCardCopy),
+   so the size and the picture the owner gave a card in the editor are the page's too (they sit on the copy as inline styles written with !important, which win over the sizes below; a card he
+   never resized is 340 wide, 4:3, like the cards of the home page). The card opens the page of that item's perfumes. */
 #view .taxo-grid {
-  grid-template-columns: repeat(auto-fit, minmax(0, 340px));
+  display: flex;
+  flex-wrap: wrap;
   justify-content: center;
   gap: 20px;
   padding: 12px 0 24px;
 }
-#view .taxo-grid .card.round {
-  flex: none !important;
-  width: 100% !important;
-  max-width: 340px !important;
+#view .taxo-grid .card {
+  flex: 0 0 auto !important;
+  width: 340px !important;
+  max-width: 100% !important;
   height: auto !important;
   min-height: 0 !important;
   aspect-ratio: 4 / 3 !important;
   padding: 0 !important;
   border-radius: 20px !important;
+  overflow: hidden !important;
+  background-clip: border-box !important;
 }
+#view .taxo-grid .card.art .artbg img,
+#view .taxo-grid .card.art .artbg svg { object-fit: fill !important; object-position: center center !important; }
+/* the Categories cards carry no writing here either, as on the home page (owner, 22 Nov) */
+#view .taxo-cats .card.art h4,
+#view .taxo-cats .card.art small,
+#view .taxo-cats .card.art .st {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  margin: -1px !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  clip: rect(0 0 0 0) !important;
+  clip-path: inset(50%) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+#view .taxo-cats .card.art::after { display: none !important; }
