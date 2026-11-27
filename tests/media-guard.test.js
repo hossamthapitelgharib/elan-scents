@@ -46,7 +46,7 @@ test('the category cards carry no writing, and the Masterpieces arrow is under i
   assert.match(css, /#cats > \.cb > \.card\.art::after \{ display: none !important; \}/, 'and so is the fade');
   const master = core.slice(core.indexOf('function masterBlock'), core.indexOf('\n', core.indexOf('function masterBlock')));
   assert.doesNotMatch(master, /class="sub"|class='sub'/, 'no arrow under the Masterpieces card');
-  assert.match(core, /s\[0\]=='cats'\|\|s\[0\]=='notes'\|\|s\[0\]=='occ'\?/, 'only these titles hide their arrow: Masterpieces shows it, under its title');
+  assert.match(core, /s\[0\]=='cats'\|\|s\[0\]=='notes'\|\|s\[0\]=='occ'\|\|s\[0\]=='offers'\?/, 'only these titles hide their arrow: Masterpieces shows it, under its title («باقات وعروض» joined on 2026-11-27: its section is its two cards, so the arrow would open the same two cards)');
   assert.doesNotMatch(core, /s\[0\]=='[a-z]+'\|\|s\[0\]=='master'/, 'Masterpieces is not in the list of titles that hide the arrow');
 });
 

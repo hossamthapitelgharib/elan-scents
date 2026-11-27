@@ -209,7 +209,7 @@ test('Masterpieces page: the chips are the filter (no filter panel under them), 
     await page.click('#view .chip[data-ind="rated"]');
     assert.equal(await page.evaluate(() => document.querySelectorAll('#view .chip.on').length), 0, 'pressing the chosen chip again clears it');
     assert.equal((await names()).length, 3, 'and all the masterpieces are back');
-    await page.evaluate(() => go('sec|offers'));
+    await page.evaluate(() => go('sec|new'));
     await page.waitForTimeout(400);
     assert.ok(await page.evaluate(() => !!document.querySelector('#view .filter-panel')), 'the other list pages keep their filter panel');
     assert.deepEqual(errors, [], 'no page error');

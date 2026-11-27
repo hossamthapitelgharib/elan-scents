@@ -14,8 +14,8 @@ const end = core.indexOf('\nfunction strip(id)', start);
 const block = core.slice(start, end);
 const escLine = core.split('\n').find((line) => line.startsWith('function esc('));
 
-function sandbox({ lang = 'ar', F = { sec: '' }, offerFor = () => null } = {}) {
-  const context = vm.createContext({ lang, F, platformEligibleOffer: offerFor, Math, Number, String, Date, isNaN, Object, Array });
+function sandbox({ lang = 'ar', F = { sec: '', q: '', cat: '', br: '', st: '', oc: '', nt: '', size: '', min: '', max: '', sort: 0 }, offerFor = () => null, perfumes = [], ready = true } = {}) {
+  const context = vm.createContext({ lang, F, platformEligibleOffer: offerFor, PHB: '<svg class="phb"></svg>', PERFUMES: perfumes, DATA_READY: ready, T: () => ({ view: 'استعرض' }), Math, Number, String, Date, isNaN, Object, Array });
   vm.runInContext(escLine + '\n' + block, context);
   return context;
 }
@@ -57,7 +57,7 @@ test('the block is the only place the storefront reads offers, bundles and disco
     assert.match(loader, new RegExp("ga\\('" + view + "\\?select=[^']*'\\)\\.catch\\(function\\(e\\)\\{console\\.error\\('[a-z_]+_unavailable',e&&e\\.message\\);return\\[\\]\\}\\)"), view + ' is requested and a failure leaves the page working');
   }
   assert.match(loader, /buildOfferData\(d\[17\],d\[18\],d\[19\],d\[20\]\)/);
-  assert.match(core, /h\+=\(x\.id=='soon'\?'':x\.id=='master'\?chips\(\):filterPanel\(l\)\)\+'<div id="res" class="grid"><\/div>'\+\(x\.id=='offers'\?offersExtra\(\):''\)/, 'the bundles and store messages sit below the perfumes of «عروض وخصومات» only');
+  assert.match(core, /h\+=\(x\.id=='soon'\?'':x\.id=='master'\?chips\(\):filterPanel\(l\)\)\+'<div id="res" class="grid"><\/div>'\+\(x\.id=='offers'&&x\.i=='offers'\?offersExtra\(\):''\)/, 'the store-wide messages sit below the page of the «عروض» card only; the bundles are cards of the results grid');
 });
 
 test('bundles: only real offers with pieces, one per bundle, cheapest first, no way to buy yet', () => {
@@ -68,14 +68,23 @@ test('bundles: only real offers with pieces, one per bundle, cheapest first, no 
   assert.deepEqual(JSON.parse(run(c, 'JSON.stringify(BUNDLES.map(function(b){return[b.id,b.price,b.store]}))')), [['b1', 300, 'متجر ألف'], ['b2', 450, 'متجر باء']],
     'sold out, non-EGP, piece-less rows never show; the first (cheapest, as the database ordered it) offer per bundle wins');
   const html = run(c, 'BUNDLES.map(bundleCard).join("")');
-  assert.doesNotMatch(html, /data-add|cartb|<button|data-go/, 'a bundle card has no cart button and goes nowhere until the order flow is ready');
-  assert.match(html, /<b>2×<\/b> <span class="bbr">ماركة<\/span> عطر .* · 100 مل<\/li>/, 'a piece shows its quantity, brand, name and size exactly as the store listed it');
-  assert.match(html, /<b>1×<\/b> عطر ثان · 30 مل<\/li>/, 'a piece with no brand shows no empty brand tag');
-  assert.match(html, /<b>3×<\/b> عطر ثالث<\/li>/, 'a piece with no size leaves no dangling separator');
-  assert.equal((html.match(/<li><b>/g) || []).length, 3, 'a piece with no name is skipped');
-  assert.match(html, /bextra/, 'a package with extra pieces says so');
-  assert.equal((html.match(/bextra/g) || []).length, 1, 'only the package that has extra pieces');
+  assert.doesNotMatch(html, /data-add|cartb|<button|<li|<details|bitems|bdesc/, 'a bundle card has no cart button, no list of pieces and no description: it is a card of a perfume (owner, 2026-11-27)');
+  assert.equal((html.match(/data-go="bundle\|b[12]"/g) || []).length, 2, 'a card opens the page of its own bundle');
+  assert.equal((html.match(/class="card pf bf"/g) || []).length, 2, 'the card is a card of a perfume (.pf)');
+  assert.equal((html.match(/<div class="pim">/g) || []).length, 2, 'with the picture area of a perfume card');
+  assert.equal((html.match(/otag btag">باقة<\/span>/g) || []).length, 2, 'tagged «باقة» as a perfume is tagged «عرض»');
+  assert.match(html, /<p class="pmeta"><span>ماركة<\/span><span>لدى متجر ألف<\/span><\/p>/, 'brand and store, as the card of a perfume');
   assert.match(html, /<span class="price">300<small>EGP<\/small><\/span>/);
+  // the pieces are on the page of the bundle
+  const page = run(c, 'bundlePage({id:"b1"})') + run(c, 'bundlePage({id:"b2"})');
+  assert.match(page, /<b>2×<\/b> <span class="bbr">ماركة<\/span> عطر .* · 100 مل<\/li>/, 'a piece shows its quantity, brand, name and size exactly as the store listed it');
+  assert.match(page, /<b>1×<\/b> عطر ثان · 30 مل<\/li>/, 'a piece with no brand shows no empty brand tag');
+  assert.match(page, /<b>3×<\/b> عطر ثالث<\/li>/, 'a piece with no size leaves no dangling separator');
+  assert.equal((page.match(/<li><b>/g) || []).length, 3, 'a piece with no name is skipped');
+  assert.equal((page.match(/bextra/g) || []).length, 1, 'only the package that has extra pieces says so');
+  assert.match(page, /<h4 class="pdh">محتويات الباقة<\/h4>/);
+  assert.doesNotMatch(page, /data-add|cartb|<button/, 'a bundle still cannot be bought until the order flow is ready');
+  assert.match(run(c, 'bundlePage({id:"nope"})'), /لا توجد باقات متاحة الآن/, 'a page of a bundle that is gone says so instead of breaking');
 });
 
 test('a bundle is shown with the store\'s OWN title and its FULL description, never a platform wording', () => {
@@ -84,12 +93,15 @@ test('a bundle is shown with the store\'s OWN title and its FULL description, ne
   c.__po = po; c.__pb = pb; c.__pi = pi;
   run(c, 'buildOfferData(__po,__pb,__pi,[])');
   const html = run(c, 'BUNDLES.map(bundleCard).join("")');
+  const page = run(c, 'bundlePage({id:"b1"})') + run(c, 'bundlePage({id:"b2"})');
   assert.match(html, /<h4>باقة &lt;b&gt;الهدايا&lt;\/b&gt;<\/h4>/, 'the title is the store\'s, not the platform\'s internal name');
-  assert.doesNotMatch(html, /اسم داخلي|عنوان متجر باء/, 'neither the platform name nor the title of a store whose offer is not shown');
+  assert.doesNotMatch(html + page, /اسم داخلي|عنوان متجر باء/, 'neither the platform name nor the title of a store whose offer is not shown');
   assert.match(html, /<h4>باقة بقطعة إضافية<\/h4>/);
-  assert.match(html, /<details class="bdesc"><summary>تفاصيل الباقة كما كتبها المتجر<\/summary><div class="btext">السطر الأول\nالسطر الثاني &lt;script&gt;x&lt;\/script&gt;<\/div><\/details>/,
-    'the description is kept whole, with its line breaks, escaped, behind one closed details block');
-  assert.equal((html.match(/<details/g) || []).length, 1, 'a bundle whose store wrote no description has no details block');
+  assert.match(page, /<h2 class="pdn">باقة &lt;b&gt;الهدايا&lt;\/b&gt;<\/h2>/, 'the page carries the same title');
+  assert.match(page, /<h4 class="pdh">تفاصيل الباقة كما كتبها المتجر<\/h4><div class="btext">السطر الأول\nالسطر الثاني &lt;script&gt;x&lt;\/script&gt;<\/div>/,
+    'the description is kept whole on the page of the bundle, with its line breaks, escaped, as the store wrote it');
+  assert.equal((page.match(/class="btext"/g) || []).length, 1, 'a bundle whose store wrote no description has no description block');
+  assert.doesNotMatch(html, /btext|details/, 'the description is never on the card');
   const noTitle = sandbox();
   noTitle.__po = [{ store_bundle_id: 'x', bundle_id: 'b1', store_id: 's1', store_name: 'متجر', title: null, description: null, price: '10', currency: 'EGP', stock_quantity: 1 }];
   noTitle.__pb = [pb[0]]; noTitle.__pi = [pi[0]];
@@ -106,8 +118,8 @@ test('everything a store wrote is escaped: bundle titles, descriptions, pieces, 
     { offer_id: 'o2', store_id: 's1', store_name: 'متجر ألف', product_size_id: 'z1', kind: 'offer', title: '"><svg onload=alert(1)>', description: '', ends_at: null }
   ];
   run(c, 'buildOfferData(__po,__pb,__pi,__om)');
-  const all = run(c, 'BUNDLES.map(bundleCard).join("")+offersExtra()+offerNote({id:"z1"})');
-  assert.doesNotMatch(all, /<img|<script|<svg|<b>الهدايا|<b>x<\/b>/, 'no markup from a store survives');
+  const all = run(c, 'BUNDLES.map(bundleCard).join("")+bundlePage({id:"b1"})+bundlePage({id:"b2"})+offersExtra()+offerNote({id:"z1"})');
+  assert.doesNotMatch(all, /<img|<script|<svg(?! class="phb")|<b>الهدايا|<b>x<\/b>/, 'no markup from a store survives');
   assert.match(all, /&lt;img src=x onerror=alert\(1\)&gt;/);
 });
 
@@ -134,6 +146,14 @@ test('messages: a perfume shows the message of the store whose offer it shows, a
   assert.equal((run(c, 'offerNote({id:"z1"})').match(/class="pdo"/g) || []).length, 3, 'the page shows the three messages of its store');
   assert.deepEqual(JSON.parse(run(c, 'JSON.stringify(OFFER_MSGS.store.map(function(m){return m.title}))')), ['توصيل لكل المحافظات'], 'a store-wide message has no perfume and is listed on the offers page');
   assert.doesNotMatch(run(c, 'offersExtra()'), /بلا متجر|عطر آخر/);
+});
+
+test('the offer line of a card shows on the page of the «عروض» filter as on the old offers page', () => {
+  const offer = { storeId: 's2', store: 'متجر باء', price: 80 };
+  const msgs = [{ offer_id: 'o2', store_id: 's2', store_name: 'متجر باء', product_size_id: 'z1', kind: 'offer', title: 'هدية مع كل عبوة', description: '', ends_at: null }];
+  const on = sandbox({ F: { sec: '', off: true }, offerFor: () => offer });
+  on.__om = msgs; run(on, 'buildOfferData([],[],[],__om)');
+  assert.equal(run(on, 'offerLine({id:"z1"})'), '<p class="pmsg">هدية مع كل عبوة</p>');
 });
 
 test('the word «خصم» is gone from the storefront: the page is «باقات وعروض» and no code path tags, sorts or reads a discount', () => {
@@ -169,17 +189,17 @@ test('the end date is shown as day/month, and the English page speaks English', 
   run(c, 'buildOfferData([],[],[],__om)');
   const html = run(c, 'offersExtra()');
   assert.match(html, /<h4 class="pdh osec">Store offers<\/h4>/);
-  assert.match(html, /<h4 class="pdh osec">Bundles<\/h4>/);
-  assert.match(html, /No bundles available right now/);
+  assert.doesNotMatch(html, /Bundles|No bundles/, 'the bundles are not in this block any more: they are cards of the results');
   assert.match(html, /Until 24\/12/);
 });
 
-test('with no data at all the offers page still renders (nothing breaks when the new views are unavailable)', () => {
+test('with no data at all the pages still render (nothing breaks when the new views are unavailable)', () => {
   const c = sandbox();
   run(c, 'buildOfferData(undefined,undefined,undefined,undefined)');
   assert.equal(run(c, 'BUNDLES.length'), 0);
-  assert.match(run(c, 'offersExtra()'), /لا توجد باقات متاحة الآن/);
-  assert.doesNotMatch(run(c, 'offersExtra()'), /osec">عروض المتاجر/, 'no store-message heading when there is no message');
+  assert.equal(run(c, 'offersExtra()'), '', 'no store-message heading when there is no message');
+  assert.equal(run(c, 'bundleList().length'), 0);
+  assert.match(run(c, 'bundlePage({id:"x"})'), /لا توجد باقات متاحة الآن/);
 });
 
 test('the English page says «ml» and the details label in English', () => {
@@ -187,9 +207,51 @@ test('the English page says «ml» and the details label in English', () => {
   const { po, pb, pi } = bundleRows();
   c.__po = po; c.__pb = pb; c.__pi = pi;
   run(c, 'buildOfferData(__po,__pb,__pi,[])');
-  const html = run(c, 'BUNDLES.map(bundleCard).join("")');
-  assert.match(html, / · 100 ml<\/li>/);
-  assert.match(html, /<summary>The bundle details, as written by the store<\/summary>/);
+  const page = run(c, 'bundlePage({id:"b1"})');
+  assert.match(page, / · 100 ml<\/li>/);
+  assert.match(page, /<h4 class="pdh">The bundle details, as written by the store<\/h4>/);
+  assert.match(page, /<h4 class="pdh">What is in the bundle<\/h4>/);
+  assert.match(run(c, 'BUNDLES.map(bundleCard).join("")'), /At متجر ألف/);
+});
+
+test('the filters «باقات» and «عروض»: the bundles answer the words, brand, store, size, price and sort; a category, occasion or note leaves no bundle', () => {
+  const c = sandbox();
+  const { po, pb, pi } = bundleRows();
+  c.__po = po; c.__pb = pb; c.__pi = pi;
+  run(c, 'buildOfferData(__po,__pb,__pi,[])');
+  const names = (f) => JSON.parse(run(c, 'F=Object.assign({q:"",cat:"",br:"",st:"",oc:"",nt:"",size:"",min:"",max:"",sort:0},' + JSON.stringify(f) + ');JSON.stringify(bundleList().map(function(b){return b.id}))'));
+  assert.deepEqual(names({}), ['b1', 'b2'], 'no filter: every bundle, cheapest first');
+  assert.deepEqual(names({ sort: 3 }), ['b2', 'b1'], 'price from the highest');
+  assert.deepEqual(names({ q: 'ثالث' }), ['b2'], 'the words reach the pieces too');
+  assert.deepEqual(names({ q: 'هدايا' }), ['b1'], 'and the store\'s title');
+  assert.deepEqual(names({ st: 's2' }), ['b2'], 'a store');
+  assert.deepEqual(names({ br: 'ماركة' }), ['b1'], 'a brand of the bundle or of one of its pieces');
+  assert.deepEqual(names({ size: '30' }), ['b1'], 'the size of a piece');
+  assert.deepEqual(names({ min: '400' }), ['b2'], 'the lowest price');
+  assert.deepEqual(names({ max: '300' }), ['b1'], 'the highest price');
+  assert.deepEqual(names({ cat: 'men' }), [], 'a bundle has no category');
+  assert.deepEqual(names({ oc: 'night' }), [], 'no occasion');
+  assert.deepEqual(names({ nt: 'oud' }), [], 'no note');
+});
+
+test('the filter panel carries the two buttons and the home block is two cards, 5:7, for the bundles and the offers', () => {
+  const chips = core.slice(core.indexOf('function kindChips()'), core.indexOf('function filterPanel(l)'));
+  assert.equal((chips.match(/data-okind=/g) || []).length, 1, 'one template makes both buttons');
+  assert.match(chips, /\[\['bun',u\.bundles\],\['off',u\.offersW\]\]/, 'the buttons are «باقات» and «عروض»');
+  assert.match(core, /\+kindChips\(\)\+'<div class="filter-grid">'/, 'inside the filter panel, above the selects');
+  const c = sandbox({ perfumes: [{ id: 'p1' }, { id: 'p2' }, { id: 'p3' }], offerFor: (p) => ({ flags: p.id === 'p3' ? [] : ['offers'] }) });
+  const { po, pb, pi } = bundleRows();
+  c.__po = po; c.__pb = pb; c.__pi = pi;
+  run(c, 'buildOfferData(__po,__pb,__pi,[])');
+  const cards = run(c, 'offerPairCards()');
+  assert.deepEqual([...cards.matchAll(/data-go="([^"]+)"/g)].map((m) => m[1]), ['col|offers|bundles', 'col|offers|offers'], 'a card for the bundles and a card for the offers, each opens its own page');
+  assert.equal((cards.match(/class="card wide art opair"/g) || []).length, 2, 'two cards of the same kind as the other cards of the home page, with a picture the owner can replace');
+  assert.equal((cards.match(/class="artbg"/g) || []).length, 2);
+  assert.match(cards, /<h4>باقات<\/h4><small>باقتان<\/small>/);
+  assert.match(cards, /<h4>عروض<\/h4><small>عرضان<\/small>/, 'the offers card counts the perfumes a store promotes');
+  assert.doesNotMatch(run(sandbox({ ready: false }), 'offerPairCards()'), /<small>/, 'no count is written before the data has arrived');
+  const css = fs.readFileSync(path.join(__dirname, '..', 'style.css'), 'utf8');
+  assert.match(css, /#offers \.strip\.offer-pair \.card\.opair,[^{]*\{[^}]*aspect-ratio: 5 \/ 7 !important;/, 'the cards of the pair are 5:7');
 });
 
 test('the storefront asks for exactly the columns of the stand-alone bundle views and builds pieces without any catalog id', () => {

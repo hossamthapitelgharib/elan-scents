@@ -3,7 +3,8 @@
    - an OFFER is a promotional message from the store, no price change, tagged «عرض»; the platform has no discount concept, so the word «خصم» is on no page;
    - a perfume shows the message of the store whose offer it shows (the other store's message stays hidden);
    - a number a store typed as "price before / after" (original_price here) is on no page at all;
-   - «باقات وعروض» lists store-wide messages and the bundles (cheapest eligible offer per bundle), and a bundle has no cart button yet;
+   - «باقات وعروض» (owner, 2026-11-27) is two cards side by side, 5:7: the bundles (cheapest eligible offer per bundle; the card is a card of a perfume, its pieces and the store's whole
+     description are on its own page, and it has no cart button yet) and the offers (the perfumes a store promotes, with the store-wide messages); the filter panel has «باقات» and «عروض» buttons;
    - everything a store wrote is escaped, and no page scrolls sideways. */
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -84,46 +85,136 @@ async function openStore(size) {
 }
 const shotDir = process.env.ELAN_SHOTS;
 const shot = async (page, name) => { if (shotDir) { require('node:fs').mkdirSync(shotDir, { recursive: true }); await page.screenshot({ path: shotDir + '/' + name + '.png', fullPage: true }); } };
+const shotEl = async (page, selector, name) => { if (shotDir) { require('node:fs').mkdirSync(shotDir, { recursive: true }); const box = await page.evaluate((q) => { const r = document.querySelector(q).getBoundingClientRect(); return { x: Math.max(0, r.left + scrollX), y: r.top + scrollY, width: Math.min(r.width, document.documentElement.clientWidth), height: r.height }; }, selector); await page.screenshot({ path: shotDir + '/' + name + '.png', fullPage: true, clip: box }); } };
 const noSideScroll = (page) => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
 
-test('«باقات وعروض»: perfumes with their own store\'s message, store-wide messages, and the bundles', async () => {
+test('«باقات وعروض»: the home block and the page are two cards (5:7), one for the bundles and one for the offers, each opening its own page', async () => {
   const { context, page, errors } = await openStore(H.WIDTHS[0]);
   try {
+    const home = await page.evaluate(() => [...document.querySelectorAll('#offers .strip .card')].map((c) => { const r = c.getBoundingClientRect(); return { go: c.getAttribute('data-go'), name: c.querySelector('h4').textContent.trim(), count: (c.querySelector('small') || {}).textContent || null, w: r.width, h: r.height, top: Math.round(r.top + scrollY), art: !!c.querySelector('.artbg') }; }));
+    assert.deepEqual(home.map((c) => [c.go, c.name]), [['col|offers|bundles', 'باقات'], ['col|offers|offers', 'عروض']], 'a card for the bundles and a card for the offers, nothing else in the block');
+    assert.equal(home[0].count, 'باقتان', 'the bundles card counts the two bundles that can be bought');
+    assert.equal(home[1].count, 'عرضان', 'the offers card counts the two perfumes a store promotes');
+    assert.equal(home[0].top, home[1].top, 'side by side in one row');
+    for (const c of home) { assert.ok(Math.abs(c.w / c.h - 5 / 7) < 0.02, 'each card is 5:7 (' + c.w + 'x' + c.h + ')'); assert.ok(c.art, 'with a picture the owner can replace'); }
+    assert.ok(await noSideScroll(page), 'no sideways scroll on the home page');
+    await shotEl(page, '#offers', 'home-offers-' + H.WIDTHS[0].name);
+
+    // the page of the section: the same two cards
     await page.evaluate(() => go('sec|offers'));
+    await page.waitForSelector('#view .offers-grid .card');
+    assert.equal(await page.evaluate(() => document.querySelectorAll('#view .offers-grid .card').length), 2);
+    await shotEl(page, '#view', 'offers-hub');
+    await page.click('#view .offers-grid .card:first-child');
+    await page.waitForSelector('#res .card.bf');
+    const trail = await page.evaluate(() => [...document.querySelectorAll('#view .bc a, #view .bc b')].map((e) => e.textContent.trim()));
+    assert.deepEqual(trail, ['الرئيسية', 'باقات وعروض', 'باقات'], 'the trail reads الرئيسية › باقات وعروض › باقات and each step is a page');
+    await page.click('#view .bc a[data-bc="1"]');
+    assert.equal(await page.evaluate(() => document.querySelectorAll('#view .offers-grid .card').length), 2, 'the second step is the page of the two cards');
+    assert.deepEqual(errors, []);
+  } finally { await context.close(); }
+});
+
+test('the card of a bundle is a card of a perfume; its pieces and the store\'s whole description are on its own page', async () => {
+  const { context, page, errors } = await openStore(H.WIDTHS[0]);
+  try {
+    await page.evaluate(() => go('col|offers|bundles'));
+    await page.waitForSelector('#res .card.bf');
+    const bundles = await page.evaluate(() => [...document.querySelectorAll('#res .card')].map((c) => ({
+      name: c.querySelector('h4').textContent.trim(), price: c.querySelector('.price').textContent.replace(/\s+/g, ''), meta: [...c.querySelectorAll('.pmeta span')].map((e) => e.textContent.trim()),
+      tag: c.querySelector('.otag').textContent, pim: !!c.querySelector('.pim'), buttons: c.querySelectorAll('button, [data-add], .cartb').length, inside: c.querySelectorAll('li, details, .btext').length, go: c.getAttribute('data-go') })));
+    assert.deepEqual(bundles.map((b) => [b.name, b.price]), [['باقة الهدايا (عنوان المتجر)', '300EGP'], ['باقة مع قطعة إضافية', '450EGP']], 'the store\'s own titles, cheapest first; the sold-out bundle is nowhere');
+    assert.deepEqual(bundles.map((b) => b.meta), [['ماركة', 'لدى متجر ألف'], ['ماركة', 'لدى متجر باء']], 'brand and store, like a perfume');
+    assert.deepEqual(bundles.map((b) => b.tag), ['باقة', 'باقة']);
+    assert.deepEqual(bundles.map((b) => [b.pim, b.buttons, b.inside]), [[true, 0, 0], [true, 0, 0]], 'a picture area like a perfume, no button, and no list or description on the card');
+    assert.ok(bundles.every((b) => /^bundle\|/.test(b.go)));
+    assert.equal(await page.evaluate(() => document.querySelectorAll('.smsg').length), 0, 'the store-wide messages belong to the page of the offers');
+    assert.equal(await page.evaluate(() => document.body.innerText.includes('خصم') || !!document.querySelector('.otag-d')), false, 'the word «خصم» is on no part of the page');
+    await shot(page, 'bundles-page');
+    assert.ok(await noSideScroll(page), 'no sideways scroll on the bundles page');
+
+    await page.click('#res .card:first-child');
+    await page.waitForSelector('.bpage');
+    const trail = await page.evaluate(() => [...document.querySelectorAll('#view .bc a, #view .bc b')].map((e) => e.textContent.trim()));
+    assert.deepEqual(trail, ['الرئيسية', 'باقات وعروض', 'باقات', 'باقة الهدايا (عنوان المتجر)'], 'the trail goes through every page of the way');
+    const detail = await page.evaluate(() => ({ title: document.querySelector('.bpage .pdn').textContent.trim(), price: document.querySelector('.bpage .price').textContent.replace(/\s+/g, ''),
+      items: [...document.querySelectorAll('.bpage .bitems li')].map((li) => li.textContent.replace(/\s+/g, ' ').trim()), extra: !!document.querySelector('.bpage .bextra'), buy: document.querySelectorAll('.bpage button, .bpage [data-add]').length,
+      text: (document.querySelector('.bpage .btext') || {}).innerText, imgs: document.querySelectorAll('.bpage .btext img').length }));
+    assert.equal(detail.title, 'باقة الهدايا (عنوان المتجر)');
+    assert.equal(detail.price, '300EGP');
+    assert.deepEqual(detail.items, ['2× ماركة عطر ألف · 100 مل', '1× عطر هاء · 30 مل'], 'the pieces as the store listed them, a size that no single perfume has included');
+    assert.equal(detail.extra, false);
+    assert.equal(detail.buy, 0, 'a bundle cannot be bought yet');
+    assert.equal(detail.text, 'السطر الأول\nالسطر الثاني <img src=x onerror="window.__xss=2">', 'the whole description, exactly as the store wrote it, markup shown as text');
+    assert.equal(detail.imgs, 0);
+    assert.equal(await page.evaluate(() => window.__xss), undefined, 'nothing a store wrote ran');
+    await shot(page, 'bundle-page');
+    assert.ok(await noSideScroll(page));
+
+    await page.click('#view .bc a[data-bc="2"]');
+    await page.waitForSelector('#res .card.bf');
+    await page.click('#res .card:nth-child(2)');
+    await page.waitForSelector('.bpage');
+    assert.equal(await page.evaluate(() => !!document.querySelector('.bpage .bextra')), true, 'a package with extra pieces says so');
+    assert.equal(await page.evaluate(() => document.querySelectorAll('.bpage .btext').length), 0, 'a store that wrote no description leaves no block');
+    assert.deepEqual(errors, []);
+  } finally { await context.close(); }
+});
+
+test('the page of the «عروض» card: the perfumes a store promotes, with the message of the store whose offer each shows, and the store-wide messages', async () => {
+  const { context, page, errors } = await openStore(H.WIDTHS[0]);
+  try {
+    await page.evaluate(() => go('col|offers|offers'));
     await page.waitForSelector('#res .card');
     const cards = await page.evaluate(() => [...document.querySelectorAll('#res .card')].map((c) => ({
       name: c.querySelector('h4').textContent.trim(), tag: (c.querySelector('.otag') || {}).textContent || null,
       line: (c.querySelector('.pmsg') || {}).textContent || null })));
     cards.sort((a, b) => a.name.localeCompare(b.name));
     const byName = Object.fromEntries(cards.map((c) => [c.name, c]));
-    assert.equal(cards.length, 2, 'both perfumes the stores promote are listed');
+    assert.equal(cards.length, 2, 'both perfumes the stores promote are listed, no bundle among them');
     assert.equal(byName[NAMES.A].tag, 'عرض');
     assert.equal(byName[NAMES.A].line, 'اشترِ عطرين واحصل على هدية', 'the first message of the store whose offer the card shows');
     assert.equal(byName[NAMES.E].tag, 'عرض', 'every store message is tagged «عرض», whatever its wording');
     assert.equal(byName[NAMES.E].line, '11/11 Sale', 'store B owns the platform offer of this perfume: store A\'s message about it stays hidden');
-
     const smsg = await page.evaluate(() => [...document.querySelectorAll('.smsg')].map((m) => m.textContent.replace(/\s+/g, ' ').trim()));
     assert.deepEqual(smsg, ['متجر ألف شحن مجاني فوق 1500'], 'a store-wide message is listed once, with its store');
-    assert.equal(await page.evaluate(() => document.body.innerText.includes('خصم') || !!document.querySelector('.otag-d')), false, 'the word «خصم» is on no part of the page');
-
-    const bundles = await page.evaluate(() => [...document.querySelectorAll('.bgrid .card')].map((c) => ({
-      name: c.querySelector('h4').textContent.trim(), price: c.querySelector('.price').textContent.replace(/\s+/g, ''), items: [...c.querySelectorAll('.bitems li')].map((li) => li.textContent.replace(/\s+/g, ' ').trim()),
-      cart: c.querySelectorAll('button, [data-add], .cartb, [data-go]').length, extra: !!c.querySelector('.bextra'), tag: c.querySelector('.otag').textContent })));
-    assert.deepEqual(bundles.map((b) => [b.name, b.price]), [['باقة الهدايا (عنوان المتجر)', '300EGP'], ['باقة مع قطعة إضافية', '450EGP']], 'the store\'s own titles, cheapest first; the sold-out bundle is nowhere');
-    assert.deepEqual(bundles[0].items, ['2× ماركة عطر ألف · 100 مل', '1× عطر هاء · 30 مل'], 'the pieces as the store listed them, a size that no single perfume has included');
-    assert.equal(bundles[0].extra, false);
-    assert.equal(bundles[1].extra, true, 'a package with extra pieces says so');
-    assert.deepEqual(bundles.map((b) => b.cart), [0, 0], 'a bundle cannot be bought yet: no button, no link');
-    assert.deepEqual(bundles.map((b) => b.tag), ['باقة', 'باقة']);
-    // the store's own description: only the bundle whose store wrote one has the block; it starts closed and opens to the whole text, line breaks kept
-    const blocks = await page.evaluate(() => [...document.querySelectorAll('.bgrid .card')].map((c) => { const d = c.querySelector('details.bdesc'); return d ? { open: d.open, summary: d.querySelector('summary').textContent.trim(), imgs: d.querySelectorAll('img').length } : null; }));
-    assert.deepEqual(blocks, [{ open: false, summary: 'تفاصيل الباقة كما كتبها المتجر', imgs: 0 }, null], 'a closed details block only on the bundle that has a store description; nothing from the store became markup');
-    await page.click('.bgrid .card:first-child details.bdesc summary');
-    const text = await page.evaluate(() => document.querySelector('.bgrid .card:first-child .btext').innerText);
-    assert.equal(text, 'السطر الأول\nالسطر الثاني <img src=x onerror="window.__xss=2">', 'the whole description, exactly as the store wrote it, markup shown as text');
-    assert.equal(await page.evaluate(() => window.__xss), undefined, 'nothing a store wrote ran');
+    assert.equal(await page.evaluate(() => document.querySelectorAll('#res .card.bf').length), 0);
     await shot(page, 'offers-page');
     assert.ok(await noSideScroll(page), 'no sideways scroll on the offers page');
+    assert.deepEqual(errors, []);
+  } finally { await context.close(); }
+});
+
+test('the filters «باقات» and «عروض» sit in the filter panel and switch what the results show', async () => {
+  const { context, page, errors } = await openStore(H.WIDTHS[0]);
+  try {
+    await page.evaluate(() => go('sec|all'));
+    await page.waitForSelector('#res .card');
+    const names = () => page.evaluate(() => [...document.querySelectorAll('#res .card')].map((c) => c.querySelector('h4').textContent.trim() + (c.classList.contains('bf') ? '*' : '')));
+    const chips = () => page.evaluate(() => [...document.querySelectorAll('.filter-panel .kind-row .chip')].map((c) => [c.textContent.trim(), c.getAttribute('aria-pressed')]));
+    assert.deepEqual(await chips(), [['باقات', 'false'], ['عروض', 'false']], 'two buttons in the filter panel, off');
+    assert.deepEqual((await names()).filter((n) => n.endsWith('*')), [], 'neither on: the perfumes alone, as before');
+    await page.click('.filter-panel summary');
+    await page.click('.filter-panel [data-okind="bun"]');
+    assert.deepEqual(await chips(), [['باقات', 'true'], ['عروض', 'false']]);
+    assert.deepEqual(await names(), ['باقة الهدايا (عنوان المتجر)*', 'باقة مع قطعة إضافية*'], '«باقات»: the bundles, cheapest first');
+    await page.click('.filter-panel [data-okind="off"]');
+    assert.deepEqual((await names()).slice(0, 2), ['باقة الهدايا (عنوان المتجر)*', 'باقة مع قطعة إضافية*'], 'both on: the bundles first');
+    assert.equal((await names()).length, 4, 'then the two perfumes a store promotes');
+    await page.click('.filter-panel [data-okind="bun"]');
+    assert.deepEqual((await names()).filter((n) => n.endsWith('*')), [], '«عروض» alone: only perfumes');
+    assert.equal((await names()).length, 2);
+    await page.click('.filter-panel [data-okind="off"]');
+    await page.click('.filter-panel [data-okind="bun"]');
+    await page.fill('.filter-panel input[data-k="q"]', 'إضافية');
+    assert.deepEqual(await names(), ['باقة مع قطعة إضافية*'], 'the words filter the bundles too');
+    await page.fill('.filter-panel input[data-k="q"]', '');
+    await page.selectOption('.filter-panel select[data-k="cat"]', { index: 1 });
+    assert.equal(await page.evaluate(() => document.querySelectorAll('#res .card').length), 0, 'a category leaves no bundle');
+    assert.match(await page.evaluate(() => document.querySelector('#res .empty').textContent), /لا توجد باقات/);
+    // reset goes back to the page's own state: all perfumes, no kind on
+    await page.click('[data-filter-reset]');
+    assert.deepEqual(await chips(), [['باقات', 'false'], ['عروض', 'false']]);
     assert.deepEqual(errors, []);
   } finally { await context.close(); }
 });
@@ -131,7 +222,7 @@ test('«باقات وعروض»: perfumes with their own store\'s message, store
 test('no number a store typed as "price before / after" is on any page, and the price is the cheapest real one', async () => {
   const { context, page, errors } = await openStore(H.WIDTHS[0]);
   try {
-    for (const go of ['sec|offers', 'sec|all', 'prod|' + SZ.A, 'prod|' + SZ.E]) {
+    for (const go of ['sec|offers', 'col|offers|offers', 'col|offers|bundles', 'sec|all', 'prod|' + SZ.A, 'prod|' + SZ.E]) {
       await page.evaluate((g) => go(g), go);
       await page.waitForTimeout(150);
       const text = await page.evaluate(() => document.getElementById('view').innerText);
@@ -171,20 +262,28 @@ test('elsewhere the card carries the tag but not the message text, and nothing i
     await page.evaluate(() => go('sec|all'));
     await page.waitForSelector('#res .card');
     const r = await page.evaluate(() => ({ tags: document.querySelectorAll('#res .card .otag').length, lines: document.querySelectorAll('#res .card .pmsg').length, bundles: document.querySelectorAll('.bgrid').length, stores: document.querySelectorAll('.smsg').length }));
-    assert.deepEqual(r, { tags: 2, lines: 0, bundles: 0, stores: 0 }, 'bundles and store messages belong to «باقات وعروض» only');
+    assert.deepEqual(r, { tags: 2, lines: 0, bundles: 0, stores: 0 }, 'bundles are cards of the results only when the «باقات» filter is on, and the store-wide messages belong to the page of the offers');
     assert.deepEqual(errors, []);
   } finally { await context.close(); }
 });
 
-test('the offers page holds at every width', async () => {
+test('the offers pages hold at every width', async () => {
   for (const size of H.WIDTHS) {
     const { context, page, errors } = await openStore(size);
     try {
-      await page.evaluate(() => go('sec|offers'));
-      await page.waitForSelector('.bgrid .card');
-      assert.ok(await noSideScroll(page), 'no sideways scroll at ' + size.name);
-      const box = await page.evaluate(() => { const c = document.querySelector('.bgrid .card').getBoundingClientRect(); return { w: c.width, h: c.height, vw: window.innerWidth }; });
+      const pair = await page.evaluate(() => [...document.querySelectorAll('#offers .strip .card')].map((c) => { const r = c.getBoundingClientRect(); return { l: r.left, r: r.right, w: r.width, h: r.height, vw: window.innerWidth }; }));
+      assert.equal(pair.length, 2);
+      assert.ok(pair.every((c) => c.l >= 0 && c.r <= c.vw && Math.abs(c.w / c.h - 5 / 7) < 0.02), 'the two 5:7 cards fit the screen at ' + size.name);
+      await shotEl(page, '#offers', 'home-offers-' + size.name);
+      assert.ok(await noSideScroll(page), 'no sideways scroll on the home page at ' + size.name);
+      await page.evaluate(() => go('col|offers|bundles'));
+      await page.waitForSelector('#res .card.bf');
+      assert.ok(await noSideScroll(page), 'no sideways scroll on the bundles page at ' + size.name);
+      const box = await page.evaluate(() => { const c = document.querySelector('#res .card.bf').getBoundingClientRect(); return { w: c.width, h: c.height, vw: window.innerWidth }; });
       assert.ok(box.w > 100 && box.w < box.vw, 'the bundle card fits the screen at ' + size.name);
+      await page.click('#res .card.bf');
+      await page.waitForSelector('.bpage');
+      assert.ok(await noSideScroll(page), 'no sideways scroll on the page of a bundle at ' + size.name);
       assert.deepEqual(errors, []);
     } finally { await context.close(); }
   }

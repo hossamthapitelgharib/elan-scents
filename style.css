@@ -966,3 +966,46 @@ html:not(.elan-editing) .card.brandc:not(.nw) { margin-bottom: 40px; }
   border: 0 !important;
 }
 #view .taxo-cats .card.art::after { display: none !important; }
+
+/* ---------- «باقات وعروض»: two cards side by side, 5:7 (owner, 2026-11-27) ----------
+   The block of the home page and the page of the section (the same two cards) hold one card for the bundles and one for the offers, in one row, each 5:7. The size below is only
+   the default: a card the owner resized in the editor carries its own inline size, which wins. Like the cards of Categories, each carries a picture the owner can replace. */
+#offers .strip.offer-pair,
+#view .offers-grid {
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: center;
+  gap: 12px;
+  overflow: visible;
+  scroll-snap-type: none;
+  padding: 10px 0 12px;
+}
+#view .offers-grid { padding: 12px 0 24px; }
+#offers .strip.offer-pair .card.opair,
+#view .offers-grid .card.opair {
+  flex: 0 1 auto !important;
+  width: min(220px, calc((100% - 12px) / 2)) !important;
+  max-width: none !important;
+  height: auto !important;
+  min-height: 0 !important;
+  aspect-ratio: 5 / 7 !important;
+  padding: 0 8px 14px !important;
+  border-radius: 20px !important;
+  overflow: hidden !important;
+  background-clip: border-box !important;
+}
+#offers .card.opair .artbg img,
+#offers .card.opair .artbg svg,
+#view .offers-grid .card.opair .artbg img,
+#view .offers-grid .card.opair .artbg svg { object-fit: fill !important; object-position: center center !important; }
+.card.opair h4 { font-family: 'El Messiri', sans-serif; font-size: 22px !important; line-height: 1.2; }
+.card.opair small { font-size: 12px; }
+
+/* ---------- The two filters «باقات» and «عروض» ---------- */
+.kind-row { display: flex; gap: 8px; margin: 0 0 10px; }
+.kind-row .chip { flex: 0 0 auto; }
+
+/* ---------- The page of a bundle ----------
+   The card of a bundle is a card of a perfume; what the store wrote about the bundle (its pieces and its whole description) is written here. */
+.pd.bpage .pdi { aspect-ratio: 4 / 3; max-height: 300px; }
+.pd.bpage .pdi .otag { position: absolute; inset-inline-start: 12px; bottom: 12px; }
