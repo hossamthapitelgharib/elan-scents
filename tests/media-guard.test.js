@@ -146,6 +146,14 @@ test('«الرئيسية» of the trail returns to the place the visitor left th
   assert.match(core, /<div class="card wide art" data-go="col\|cats\|'\+i\+'">/, 'and the home Categories cards still link by position, so the ids of the owner\'s saved edits (hashed from that text) do not change');
 });
 
+test('«Élan» in the header over a hero picture is a lighter gold with a soft shade behind the logo, and the shade is on the header, not on .logo (owner, 27 Nov; header-logo-hero.chromium.js measures it)', () => {
+  const s3 = read('style-3.css');
+  assert.match(s3, /header::before\{content:'';position:absolute;left:50%;top:50%;[^}]*radial-gradient\([^}]*opacity:0;[^}]*pointer-events:none;z-index:-1\}/, 'the shade belongs to the header (below 380px .logo is overflow:hidden and would cut it to a box), off by default');
+  assert.match(s3, /html\.hero-img:not\(\.hero-pending\) body\.hd-over:not\(\.inner\) header::before\{opacity:1\}/, 'and on only while the header is over a hero that carries a picture, the same gates as the white text beside it');
+  assert.match(s3, /header \.logo b\.gold\{background:linear-gradient\(135deg,#ffe08a/, 'over the hero the word is the lighter gold (the gold of old was 1.1:1 against the white spray of the owner\'s picture)');
+  assert.doesNotMatch(s3, /header \.logo::before/, 'no shade on .logo itself');
+});
+
 test('an uploaded video plays by itself on a phone: muted, looping, inline', () => {
   assert.match(layer, /v\.muted = true; v\.loop = true; v\.autoplay = true; v\.setAttribute\('playsinline', ''\);/, 'the video the owner uploads to a card plays inline (phones otherwise open it full screen)');
   assert.match(layer, /v\.setAttribute\('muted', ''\); v\.setAttribute\('loop', ''\); v\.setAttribute\('autoplay', ''\); v\.setAttribute\('playsinline', ''\)/);

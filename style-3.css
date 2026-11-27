@@ -423,6 +423,15 @@ html:not(.hero-pending) body.hd-over:not(.inner):has(#hero[data-media]) header .
 html:not(.hero-pending) body.hd-over:not(.inner):has(#hero[data-media]) header .logo small{color:#fff!important;-webkit-text-fill-color:#fff!important;-webkit-text-stroke-color:#fff}
 html.hero-img:not(.hero-pending) body.hd-over:not(.inner) header .logo span{color:#fff;-webkit-text-fill-color:#fff}
 html.hero-img:not(.hero-pending) body.hd-over:not(.inner) header .logo small{color:#fff!important;-webkit-text-fill-color:#fff!important;-webkit-text-stroke-color:#fff}
+/* Élan over a hero picture (owner, 2026-11-27: «the gold of Élan in the header is not clear against the hero»; the owner's hero is a wave whose dark water and white spray both sit behind the word, so no single gold reads on all of it:
+   measured on his screenshot the gold is 3.7:1 against the water and 1.1:1 against the spray). Over the hero the word turns a lighter, glossier gold and a soft dark shade sits behind the whole logo (the tagline too, which the spray also swallowed).
+   The shade is on the header, not on .logo: below 380px .logo is overflow:hidden and would cut it to a box. Same gates as the white text above (a hero that carries a picture or video, the header still over it, not an inner page);
+   everywhere else the logo is the gold it always was. A trial the owner asked for: if he does not like it the word goes white like the rest of the header (his option 2), see tests/browser/header-logo-hero.chromium.js. */
+header::before{content:'';position:absolute;left:50%;top:50%;width:min(420px,94%);height:128px;transform:translate(-50%,-50%);background:radial-gradient(ellipse at center,rgba(12,8,3,.66) 0%,rgba(12,8,3,.4) 45%,transparent 74%);opacity:0;transition:opacity .3s;pointer-events:none;z-index:-1}
+html:not(.hero-pending) body.hd-over:not(.inner):has(#hero[data-media]) header::before,
+html.hero-img:not(.hero-pending) body.hd-over:not(.inner) header::before{opacity:1}
+html:not(.hero-pending) body.hd-over:not(.inner):has(#hero[data-media]) header .logo b.gold,
+html.hero-img:not(.hero-pending) body.hd-over:not(.inner) header .logo b.gold{background:linear-gradient(135deg,#ffe08a 0%,#f0c04a 35%,#d9a63a 65%,#f6d56a 100%);-webkit-background-clip:text;background-clip:text;filter:drop-shadow(0 1px 2px rgba(60,35,0,.55))}
 /* The cart icon in the header is a little smaller than the other icons (the heart and the rest stay as they were). */
 header .ic button[data-sheet="cart"] svg{width:20px!important;height:20px!important}
 /* Owner, 2026-11-23: the menu, the search and the notification icons are the same size as the cart and the heart. The heart and the cart are drawn about 16px
