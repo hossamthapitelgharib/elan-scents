@@ -1,9 +1,9 @@
 name: Fetch public store feeds (temporary)
 
-# Temporary (owner approved on 2026-11-20 and again on 2026-11-23: "use the GitHub server"): saves the PUBLIC pages of the two trial stores
-# (Afnan Egypt, Emarati Scents) because the working session cannot open those sites. The first run of 2026-11-23 asked for every section and the
-# stores answered HTTP 429 (too many requests); this run is gentler: only the few sections that hold offers or bundles, one request every 10 seconds,
-# the server's Retry-After honoured, and it STOPS a store after three refusals in a row. Public pages only (no login, no secret).
+# Temporary (owner approved on 2026-11-28: "fetch, dry-run, come back with numbers"): saves the PUBLIC product pages of the two trial stores
+# (Afnan Egypt, Emarati Scents) - each product's picture, description, labels and publication date, plus the stores' section list and the few
+# sections that say "new" or "coming soon" - because the working session cannot open those sites. Gentle: one request every 10 seconds, the
+# server's Retry-After honoured, and it STOPS a store after three refusals in a row. Public pages only (no login, no secret).
 # Runs only on the temporary branch tmp/fetch-store-feeds; the result goes to tmp/store-feeds-data, which is emptied afterwards.
 
 on:
@@ -16,22 +16,19 @@ permissions:
 jobs:
   fetch:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
       - name: Download the public pages
         run: |
-          mkdir -p sections
+          mkdir -p feeds
           cat > fetch.py <<'PY'
           import json, re, time, urllib.parse, urllib.request, urllib.error
           UA = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36'
-          # only the sections that can hold offers or bundles
-          WANT = {
-              'emarati-scents': ('https://emaratiscents.com', ['insane-deals', 'bundles', 'zeina-elnaggar-s-signature-bundles', 'lattafa-luxury-gift-sets', 'sale', 'must-try', 'eclaire-family💫', 'yara-asad-elixir']),
-              'afnan-egypt': ('https://egypt.afnan.com', ['white-friday-sale', 'eid-special-offer']),
-          }
+          STORES = {'emarati-scents': 'https://emaratiscents.com', 'afnan-egypt': 'https://egypt.afnan.com'}
           PAUSE = 10
+          # a section whose name says new / coming soon
+          PICK = re.compile(r'new|latest|arrival|just[-\s]*landed|جديد|وصل|أحدث|احدث|soon|upcoming|pre[-\s]*order|قريب|مرتقب', re.I)
           def get(url):
-              """returns (status, body); honours Retry-After on 429, at most 2 waits per request"""
               for attempt in range(3):
                   try:
                       req = urllib.request.Request(url, headers={'User-Agent': UA, 'Accept': 'application/json'})
@@ -47,44 +44,70 @@ jobs:
               return 0, b''
           def slug(s):
               return re.sub(r'[^a-z0-9]+', '_', s.lower()).strip('_') or 'x'
-          for name, (base, handles) in WANT.items():
-              print('==', name)
+          def save(name, obj):
+              open('feeds/' + name + '.json', 'w', encoding='utf-8').write(json.dumps(obj, ensure_ascii=False))
+              print('saved', name)
+          for store, base in STORES.items():
+              print('==', store)
               refused = 0
-              for h in handles:
-                  if refused >= 3:
-                      print(' stopping this store after three refusals in a row'); break
-                  items, page, ok = [], 1, True
-                  while page <= 9:
-                      st, raw = get(f'{base}/collections/{urllib.parse.quote(h)}/products.json?limit=250&page={page}')
-                      if st != 200: ok = False; break
+              # 1) the store's list of sections
+              cols, page = [], 1
+              while page <= 4:
+                  st, raw = get(f'{base}/collections.json?limit=250&page={page}')
+                  if st != 200: refused += 1; break
+                  cs = json.loads(raw).get('collections', [])
+                  if not cs: break
+                  for c in cs:
+                      cols.append({'handle': c.get('handle'), 'title': c.get('title'), 'products_count': c.get('products_count'), 'published_at': c.get('published_at')})
+                  page += 1; time.sleep(PAUSE)
+              save(store + '-collections', cols)
+              time.sleep(PAUSE)
+              # 2) every product: picture, description, labels, dates (trimmed)
+              page = 1
+              while page <= 12 and refused < 3:
+                  st, raw = get(f'{base}/products.json?limit=250&page={page}')
+                  if st != 200: refused += 1; break
+                  ps = json.loads(raw).get('products', [])
+                  if not ps: break
+                  out = []
+                  for p in ps:
+                      out.append({
+                          'handle': p.get('handle'), 'title': p.get('title'), 'vendor': p.get('vendor'), 'product_type': p.get('product_type'),
+                          'tags': p.get('tags') or [], 'body_html': p.get('body_html'),
+                          'published_at': p.get('published_at'), 'created_at': p.get('created_at'), 'updated_at': p.get('updated_at'),
+                          'variants': [{'title': v.get('title'), 'price': v.get('price'), 'available': v.get('available')} for v in (p.get('variants') or [])],
+                          'images': [{'src': i.get('src'), 'position': i.get('position'), 'width': i.get('width'), 'height': i.get('height')} for i in (p.get('images') or [])],
+                      })
+                  save(f'{store}-products-page-{page}', out)
+                  page += 1; time.sleep(PAUSE)
+              # 3) the products of the few sections that say new / coming soon
+              for c in cols:
+                  if refused >= 3: print(' stopping this store after three refusals'); break
+                  if not PICK.search((c.get('title') or '') + ' ' + (c.get('handle') or '')): continue
+                  items, page = [], 1
+                  while page <= 6:
+                      st, raw = get(f'{base}/collections/{urllib.parse.quote(c["handle"])}/products.json?limit=250&page={page}')
+                      if st != 200: refused += 1; break
                       ps = json.loads(raw).get('products', [])
                       if not ps: break
-                      for p in ps:
-                          vs = p.get('variants') or []
-                          prices = [float(v['price']) for v in vs if v.get('price')]
-                          cmp_ = [float(v['compare_at_price']) for v in vs if v.get('compare_at_price')]
-                          items.append({'handle': p['handle'], 'title': p['title'], 'available': any(v.get('available') for v in vs),
-                                        'price': min(prices) if prices else None, 'compare_at': max(cmp_) if cmp_ else None})
+                      items += [{'handle': p.get('handle'), 'published_at': p.get('published_at')} for p in ps]
                       page += 1; time.sleep(PAUSE)
-                  refused = 0 if ok else refused + 1
-                  path = f'sections/{name}-col-{slug(h)}.json'
-                  open(path, 'w', encoding='utf-8').write(json.dumps({'handle': h, 'ok': ok, 'products': items}, ensure_ascii=False))
-                  print('saved', path, 'ok' if ok else 'REFUSED', len(items), 'products')
+                  save(f'{store}-section-{slug(c["handle"])}', {'handle': c['handle'], 'title': c['title'], 'products': items})
                   time.sleep(PAUSE)
           PY
           python3 fetch.py
-          ls -l sections
+          ls -l feeds
       - name: Hand the files to the working session (temporary data branch)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -eu
-          gzip -9 sections/*
-          mkdir handoff && cp -r sections handoff/
+          gzip -9 feeds/*
+          mkdir handoff && cp -r feeds handoff/
           cd handoff
           git init -q -b tmp/store-feeds-data
           git config user.name 'github-actions'
           git config user.email 'github-actions@users.noreply.github.com'
-          git add sections
-          git commit -qm 'tmp: the offer and bundle sections of the two trial stores (to be emptied)'
+          git add feeds
+          git commit -qm 'tmp: the public product pages of the two trial stores (to be emptied)'
           git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" tmp/store-feeds-data
