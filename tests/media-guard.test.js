@@ -146,12 +146,17 @@ test('«الرئيسية» of the trail returns to the place the visitor left th
   assert.match(core, /<div class="card wide art" data-go="col\|cats\|'\+i\+'">/, 'and the home Categories cards still link by position, so the ids of the owner\'s saved edits (hashed from that text) do not change');
 });
 
-test('«Élan» in the header over a hero picture is a lighter gold with a soft shade behind the logo, and the shade is on the header, not on .logo (owner, 27 Nov; header-logo-hero.chromium.js measures it)', () => {
-  const s3 = read('style-3.css');
-  assert.match(s3, /header::before\{content:'';position:absolute;left:50%;top:50%;[^}]*radial-gradient\([^}]*opacity:0;[^}]*pointer-events:none;z-index:-1\}/, 'the shade belongs to the header (below 380px .logo is overflow:hidden and would cut it to a box), off by default');
+test('«Élan», the word of the logo, is one lighter gold everywhere, never the old gold, with a soft shade behind the logo over the hero only, cut at the hero\'s edge and without a hard edge (owner, 27 Nov; header-logo-hero.chromium.js measures it)', () => {
+  const s3 = read('style-3.css'), acct = read('account.css');
+  const stops = /linear-gradient\(135deg,#ffe08a 0%,#f0c04a 35%,#d9a63a 65%,#f6d56a 100%\)/;
+  assert.match(s3, /\.logo b\.gold\{background:linear-gradient\(135deg,#ffe08a 0%,#f0c04a 35%,#d9a63a 65%,#f6d56a 100%\);-webkit-background-clip:text;background-clip:text;filter:drop-shadow\(0 1px 2px rgba\(60,35,0,\.55\)\)\}/, 'the word of the logo (header, menu, About section: all `.logo b.gold`) is the lighter gold with no condition at all: the old gold was 1.1:1 against the white spray of the owner\'s picture and he asked for the new one to stay everywhere (27 Nov 19:26)');
+  assert.doesNotMatch(s3, /hd-over[^{]*\.logo b\.gold\s*[,{]/, 'and it is not gated on the header being over the hero (the first version was, and went back to the old gold after the hero)');
+  assert.match(acct, /body\.acct \.acct-mark b \{[^}]*background: linear-gradient\(135deg, #ffe08a 0%, #f0c04a 35%, #d9a63a 65%, #f6d56a 100%\)[^}]*filter: drop-shadow\(0 1px 2px rgba\(60, 35, 0, \.55\)\)/, 'the orders page carries the same stops');
+  assert.doesNotMatch(acct.match(/body\.acct \.acct-mark b \{[^}]*\}/)[0], /#f3c94f|#8a5e0c/i, 'and not the old ones');
+  assert.match(s3, /header::before\{content:'';position:absolute;left:50%;top:50%;[^}]*radial-gradient\(ellipse closest-side,[^}]*transparent 100%\);clip-path:inset\(0 0 calc\(128px - var\(--hcut,128px\)\) 0\);opacity:0;[^}]*pointer-events:none;z-index:-1\}/, 'the shade belongs to the header (below 380px .logo is overflow:hidden and would cut it to a box), off by default, fades to nothing at the edges of its own box (closest-side: the first version left a faint rectangle) and is cut at the hero\'s bottom edge by --hcut (it spilled onto the white page and the title under the hero)');
   assert.match(s3, /html\.hero-img:not\(\.hero-pending\) body\.hd-over:not\(\.inner\) header::before\{opacity:1\}/, 'and on only while the header is over a hero that carries a picture, the same gates as the white text beside it');
-  assert.match(s3, /header \.logo b\.gold\{background:linear-gradient\(135deg,#ffe08a/, 'over the hero the word is the lighter gold (the gold of old was 1.1:1 against the white spray of the owner\'s picture)');
   assert.doesNotMatch(s3, /header \.logo::before/, 'no shade on .logo itself');
+  assert.match(read('app-core.js'), /function hdTone\(\)\{[^\n]*hdC\.hd\.style\.setProperty\('--hcut',c\+'px'\)/, 'hdTone() keeps --hcut (how much of the shade is still above the hero\'s edge) up to date, on the one line the unit tests cut it out by');
 });
 
 test('an uploaded video plays by itself on a phone: muted, looping, inline', () => {

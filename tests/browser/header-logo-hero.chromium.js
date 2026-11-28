@@ -1,8 +1,12 @@
 'use strict';
 /* Owner, 2026-11-27: «لون الذهبي بتاع اسم إيلان في الهيدر مش واضح من خلفية صورة الهيرو». Measured on his phone screenshot: the gold of «Élan» is 3.7:1 against the dark water behind it and 1.1:1 against the white spray,
-   so no single gold reads on the whole word. The fix he chose to try (his option 4; if he does not like it the word goes white like the rest of the header, his option 2, and this file changes with it):
-   over a hero that carries a picture or video, while the header is still over it, the word is a lighter glossy gold and a soft dark shade sits behind the whole logo (header::before, NOT .logo: below 380px .logo is
-   overflow:hidden and would cut the shade to a box). Everywhere else (no hero media, scrolled past the hero, an inner page) the logo is the gold it always was.
+   so no single gold reads on the whole word. The fix he chose to try (his option 4):
+   a lighter glossy gold for the word, and over a hero that carries a picture or video, while the header is still over it, a soft dark shade behind the whole logo (header::before, NOT .logo: below 380px .logo is
+   overflow:hidden and would cut the shade to a box). If he does not like the shade the word goes white like the rest of the header over the hero (his option 2) and the shade tests below change with it.
+   Then, after trying it, he said (27 Nov 19:26) «I like the new shade of the gold, keep it fixed, it must not go back to the old one anywhere on the platform»: the lighter gold is the word's colour on the header over the hero
+   AND after it, on the inner pages, in the menu, in the About section and on the orders page; only the shade is limited to the hero.
+   The shade is cut at the hero's bottom edge (--hcut, written by hdTone()) and fades to nothing at the edges of its own box (his screenshot of 27 Nov 14:23 showed it spilling onto the white page and the title under the hero,
+   with a faint box at its two ends); both are measured on the pixels: the screenshot with the shade and the screenshot without it.
    The readability is measured on the pixels, not on the CSS: the same word over a light spray-coloured hero, glyph pixels against the picture under them (WCAG contrast), with the hero we serve ourselves so it does not depend
    on what the owner saved. */
 const test = require('node:test');
@@ -17,7 +21,8 @@ test.after(async () => { if (browser) await browser.close(); if (server) await s
 const MEDIA = 'https://sbgdtuqfrnfeggkwqtrw.supabase.co/storage/v1/object/public/site-media/uploads/test/spray.png';
 /* The worst case for a gold word: the colour of sea spray, a light grey-blue. */
 const SPRAY = '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="800"><rect width="400" height="800" fill="#a9bcc4"/></svg>';
-const LIGHT_GOLD = 'rgb(255, 224, 138)';   // the first stop of the lighter gold over the hero
+const LIGHT_GOLD = 'rgb(255, 224, 138)';   // the first stop of the lighter gold, the word's colour everywhere
+const OLD_GOLD = 'rgb(243, 201, 79)';      // the first stop of the old `.gold`, which the word never goes back to
 
 async function openHome(size) {
   const { context } = await H.openContext(browser, server, size);
@@ -67,6 +72,27 @@ async function wordContrast(page) {
   }, [withWord.toString('base64'), without.toString('base64')]);
 }
 
+/* The same clip with the shade and without it (the shade switched off): the largest per-channel difference over the whole clip and over its outer frame (two CSS pixels at the left, the right and the top). */
+async function shadeDiff(page, clip) {
+  const withShade = await page.screenshot({ clip, animations: 'disabled' });
+  const hide = await page.addStyleTag({ content: 'header::before{display:none!important}' });
+  const without = await page.screenshot({ clip, animations: 'disabled' });
+  await hide.evaluate((n) => n.remove());
+  return page.evaluate(async (a) => {
+    const load = async (s) => { const bytes = Uint8Array.from(atob(s), (c) => c.charCodeAt(0)); const bmp = await createImageBitmap(new Blob([bytes], { type: 'image/png' })); const cv = document.createElement('canvas'); cv.width = bmp.width; cv.height = bmp.height; const cx = cv.getContext('2d'); cx.drawImage(bmp, 0, 0); return { d: cx.getImageData(0, 0, bmp.width, bmp.height).data, w: bmp.width, h: bmp.height }; };
+    const A = await load(a.pair[0]), B = await load(a.pair[1]), fr = Math.max(2, Math.round(2 * A.w / a.cssW));
+    const out = { max: 0, left: 0, right: 0, top: 0 };
+    for (let y = 0; y < A.h; y++) for (let x = 0; x < A.w; x++) {
+      const i = (y * A.w + x) * 4, v = Math.max(Math.abs(A.d[i] - B.d[i]), Math.abs(A.d[i + 1] - B.d[i + 1]), Math.abs(A.d[i + 2] - B.d[i + 2]));
+      if (v > out.max) out.max = v;
+      if (x < fr && v > out.left) out.left = v;
+      if (x >= A.w - fr && v > out.right) out.right = v;
+      if (y < fr && v > out.top) out.top = v;
+    }
+    return out;
+  }, { pair: [withShade.toString('base64'), without.toString('base64')], cssW: clip.width });
+}
+
 for (const size of H.WIDTHS) {
   test('at ' + size.width + 'px over a hero picture «Élan» is the lighter gold with the shade behind the logo, and it reads even over a light, spray-coloured picture', async () => {
     const { context, page } = await openHome(size);
@@ -85,7 +111,7 @@ for (const size of H.WIDTHS) {
     } finally { await context.close(); }
   });
 
-  test('at ' + size.width + 'px the shade and the lighter gold are gone once the header is past the hero, on an inner page, and when the hero has no picture', async () => {
+  test('at ' + size.width + 'px the shade is gone once the header is past the hero, on an inner page, and when the hero has no picture, while the word keeps the same lighter gold in all three', async () => {
     const { context, page } = await openHome(size);
     try {
       await setHero(page, true);
@@ -96,7 +122,7 @@ for (const size of H.WIDTHS) {
       await settled(page, '0');
       let s = await state(page);
       assert.equal(s.halo, '0', 'no shade once the header is past the hero');
-      assert.ok(!s.gold.includes(LIGHT_GOLD), 'the word is the gold it always was: ' + s.gold);
+      assert.ok(s.gold.includes(LIGHT_GOLD) && !s.gold.includes(OLD_GOLD), 'past the hero the word is still the lighter gold, not the old one (owner, 27 Nov 19:26): ' + s.gold);
       // back at the top, then an inner page
       await page.evaluate(() => window.scrollTo(0, 0));
       await page.waitForFunction(() => document.body.classList.contains('hd-over'), null, { timeout: 5000 });
@@ -106,7 +132,7 @@ for (const size of H.WIDTHS) {
       await settled(page, '0');
       s = await state(page);
       assert.equal(s.halo, '0', 'no shade on an inner page');
-      assert.ok(!s.gold.includes(LIGHT_GOLD), 'the word keeps its gold on an inner page: ' + s.gold);
+      assert.ok(s.gold.includes(LIGHT_GOLD) && !s.gold.includes(OLD_GOLD), 'the word keeps the lighter gold on an inner page: ' + s.gold);
       await page.evaluate(() => { document.querySelector('#view .bc a[data-bc="0"]').click(); });
       await page.waitForFunction(() => !document.body.classList.contains('inner'), null, { timeout: 5000 });
       // a hero with no picture is a white slot: the shade would sit on white
@@ -114,7 +140,62 @@ for (const size of H.WIDTHS) {
       await settled(page, '0');
       s = await state(page);
       assert.equal(s.halo, '0', 'no shade over a hero without a picture');
-      assert.ok(!s.gold.includes(LIGHT_GOLD), 'the word is the gold it always was over a white hero: ' + s.gold);
+      assert.ok(s.gold.includes(LIGHT_GOLD) && !s.gold.includes(OLD_GOLD), 'the word is the lighter gold over a white hero too: ' + s.gold);
+    } finally { await context.close(); }
+  });
+
+  test('at ' + size.width + 'px the shade fades out to nothing at the edges of its own box and is cut at the bottom edge of the hero, so it never lands on the white page under the hero (owner, 27 Nov 14:23)', async () => {
+    const { context, page } = await openHome(size);
+    try {
+      await setHero(page, true);
+      await settled(page, '1');
+      const box = () => page.evaluate(() => { const h = document.querySelector('header'), q = h.getBoundingClientRect(), s = getComputedStyle(h, '::before'), w = parseFloat(s.width), t = parseFloat(s.height); return { x: q.left + q.width / 2 - w / 2, y: q.top + q.height / 2 - t / 2, width: w, height: t, mid: q.top + q.height / 2, hb: document.getElementById('hero').getBoundingClientRect().bottom, vw: innerWidth }; });
+      // 1. no hard edge: at the top of the page, the shade's own box against the same box without it
+      let g = await box();
+      // (on a phone the top of the box is above the screen, so its top edge cannot be seen and is only checked when it is on the screen)
+      const topOnScreen = g.y >= 2;
+      const edges = await shadeDiff(page, { x: Math.max(0, Math.floor(g.x)), y: Math.max(0, Math.floor(g.y)), width: Math.ceil(g.width), height: Math.ceil(g.height + Math.min(0, g.y)) });
+      assert.ok(edges.max >= 20, 'the shade paints something over the hero picture (otherwise the edge check below proves nothing): ' + JSON.stringify(edges));
+      assert.ok(edges.left <= 2 && edges.right <= 2 && (!topOnScreen || edges.top <= 2), 'the shade is gone at the left and the right edge of its box (and at the top edge when that is on the screen), so no faint rectangle shows (the first version left about 7/255 there): ' + JSON.stringify(edges));
+      // 2. the hero ends 30px under the middle of the header (the header is still over it): nothing of the shade below that edge
+      for (let i = 0; i < 4; i++) {
+        g = await box();
+        const off = g.hb - (g.mid + 30);
+        if (Math.abs(off) < 1) break;
+        await page.evaluate((d) => { document.documentElement.style.scrollBehavior = 'auto'; window.scrollBy(0, d); }, off);
+        await H.quiet(page);
+      }
+      await settled(page, '1');
+      g = await box();
+      assert.ok(g.hb - g.mid > 20 && g.hb - g.mid < 40, 'the hero ends under the middle of the header: ' + JSON.stringify(g));
+      const cutAt = await page.evaluate(() => document.querySelector('header').style.getPropertyValue('--hcut'));
+      assert.ok(/^\d+px$/.test(cutAt) && parseInt(cutAt, 10) > 64 && parseInt(cutAt, 10) < 128, 'hdTone() tells the stylesheet how much of the box is still above the hero\'s edge (' + (g.hb - g.mid + 64) + 'px): ' + cutAt);
+      const above = await shadeDiff(page, { x: Math.max(0, Math.floor(g.x)), y: Math.max(0, Math.floor(g.y)), width: Math.ceil(g.width), height: Math.max(8, Math.floor(g.hb - g.y) - 2) });
+      assert.ok(above.max >= 20, 'above the hero\'s edge the shade is there: ' + JSON.stringify(above));
+      const below = await shadeDiff(page, { x: 0, y: Math.ceil(g.hb) + 1, width: g.vw, height: 60 });
+      assert.ok(below.max <= 1, 'under the hero\'s edge, on the white page, the shade paints nothing: ' + JSON.stringify(below));
     } finally { await context.close(); }
   });
 }
+
+test('«Élan», the word of the logo, is the same lighter gold in the header, the menu, the About section and the orders page, and never the old gold (owner, 27 Nov 19:26)', async () => {
+  const { context, page } = await openHome(H.WIDTHS[0]);
+  try {
+    const look = (q) => page.evaluate((sel) => { const e = document.querySelector(sel); return e ? { bg: getComputedStyle(e).backgroundImage, filter: getComputedStyle(e).filter, clip: getComputedStyle(e).webkitBackgroundClip || getComputedStyle(e).backgroundClip } : null; }, q);
+    const check = (name, l) => {
+      assert.ok(l, name + ': the word is on the page');
+      assert.ok(l.bg.includes(LIGHT_GOLD) && l.bg.includes('rgb(246, 213, 106)') && !l.bg.includes(OLD_GOLD), name + ': the lighter gold, not the old one: ' + l.bg);
+      assert.match(l.filter, /drop-shadow/, name + ': with the soft edge that keeps it readable on white: ' + l.filter);
+      assert.equal(l.clip, 'text', name + ': painted through the letters');
+    };
+    check('header', await look('header .logo b'));
+    check('About section', await look('.alogo .logo b'));
+    await page.evaluate(() => document.getElementById('mb').click());
+    await page.waitForSelector('#menu a.mlogo .logo b', { state: 'attached', timeout: 5000 });
+    check('menu', await look('#menu a.mlogo .logo b'));
+    const orders = await context.newPage();
+    await orders.goto(H.SITE + '/account.html', { waitUntil: 'load' });
+    await orders.waitForSelector('.acct-mark b', { timeout: 5000 });
+    check('orders page', await orders.evaluate(() => { const e = document.querySelector('.acct-mark b'); return { bg: getComputedStyle(e).backgroundImage, filter: getComputedStyle(e).filter, clip: getComputedStyle(e).webkitBackgroundClip || getComputedStyle(e).backgroundClip }; }));
+  } finally { await context.close(); }
+});
